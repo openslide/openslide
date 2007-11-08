@@ -1,0 +1,12 @@
+Wholeslide
+
+Carnegie Mellon University
+
+http://wholeslide.cs.cmu.edu/
+
+====================
+
+Unless otherwise specified, this code is copyright Carnegie Mellon University.
+
+This code is licensed under the GNU GPL version 2, not any later version.
+See the file gpl-2.0.txt for the text of the license.
