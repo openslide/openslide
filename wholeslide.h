@@ -1,8 +1,14 @@
+/**
+ * @file wholeslide.h
+ * The API for the libwholeslide library.
+ */
+
 #ifndef _WHOLESLIDE_H_
 #define _WHOLESLIDE_H_
 
 #include <stdio.h>
 #include <stdint.h>
+
 
 
 typedef struct _wholeslide wholeslide_t;
