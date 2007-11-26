@@ -30,7 +30,7 @@ wholeslide_t *ws_open(const char *filename);
  * @param slice The desired slice.
  * @param w The width of the region.
  * @param h The height of the region.
- * @return The minimum number of bytes to allocate to hold the uncompressed image data for the region.
+ * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
 uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
 				 uint32_t x, uint32_t y,
