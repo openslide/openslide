@@ -92,4 +92,14 @@ void ws_cancel_prefetch_hint(wholeslide_t *ws, int prefetch_id);
 void ws_close(wholeslide_t *ws);
 
 
+uint32_t ws_get_slice_count(wholeslide_t *ws);
+const char *ws_get_slice_name(wholeslide_t *ws, uint32_t slice_number);
+uint32_t ws_get_baseline_height(wholeslide_t *ws);
+uint32_t ws_get_baseline_width(wholeslide_t *ws);
+uint32_t ws_get_slice_height(wholeslide_t *ws, const char *slice);
+uint32_t ws_get_slice_width(wholeslide_t *ws, const char *slice);
+double ws_get_slice_downsample(wholeslide_t *ws, const char *slice);
+
+const char *ws_get_comment(wholeslide_t *ws);
+
 #endif
