@@ -11,6 +11,21 @@ slide images in a simple, vendor neutral fashion.
  <li>Support for slide metadata</li>
 </ul>
 
+\section background Background
+
+\par
+Whole slide images, as used in digital pathology, are often too large
+to fit completely into memory. At the same time, rapid random access
+of these images is essential. Fortunately, whole slide images are organized
+in a way that allows for efficient random access horizontally,
+vertically, and across multiple zoom factors.
+Sadly, there is hardly a standard way for
+representing such images, and every vendor seems to choose a unique
+and incompatible format.
+
+This library exists to mitigate such vendor specific details in whole
+slide images while preserving the beneficial optimizations present within.
+
 \section qstart Quick Start
 
 \par
@@ -29,6 +44,10 @@ slide images in a simple, vendor neutral fashion.
 \section decisions Design Decisions
 
 \subsection coord Coordinate System
+
+\par
+The 
+
 
 \subsection prefetch Prefetch Hints
 
