@@ -1,8 +1,16 @@
-/** \mainpage Library for Whole Slide Images
-The wholeslide library is designed to provide read-only access to whole
-slide images in a simplified style similiar to libtiff. Functions
-are provided to open and close files, as well as read metadata and
-get decompressed image data. Differences between various vendor formats
-are abstracted.
+/** \mainpage Library for Whole Slide Image Access
+
+\par
+The wholeslide library is designed to provide high performance, read-only access to whole
+slide images in a vendor-neutral fashion.
+
+\par
+Key features:
+
+<ul>
+ <li>Metadata query</li>
+ <li>Baseline-centric coordinate system</li>
+ <li>Abstract regions</li>
+</ul>
 
 */
