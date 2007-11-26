@@ -2,15 +2,28 @@
 
 \par
 The wholeslide library is designed to provide high performance, read-only access to whole
-slide images in a vendor-neutral fashion.
+slide images in a simple, vendor neutral fashion.
+
+\par Key features:
+<ul>
+ <li>Vendor neutral</li>
+ <li>Access to all pyramidal image layers through a single coordinate system</li>
+ <li>Support for slide metadata</li>
+</ul>
+
+\section qstart Quick Start
 
 \par
-Key features:
-
-<ul>
- <li>Metadata query</li>
- <li>Baseline-centric coordinate system</li>
- <li>Abstract regions</li>
-</ul>
+<ol>
+ <li>Open an image with ws_open().</li>
+ <li>Fetch the list of layers with ws_get_layer_count() and ws_get_layer_name().</li>
+ <li>Query the dimensions of the layers with ws_get_baseline_dimensions(),
+     ws_get_layer_dimensions(), and ws_get_layer_downsample().</li>
+ <li>Determine how much of a memory buffer to allocate with ws_get_region_num_bytes().</li>
+ <li>(Optional) Give prefetch hints for soon-to-be-needed regions with
+      ws_give_prefetch_hint().</li>
+ <li>Fetch image regions with ws_read_region().</li>
+ <li>Close the handle with ws_close().</li>
+</ol>
 
 */

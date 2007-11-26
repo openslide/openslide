@@ -70,16 +70,16 @@ void ws_read_region(wholeslide_t *ws,
  * @param h The height of the region.
  * @returns A unique identifier for this prefetch hint.
  */
-int ws_prefetch_hint(wholeslide_t *ws,
-		     uint32_t x, uint32_t y,
-		     const char *layer,
-		     uint32_t w, uint32_t h);
+int ws_give_prefetch_hint(wholeslide_t *ws,
+			  uint32_t x, uint32_t y,
+			  const char *layer,
+			  uint32_t w, uint32_t h);
 
 /**
  * Cancel an existing prefetch hint.
  *
  * @param ws The whole slide image handle.
- * @param prefetch_id An identifier returned by ws_prefetch_hint().
+ * @param prefetch_id An identifier returned by ws_give_prefetch_hint().
  */
 void ws_cancel_prefetch_hint(wholeslide_t *ws, int prefetch_id);
 
@@ -91,15 +91,58 @@ void ws_cancel_prefetch_hint(wholeslide_t *ws, int prefetch_id);
  */
 void ws_close(wholeslide_t *ws);
 
-
+/**
+ * Get the number of layers in the whole slide image.
+ *
+ * @param ws The whole slide image handle.
+ * @return The number of layers.
+ */
 uint32_t ws_get_layer_count(wholeslide_t *ws);
+
+/**
+ * Get the name for a layer.
+ *
+ * @param ws The whole slide image handle.
+ * @param layer_number The layer number to get the name for.
+ * @return The name of the layer.
+ */
 const char *ws_get_layer_name(wholeslide_t *ws, uint32_t layer_number);
-uint32_t ws_get_baseline_height(wholeslide_t *ws);
-uint32_t ws_get_baseline_width(wholeslide_t *ws);
-uint32_t ws_get_layer_height(wholeslide_t *ws, const char *layer);
-uint32_t ws_get_layer_width(wholeslide_t *ws, const char *layer);
+
+/**
+ * Get the dimensions of the baseline image.
+ *
+ * @param ws The whole slide image handle.
+ * @param[out] w The width of the image.
+ * @param[out] h The height of the image.
+ */
+void ws_get_baseline_dimensions(wholeslide_t *ws, uint32_t *w, uint32_t *h);
+
+/**
+ * Get the dimensions of a layer.
+ *
+ * @param ws The whole slide image handle.
+ * @param layer The name of the desired layer.
+ * @param[out] w The width of the image.
+ * @param[out] h The height of the image.
+ */
+void ws_get_layer_dimensions(wholeslide_t *ws, const char *layer, uint32_t *w, uint32_t *h);
+
+/**
+ * Get the downsampling factor of a given layer.
+ *
+ * @param ws The whole slide image handle.
+ * @param layer The name of the desired layer.
+ * @return The downsampling factor for this layer.
+ */
 double ws_get_layer_downsample(wholeslide_t *ws, const char *layer);
 
+
+/**
+ * Get the comment (if any) for this image.
+ *
+ * @param ws The whole slide image handle.
+ * @return The comment for this image.
+ */
 const char *ws_get_comment(wholeslide_t *ws);
 
 #endif
