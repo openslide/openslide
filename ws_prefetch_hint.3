@@ -1,0 +1,35 @@
+.TH "ws_prefetch_hint" "3" "Release 0.0.1" "Carnegie Mellon University" "Wholeslide Library"
+.SH "NAME"
+.LP 
+\fBws_prefetch_hint\fR \- Specify a whole slide region that is likely to be needed soon
+.SH "SYNTAX"
+.LP 
+#include <wholeslide.h>
+.LP 
+void \fBws_prefetch_hint\fR(wholeslide_t *\fIwsd\fP, uint32_t \fIx\fP, uint32_t \fIy\fP, const char *\fIslice\fP, uint32_t \fIw\fP, uint32_t \fIh\fP)
+.SH "ARGUMENTS"
+.LP 
+.TP 
+\fIwsd\fP
+Specifies the wholeslide_t object.
+.TP 
+\fIx\fP
+The x\-coordinate of the upper\-left corner of the desired region.
+.TP 
+\fIy\fP
+The y\-coordinate of the upper\-left corner of the desited region.
+.TP 
+\fIslice\fP
+The name of the desired slice, as given by ws_stat(3).
+.TP 
+\fIw\fP
+The width of the desired region.
+.TP 
+\fIh\fP
+The height of the desired region.
+.SH "DESCRIPTION"
+.LP 
+Sometimes it is desired to hint to the system which regions will be required next. \fBws_prefetch_hint\fR provides this information to the system. It is only an optimization.
+.SH "SEE ALSO"
+.LP 
+ws_close(3) ws_read_region(3) ws_stat(3) ws_open(3)

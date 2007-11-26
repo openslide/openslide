@@ -1,0 +1,22 @@
+.TH "ws_open" "3" "Release 0.0.1" "Carnegie Mellon University" "Wholeslide Library"
+.SH "NAME"
+.LP 
+\fBws_open\fR \- Open a whole slide image
+.SH "SYNTAX"
+.LP 
+#include <wholeslide.h>
+.LP 
+wholeslide_t *\fBws_open\fR(const char *\fIname\fP)
+.SH "ARGUMENTS"
+.LP 
+.TP 
+\fIname\fP
+Specifies the name of the file to open.
+.TP 
+.SH "DESCRIPTION"
+.LP 
+\fBws_open\fR opens a whole slide image for reading and
+returns a wholeslide_t pointer.
+.SH "SEE ALSO"
+.LP 
+ws_close(3) ws_read_region(3) ws_stat(3) ws_prefetch_hint(3)

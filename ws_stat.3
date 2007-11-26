@@ -1,0 +1,23 @@
+.TH "ws_stat" "3" "Release 0.0.1" "Carnegie Mellon University" "Wholeslide Library"
+.SH "NAME"
+.LP 
+\fBws_stat\fR \- Get information about a whole slide image
+.SH "SYNTAX"
+.LP 
+#include <wholeslide.h>
+.LP 
+void \fBws_stat\fR(wholeslide_t *\fIwsd\fP, struct wholeslide_stat *\fIbuf\fP)
+.SH "ARGUMENTS"
+.LP 
+.TP 
+\fIwsd\fP
+Specifies the wholeslide_t object.
+.TP 
+\fIbuf\fP
+The buffer to copy the metadata into.
+.SH "DESCRIPTION"
+.LP 
+\fBws_stat\fR retrieves metadata for a whole slide image.
+.SH "SEE ALSO"
+.LP 
+ws_close(3) ws_read_region(3) ws_open(3) ws_prefetch_hint(3)

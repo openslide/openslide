@@ -1,0 +1,42 @@
+.TH "ws_read_region" "3" "Release 0.0.1" "Carnegie Mellon University" "Wholeslide Library"
+.SH "NAME"
+.LP 
+\fBws_read_region\fR \- Read and decompress a region of a whole slide image
+.SH "SYNTAX"
+.LP 
+#include <wholeslide.h>
+.LP 
+void \fBws_read_region\fR(wholeslide_t *\fIwsd\fP, void *\fIdest\fP,
+.br 
+uint32_t \fIx\fP, uint32_t \fIy\fP, const char *\fIslice\fP, uint32_t \fIw\fP, uint32_t \fIh\fP)
+.SH "ARGUMENTS"
+.LP 
+.TP 
+\fIwsd\fP
+Specifies the wholeslide_t object.
+.TP 
+\fIdest\fP
+The memory to copy the result into.
+.TP 
+\fIx\fP
+The x\-coordinate of the upper\-left corner of the desired region.
+.TP 
+\fIy\fP
+The y\-coordinate of the upper\-left corner of the desited region.
+.TP 
+\fIslice\fP
+The name of the desired slice, as given by ws_stat(3).
+.TP 
+\fIw\fP
+The width of the desired region.
+.TP 
+\fIh\fP
+The height of the desired region.
+.SH "DESCRIPTION"
+.LP 
+\fBws_read region\fR reads and decompresses a region of a whole slide image into the specified memory location.
+.LP 
+Use this function to read data from a whole slide image. \fBdest\fR must be 4 * w * h.
+.SH "SEE ALSO"
+.LP 
+ws_close(3) ws_open(3) ws_stat(3) ws_prefetch_hint(3)
