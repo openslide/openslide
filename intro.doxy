@@ -26,4 +26,14 @@ slide images in a simple, vendor neutral fashion.
  <li>Close the handle with ws_close().</li>
 </ol>
 
+\section decisions Design Decisions
+
+\subsection coord Coordinate System
+
+\subsection prefetch Prefetch Hints
+
+\subsection layers Discrete Layers
+
+
+
 */
