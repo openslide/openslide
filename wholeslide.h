@@ -27,14 +27,14 @@ wholeslide_t *ws_open(const char *filename);
  * @param ws The whole slide image handle.
  * @param x The top left x-coordinate.
  * @param y The top left y-coordinate.
- * @param slice The desired slice.
+ * @param layer The desired layer.
  * @param w The width of the region.
  * @param h The height of the region.
  * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
 uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
 				 uint32_t x, uint32_t y,
-				 const char *slice,
+				 const char *layer,
 				 uint32_t w, uint32_t h);
 
 /**
@@ -49,14 +49,14 @@ uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
  * @param dest The destination buffer for the RGBA data.
  * @param x The top left x-coordinate.
  * @param y The top left y-coordinate.
- * @param slice The desired slice.
+ * @param layer The desired layer.
  * @param w The width of the region.
  * @param h The height of the region.
  */
 void ws_read_region(wholeslide_t *ws,
 		    void *dest,
 		    uint32_t x, uint32_t y,
-		    const char *slice,
+		    const char *layer,
 		    uint32_t w, uint32_t h);
 
 /**
@@ -65,14 +65,14 @@ void ws_read_region(wholeslide_t *ws,
  * @param ws The whole slide image handle.
  * @param x The top left x-coordinate.
  * @param y The top left y-coordinate.
- * @param slice The desired slice.
+ * @param layer The desired layer.
  * @param w The width of the region.
  * @param h The height of the region.
  * @returns A unique identifier for this prefetch hint.
  */
 int ws_prefetch_hint(wholeslide_t *ws,
 		     uint32_t x, uint32_t y,
-		     const char *slice,
+		     const char *layer,
 		     uint32_t w, uint32_t h);
 
 /**
@@ -92,13 +92,13 @@ void ws_cancel_prefetch_hint(wholeslide_t *ws, int prefetch_id);
 void ws_close(wholeslide_t *ws);
 
 
-uint32_t ws_get_slice_count(wholeslide_t *ws);
-const char *ws_get_slice_name(wholeslide_t *ws, uint32_t slice_number);
+uint32_t ws_get_layer_count(wholeslide_t *ws);
+const char *ws_get_layer_name(wholeslide_t *ws, uint32_t layer_number);
 uint32_t ws_get_baseline_height(wholeslide_t *ws);
 uint32_t ws_get_baseline_width(wholeslide_t *ws);
-uint32_t ws_get_slice_height(wholeslide_t *ws, const char *slice);
-uint32_t ws_get_slice_width(wholeslide_t *ws, const char *slice);
-double ws_get_slice_downsample(wholeslide_t *ws, const char *slice);
+uint32_t ws_get_layer_height(wholeslide_t *ws, const char *layer);
+uint32_t ws_get_layer_width(wholeslide_t *ws, const char *layer);
+double ws_get_layer_downsample(wholeslide_t *ws, const char *layer);
 
 const char *ws_get_comment(wholeslide_t *ws);
 
