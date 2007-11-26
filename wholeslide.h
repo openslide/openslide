@@ -34,6 +34,11 @@ uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
 /**
  * Copy RGBA data from a whole slide image.
  *
+ * This function reads and decompresses a region of a whole slide
+ * image into the specified memory location. @p dest must be a valid
+ * pointer to enough memory to hold the region. To compute the proper
+ * size for @p dest, use ws_get_region_num_bytes().
+ *
  * @param ws The whole slide image handle.
  * @param dest The destination buffer for the RGBA data.
  * @param x The top left x-coordinate.
