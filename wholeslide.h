@@ -1,5 +1,5 @@
-#ifndef WHOLESLIDE_H_
-#define WHOLESLIDE_H_
+#ifndef _WHOLESLIDE_H_
+#define _WHOLESLIDE_H_
 
 #include <stdio.h>
 #include <stdint.h>
