@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: wholeslide
+Description: A library for reading whole slide images.
+
+Version: @VERSION@
+Libs: -L${libdir} -lwholeslide
+Libs.private: @LIBS@
+Cflags: -I${includedir}/wholeslide
