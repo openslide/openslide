@@ -34,7 +34,7 @@ wholeslide_t *ws_open(const char *filename);
  */
 uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
 				 uint32_t x, uint32_t y,
-				 const char *layer,
+				 uint32_t layer,
 				 uint32_t w, uint32_t h);
 
 /**
@@ -56,7 +56,7 @@ uint32_t ws_get_region_num_bytes(wholeslide_t *ws,
 void ws_read_region(wholeslide_t *ws,
 		    void *dest,
 		    uint32_t x, uint32_t y,
-		    const char *layer,
+		    uint32_t layer,
 		    uint32_t w, uint32_t h);
 
 /**
@@ -72,7 +72,7 @@ void ws_read_region(wholeslide_t *ws,
  */
 int ws_give_prefetch_hint(wholeslide_t *ws,
 			  uint32_t x, uint32_t y,
-			  const char *layer,
+			  uint32_t layer,
 			  uint32_t w, uint32_t h);
 
 /**
@@ -100,15 +100,6 @@ void ws_close(wholeslide_t *ws);
 uint32_t ws_get_layer_count(wholeslide_t *ws);
 
 /**
- * Get the name for a layer.
- *
- * @param ws The whole slide image handle.
- * @param layer_number The layer number to get the name for.
- * @return The name of the layer.
- */
-const char *ws_get_layer_name(wholeslide_t *ws, uint32_t layer_number);
-
-/**
  * Get the dimensions of the baseline image.
  *
  * @param ws The whole slide image handle.
@@ -121,20 +112,21 @@ void ws_get_baseline_dimensions(wholeslide_t *ws, uint32_t *w, uint32_t *h);
  * Get the dimensions of a layer.
  *
  * @param ws The whole slide image handle.
- * @param layer The name of the desired layer.
+ * @param layer The desired layer.
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
  */
-void ws_get_layer_dimensions(wholeslide_t *ws, const char *layer, uint32_t *w, uint32_t *h);
+void ws_get_layer_dimensions(wholeslide_t *ws, uint32_t layer,
+			     uint32_t *w, uint32_t *h);
 
 /**
  * Get the downsampling factor of a given layer.
  *
  * @param ws The whole slide image handle.
- * @param layer The name of the desired layer.
+ * @param layer The desired layer.
  * @return The downsampling factor for this layer.
  */
-double ws_get_layer_downsample(wholeslide_t *ws, const char *layer);
+double ws_get_layer_downsample(wholeslide_t *ws, uint32_t layer);
 
 
 /**
