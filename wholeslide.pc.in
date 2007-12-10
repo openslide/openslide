@@ -6,6 +6,7 @@ includedir=@includedir@
 Name: wholeslide
 Description: A library for reading whole slide images.
 
+@PKGCONFIG_REQUIRES@: glib-2.0
 Version: @VERSION@
 Libs: -L${libdir} -lwholeslide
 Libs.private: @LIBS@
