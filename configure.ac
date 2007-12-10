@@ -8,7 +8,7 @@ AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign 1.9])
 
 # Checks for programs.
-AC_PROG_CC
+AC_PROG_CC_C99
 
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
@@ -39,8 +39,7 @@ AC_SUBST(GLIB2_CFLAGS)
 AC_SUBST(GLIB2_LIBS)
 
 
-AC_CHECK_HEADERS([stdint.h])
-
+AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Werror-implicit-function-declaration -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs'])
 
 
 AC_CONFIG_FILES([
@@ -50,4 +49,3 @@ src/Makefile
 wholeslide.pc
 ])
 AC_OUTPUT
-
