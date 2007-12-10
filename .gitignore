@@ -1,6 +1,8 @@
 *~
 *.la
 *.lo
+*.loT
+*.o
 
 Makefile
 Makefile.in
@@ -23,3 +25,5 @@ Makefile.in
 /missing
 /stamp-h1
 /wholeslide.pc
+
+/src/test
