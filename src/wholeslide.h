@@ -60,7 +60,7 @@ void ws_read_region(wholeslide_t *wsd,
 		    uint32_t w, uint32_t h);
 
 /**
- * Give a hint that a region is likely to be needed soon.
+ * Give a non-blocking hint that a region is likely to be needed soon.
  *
  * @param wsd The whole slide image handle.
  * @param x The top left x-coordinate.
@@ -70,10 +70,10 @@ void ws_read_region(wholeslide_t *wsd,
  * @param h The height of the region.
  * @returns A unique identifier for this prefetch hint.
  */
-int ws_give_prefetch_hint(wholeslide_t *wsd,
-			  uint32_t x, uint32_t y,
-			  uint32_t layer,
-			  uint32_t w, uint32_t h);
+uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
+			       uint32_t x, uint32_t y,
+			       uint32_t layer,
+			       uint32_t w, uint32_t h);
 
 /**
  * Cancel an existing prefetch hint.
@@ -81,7 +81,7 @@ int ws_give_prefetch_hint(wholeslide_t *wsd,
  * @param wsd The whole slide image handle.
  * @param prefetch_id An identifier returned by ws_give_prefetch_hint().
  */
-void ws_cancel_prefetch_hint(wholeslide_t *wsd, int prefetch_id);
+void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id);
 
 
 /**
