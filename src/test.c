@@ -36,6 +36,9 @@ int main(int argc, char **argv) {
   test_next_biggest(wsd, 1000);
   test_next_biggest(wsd, 10000);
 
+  uint32_t prefetch_hint = ws_give_prefetch_hint(wsd, 0, 0, 0, 5, 5);
+  ws_cancel_prefetch_hint(wsd, prefetch_hint);
+
 
   ws_close(wsd);
 

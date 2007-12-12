@@ -222,3 +222,17 @@ double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer) {
 
   return wsd->downsamples[layer];
 }
+
+
+uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
+			       uint32_t x, uint32_t y,
+			       uint32_t layer,
+			       uint32_t w, uint32_t h) {
+  // TODO
+  return 0;
+}
+
+void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id) {
+  // TODO
+  return;
+}
