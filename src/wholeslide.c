@@ -61,7 +61,7 @@ static void parse_trestle(wholeslide_t *wsd) {
 
   // compute downsamples
   printf("downsamples\n");
-  for (unsigned int i = 1; i < wsd->layer_count; i++) {
+  for (unsigned int i = 0; i < wsd->layer_count; i++) {
     uint32_t w, h;
     ws_get_layer_dimensions(wsd, i, &w, &h);
 
@@ -69,6 +69,7 @@ static void parse_trestle(wholeslide_t *wsd) {
 
     printf(" %g\n", wsd->downsamples[i]);
   }
+  printf("\n");
 
 
   g_strfreev(first_pass);
@@ -164,17 +165,23 @@ void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
   uint32_t tx = iw / tw;
   uint32_t ty = ih / th;
 
-  // compute
-  *w = tx * tw;
-  *h = ty * th;
+  // overlaps information seems to only make sense when dealing
+  // with images that are divided perfectly by tiles ?
+  // thus, we have this if-else below
 
-  // subtract overlaps
-  if (wsd->overlap_count >=2) {
-    *w -= wsd->overlaps[0] * (tx - 1);
-    *h -= wsd->overlaps[1] * (ty - 1);;
+  // compute
+  if (wsd->overlap_count >= 2 * (layer + 1)) {
+    // subtract overlaps
+    *w = (tx * tw) - wsd->overlaps[2 * layer + 0] * (tx - 1);
+    *h = (ty * th) - wsd->overlaps[2 * layer + 1] * (ty - 1);
+  } else {
+    *w = iw;
+    *h = ih;
   }
 
-  //printf("%d %d %d %d %d %d\n", tw, th, iw, ih, tx, ty);
+  printf("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n\n",
+	 layer,
+	 tw, th, iw, ih, tx, ty);
 }
 
 const char *ws_get_comment(wholeslide_t *wsd) {
