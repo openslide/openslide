@@ -43,7 +43,7 @@ static void parse_trestle(wholeslide_t *wsd) {
     } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
       // RGBA
       wsd->background_color = (strtoul(*cur_str + strlen(BACKGROUND_COLOR),
-				       NULL, 16) << 8) & 0xFF;
+				       NULL, 16) << 8) | 0xFF;
     }
   }
 
