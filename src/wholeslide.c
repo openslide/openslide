@@ -260,4 +260,32 @@ void ws_read_region(wholeslide_t *wsd,
     ((uint8_t *) dest)[i + 2] = (wsd->background_color >> 8) & 0xFF;
     ((uint8_t *) dest)[i + 3] = (wsd->background_color >> 0) & 0xFF;
   }
+
+  // set directory
+  if (layer >= wsd->layer_count) {
+    return;
+  }
+
+  TIFFSetDirectory(wsd->tiff, wsd->layers[layer]);
+
+  // allocate space for tile
+  uint32_t tw, th;
+  TIFFGetField(wsd->tiff, TIFFTAG_TILEWIDTH, &tw);
+  TIFFGetField(wsd->tiff, TIFFTAG_TILELENGTH, &th);
+  uint32_t *tile = malloc(tw * th * sizeof(uint32_t));
+
+  // XXX for now
+  TIFFReadRGBATile(wsd->tiff, 0, 0, tile);
+  for (unsigned int y = 0; y < th; y++) {
+    for (unsigned int x = 0; x < tw; x++) {
+      unsigned int i = y * tw + x;
+      unsigned int dest_i = y * w + x;
+      ((uint8_t *) dest)[4 * dest_i + 0] = TIFFGetR(tile[i]);
+      ((uint8_t *) dest)[4 * dest_i + 1] = TIFFGetG(tile[i]);
+      ((uint8_t *) dest)[4 * dest_i + 2] = TIFFGetB(tile[i]);
+      ((uint8_t *) dest)[4 * dest_i + 3] = TIFFGetA(tile[i]);
+    }
+  }
+
+  free(tile);
 }
