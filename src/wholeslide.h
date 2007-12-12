@@ -130,6 +130,16 @@ double ws_get_layer_downsample(wholeslide_t *ws, uint32_t layer);
 
 
 /**
+ * Get the next bigger layer for the given downsample.
+ *
+ * @param ws The whole slide image handle.
+ * @param downsample The downsample factor.
+ * @return The layer identifier.
+ */
+uint32_t ws_get_next_bigger_layer(wholeslide_t *ws, double downsample);
+
+
+/**
  * Get the comment (if any) for this image.
  *
  * @param ws The whole slide image handle.
