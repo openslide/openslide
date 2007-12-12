@@ -9,6 +9,7 @@ struct _wholeslide {
 
   uint32_t layer_count;
   uint32_t *layers;
+  double *downsamples;
 
   double objective_power;
 

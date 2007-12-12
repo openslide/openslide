@@ -43,6 +43,34 @@ static void parse_trestle(wholeslide_t *wsd) {
     }
   }
 
+  // count layers
+  do {
+    wsd->layer_count++;
+  } while (TIFFReadDirectory(wsd->tiff));
+  wsd->layers = g_new(uint32_t, wsd->layer_count);
+  wsd->downsamples = g_new(double, wsd->layer_count);
+
+  // directories are linear
+  for (unsigned int i = 0; i < wsd->layer_count; i++) {
+    wsd->layers[i] = i;
+  }
+
+  // get baseline size
+  uint32_t blw, blh;
+  ws_get_baseline_dimensions(wsd, &blw, &blh);
+
+  // compute downsamples
+  printf("downsamples\n");
+  for (unsigned int i = 1; i < wsd->layer_count; i++) {
+    uint32_t w, h;
+    ws_get_layer_dimensions(wsd, i, &w, &h);
+
+    wsd->downsamples[i] = (double) blh / (double) h;
+
+    printf(" %g\n", wsd->downsamples[i]);
+  }
+
+
   g_strfreev(first_pass);
 }
 
@@ -80,6 +108,7 @@ static void print_info(wholeslide_t *wsd) {
   printf("\n");
 }
 
+
 wholeslide_t *ws_open(const char *filename) {
   // alloc memory
   wholeslide_t *wsd = g_new0(wholeslide_t, 1);
@@ -101,4 +130,60 @@ void ws_close(wholeslide_t *wsd) {
 
   g_free(wsd->layers);
   g_free(wsd->overlaps);
+}
+
+
+void ws_get_baseline_dimensions(wholeslide_t *wsd,
+				uint32_t *w, uint32_t *h) {
+  ws_get_layer_dimensions(wsd, 0, w, h);
+}
+
+void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
+			     uint32_t *w, uint32_t *h) {
+  // check bounds
+  if (layer >= wsd->layer_count) {
+    *w = 0;
+    *h = 0;
+    return;
+  }
+
+  // get the layer
+  TIFFSetDirectory(wsd->tiff, wsd->layers[layer]);
+
+  // figure out tile size
+  uint32_t tw, th;
+  TIFFGetField(wsd->tiff, TIFFTAG_TILEWIDTH, &tw);
+  TIFFGetField(wsd->tiff, TIFFTAG_TILELENGTH, &th);
+
+  // get image size
+  uint32_t iw, ih;
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEWIDTH, &iw);
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGELENGTH, &ih);
+
+  // get num tiles
+  uint32_t tx = iw / tw;
+  uint32_t ty = ih / th;
+
+  // compute
+  *w = tx * tw;
+  *h = ty * th;
+
+  // subtract overlaps
+  if (wsd->overlap_count >=2) {
+    *w -= wsd->overlaps[0] * (tx - 1);
+    *h -= wsd->overlaps[1] * (ty - 1);;
+  }
+
+  //printf("%d %d %d %d %d %d\n", tw, th, iw, ih, tx, ty);
+}
+
+const char *ws_get_comment(wholeslide_t *wsd) {
+  char *comment;
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
+  return comment;
+}
+
+
+uint32_t ws_get_layer_count(wholeslide_t *wsd) {
+  return wsd->layer_count;
 }
