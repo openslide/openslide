@@ -11,6 +11,7 @@ static const char *TRESTLE_SOFTWARE = "MedScan";
 
 static const char *OVERLAPS_XY = "OverlapsXY=";
 static const char *OBJECTIVE_POWER = "Objective Power=";
+static const char *BACKGROUND_COLOR = "Background Color=";
 
 static void parse_trestle(wholeslide_t *wsd) {
   char *tagval;
@@ -20,7 +21,7 @@ static void parse_trestle(wholeslide_t *wsd) {
   char **first_pass = g_strsplit(tagval, ";", -1);
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
     //fprintf(stderr, " XX: %s\n", *cur_str);
-    if (strncmp(*cur_str, OVERLAPS_XY, strlen(OVERLAPS_XY)) == 0) {
+    if (g_str_has_prefix(*cur_str, OVERLAPS_XY)) {
       // found it
       char **second_pass = g_strsplit(*cur_str, " ", -1);
 
@@ -35,11 +36,14 @@ static void parse_trestle(wholeslide_t *wsd) {
       }
 
       g_strfreev(second_pass);
-    } else if (strncmp(*cur_str,
-		       OBJECTIVE_POWER, strlen(OBJECTIVE_POWER)) == 0) {
+    } else if (g_str_has_prefix(*cur_str, OBJECTIVE_POWER)) {
       // found a different one
       wsd->objective_power = g_ascii_strtod(*cur_str + strlen(OBJECTIVE_POWER),
 					    NULL);
+    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
+      // RGBA
+      wsd->background_color = (strtoul(*cur_str + strlen(BACKGROUND_COLOR),
+				       NULL, 16) << 8) & 0xFF;
     }
   }
 

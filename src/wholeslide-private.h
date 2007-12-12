@@ -15,6 +15,8 @@ struct _wholeslide {
 
   uint32_t overlap_count;
   uint32_t *overlaps;
+
+  uint32_t background_color;
 };
 
 
