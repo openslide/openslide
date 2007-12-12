@@ -240,3 +240,18 @@ void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id) {
   // TODO
   return;
 }
+
+
+size_t ws_get_region_num_bytes(wholeslide_t *wsd,
+			       uint32_t w, uint32_t h) {
+  return w * h * 4;
+}
+
+
+void ws_read_region(wholeslide_t *wsd,
+		    void *dest,
+		    uint32_t x, uint32_t y,
+		    uint32_t layer,
+		    uint32_t w, uint32_t h) {
+  
+}
