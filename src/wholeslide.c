@@ -253,5 +253,11 @@ void ws_read_region(wholeslide_t *wsd,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h) {
-  
+  // fill with background, for now
+  for (unsigned int i = 0; i < w * h * 4; i += 4) {
+    ((uint8_t *) dest)[i + 0] = (wsd->background_color >> 24) & 0xFF;
+    ((uint8_t *) dest)[i + 1] = (wsd->background_color >> 16) & 0xFF;
+    ((uint8_t *) dest)[i + 2] = (wsd->background_color >> 8) & 0xFF;
+    ((uint8_t *) dest)[i + 3] = (wsd->background_color >> 0) & 0xFF;
+  }
 }
