@@ -22,20 +22,13 @@ typedef struct _wholeslide wholeslide_t;
 wholeslide_t *ws_open(const char *filename);
 
 /**
- * Compute minimum size for given image region.
+ * Compute minimum buffer size for given image region.
  *
  * @param wsd The whole slide image handle.
- * @param x The top left x-coordinate.
- * @param y The top left y-coordinate.
- * @param layer The desired layer.
- * @param w The width of the region.
- * @param h The height of the region.
  * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
-uint32_t ws_get_region_num_bytes(wholeslide_t *wsd,
-				 uint32_t x, uint32_t y,
-				 uint32_t layer,
-				 uint32_t w, uint32_t h);
+size_t ws_get_region_num_bytes(wholeslide_t *wsd,
+			       uint32_t w, uint32_t h);
 
 /**
  * Copy RGBA data from a whole slide image.
