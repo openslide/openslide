@@ -194,3 +194,31 @@ const char *ws_get_comment(wholeslide_t *wsd) {
 uint32_t ws_get_layer_count(wholeslide_t *wsd) {
   return wsd->layer_count;
 }
+
+
+uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd,
+					  double downsample) {
+  // too small, return first
+  if (downsample < wsd->downsamples[0]) {
+    return 0;
+  }
+
+  // find where we are in the middle
+  for (unsigned int i = 1; i < wsd->layer_count; i++) {
+    if (downsample < wsd->downsamples[i]) {
+      return i - 1;
+    }
+  }
+
+  // too big, return last
+  return wsd->layer_count - 1;
+}
+
+
+double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer) {
+  if (layer > wsd->layer_count) {
+    return 0.0;
+  }
+
+  return wsd->downsamples[layer];
+}
