@@ -1,5 +1,7 @@
 lib_LTLIBRARIES = libwholeslide.la
 
+libwholeslide_la_LIBADD = $(GLIB2_LIBS)
+
 libwholeslide_la_SOURCES = wholeslide.c
 
 AM_CPPFLAGS = $(GLIB2_CFLAGS)
