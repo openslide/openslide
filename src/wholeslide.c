@@ -282,8 +282,7 @@ static void copy_rgba_tile(uint32_t *tile,
     src_origin_y = src_h - 1;
   }
 
-  printf("src_origin_y: %d, dest_origin_y: %d\n",
-	 src_origin_y, dest_origin_y);
+  //  printf("src_origin_y: %d, dest_origin_y: %d\n", src_origin_y, dest_origin_y);
 
   uint32_t src_origin_x;
   if (dest_origin_x < 0) {  // off the left
@@ -292,8 +291,7 @@ static void copy_rgba_tile(uint32_t *tile,
     src_origin_x = 0;
   }
 
-  printf("src_origin_x: %d, dest_origin_x: %d\n",
-	 src_origin_x, dest_origin_x);
+  //  printf("src_origin_x: %d, dest_origin_x: %d\n", src_origin_x, dest_origin_x);
 
 
   for (uint32_t src_y = src_origin_y; (int32_t) src_y >= 0; src_y--) {
@@ -382,7 +380,7 @@ void ws_read_region(wholeslide_t *wsd,
     end_y = raw_h - 1;
   }
 
-  printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
+  //  printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
 
 
   // for each tile, draw it where it should go
@@ -402,7 +400,7 @@ void ws_read_region(wholeslide_t *wsd,
       uint32_t off_x = src_x - round_x;
       uint32_t off_y = src_y - round_y;
 
-      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
+      //      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
       TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
 
