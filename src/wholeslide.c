@@ -277,7 +277,7 @@ static void copy_rgba_tile(uint32_t *tile,
 
   for (uint32_t src_y = src_origin_y; (int32_t) src_y >= 0; src_y--) {
     int32_t dest_y = dest_origin_y + src_h - src_y;  // inverted y
-    printf("src_y: %d, dest_y: %d\n", src_y, dest_y);
+    //    printf("src_y: %d, dest_y: %d\n", src_y, dest_y);
     if (dest_y >= dest_h) {
       break;
     }
