@@ -114,6 +114,20 @@ static void print_info(wholeslide_t *wsd) {
 }
 
 
+
+static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
+			 uint32_t *x, uint32_t *y) {
+  if (wsd->overlap_count >= 2 * (layer + 1)) {
+    *x = wsd->overlaps[2 * layer + 0];
+    *y = wsd->overlaps[2 * layer + 1];
+  } else {
+    *x = 0;
+    *y = 0;
+  }
+}
+
+
+
 wholeslide_t *ws_open(const char *filename) {
   // alloc memory
   wholeslide_t *wsd = g_new0(wholeslide_t, 1);
@@ -172,15 +186,21 @@ void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
 
   // overlaps information seems to only make sense when dealing
   // with images that are divided perfectly by tiles ?
-  // thus, we have this if-else below
+  // thus, we have these if-else below
 
-  // compute
-  if (wsd->overlap_count >= 2 * (layer + 1)) {
-    // subtract overlaps
-    *w = (tx * tw) - wsd->overlaps[2 * layer + 0] * (tx - 1);
-    *h = (ty * th) - wsd->overlaps[2 * layer + 1] * (ty - 1);
+  // subtract overlaps and compute
+  uint32_t overlap_x, overlap_y;
+  get_overlaps(wsd, layer, &overlap_x, &overlap_y);
+
+  if (overlap_x) {
+    *w = (tx * tw) - overlap_x * (tx - 1);
   } else {
     *w = iw;
+  }
+
+  if (overlap_y) {
+    *h = (ty * th) - overlap_y * (ty - 1);
+  } else {
     *h = ih;
   }
 
@@ -303,6 +323,17 @@ static void copy_rgba_tile(uint32_t *tile,
   }
 }
 
+static void add_in_overlaps(wholeslide_t *wsd,
+			    uint32_t layer,
+			    uint32_t tw, uint32_t th,
+			    uint32_t x, uint32_t y,
+			    uint32_t *out_x, uint32_t *out_y) {
+  uint32_t ox, oy;
+  get_overlaps(wsd, layer, &ox, &oy);
+  *out_x = x + (x / (tw - ox)) * ox;
+  *out_y = y + (y / (th - oy)) * oy;
+}
+
 
 void ws_read_region(wholeslide_t *wsd,
 		    void *dest,
@@ -334,23 +365,24 @@ void ws_read_region(wholeslide_t *wsd,
   TIFFGetField(wsd->tiff, TIFFTAG_TILELENGTH, &th);
   uint32_t *tile = malloc(tw * th * sizeof(uint32_t));
 
-  // add in offsets
-  if (wsd->overlap_count >= 2 * (layer + 1)) {
-    uint32_t ox = wsd->overlaps[2 * layer + 0];
-    uint32_t oy = wsd->overlaps[2 * layer + 1];
-    ds_x += (ds_x / (tw - ox)) * ox;
-    ds_y += (ds_y / (th - oy)) * oy;
-  }
-
   // figure out range of tiles
+  uint32_t start_x, start_y, end_x, end_y;
+
+  // add in overlaps
+  add_in_overlaps(wsd, layer, tw, th, ds_x, ds_y, &start_x, &start_y);
+  add_in_overlaps(wsd, layer, tw, th, start_x + w, start_y + h,
+		  &end_x, &end_y);
+
+  printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
+
 
   // for each tile, draw it where it should go
 
   // XXX for now
-  uint32_t round_x = (ds_x / tw) * tw;
-  uint32_t round_y = (ds_y / th) * th;
-  uint32_t off_x = ds_x - round_x;
-  uint32_t off_y = ds_y - round_y;
+  uint32_t round_x = (start_x / tw) * tw;
+  uint32_t round_y = (start_y / th) * th;
+  uint32_t off_x = start_x - round_x;
+  uint32_t off_y = start_y - round_y;
 
   TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
   copy_rgba_tile(tile, dest, tw, th, -off_x, -off_y, w, h);
