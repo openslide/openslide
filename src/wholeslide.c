@@ -130,7 +130,7 @@ static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
 
 wholeslide_t *ws_open(const char *filename) {
   // alloc memory
-  wholeslide_t *wsd = g_new0(wholeslide_t, 1);
+  wholeslide_t *wsd = g_slice_new(wholeslide_t);
 
   // open the file
   wsd->tiff = TIFFOpen(filename, "r");
@@ -150,6 +150,7 @@ void ws_close(wholeslide_t *wsd) {
   g_free(wsd->layers);
   g_free(wsd->overlaps);
   g_free(wsd->downsamples);
+  g_slice_free(wholeslide_t, wsd);
 }
 
 
@@ -357,12 +358,6 @@ void ws_read_region(wholeslide_t *wsd,
   uint32_t ds_x = x / downsample;
   uint32_t ds_y = y / downsample;
 
-  // get raw baseline dimensions
-  TIFFSetDirectory(wsd->tiff, wsd->layers[0]);
-  uint32_t raw_w, raw_h;
-  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEWIDTH, &raw_w);
-  TIFFGetField(wsd->tiff, TIFFTAG_IMAGELENGTH, &raw_h);
-
   // select layer
   TIFFSetDirectory(wsd->tiff, wsd->layers[layer]);
 
@@ -381,6 +376,10 @@ void ws_read_region(wholeslide_t *wsd,
 		  &end_x, &end_y);
 
   // check bounds
+  uint32_t raw_w, raw_h;
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEWIDTH, &raw_w);
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGELENGTH, &raw_h);
+
   if (end_x >= raw_w) {
     end_x = raw_w - 1;
   }
@@ -398,11 +397,11 @@ void ws_read_region(wholeslide_t *wsd,
   uint32_t src_y = start_y;
   uint32_t dst_y = 0;
 
-  while (src_y < end_y + th) {
+  while (src_y < ((end_y / th) + 1) * th) {
     uint32_t src_x = start_x;
     uint32_t dst_x = 0;
 
-    while (src_x < end_x + tw) {
+    while (src_x < ((end_x / tw) + 1) * tw) {
       uint32_t round_x = (src_x / tw) * tw;
       uint32_t round_y = (src_y / th) * th;
       uint32_t off_x = src_x - round_x;
@@ -412,12 +411,12 @@ void ws_read_region(wholeslide_t *wsd,
       TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
 
-      src_x += tw + ovr_x;
-      dst_x += tw;
+      src_x += tw;
+      dst_x += tw - ovr_x;
     }
 
-    src_y += th + ovr_y;
-    dst_y += th;
+    src_y += th;
+    dst_y += th - ovr_y;
   }
 
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
