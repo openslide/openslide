@@ -337,16 +337,16 @@ static void add_in_overlaps(wholeslide_t *wsd,
 
 
 void ws_read_region(wholeslide_t *wsd,
-		    void *dest,
+		    uint8_t *dest,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h) {
   // fill with background, for now
   for (uint32_t i = 0; i < w * h * 4; i += 4) {
-    ((uint8_t *) dest)[i + 0] = (wsd->background_color >> 24) & 0xFF;
-    ((uint8_t *) dest)[i + 1] = (wsd->background_color >> 16) & 0xFF;
-    ((uint8_t *) dest)[i + 2] = (wsd->background_color >> 8) & 0xFF;
-    ((uint8_t *) dest)[i + 3] = (wsd->background_color >> 0) & 0xFF;
+    dest[i + 0] = (wsd->background_color >> 24) & 0xFF;
+    dest[i + 1] = (wsd->background_color >> 16) & 0xFF;
+    dest[i + 2] = (wsd->background_color >> 8) & 0xFF;
+    dest[i + 3] = (wsd->background_color >> 0) & 0xFF;
   }
 
   // set directory

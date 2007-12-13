@@ -47,7 +47,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
  * @param h The height of the region.
  */
 void ws_read_region(wholeslide_t *wsd,
-		    void *dest,
+		    uint8_t *dest,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h);
