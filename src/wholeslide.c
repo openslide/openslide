@@ -135,6 +135,7 @@ void ws_close(wholeslide_t *wsd) {
 
   g_free(wsd->layers);
   g_free(wsd->overlaps);
+  g_free(wsd->downsamples);
 }
 
 
