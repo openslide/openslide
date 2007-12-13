@@ -357,35 +357,68 @@ void ws_read_region(wholeslide_t *wsd,
   uint32_t ds_x = x / downsample;
   uint32_t ds_y = y / downsample;
 
+  // get raw baseline dimensions
+  TIFFSetDirectory(wsd->tiff, wsd->layers[0]);
+  uint32_t raw_w, raw_h;
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEWIDTH, &raw_w);
+  TIFFGetField(wsd->tiff, TIFFTAG_IMAGELENGTH, &raw_h);
+
+  // select layer
   TIFFSetDirectory(wsd->tiff, wsd->layers[layer]);
 
   // allocate space for 1 tile
   uint32_t tw, th;
   TIFFGetField(wsd->tiff, TIFFTAG_TILEWIDTH, &tw);
   TIFFGetField(wsd->tiff, TIFFTAG_TILELENGTH, &th);
-  uint32_t *tile = malloc(tw * th * sizeof(uint32_t));
+  uint32_t *tile = g_slice_alloc(tw * th * sizeof(uint32_t));
 
   // figure out range of tiles
   uint32_t start_x, start_y, end_x, end_y;
 
   // add in overlaps
   add_in_overlaps(wsd, layer, tw, th, ds_x, ds_y, &start_x, &start_y);
-  add_in_overlaps(wsd, layer, tw, th, start_x + w, start_y + h,
+  add_in_overlaps(wsd, layer, tw, th, ds_x + w, ds_y + h,
 		  &end_x, &end_y);
+
+  // check bounds
+  if (end_x >= raw_w) {
+    end_x = raw_w - 1;
+  }
+  if (end_y >= raw_h) {
+    end_y = raw_h - 1;
+  }
 
   printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
 
 
   // for each tile, draw it where it should go
+  uint32_t ovr_x, ovr_y;
+  get_overlaps(wsd, layer, &ovr_x, &ovr_y);
 
-  // XXX for now
-  uint32_t round_x = (start_x / tw) * tw;
-  uint32_t round_y = (start_y / th) * th;
-  uint32_t off_x = start_x - round_x;
-  uint32_t off_y = start_y - round_y;
+  uint32_t src_y = start_y;
+  uint32_t dst_y = 0;
 
-  TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
-  copy_rgba_tile(tile, dest, tw, th, -off_x, -off_y, w, h);
+  while (src_y < end_y + th) {
+    uint32_t src_x = start_x;
+    uint32_t dst_x = 0;
 
-  free(tile);
+    while (src_x < end_x + tw) {
+      uint32_t round_x = (src_x / tw) * tw;
+      uint32_t round_y = (src_y / th) * th;
+      uint32_t off_x = src_x - round_x;
+      uint32_t off_y = src_y - round_y;
+
+      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
+      TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
+      copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
+
+      src_x += tw + ovr_x;
+      dst_x += tw;
+    }
+
+    src_y += th + ovr_y;
+    dst_y += th;
+  }
+
+  g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
