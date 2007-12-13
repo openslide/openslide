@@ -31,7 +31,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
 			       uint32_t w, uint32_t h);
 
 /**
- * Copy RGBA data from a whole slide image.
+ * Copy ARGB data from a whole slide image.
  *
  * This function reads and decompresses a region of a whole slide
  * image into the specified memory location. @p dest must be a valid
@@ -39,7 +39,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
  * size for @p dest, use ws_get_region_num_bytes().
  *
  * @param wsd The whole slide image handle.
- * @param dest The destination buffer for the RGBA data.
+ * @param dest The destination buffer for the ARGB data.
  * @param x The top left x-coordinate.
  * @param y The top left y-coordinate.
  * @param layer The desired layer.
@@ -47,7 +47,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
  * @param h The height of the region.
  */
 void ws_read_region(wholeslide_t *wsd,
-		    uint8_t *dest,
+		    uint32_t *dest,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h);

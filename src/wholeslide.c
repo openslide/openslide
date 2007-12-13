@@ -41,9 +41,9 @@ static void parse_trestle(wholeslide_t *wsd) {
       wsd->objective_power = g_ascii_strtod(*cur_str + strlen(OBJECTIVE_POWER),
 					    NULL);
     } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
-      // RGBA
+      // ARGB
       wsd->background_color = (strtoul(*cur_str + strlen(BACKGROUND_COLOR),
-				       NULL, 16) << 8) | 0xFF;
+				       NULL, 16)) | 0xFF000000;
     }
   }
 
@@ -271,7 +271,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
 
 
 static void copy_rgba_tile(uint32_t *tile,
-			   uint8_t *dest,
+			   uint32_t *dest,
 			   uint32_t src_w, uint32_t src_h,
 			   int32_t dest_origin_x, int32_t dest_origin_y,
 			   uint32_t dest_w, uint32_t dest_h) {
@@ -309,16 +309,14 @@ static void copy_rgba_tile(uint32_t *tile,
 	break;
       }
 
-      uint32_t dest_i = (dest_y * dest_w + dest_x) * 4;
+      uint32_t dest_i = dest_y * dest_w + dest_x;
       uint32_t i = src_y * src_w + src_x;
 
       //      printf("%d %d -> %d %d\n", x, y, dest_x, dest_y);
 
       if (TIFFGetA(tile[i])) {
-	  dest[dest_i + 0] = TIFFGetR(tile[i]);
-	  dest[dest_i + 1] = TIFFGetG(tile[i]);
-	  dest[dest_i + 2] = TIFFGetB(tile[i]);
-	  dest[dest_i + 3] = TIFFGetA(tile[i]);
+	dest[dest_i] = TIFFGetA(tile[i]) << 24 | TIFFGetR(tile[i]) << 16
+	  | TIFFGetG(tile[i]) << 8 | TIFFGetB(tile[i]);
       }
     }
   }
@@ -337,16 +335,13 @@ static void add_in_overlaps(wholeslide_t *wsd,
 
 
 void ws_read_region(wholeslide_t *wsd,
-		    uint8_t *dest,
+		    uint32_t *dest,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h) {
   // fill with background, for now
-  for (uint32_t i = 0; i < w * h * 4; i += 4) {
-    dest[i + 0] = (wsd->background_color >> 24) & 0xFF;
-    dest[i + 1] = (wsd->background_color >> 16) & 0xFF;
-    dest[i + 2] = (wsd->background_color >> 8) & 0xFF;
-    dest[i + 3] = (wsd->background_color >> 0) & 0xFF;
+  for (uint32_t i = 0; i < w * h; i++) {
+    dest[i] = wsd->background_color;
   }
 
   // set directory
