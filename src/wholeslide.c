@@ -333,6 +333,14 @@ void ws_read_region(wholeslide_t *wsd,
   TIFFGetField(wsd->tiff, TIFFTAG_TILELENGTH, &th);
   uint32_t *tile = malloc(tw * th * sizeof(uint32_t));
 
+  // add in offsets
+  if (wsd->overlap_count >= 2 * (layer + 1)) {
+    uint32_t ox = wsd->overlaps[2 * layer + 0];
+    uint32_t oy = wsd->overlaps[2 * layer + 1];
+    ds_x += (ds_x / (tw - ox)) * ox;
+    ds_y += (ds_y / (th - oy)) * oy;
+  }
+
   // figure out range of tiles
 
   // for each tile, draw it where it should go
