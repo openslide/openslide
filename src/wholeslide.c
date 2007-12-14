@@ -310,7 +310,7 @@ static void copy_rgba_tile(uint32_t *tile,
       uint32_t dest_i = dest_y * dest_w + dest_x;
       uint32_t i = src_y * src_w + src_x;
 
-      //      printf("%d %d -> %d %d\n", x, y, dest_x, dest_y);
+      //      printf("%d %d -> %d %d\n", src_x, src_y, dest_x, dest_y);
 
       if (TIFFGetA(tile[i])) {
 	dest[dest_i] = TIFFGetA(tile[i]) << 24 | TIFFGetR(tile[i]) << 16
@@ -401,6 +401,7 @@ void ws_read_region(wholeslide_t *wsd,
       uint32_t off_y = src_y - round_y;
 
       //      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
+      //      printf(" offset: %d,%d\n", off_x, off_y);
       TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
 
