@@ -414,3 +414,7 @@ void ws_read_region(wholeslide_t *wsd,
 
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
+
+uint32_t ws_get_background_color(wholeslide_t *wsd) {
+  return wsd->background_color;
+}

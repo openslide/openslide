@@ -140,4 +140,12 @@ uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd, double downsample);
  */
 const char *ws_get_comment(wholeslide_t *wsd);
 
+/**
+ * Get the background color for this image.
+ *
+ * @param wsd The whole slide image handle.
+ * @return The background color for this image, as a packed ARGB 4-byte integer.
+ */
+uint32_t ws_get_background_color(wholeslide_t *wsd);
+
 #endif
