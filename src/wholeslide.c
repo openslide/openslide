@@ -205,9 +205,9 @@ void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
     *h = ih;
   }
 
-  printf("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n\n",
-	 layer,
-	 tw, th, iw, ih, tx, ty);
+  //  printf("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n\n",
+  //	 layer,
+  //	 tw, th, iw, ih, tx, ty);
 }
 
 const char *ws_get_comment(wholeslide_t *wsd) {
