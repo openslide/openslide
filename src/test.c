@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 static void test_next_biggest(wholeslide_t *wsd, double downsample) {
   uint32_t layer = ws_get_best_layer_for_downsample(wsd, downsample);
@@ -14,7 +15,8 @@ static void test_next_biggest(wholeslide_t *wsd, double downsample) {
 static void test_image_fetch(wholeslide_t *wsd,
 			     const char *name,
 			     uint32_t x, uint32_t y,
-			     uint32_t w, uint32_t h) {
+			     uint32_t w, uint32_t h,
+			     bool skip_write) {
   char *filename;
 
   //  for (uint32_t layer = 0; layer < 1; layer++) {
@@ -33,13 +35,15 @@ static void test_image_fetch(wholeslide_t *wsd,
     ws_read_region(wsd, buf, x, y, layer, w, h);
 
     // write as PPM
-    fprintf(f, "P6\n%d %d\n255\n", w, h);
-    for (int i = 0; i < num_bytes / 4; i++) {
-      uint32_t val = buf[i];
-      putc((val >> 16) & 0xFF, f); // R
-      putc((val >> 8) & 0xFF, f);  // G
-      putc((val >> 0) & 0xFF, f);  // B
-      // no A
+    if (!skip_write) {
+      fprintf(f, "P6\n%d %d\n255\n", w, h);
+      for (int i = 0; i < num_bytes / 4; i++) {
+	uint32_t val = buf[i];
+	putc((val >> 16) & 0xFF, f); // R
+	putc((val >> 8) & 0xFF, f);  // G
+	putc((val >> 0) & 0xFF, f);  // B
+	// no A
+      }
     }
 
     free(buf);
@@ -83,7 +87,12 @@ int main(int argc, char **argv) {
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
 
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+
   //  test_image_fetch(wsd, "test2", 0, 0, 400, 300);
   //  test_image_fetch(wsd, "test3", 12, 11, 400, 300);
 
