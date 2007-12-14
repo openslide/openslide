@@ -337,10 +337,8 @@ void ws_read_region(wholeslide_t *wsd,
 		    uint32_t x, uint32_t y,
 		    uint32_t layer,
 		    uint32_t w, uint32_t h) {
-  // fill with background, for now
-  for (uint32_t i = 0; i < w * h; i++) {
-    dest[i] = wsd->background_color;
-  }
+  // fill
+  //  memset(dest, 0, w * h * sizeof(uint32_t));
 
   // set directory
   if (layer >= wsd->layer_count) {
