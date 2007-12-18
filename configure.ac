@@ -11,6 +11,7 @@ AM_INIT_AUTOMAKE([foreign 1.9])
 AC_PROG_CC_C99
 
 AC_DISABLE_STATIC
+AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 
 # Check for recent pkg-config which supports Requires.private
