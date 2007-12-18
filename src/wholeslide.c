@@ -7,92 +7,8 @@
 
 #include "wholeslide-private.h"
 
-static const char *TRESTLE_SOFTWARE = "MedScan";
-
-static const char *OVERLAPS_XY = "OverlapsXY=";
-static const char *OBJECTIVE_POWER = "Objective Power=";
-static const char *BACKGROUND_COLOR = "Background Color=";
-
-static void parse_trestle(wholeslide_t *wsd) {
-  char *tagval;
-
-  TIFFGetField(wsd->tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-
-  char **first_pass = g_strsplit(tagval, ";", -1);
-  for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
-    //fprintf(stderr, " XX: %s\n", *cur_str);
-    if (g_str_has_prefix(*cur_str, OVERLAPS_XY)) {
-      // found it
-      char **second_pass = g_strsplit(*cur_str, " ", -1);
-
-      wsd->overlap_count = g_strv_length(second_pass) - 1; // skip fieldname
-      wsd->overlaps = g_new(uint32_t, wsd->overlap_count);
-
-      int i = 0;
-      // skip fieldname
-      for (char **cur_str2 = second_pass + 1; *cur_str2 != NULL; cur_str2++) {
-	wsd->overlaps[i] = atoi(*cur_str2);
-	i++;
-      }
-
-      g_strfreev(second_pass);
-    } else if (g_str_has_prefix(*cur_str, OBJECTIVE_POWER)) {
-      // found a different one
-      wsd->objective_power = g_ascii_strtod(*cur_str + strlen(OBJECTIVE_POWER),
-					    NULL);
-    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
-      // ARGB
-      wsd->background_color = (strtoul(*cur_str + strlen(BACKGROUND_COLOR),
-				       NULL, 16)) | 0xFF000000;
-    }
-  }
-
-  // count layers
-  do {
-    wsd->layer_count++;
-  } while (TIFFReadDirectory(wsd->tiff));
-  wsd->layers = g_new(uint32_t, wsd->layer_count);
-  wsd->downsamples = g_new(double, wsd->layer_count);
-
-  // directories are linear
-  for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    wsd->layers[i] = i;
-  }
-
-  // get baseline size
-  uint32_t blw, blh;
-  ws_get_baseline_dimensions(wsd, &blw, &blh);
-
-  // compute downsamples
-  printf("downsamples\n");
-  for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    uint32_t w, h;
-    ws_get_layer_dimensions(wsd, i, &w, &h);
-
-    wsd->downsamples[i] = (double) blh / (double) h;
-
-    printf(" %g\n", wsd->downsamples[i]);
-  }
-  printf("\n");
-
-
-  g_strfreev(first_pass);
-}
-
-
-
 static bool extract_info(wholeslide_t *wsd) {
-  // determine vendor
-  char *tagval;
-
-  TIFFGetField(wsd->tiff, TIFFTAG_SOFTWARE, &tagval);
-  if (!strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE))) {
-    // trestle
-    // TODO implement and check return values
-    parse_trestle(wsd);
-  }
-
-  return true;
+  return _ws_try_trestle(wsd);  // try_trestle || try_aperio || ...
 }
 
 static void print_info(wholeslide_t *wsd) {
@@ -125,7 +41,6 @@ static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
     *y = 0;
   }
 }
-
 
 
 wholeslide_t *ws_open(const char *filename) {
@@ -379,7 +294,7 @@ void ws_read_region(wholeslide_t *wsd,
     end_y = raw_h - 1;
   }
 
-  //  printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
+  //printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
 
 
   // for each tile, draw it where it should go
@@ -388,6 +303,8 @@ void ws_read_region(wholeslide_t *wsd,
 
   uint32_t src_y = start_y;
   uint32_t dst_y = 0;
+
+  uint32_t num_tiles_decoded = 0;
 
   while (src_y < ((end_y / th) + 1) * th) {
     uint32_t src_x = start_x;
@@ -403,6 +320,7 @@ void ws_read_region(wholeslide_t *wsd,
       //      printf(" offset: %d,%d\n", off_x, off_y);
       TIFFReadRGBATile(wsd->tiff, round_x, round_y, tile);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
+      num_tiles_decoded++;
 
       src_x += tw;
       dst_x += tw - ovr_x;
@@ -412,9 +330,7 @@ void ws_read_region(wholeslide_t *wsd,
     dst_y += th - ovr_y;
   }
 
-  g_slice_free1(tw * th * sizeof(uint32_t), tile);
-}
+  printf("tiles decoded: %d\n", num_tiles_decoded);
 
-uint32_t ws_get_background_color(wholeslide_t *wsd) {
-  return wsd->background_color;
+  g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }

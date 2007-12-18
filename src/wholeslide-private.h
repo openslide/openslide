@@ -1,8 +1,10 @@
-#ifndef _WHOLESLIDE_PRIVATE_H_
-#define _WHOLESLIDE_PRIVATE_H_
+#ifndef WHOLESLIDE_PRIVATE_H
+#define WHOLESLIDE_PRIVATE_H
 
 #include "wholeslide.h"
 #include "tiffio.h"
+
+#include <stdbool.h>
 
 struct _wholeslide {
   TIFF *tiff;
@@ -15,9 +17,9 @@ struct _wholeslide {
 
   uint32_t overlap_count;
   uint32_t *overlaps;
-
-  uint32_t background_color;
 };
 
+
+bool _ws_try_trestle(wholeslide_t *wsd);
 
 #endif

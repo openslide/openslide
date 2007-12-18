@@ -3,8 +3,10 @@
  * The API for the libwholeslide library.
  */
 
-#ifndef _WHOLESLIDE_H_
-#define _WHOLESLIDE_H_
+#ifndef WHOLESLIDE_H
+#define WHOLESLIDE_H
+
+#include <wholeslide-features.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -19,6 +21,7 @@ typedef struct _wholeslide wholeslide_t;
  * @param filename The filename to open.
  * @return A new handle to an open whole slide image.
  */
+wholeslide_public
 wholeslide_t *ws_open(const char *filename);
 
 /**
@@ -27,6 +30,7 @@ wholeslide_t *ws_open(const char *filename);
  * @param wsd The whole slide image handle.
  * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
+wholeslide_public
 size_t ws_get_region_num_bytes(wholeslide_t *wsd,
 			       uint32_t w, uint32_t h);
 
@@ -46,6 +50,7 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
  * @param w The width of the region.
  * @param h The height of the region.
  */
+wholeslide_public
 void ws_read_region(wholeslide_t *wsd,
 		    uint32_t *dest,
 		    uint32_t x, uint32_t y,
@@ -63,6 +68,7 @@ void ws_read_region(wholeslide_t *wsd,
  * @param h The height of the region.
  * @returns A unique identifier for this prefetch hint.
  */
+wholeslide_public
 uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
 			       uint32_t x, uint32_t y,
 			       uint32_t layer,
@@ -74,6 +80,7 @@ uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
  * @param wsd The whole slide image handle.
  * @param prefetch_id An identifier returned by ws_give_prefetch_hint().
  */
+wholeslide_public
 void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id);
 
 
@@ -82,6 +89,7 @@ void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id);
  *
  * @param wsd The whole slide image handle.
  */
+wholeslide_public
 void ws_close(wholeslide_t *wsd);
 
 /**
@@ -90,6 +98,7 @@ void ws_close(wholeslide_t *wsd);
  * @param wsd The whole slide image handle.
  * @return The number of layers.
  */
+wholeslide_public
 uint32_t ws_get_layer_count(wholeslide_t *wsd);
 
 /**
@@ -99,6 +108,7 @@ uint32_t ws_get_layer_count(wholeslide_t *wsd);
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
  */
+wholeslide_public
 void ws_get_baseline_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
 
 /**
@@ -109,6 +119,7 @@ void ws_get_baseline_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
  */
+wholeslide_public
 void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
 			     uint32_t *w, uint32_t *h);
 
@@ -119,6 +130,7 @@ void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
  * @param layer The desired layer.
  * @return The downsampling factor for this layer.
  */
+wholeslide_public
 double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer);
 
 
@@ -129,6 +141,7 @@ double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer);
  * @param downsample The downsample factor.
  * @return The layer identifier.
  */
+wholeslide_public
 uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd, double downsample);
 
 
@@ -138,14 +151,7 @@ uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd, double downsample);
  * @param wsd The whole slide image handle.
  * @return The comment for this image.
  */
+wholeslide_public
 const char *ws_get_comment(wholeslide_t *wsd);
-
-/**
- * Get the background color for this image.
- *
- * @param wsd The whole slide image handle.
- * @return The background color for this image, as a packed ARGB 4-byte integer.
- */
-uint32_t ws_get_background_color(wholeslide_t *wsd);
 
 #endif
