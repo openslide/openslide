@@ -74,6 +74,7 @@ bool _ws_try_trestle(wholeslide_t *wsd) {
   }
   //  printf("\n");
 
-
   g_strfreev(first_pass);
+
+  return true;
 }
