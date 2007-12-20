@@ -259,6 +259,8 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
 		      uint32_t overlap_count,
 		      uint32_t *overlaps) {
+  g_assert(wsd->data == NULL);
+
   // allocate private data
   struct _ws_tiffdata *data =  g_slice_new(struct _ws_tiffdata);
 
