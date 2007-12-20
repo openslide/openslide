@@ -36,7 +36,7 @@ static void add_in_overlaps(wholeslide_t *wsd,
 }
 
 
-static void copy_rgba_tile(uint32_t *tile,
+static void copy_rgba_tile(const uint32_t *tile,
 			   uint32_t *dest,
 			   uint32_t src_w, uint32_t src_h,
 			   int32_t dest_origin_x, int32_t dest_origin_y,
