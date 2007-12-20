@@ -63,6 +63,11 @@ int main(int argc, char **argv) {
 
   uint32_t w, h;
 
+  if (wsd == NULL) {
+    printf("oh no\n");
+    exit(1);
+  }
+
   ws_get_baseline_dimensions(wsd, &w, &h);
   printf("dimensions: %d x %d\n", w, h);
   printf("comment: %s\n", ws_get_comment(wsd));
