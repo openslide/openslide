@@ -61,7 +61,6 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
     wsd->layer_count++;
   } while (TIFFReadDirectory(tiff));
   wsd->layers = g_new(uint32_t, wsd->layer_count);
-  wsd->downsamples = g_new(double, wsd->layer_count);
 
   // directories are linear
   for (uint32_t i = 0; i < wsd->layer_count; i++) {

@@ -9,13 +9,19 @@
 
 wholeslide_t *ws_open(const char *filename) {
   // alloc memory
-  wholeslide_t *wsd = g_slice_new(wholeslide_t);
+  wholeslide_t *wsd = g_slice_new0(wholeslide_t);
 
   // try to read it
-  _ws_try_trestle(wsd, filename); /* || hamamatsu || aperio || etc. */
+  if (!(_ws_try_trestle(wsd, filename) ||
+	_ws_try_hamamatsu(wsd, filename))) {
+    // failure
+    ws_close(wsd);
+    return NULL;
+  }
 
   // compute downsamples
   uint32_t blw, blh;
+  wsd->downsamples = g_new(double, wsd->layer_count);
   ws_get_baseline_dimensions(wsd, &blw, &blh);
   for (uint32_t i = 0; i < wsd->layer_count; i++) {
     uint32_t w, h;
@@ -29,7 +35,9 @@ wholeslide_t *ws_open(const char *filename) {
 
 
 void ws_close(wholeslide_t *wsd) {
-  (wsd->ops->destroy)(wsd);
+  if (wsd->ops) {
+    (wsd->ops->destroy)(wsd);
+  }
 
   g_free(wsd->layers);
   g_free(wsd->downsamples);
