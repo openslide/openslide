@@ -21,6 +21,7 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
   if (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE))) {
     // not trestle
+    TIFFClose(tiff);
     return false;
   }
 
