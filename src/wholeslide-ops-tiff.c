@@ -3,7 +3,7 @@
 
 #include "wholeslide-private.h"
 
-struct _ws_tiffdata {
+struct _ws_tiffopsdata {
   TIFF *tiff;
 
   uint32_t overlap_count;
@@ -13,11 +13,11 @@ struct _ws_tiffdata {
 
 static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
 			 uint32_t *x, uint32_t *y) {
-  struct _ws_tiffdata *tiffdata = wsd->data;
+  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
 
-  if (tiffdata->overlap_count >= 2 * (layer + 1)) {
-    *x = tiffdata->overlaps[2 * layer + 0];
-    *y = tiffdata->overlaps[2 * layer + 1];
+  if (tiffopsdata->overlap_count >= 2 * (layer + 1)) {
+    *x = tiffopsdata->overlaps[2 * layer + 0];
+    *y = tiffopsdata->overlaps[2 * layer + 1];
   } else {
     *x = 0;
     *y = 0;
@@ -92,8 +92,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
-  struct _ws_tiffdata *tiffdata = wsd->data;
-  TIFF *tiff = tiffdata->tiff;
+  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
+  TIFF *tiff = tiffopsdata->tiff;
 
   // fill
   //  memset(dest, 0, w * h * sizeof(uint32_t));
@@ -179,17 +179,17 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
 static void destroy(wholeslide_t *wsd) {
-  struct _ws_tiffdata *tiffdata = wsd->data;
+  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
 
-  TIFFClose(tiffdata->tiff);
-  g_free(tiffdata->overlaps);
-  g_slice_free(struct _ws_tiffdata, tiffdata);
+  TIFFClose(tiffopsdata->tiff);
+  g_free(tiffopsdata->overlaps);
+  g_slice_free(struct _ws_tiffopsdata, tiffopsdata);
 }
 
 static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 			   uint32_t *w, uint32_t *h) {
-  struct _ws_tiffdata *tiffdata = wsd->data;
-  TIFF *tiff = tiffdata->tiff;
+  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
+  TIFF *tiff = tiffopsdata->tiff;
 
   // check bounds
   if (layer >= wsd->layer_count) {
@@ -241,10 +241,10 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
-  struct _ws_tiffdata *tiffdata = wsd->data;
+  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
 
   char *comment;
-  TIFFGetField(tiffdata->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
+  TIFFGetField(tiffopsdata->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
   return comment;
 }
 
@@ -262,7 +262,7 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
   g_assert(wsd->data == NULL);
 
   // allocate private data
-  struct _ws_tiffdata *data =  g_slice_new(struct _ws_tiffdata);
+  struct _ws_tiffopsdata *data =  g_slice_new(struct _ws_tiffopsdata);
 
   // populate private data
   data->tiff = tiff;
