@@ -79,7 +79,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
 
-  if ((f = fopen(image_filename, "r")) == NULL) {
+  if ((f = fopen(image_filename, "rb")) == NULL) {
     goto FAIL;
   }
 
