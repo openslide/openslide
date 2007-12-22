@@ -59,18 +59,20 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   }
 
   // count layers
+  uint32_t layer_count = 0;
+  uint32_t *layers = NULL;
   do {
-    wsd->layer_count++;
+    layer_count++;
   } while (TIFFReadDirectory(tiff));
-  wsd->layers = g_new(uint32_t, wsd->layer_count);
+  layers = g_new(uint32_t, layer_count);
 
   // directories are linear
-  for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    wsd->layers[i] = i;
+  for (uint32_t i = 0; i < layer_count; i++) {
+    layers[i] = i;
   }
 
   // all set, load up the TIFF-specific ops
-  _ws_add_tiff_ops(wsd, tiff, overlap_count, overlaps);
+  _ws_add_tiff_ops(wsd, tiff, overlap_count, overlaps, layer_count, layers);
 
   g_strfreev(first_pass);
 

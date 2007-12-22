@@ -41,7 +41,9 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char* filename);
 void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
 		      uint32_t overlap_count,
-		      uint32_t *overlaps);
+		      uint32_t *overlaps,
+		      uint32_t layer_count,
+		      uint32_t *layers);
 
 /* some JPEG support */
 void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,

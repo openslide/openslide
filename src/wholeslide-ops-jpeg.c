@@ -65,7 +65,13 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   // allocate private data
   struct _ws_jpegopsdata *data =  g_slice_new(struct _ws_jpegopsdata);
 
-  
+  // all JPEG can be downsampled to 1/1, 1/2, 1/4, 1/8
+  wsd->layer_count = 4;
+  wsd->layers = g_new(uint32_t, wsd->layer_count);
+  wsd->layers[0] = 0;
+  wsd->layers[1] = 1;
+  wsd->layers[2] = 2;
+  wsd->layers[3] = 3;
 }
 
 

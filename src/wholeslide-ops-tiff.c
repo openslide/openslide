@@ -260,8 +260,14 @@ static struct _wholeslide_ops _ws_tiff_ops = {
 void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
 		      uint32_t overlap_count,
-		      uint32_t *overlaps) {
+		      uint32_t *overlaps,
+		      uint32_t layer_count,
+		      uint32_t *layers) {
   g_assert(wsd->data == NULL);
+
+  // store layer info
+  wsd->layer_count = layer_count;
+  wsd->layers = layers;
 
   // allocate private data
   struct _ws_tiffopsdata *data =  g_slice_new(struct _ws_tiffopsdata);
