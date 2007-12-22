@@ -57,9 +57,9 @@ static struct _wholeslide_ops _ws_jpeg_ops = {
 };
 
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      TIFF *tiff,
-		      uint32_t overlap_count,
-		      uint32_t *overlaps) {
+		      FILE *f,
+		      uint32_t mcu_row_count,
+		      int64_t *mcu_row_starts) {
   g_assert(wsd->data == NULL);
 
   // allocate private data

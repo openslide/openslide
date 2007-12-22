@@ -39,7 +39,7 @@ AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 AC_SEARCH_LIBS([jas_init], [jasper],, AC_MSG_FAILURE([cannot find JasPer]))
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
-PKG_CHECK_MODULES(GLIB2, [glib-2.0])
+PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12])
 AC_SUBST(GLIB2_CFLAGS)
 AC_SUBST(GLIB2_LIBS)
 

@@ -44,6 +44,10 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      uint32_t *overlaps,
 		      uint32_t layer_count,
 		      uint32_t *layers);
+void _ws_add_jpeg_ops(wholeslide_t *wsd,
+		      FILE *f,
+		      uint32_t mcu_row_count,
+		      int64_t *mcu_row_starts);
 
 /* some JPEG support */
 void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,

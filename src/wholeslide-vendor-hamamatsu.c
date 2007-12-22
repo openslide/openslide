@@ -21,6 +21,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *map_filename = NULL;
   char *image_filename = NULL;
   FILE *f = NULL;
+  bool success = false;
 
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
@@ -66,6 +67,8 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     g_free(tmp);
   }
 
+  wsd->objective_power =
+    g_key_file_get_double(vms_file, GROUP_VMS, KEY_OBJECTIVE, NULL);
 
   printf("opt: %s, map: %s, image: %s\n",
 	 opt_filename, map_filename, image_filename);
@@ -86,13 +89,12 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     goto FAIL;
   }
 
-  printf("fopen success\n");
-
-  int result;
+  int header_result;
 
   jpeg_stdio_src(&cinfo, f);
-  result = jpeg_read_header(&cinfo, FALSE);  // read headers
-  if (result != JPEG_HEADER_OK && result != JPEG_HEADER_TABLES_ONLY) {
+  header_result = jpeg_read_header(&cinfo, FALSE);  // read headers
+  if (header_result != JPEG_HEADER_OK
+      && header_result != JPEG_HEADER_TABLES_ONLY) {
     jpeg_destroy_decompress(&cinfo);
     goto FAIL;
   }
@@ -165,15 +167,25 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     printf(" %lld\n", mcu_row_starts[i]);
   }
 
+  // success, now clean up
+  jpeg_destroy_decompress(&cinfo);
+
+  _ws_add_jpeg_ops(wsd, f, MCU_rows_in_scan, mcu_row_starts);
+  success = true;
+  goto DONE;
 
  FAIL:
   if (f) {
     fclose(f);
   }
+  success = false;
+
+ DONE:
   g_free(dirname);
   g_free(opt_filename);
   g_free(image_filename);
   g_free(map_filename);
   g_key_file_free(vms_file);
-  return false;
+
+  return success;
 }
