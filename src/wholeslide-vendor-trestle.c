@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include "wholeslide-private.h"
 
 #include <glib.h>
