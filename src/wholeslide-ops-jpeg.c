@@ -139,6 +139,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
     // don't end on ff, unless it is the very last byte
     if (last_was_ff && nbytes > 1) {
       nbytes--;
+      fseek(src->infile, -1, SEEK_CUR);
     }
   }
 
