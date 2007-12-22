@@ -99,7 +99,6 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
 
   off_t pos = ftello(src->infile);
 
-
   bool in_header = false;
   size_t bytes_to_read = INPUT_BUF_SIZE;
   if (pos < src->header_length) {
@@ -123,8 +122,8 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
     src->buffer[0] = (JOCTET) 0xFF;
     src->buffer[1] = (JOCTET) JPEG_EOI;
     nbytes = 2;
-  } else if (!in_header) {
-    // rewrite the restart markers
+  } else if (!in_header && src->header_length != -1) {
+    // rewrite the restart markers if we know for sure we are not in the header
     bool last_was_ff = false;
 
     for (size_t i = 0; i < nbytes; i++) {
@@ -174,6 +173,12 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
 
 static void term_source (j_decompress_ptr cinfo) {
   /* no work necessary here */
+}
+
+int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo) {
+  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
+
+  return ftello(src->infile) - src->pub.bytes_in_buffer;
 }
 
 void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,

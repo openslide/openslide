@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <tiffio.h>
+#include <jpeglib.h>
 
 /* the main structure */
 struct _wholeslide {
@@ -41,5 +42,11 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
 		      uint32_t overlap_count,
 		      uint32_t *overlaps);
+
+/* some JPEG support */
+void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
+			int64_t header_length,
+			int64_t start_position);
+int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
 
 #endif

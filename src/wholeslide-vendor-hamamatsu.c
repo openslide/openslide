@@ -98,16 +98,38 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
   jpeg_start_decompress(&cinfo);
 
-  // generate the optimization list
+  unsigned int restart_interval = cinfo.restart_interval;
+  JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
+  JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
+
   printf("w: %d, h: %d, restart_interval: %d\n"
 	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
 	 "restart intervals per row: %d\n"
 	 "leftover mcus: %d\n",
 	 cinfo.output_width, cinfo.output_height,
-	 cinfo.restart_interval,
-	 cinfo.MCUs_per_row, cinfo.MCU_rows_in_scan,
-	 cinfo.MCUs_per_row / cinfo.restart_interval,
-	 cinfo.MCUs_per_row % cinfo.restart_interval);
+	 restart_interval,
+	 MCUs_per_row, MCU_rows_in_scan,
+	 MCUs_per_row / restart_interval,
+	 MCUs_per_row % restart_interval);
+
+
+  // generate the optimization list
+  jpeg_destroy_decompress(&cinfo);
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+
+  uint64_t *mcu_row_starts = g_new(uint64_t, MCU_rows_in_scan);
+
+  rewind(f);
+  _ws_jpeg_fancy_src(&cinfo, f, -1, -1);
+  jpeg_read_header(&cinfo, FALSE);
+
+  printf("offset: %d\n", _ws_jpeg_fancy_src_get_filepos(&cinfo));
+
+  for (int i = 0; i < MCU_rows_in_scan; i++) {
+    
+  }
+
 
  FAIL:
   if (f) {
