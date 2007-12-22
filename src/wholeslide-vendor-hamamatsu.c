@@ -13,6 +13,7 @@ static const char KEY_MAP_FILE[] = "MapFile";
 static const char KEY_IMAGE_FILE[] = "ImageFile";
 static const char KEY_OBJECTIVE[] = "SourceLens";
 
+#define INPUT_BUF_SIZE  4096
 
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
@@ -102,32 +103,66 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
+  unsigned int restart_markers_per_MCU_row = MCUs_per_row / restart_interval;
+
   printf("w: %d, h: %d, restart_interval: %d\n"
 	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-	 "restart intervals per row: %d\n"
+	 "restart markers per row: %d\n"
 	 "leftover mcus: %d\n",
 	 cinfo.output_width, cinfo.output_height,
 	 restart_interval,
 	 MCUs_per_row, MCU_rows_in_scan,
-	 MCUs_per_row / restart_interval,
+	 restart_markers_per_MCU_row,
 	 MCUs_per_row % restart_interval);
 
 
   // generate the optimization list
   jpeg_destroy_decompress(&cinfo);
+
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
-
-  uint64_t *mcu_row_starts = g_new(uint64_t, MCU_rows_in_scan);
-
   rewind(f);
   _ws_jpeg_fancy_src(&cinfo, f, -1, -1);
+
+  int64_t *mcu_row_starts = g_new0(int64_t, MCU_rows_in_scan);
+
   jpeg_read_header(&cinfo, FALSE);
 
-  printf("offset: %d\n", _ws_jpeg_fancy_src_get_filepos(&cinfo));
+  // the first row
+  mcu_row_starts[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+  printf("offset: %#llx\n", mcu_row_starts[0]);
 
-  for (int i = 0; i < MCU_rows_in_scan; i++) {
-    
+  // now find the rest of the rows
+  bool last_was_ff = false;
+
+  for (JDIMENSION row = 1; row < MCU_rows_in_scan; row++) {
+    unsigned int marker = 0;
+    while (marker < restart_markers_per_MCU_row) {
+      if (cinfo.src->bytes_in_buffer == 0) {
+	(cinfo.src->fill_input_buffer)(&cinfo);
+      }
+      uint8_t b = *(cinfo.src->next_input_byte++);
+      cinfo.src->bytes_in_buffer--;
+
+      if (last_was_ff) {
+	// EOI?
+	if (b == JPEG_EOI) {
+	  // we're done
+	  marker = restart_markers_per_MCU_row;
+	  row = MCU_rows_in_scan;
+	  break;
+	} else if (b >= 0xD0 && b < 0xD8) {
+	  // marker
+	  marker++;
+	}
+      }
+      last_was_ff = b == 0xFF;
+    }
+    mcu_row_starts[row] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+  }
+
+  for (uint32_t i = 0; i < MCU_rows_in_scan; i++) {
+    printf(" %lld\n", mcu_row_starts[i]);
   }
 
 
