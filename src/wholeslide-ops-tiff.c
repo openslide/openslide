@@ -15,11 +15,11 @@ struct _ws_tiffopsdata {
 
 static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
 			 uint32_t *x, uint32_t *y) {
-  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
+  struct _ws_tiffopsdata *data = wsd->data;
 
-  if (tiffopsdata->overlap_count >= 2 * (layer + 1)) {
-    *x = tiffopsdata->overlaps[2 * layer + 0];
-    *y = tiffopsdata->overlaps[2 * layer + 1];
+  if (data->overlap_count >= 2 * (layer + 1)) {
+    *x = data->overlaps[2 * layer + 0];
+    *y = data->overlaps[2 * layer + 1];
   } else {
     *x = 0;
     *y = 0;
@@ -94,8 +94,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
-  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
-  TIFF *tiff = tiffopsdata->tiff;
+  struct _ws_tiffopsdata *data = wsd->data;
+  TIFF *tiff = data->tiff;
 
   // fill
   //  memset(dest, 0, w * h * sizeof(uint32_t));
@@ -181,17 +181,17 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
 static void destroy(wholeslide_t *wsd) {
-  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
+  struct _ws_tiffopsdata *data = wsd->data;
 
-  TIFFClose(tiffopsdata->tiff);
-  g_free(tiffopsdata->overlaps);
-  g_slice_free(struct _ws_tiffopsdata, tiffopsdata);
+  TIFFClose(data->tiff);
+  g_free(data->overlaps);
+  g_slice_free(struct _ws_tiffopsdata, data);
 }
 
 static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 			   uint32_t *w, uint32_t *h) {
-  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
-  TIFF *tiff = tiffopsdata->tiff;
+  struct _ws_tiffopsdata *data = wsd->data;
+  TIFF *tiff = data->tiff;
 
   // check bounds
   if (layer >= wsd->layer_count) {
@@ -243,10 +243,10 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
-  struct _ws_tiffopsdata *tiffopsdata = wsd->data;
+  struct _ws_tiffopsdata *data = wsd->data;
 
   char *comment;
-  TIFFGetField(tiffopsdata->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
+  TIFFGetField(data->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
   return comment;
 }
 
