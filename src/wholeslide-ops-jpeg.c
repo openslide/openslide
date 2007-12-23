@@ -23,30 +23,54 @@ struct _ws_jpegopsdata {
 
   FILE *f;
 
-  uint64_t *mcu_row_starts;
+  uint32_t mcu_row_count;
+  int64_t *mcu_row_starts;
+
+  char *comment;
+
+  uint32_t widths[4];    // 4 layers
+  uint32_t heights[4];
 };
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
-  struct _ws_jpegopsdata *jpegopsdata = wsd->data;
+  struct _ws_jpegopsdata *data = wsd->data;
 
   
 }
 
 
 static void destroy(wholeslide_t *wsd) {
-  
+  struct _ws_jpegopsdata *data = wsd->data;
+
+  jpeg_destroy_decompress(&data->cinfo);
+  fclose(data->f);
+
+  g_free(data->mcu_row_starts);
+  g_free(data->comment);
+  g_slice_free(struct _ws_jpegopsdata, data);
 }
 
 static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 			   uint32_t *w, uint32_t *h) {
-  
+  struct _ws_jpegopsdata *data = wsd->data;
+
+  // check bounds
+  if (layer >= 4) {
+    *w = 0;
+    *h = 0;
+    return;
+  }
+
+  *w = data->widths[layer];
+  *h = data->heights[layer];
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
-  
+  struct _ws_jpegopsdata *data = wsd->data;
+  return data->comment;
 }
 
 static struct _wholeslide_ops _ws_jpeg_ops = {
@@ -63,15 +87,51 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   g_assert(wsd->data == NULL);
 
   // allocate private data
-  struct _ws_jpegopsdata *data =  g_slice_new(struct _ws_jpegopsdata);
+  struct _ws_jpegopsdata *data =  g_slice_new0(struct _ws_jpegopsdata);
+  wsd->data = data;
+
+  // copy parameters
+  data->f = f;
+  data->mcu_row_count = mcu_row_count;
+  data->mcu_row_starts = mcu_row_starts;
+
+  // init jpeg
+  rewind(f);
+  data->cinfo.err = jpeg_std_error(&data->jerr);
+  jpeg_create_decompress(&data->cinfo);
+  _ws_jpeg_fancy_src(&data->cinfo, f,
+		     data->mcu_row_starts[0], -1);
+
+  // extract comment
+  jpeg_save_markers(&data->cinfo, JPEG_COM, 0xFFFF);
+  jpeg_read_header(&data->cinfo, FALSE);
+  if (data->cinfo.marker_list) {
+    // copy everything out
+    char *com = g_strndup(data->cinfo.marker_list->data,
+			  data->cinfo.marker_list->data_length);
+    // but only really save everything up to the first '\0'
+    data->comment = g_strdup(com);
+    g_free(com);
+  }
+  jpeg_save_markers(&data->cinfo, JPEG_COM, 0);  // stop saving
+
 
   // all JPEG can be downsampled to 1/1, 1/2, 1/4, 1/8
   wsd->layer_count = 4;
   wsd->layers = g_new(uint32_t, wsd->layer_count);
-  wsd->layers[0] = 0;
-  wsd->layers[1] = 1;
-  wsd->layers[2] = 2;
-  wsd->layers[3] = 3;
+
+  // save dimensions
+  for (int i = 0; i < 4; i++) {
+    wsd->layers[i] = i;
+
+    data->cinfo.scale_denom = 1 << i;
+    jpeg_calc_output_dimensions(&data->cinfo);
+    data->widths[i] = data->cinfo.output_width;
+    data->heights[i] = data->cinfo.output_height;
+  }
+
+  // set ops
+  wsd->ops = &_ws_jpeg_ops;
 }
 
 
