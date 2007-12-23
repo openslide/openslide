@@ -49,12 +49,10 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // select downsample
   uint32_t downsample = 1 << layer;
-  data->cinfo.scale_denom = downsample;
   uint32_t d_x = x / downsample;
   uint32_t d_y = y / downsample;
 
-  // select dct_method ?
-  data->cinfo.dct_method = JDCT_FLOAT;
+
 
   // figure out where to start the data stream
   uint32_t mcu_row_start = y / data->mcu_height;
@@ -66,6 +64,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   // begin decompress
   uint32_t rows_left = h;
   jpeg_read_header(&data->cinfo, TRUE);
+  data->cinfo.scale_denom = downsample;
+  data->cinfo.dct_method = JDCT_FLOAT;  // select dct_method ?
+
   jpeg_start_decompress(&data->cinfo);
   g_assert(data->cinfo.output_components == 3);
 
@@ -96,7 +97,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       // copy a row
       if (rows_to_skip == 0) {
 	for (uint32_t i = 0; i < w && i < data->cinfo.output_width; i++) {
-	  dest[i] =
+	  dest[i] = 0xFF000000 |                          // A
 	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
 	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
