@@ -93,8 +93,9 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
   jpeg_stdio_src(&cinfo, f);
   header_result = jpeg_read_header(&cinfo, FALSE);  // read headers
-  if (header_result != JPEG_HEADER_OK
-      && header_result != JPEG_HEADER_TABLES_ONLY) {
+  if ((header_result != JPEG_HEADER_OK
+       && header_result != JPEG_HEADER_TABLES_ONLY)
+      || cinfo.num_components != 3) {
     jpeg_destroy_decompress(&cinfo);
     goto FAIL;
   }
