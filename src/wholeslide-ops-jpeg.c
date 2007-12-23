@@ -26,6 +26,7 @@ struct _ws_jpegopsdata {
 
   uint32_t mcu_row_count;
   int64_t *mcu_row_starts;
+  uint32_t mcu_height;
 
   char *comment;
 
@@ -52,17 +53,19 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   uint32_t d_x = x / downsample;
   uint32_t d_y = y / downsample;
 
-  // select dct_method
+  // select dct_method ?
   data->cinfo.dct_method = JDCT_FLOAT;
 
   // figure out where to start the data stream
-  
-
-  // adjust the height of the image to account for a short stream
-  
+  uint32_t mcu_row_start = y / data->mcu_height;
+  rewind(data->f);
+  _ws_jpeg_fancy_src(&data->cinfo, data->f,
+		     data->mcu_row_starts[0],
+		     data->mcu_row_starts[mcu_row_start]);
 
   // begin decompress
   uint32_t rows_left = h;
+  jpeg_read_header(&data->cinfo, TRUE);
   jpeg_start_decompress(&data->cinfo);
   g_assert(data->cinfo.output_components == 3);
 
@@ -75,32 +78,40 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     * 3;  // output components
   for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
     buffer[i] = g_slice_alloc(row_size);
+    printf("buffer[%d]: %p\n", i, buffer[i]);
   }
 
-  // skip to beginning of desired image
-  
+  // figure out number of scanlines to skip
+  uint32_t start_row = mcu_row_start * data->mcu_height / downsample;
+  uint32_t rows_to_skip = d_y - start_row;
 
   // decompress
-  while (data->cinfo.output_scanline < data->cinfo.output_height
+  while (data->cinfo.output_scanline < (data->cinfo.output_height - start_row)
 	 && rows_left > 0) {
     JDIMENSION rows_read = jpeg_read_scanlines(&data->cinfo,
 					       buffer,
 					       data->cinfo.rec_outbuf_height);
-    JSAMPARRAY cur_buffer = buffer;
+    int cur_buffer = 0;
     while (rows_read > 0 && rows_left > 0) {
       // copy a row
-      for (uint32_t i = d_x; i < w && i < data->cinfo.output_width; i++) {
-	dest[i] =
-	  cur_buffer[0][i * 3 + 0] << 16 | // R
-	  cur_buffer[0][i * 3 + 1] << 8 |  // G
-	  cur_buffer[0][i * 3 + 2];        // B
+      if (rows_to_skip == 0) {
+	for (uint32_t i = 0; i < w && i < data->cinfo.output_width; i++) {
+	  dest[i] =
+	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
+	}
       }
 
       // advance everything 1 row
       cur_buffer++;
-      dest += w * sizeof(uint32_t);
       rows_read--;
       rows_left--;
+      if (rows_to_skip > 0) {
+	rows_to_skip--;
+      } else {
+	dest += w;
+      }
     }
   }
 
@@ -202,6 +213,10 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     data->widths[i] = data->cinfo.output_width;
     data->heights[i] = data->cinfo.output_height;
   }
+
+  // save MCU height (always 8?)
+  jpeg_start_decompress(&data->cinfo);
+  data->mcu_height = data->heights[0] / data->cinfo.MCU_rows_in_scan;
 
   // quiesce jpeg
   jpeg_abort_decompress(&data->cinfo);
