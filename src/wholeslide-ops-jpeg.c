@@ -10,6 +10,7 @@
 
 #include <glib.h>
 #include <stdio.h>
+#include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
 
@@ -38,7 +39,79 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t w, uint32_t h) {
   struct _ws_jpegopsdata *data = wsd->data;
 
+  if (layer >= 4) {
+    return;
+  }
+
+  // clear
+  memset(dest, 0, w * h * sizeof(uint32_t));
+
+  // select downsample
+  uint32_t downsample = 1 << layer;
+  data->cinfo.scale_denom = downsample;
+  uint32_t d_x = x / downsample;
+  uint32_t d_y = y / downsample;
+
+  // select dct_method
+  data->cinfo.dct_method = JDCT_FLOAT;
+
+  // figure out where to start the data stream
   
+
+  // adjust the height of the image to account for a short stream
+  
+
+  // begin decompress
+  uint32_t rows_left = h;
+  jpeg_start_decompress(&data->cinfo);
+  g_assert(data->cinfo.output_components == 3);
+
+  // allocate scanline buffers
+  JSAMPARRAY buffer =
+    g_slice_alloc(sizeof(JSAMPROW) * data->cinfo.rec_outbuf_height);
+  gsize row_size =
+    sizeof(JSAMPLE)
+    * data->cinfo.output_width
+    * 3;  // output components
+  for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
+    buffer[i] = g_slice_alloc(row_size);
+  }
+
+  // skip to beginning of desired image
+  
+
+  // decompress
+  while (data->cinfo.output_scanline < data->cinfo.output_height
+	 && rows_left > 0) {
+    JDIMENSION rows_read = jpeg_read_scanlines(&data->cinfo,
+					       buffer,
+					       data->cinfo.rec_outbuf_height);
+    JSAMPARRAY cur_buffer = buffer;
+    while (rows_read > 0 && rows_left > 0) {
+      // copy a row
+      for (uint32_t i = d_x; i < w && i < data->cinfo.output_width; i++) {
+	dest[i] =
+	  cur_buffer[0][i * 3 + 0] << 16 | // R
+	  cur_buffer[0][i * 3 + 1] << 8 |  // G
+	  cur_buffer[0][i * 3 + 2];        // B
+      }
+
+      // advance everything 1 row
+      cur_buffer++;
+      dest += w * sizeof(uint32_t);
+      rows_read--;
+      rows_left--;
+    }
+  }
+
+  // free buffers
+  for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
+    g_slice_free1(row_size, buffer[i]);
+  }
+  g_slice_free1(sizeof(JSAMPROW) * data->cinfo.rec_outbuf_height, buffer);
+
+  // last thing, stop jpeg
+  jpeg_abort_decompress(&data->cinfo);
 }
 
 
@@ -129,6 +202,9 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     data->widths[i] = data->cinfo.output_width;
     data->heights[i] = data->cinfo.output_height;
   }
+
+  // quiesce jpeg
+  jpeg_abort_decompress(&data->cinfo);
 
   // set ops
   wsd->ops = &_ws_jpeg_ops;
