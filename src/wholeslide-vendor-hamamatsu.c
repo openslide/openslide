@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <glib.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include <jpeglib.h>
@@ -95,7 +96,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   header_result = jpeg_read_header(&cinfo, FALSE);  // read headers
   if ((header_result != JPEG_HEADER_OK
        && header_result != JPEG_HEADER_TABLES_ONLY)
-      || cinfo.num_components != 3) {
+      || cinfo.num_components != 3 || cinfo.restart_interval == 0) {
     jpeg_destroy_decompress(&cinfo);
     goto FAIL;
   }
@@ -105,8 +106,6 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   unsigned int restart_interval = cinfo.restart_interval;
   JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
-
-  g_assert(restart_interval != 0);
 
   uint64_t MCUs = MCUs_per_row * MCU_rows_in_scan;
 
@@ -122,7 +121,10 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	 MCUs_per_row, MCU_rows_in_scan,
 	 leftover_mcus);
 
-  g_assert(leftover_mcus == 0);
+  if (leftover_mcus != 0) {
+    jpeg_destroy_decompress(&cinfo);
+    goto FAIL;
+  }
 
 
   // generate the optimization list, by finding restart markers
