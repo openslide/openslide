@@ -70,7 +70,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // clamp width
   width_in_tiles = MIN(width_in_tiles, tile_x + stride_in_tiles);
+
   printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
+  printf("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
 
   rewind(data->f);
   _ws_jpeg_fancy_src(&data->cinfo, data->f,
@@ -88,6 +90,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   jpeg_start_decompress(&data->cinfo);
   g_assert(data->cinfo.output_components == 3);
+
+  printf("output_width: %d\n", data->cinfo.output_width);
 
   // allocate scanline buffers
   JSAMPARRAY buffer =
@@ -115,9 +119,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       if (rows_to_skip == 0) {
 	for (uint32_t i = 0; i < w && i < data->cinfo.output_width; i++) {
 	  dest[i] = 0xFF000000 |                          // A
-	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
+	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][i * 3 + 2];        // B
 	}
       }
 
@@ -261,7 +265,7 @@ struct my_src_mgr {
   bool start_of_file;
   uint8_t next_restart_marker;
 
-  uint64_t next_start_offset;
+  int64_t next_start_offset;
   int64_t next_start_position;
   int64_t stop_position;
 
@@ -281,21 +285,21 @@ static void compute_next_positions (struct my_src_mgr *src) {
     src->next_start_position = 0;
     src->stop_position = INT64_MAX;
 
-    printf("next start offset: %lld\n", src->next_start_offset);
-    printf("(count==0) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+    //    printf("next start offset: %lld\n", src->next_start_offset);
+    //    printf("(count==0) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 
     return;
   }
 
   // do special case for header
   if (src->start_of_file) {
-    src->stop_position = src->start_positions[0]; // stop at data start
-    src->next_start_offset = src->topleft;        // start again at topleft
-    g_assert(src->next_start_offset < src->start_positions_count);
-    src->next_start_position = src->start_positions[src->next_start_offset];
+    src->next_start_offset = src->topleft - src->stride;  // next time, start at topleft
+    src->stop_position = src->start_positions[0];         // stop at data start
+    g_assert(src->next_start_offset < (int64_t) src->start_positions_count);
+    src->next_start_position = 0;
 
-    printf("next start offset: %lld\n", src->next_start_offset);
-    printf("(start_of_file) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+    //    printf("next start offset: %lld\n", src->next_start_offset);
+    //    printf("(start_of_file) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 
     return;
   }
@@ -304,7 +308,8 @@ static void compute_next_positions (struct my_src_mgr *src) {
   src->next_start_offset += src->stride;
 
   // compute next jump point
-  g_assert(src->next_start_offset < src->start_positions_count);
+  g_assert(src->next_start_offset >= 0
+	   && src->next_start_offset < (int64_t) src->start_positions_count);
   src->next_start_position = src->start_positions[src->next_start_offset];
 
   // compute stop point, or end of file
@@ -315,16 +320,14 @@ static void compute_next_positions (struct my_src_mgr *src) {
     src->stop_position = INT64_MAX;
   }
 
-  printf("next start offset: %lld\n", src->next_start_offset);
-  printf("next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+  //  printf("next start offset: %lld\n", src->next_start_offset);
+  //  printf("next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 }
 
 static void init_source (j_decompress_ptr cinfo) {
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
   src->start_of_file = true;
   src->next_restart_marker = 0;
-
-  src->next_start_offset = 0;
   compute_next_positions(src);
 }
 
@@ -348,7 +351,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
   } else if (pos == src->stop_position) {
     // skip to the jump point
     compute_next_positions(src);
-    printf("at %lld, jump to %lld, will stop again at %lld\n", pos, src->next_start_position, src->stop_position);
+    //    printf("at %lld, jump to %lld, will stop again at %lld\n", pos, src->next_start_position, src->stop_position);
 
     fseeko(src->infile, src->next_start_position, SEEK_SET);
 
