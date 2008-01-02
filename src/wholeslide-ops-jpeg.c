@@ -13,6 +13,7 @@
 #include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
+#include <inttypes.h>
 
 #include <sys/types.h>   // for off_t ?
 
@@ -24,9 +25,11 @@ struct _ws_jpegopsdata {
 
   FILE *f;
 
-  uint32_t mcu_row_count;
-  int64_t *mcu_row_starts;
-  uint32_t mcu_height;
+  uint64_t mcu_starts_count;
+  int64_t *mcu_starts;
+
+  uint32_t tile_width;
+  uint32_t tile_height;
 
   char *comment;
 
@@ -55,17 +58,32 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
   // figure out where to start the data stream
-  uint32_t mcu_row_start = y / data->mcu_height;
+  uint32_t tile_y = y / data->tile_height;
+  uint32_t tile_x = x / data->tile_width;
+
+  imaxdiv_t divtmp;
+  divtmp = imaxdiv(data->widths[0], data->tile_width);
+  uint32_t stride_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
+  divtmp = imaxdiv(w * downsample, data->tile_width);
+  uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;
+
+  // clamp width
+  width_in_tiles = MIN(width_in_tiles, tile_x + stride_in_tiles);
+  printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
+
   rewind(data->f);
   _ws_jpeg_fancy_src(&data->cinfo, data->f,
-		     data->mcu_row_starts[0],
-		     data->mcu_row_starts[mcu_row_start]);
+  		     data->mcu_starts,
+		     data->mcu_starts_count,
+		     tile_y * stride_in_tiles + tile_x,
+		     width_in_tiles,
+		     stride_in_tiles);
 
   // begin decompress
   uint32_t rows_left = h;
   jpeg_read_header(&data->cinfo, TRUE);
   data->cinfo.scale_denom = downsample;
-  data->cinfo.dct_method = JDCT_FLOAT;  // select dct_method ?
+  data->cinfo.image_width = width_in_tiles * data->tile_width;  // cunning
 
   jpeg_start_decompress(&data->cinfo);
   g_assert(data->cinfo.output_components == 3);
@@ -79,16 +97,14 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     * 3;  // output components
   for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
     buffer[i] = g_slice_alloc(row_size);
-    printf("buffer[%d]: %p\n", i, buffer[i]);
+    //printf("buffer[%d]: %p\n", i, buffer[i]);
   }
 
-  // figure out number of scanlines to skip
-  uint32_t start_row = mcu_row_start * data->mcu_height / downsample;
-  uint32_t rows_to_skip = d_y - start_row;
-
   // decompress
-  while (data->cinfo.output_scanline < (data->cinfo.output_height - start_row)
+  uint32_t rows_to_skip = 0;  // TODO
+  while (data->cinfo.output_scanline < data->cinfo.output_height
 	 && rows_left > 0) {
+    //printf("reading scanline %d\n", data->cinfo.output_scanline);
     JDIMENSION rows_read = jpeg_read_scanlines(&data->cinfo,
 					       buffer,
 					       data->cinfo.rec_outbuf_height);
@@ -133,7 +149,7 @@ static void destroy(wholeslide_t *wsd) {
   jpeg_destroy_decompress(&data->cinfo);
   fclose(data->f);
 
-  g_free(data->mcu_row_starts);
+  g_free(data->mcu_starts);
   g_free(data->comment);
   g_slice_free(struct _ws_jpegopsdata, data);
 }
@@ -167,8 +183,8 @@ static struct _wholeslide_ops _ws_jpeg_ops = {
 
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      FILE *f,
-		      uint32_t mcu_row_count,
-		      int64_t *mcu_row_starts) {
+		      uint64_t mcu_starts_count,
+		      int64_t *mcu_starts) {
   g_assert(wsd->data == NULL);
 
   // allocate private data
@@ -177,15 +193,15 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 
   // copy parameters
   data->f = f;
-  data->mcu_row_count = mcu_row_count;
-  data->mcu_row_starts = mcu_row_starts;
+  data->mcu_starts_count = mcu_starts_count;
+  data->mcu_starts = mcu_starts;
 
   // init jpeg
   rewind(f);
   data->cinfo.err = jpeg_std_error(&data->jerr);
   jpeg_create_decompress(&data->cinfo);
   _ws_jpeg_fancy_src(&data->cinfo, f,
-		     data->mcu_row_starts[0], -1);
+		     NULL, 0, 0, 0, 0);
 
   // extract comment
   jpeg_save_markers(&data->cinfo, JPEG_COM, 0xFFFF);
@@ -215,9 +231,13 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     data->heights[i] = data->cinfo.output_height;
   }
 
-  // save MCU height (always 8?)
+  // save "tile" dimensions
   jpeg_start_decompress(&data->cinfo);
-  data->mcu_height = data->heights[0] / data->cinfo.MCU_rows_in_scan;
+  data->tile_width = data->widths[0] /
+    (data->cinfo.MCUs_per_row / data->cinfo.restart_interval);
+  data->tile_height = data->heights[0] / data->cinfo.MCU_rows_in_scan;
+
+  //  printf("jpeg \"tile\" dimensions: %dx%d\n", data->tile_width, data->tile_height);
 
   // quiesce jpeg
   jpeg_abort_decompress(&data->cinfo);
@@ -239,16 +259,69 @@ struct my_src_mgr {
   JOCTET *buffer;               /* start of buffer */
   bool start_of_file;
   uint8_t next_restart_marker;
+
+  uint64_t next_start_offset;
+  int64_t next_start_position;
+  int64_t stop_position;
+
   int64_t header_length;
-  int64_t start_position;
+  int64_t *start_positions;
+  uint64_t start_positions_count;
+  uint64_t topleft;
+  uint32_t width;
+  uint32_t stride;
 };
 
 #define INPUT_BUF_SIZE  4096    /* choose an efficiently fread'able size */
+
+static void compute_next_positions (struct my_src_mgr *src) {
+  if (src->start_positions_count == 0) {
+    // no positions given, do the whole file
+    src->next_start_position = 0;
+    src->stop_position = INT64_MAX;
+
+    printf("(count==0) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+
+    return;
+  }
+
+  // do special case for header
+  if (src->start_of_file) {
+    src->stop_position = src->start_positions[0]; // stop at data start
+    src->next_start_offset = src->topleft;        // start again at topleft
+    g_assert(src->next_start_offset < src->start_positions_count);
+    src->next_start_position = src->start_positions[src->next_start_offset];
+
+    printf("(start_of_file) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+
+    return;
+  }
+
+  // advance
+  src->next_start_offset += src->stride;
+
+  // compute next jump point
+  g_assert(src->next_start_offset < src->start_positions_count);
+  src->next_start_position = src->start_positions[src->next_start_offset];
+
+  // compute stop point, or end of file
+  uint64_t stop_offset = src->next_start_offset + src->width;
+  if (stop_offset < src->start_positions_count) {
+    src->stop_position = src->start_positions[stop_offset];
+  } else {
+    src->stop_position = INT64_MAX;
+  }
+
+  printf("next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
+}
 
 static void init_source (j_decompress_ptr cinfo) {
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
   src->start_of_file = true;
   src->next_restart_marker = 0;
+
+  src->next_start_offset = 0;
+  compute_next_positions(src);
 }
 
 static boolean fill_input_buffer (j_decompress_ptr cinfo) {
@@ -257,15 +330,23 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
 
   off_t pos = ftello(src->infile);
 
-  bool in_header = false;
+  boolean rewrite_markers = true;
+  if (src->start_positions_count == 0 || pos < src->start_positions[0]) {
+    rewrite_markers = false; // we are in the header, or we don't know where it is
+  }
+
   size_t bytes_to_read = INPUT_BUF_SIZE;
-  if (pos < src->header_length) {
-    // don't read past the header
-    bytes_to_read = MIN(src->header_length - pos, bytes_to_read);
-    in_header = true;
-  } else if (pos == src->header_length) {
+  if (pos < src->stop_position) {
+    // don't read past
+    bytes_to_read = MIN(src->stop_position - pos, bytes_to_read);
+  } else if (pos == src->stop_position) {
     // skip to the jump point
-    fseeko(src->infile, src->start_position, SEEK_SET);
+    fseeko(src->infile, src->next_start_position, SEEK_SET);
+
+    compute_next_positions(src);
+
+    // figure out new stop position
+    bytes_to_read = MIN(src->stop_position - pos, bytes_to_read);
   }
 
   nbytes = fread(src->buffer, 1, bytes_to_read, src->infile);
@@ -280,7 +361,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
     src->buffer[0] = (JOCTET) 0xFF;
     src->buffer[1] = (JOCTET) JPEG_EOI;
     nbytes = 2;
-  } else if (!in_header && src->header_length != -1) {
+  } else if (rewrite_markers) {
     // rewrite the restart markers if we know for sure we are not in the header
     bool last_was_ff = false;
 
@@ -340,8 +421,10 @@ int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo) {
 }
 
 void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
-			 int64_t header_length,
-			 int64_t start_position) {
+			 int64_t *start_positions,
+			 uint64_t start_positions_count,
+			 uint64_t topleft,
+			 uint32_t width, uint32_t stride) {
   struct my_src_mgr *src;
 
   if (cinfo->src == NULL) {     /* first time for this JPEG object? */
@@ -354,6 +437,9 @@ void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
 				  INPUT_BUF_SIZE * sizeof(JOCTET));
   }
 
+  printf("fancy: start_positions_count: %lld, topleft: %lld, width: %d, stride: %d\n",
+	 start_positions_count, topleft, width, stride);
+
   src = (struct my_src_mgr *) cinfo->src;
   src->pub.init_source = init_source;
   src->pub.fill_input_buffer = fill_input_buffer;
@@ -361,8 +447,11 @@ void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
   src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->pub.term_source = term_source;
   src->infile = infile;
-  src->header_length = header_length;
-  src->start_position = start_position;
+  src->start_positions = start_positions;
+  src->start_positions_count = start_positions_count;
+  src->topleft = topleft;
+  src->width = width;
+  src->stride = stride;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
   src->pub.next_input_byte = NULL; /* until buffer loaded */
 }

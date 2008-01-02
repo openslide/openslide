@@ -106,72 +106,74 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
-  unsigned int restart_markers_per_MCU_row = MCUs_per_row / restart_interval;
+  g_assert(restart_interval != 0);
+
+  uint64_t MCUs = MCUs_per_row * MCU_rows_in_scan;
+
+  uint64_t mcu_starts_count = MCUs / restart_interval;
+
+  unsigned int leftover_mcus = MCUs_per_row % restart_interval;
 
   printf("w: %d, h: %d, restart_interval: %d\n"
 	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-	 "restart markers per row: %d\n"
 	 "leftover mcus: %d\n",
 	 cinfo.output_width, cinfo.output_height,
 	 restart_interval,
 	 MCUs_per_row, MCU_rows_in_scan,
-	 restart_markers_per_MCU_row,
-	 MCUs_per_row % restart_interval);
+	 leftover_mcus);
+
+  g_assert(leftover_mcus == 0);
 
 
-  // generate the optimization list
+  // generate the optimization list, by finding restart markers
   jpeg_destroy_decompress(&cinfo);
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
   rewind(f);
-  _ws_jpeg_fancy_src(&cinfo, f, -1, -1);
+  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
 
-  int64_t *mcu_row_starts = g_new0(int64_t, MCU_rows_in_scan);
+  int64_t *mcu_starts = g_new0(int64_t, mcu_starts_count);
 
   jpeg_read_header(&cinfo, FALSE);
 
-  // the first row
-  mcu_row_starts[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
-  printf("offset: %#llx\n", mcu_row_starts[0]);
+  // the first entry
+  mcu_starts[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+  printf("offset: %#llx\n", mcu_starts[0]);
 
-  // now find the rest of the rows
+  // now find the rest of the MCUs
   bool last_was_ff = false;
-
-  for (JDIMENSION row = 1; row < MCU_rows_in_scan; row++) {
-    unsigned int marker = 0;
-    while (marker < restart_markers_per_MCU_row) {
-      if (cinfo.src->bytes_in_buffer == 0) {
-	(cinfo.src->fill_input_buffer)(&cinfo);
-      }
-      uint8_t b = *(cinfo.src->next_input_byte++);
-      cinfo.src->bytes_in_buffer--;
-
-      if (last_was_ff) {
-	// EOI?
-	if (b == JPEG_EOI) {
-	  // we're done
-	  marker = restart_markers_per_MCU_row;
-	  row = MCU_rows_in_scan;
-	  break;
-	} else if (b >= 0xD0 && b < 0xD8) {
-	  // marker
-	  marker++;
-	}
-      }
-      last_was_ff = b == 0xFF;
+  uint64_t marker = 0;
+  while (marker < mcu_starts_count) {
+    if (cinfo.src->bytes_in_buffer == 0) {
+      (cinfo.src->fill_input_buffer)(&cinfo);
     }
-    mcu_row_starts[row] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+    uint8_t b = *(cinfo.src->next_input_byte++);
+    cinfo.src->bytes_in_buffer--;
+
+    if (last_was_ff) {
+      // EOI?
+      if (b == JPEG_EOI) {
+	// we're done
+	break;
+      } else if (b >= 0xD0 && b < 0xD8) {
+	// marker
+	mcu_starts[1 + marker++] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+      }
+    }
+    last_was_ff = b == 0xFF;
   }
 
-  for (uint32_t i = 0; i < MCU_rows_in_scan; i++) {
-    printf(" %lld\n", mcu_row_starts[i]);
+  /*
+  for (uint64_t i = 0; i < mcu_starts_count; i++) {
+    printf(" %lld\n", mcu_starts[i]);
   }
+  */
 
   // success, now clean up
   jpeg_destroy_decompress(&cinfo);
 
-  _ws_add_jpeg_ops(wsd, f, MCU_rows_in_scan, mcu_row_starts);
+  _ws_add_jpeg_ops(wsd, f, mcu_starts_count, mcu_starts);
   success = true;
   goto DONE;
 

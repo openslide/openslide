@@ -46,13 +46,15 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      uint32_t *layers);
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      FILE *f,
-		      uint32_t mcu_row_count,
-		      int64_t *mcu_row_starts);
+		      uint64_t mcu_starts_count,
+		      int64_t *mcu_starts);
 
 /* some JPEG support */
 void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
-			int64_t header_length,
-			int64_t start_position);
+			int64_t *start_positions,
+			uint64_t start_positions_count,
+			uint64_t topleft,
+			uint32_t width, uint32_t stride);
 int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
 
 #endif
