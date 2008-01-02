@@ -9,6 +9,7 @@
 #include "config.h"
 
 #include <glib.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <jpeglib.h>
@@ -280,6 +281,7 @@ static void compute_next_positions (struct my_src_mgr *src) {
     src->next_start_position = 0;
     src->stop_position = INT64_MAX;
 
+    printf("next start offset: %lld\n", src->next_start_offset);
     printf("(count==0) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 
     return;
@@ -292,6 +294,7 @@ static void compute_next_positions (struct my_src_mgr *src) {
     g_assert(src->next_start_offset < src->start_positions_count);
     src->next_start_position = src->start_positions[src->next_start_offset];
 
+    printf("next start offset: %lld\n", src->next_start_offset);
     printf("(start_of_file) next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 
     return;
@@ -312,6 +315,7 @@ static void compute_next_positions (struct my_src_mgr *src) {
     src->stop_position = INT64_MAX;
   }
 
+  printf("next start offset: %lld\n", src->next_start_offset);
   printf("next start: %lld, stop: %lld\n", src->next_start_position, src->stop_position);
 }
 
@@ -335,18 +339,21 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
     rewrite_markers = false; // we are in the header, or we don't know where it is
   }
 
+  g_assert(pos <= src->stop_position);
+
   size_t bytes_to_read = INPUT_BUF_SIZE;
   if (pos < src->stop_position) {
     // don't read past
     bytes_to_read = MIN(src->stop_position - pos, bytes_to_read);
   } else if (pos == src->stop_position) {
     // skip to the jump point
+    compute_next_positions(src);
+    printf("at %lld, jump to %lld, will stop again at %lld\n", pos, src->next_start_position, src->stop_position);
+
     fseeko(src->infile, src->next_start_position, SEEK_SET);
 
-    compute_next_positions(src);
-
     // figure out new stop position
-    bytes_to_read = MIN(src->stop_position - pos, bytes_to_read);
+    bytes_to_read = MIN(src->stop_position - src->next_start_position, bytes_to_read);
   }
 
   nbytes = fread(src->buffer, 1, bytes_to_read, src->infile);
