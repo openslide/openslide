@@ -92,11 +92,10 @@ int main(int argc, char **argv) {
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
 
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
-  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, false);
+  //  test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, true);
+  test_image_fetch(wsd, "test2", w - 500, h - 300, 900, 800, false);
+  test_image_fetch(wsd, "test3", w*2, h*2, 900, 800, false);
 
   //  test_image_fetch(wsd, "test2", 0, 0, 400, 300);
   //  test_image_fetch(wsd, "test3", 12, 11, 400, 300);
