@@ -53,10 +53,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // select downsample
   uint32_t downsample = 1 << layer;
-  uint32_t d_x = x / downsample;
-  uint32_t d_y = y / downsample;
 
-
+  printf("downsample: %d\n", downsample);
 
   // figure out where to start the data stream
   uint32_t tile_y = y / data->tile_height;
@@ -65,7 +63,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   imaxdiv_t divtmp;
   divtmp = imaxdiv(data->widths[0], data->tile_width);
   uint32_t stride_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv(w * downsample, data->tile_width);
+  divtmp = imaxdiv((w * downsample) + (x % data->tile_width), data->tile_width);
   uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;
 
   // clamp width
@@ -107,6 +105,11 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // decompress
   uint32_t rows_to_skip = 0;  // TODO
+  uint32_t d_x = (x % data->tile_width) / downsample;
+  uint32_t d_y = y / downsample;
+
+  printf("d_x: %d, d_y: %d\n", d_x, d_y);
+
   while (data->cinfo.output_scanline < data->cinfo.output_height
 	 && rows_left > 0) {
     //printf("reading scanline %d\n", data->cinfo.output_scanline);
@@ -119,9 +122,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       if (rows_to_skip == 0) {
 	for (uint32_t i = 0; i < w && i < data->cinfo.output_width; i++) {
 	  dest[i] = 0xFF000000 |                          // A
-	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][i * 3 + 2];        // B
+	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
 	}
       }
 
