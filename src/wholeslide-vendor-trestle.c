@@ -21,7 +21,7 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   }
 
   TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
-  if (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE))) {
+  if (tagval && strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE))) {
     // not trestle
     TIFFClose(tiff);
     return false;
@@ -29,6 +29,11 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
 
   // parse
   TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+  if (tagval == NULL) {
+    // not trestle
+    TIFFClose(tiff);
+    return false;
+  }
 
   uint32_t overlap_count = 0;
   uint32_t *overlaps = NULL;
