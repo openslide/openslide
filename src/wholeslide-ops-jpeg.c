@@ -104,9 +104,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   }
 
   // decompress
-  uint32_t rows_to_skip = 0;  // TODO
   uint32_t d_x = (x % data->tile_width) / downsample;
-  uint32_t d_y = y / downsample;
+  uint32_t d_y = (y % data->tile_height) / downsample;
+  uint32_t rows_to_skip = d_y;
 
   printf("d_x: %d, d_y: %d\n", d_x, d_y);
 
@@ -129,12 +129,13 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       }
 
       // advance everything 1 row
-      cur_buffer++;
       rows_read--;
-      rows_left--;
+      cur_buffer++;
+
       if (rows_to_skip > 0) {
 	rows_to_skip--;
       } else {
+	rows_left--;
 	dest += w;
       }
     }
