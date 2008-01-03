@@ -44,12 +44,12 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t w, uint32_t h) {
   struct _ws_jpegopsdata *data = wsd->data;
 
-  if (layer >= 4) {
-    return;
-  }
-
   // clear
   memset(dest, 0, w * h * sizeof(uint32_t));
+
+  if (layer >= 4 || x >= data->widths[0] || y >= data->heights[0]) {
+    return;
+  }
 
   // select downsample
   uint32_t downsample = 1 << layer;
@@ -60,14 +60,18 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   uint32_t tile_y = y / data->tile_height;
   uint32_t tile_x = x / data->tile_width;
 
-  imaxdiv_t divtmp;
-  divtmp = imaxdiv(data->widths[0], data->tile_width);
-  uint32_t stride_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv((w * downsample) + (x % data->tile_width), data->tile_width);
-  uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;
+  uint32_t stride_in_tiles = data->widths[0] / data->tile_width;
+  uint32_t img_height_in_tiles = data->heights[0] / data->tile_height;
 
-  // clamp width
-  width_in_tiles = MIN(width_in_tiles, tile_x + stride_in_tiles);
+  imaxdiv_t divtmp;
+  divtmp = imaxdiv((w * downsample) + (x % data->tile_width), data->tile_width);
+  uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
+  divtmp = imaxdiv((h * downsample) + (y % data->tile_height), data->tile_height);
+  uint32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
+
+  // clamp width and height
+  width_in_tiles = MIN(width_in_tiles, stride_in_tiles - tile_x);
+  height_in_tiles = MIN(height_in_tiles, img_height_in_tiles - tile_y);
 
   printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
   printf("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
@@ -85,6 +89,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   jpeg_read_header(&data->cinfo, TRUE);
   data->cinfo.scale_denom = downsample;
   data->cinfo.image_width = width_in_tiles * data->tile_width;  // cunning
+  data->cinfo.image_height = height_in_tiles * data->tile_height;
 
   jpeg_start_decompress(&data->cinfo);
   g_assert(data->cinfo.output_components == 3);
@@ -120,7 +125,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     while (rows_read > 0 && rows_left > 0) {
       // copy a row
       if (rows_to_skip == 0) {
-	for (uint32_t i = 0; i < w && i < data->cinfo.output_width; i++) {
+	for (uint32_t i = 0; i < w && i < (data->cinfo.output_width - d_x); i++) {
 	  dest[i] = 0xFF000000 |                          // A
 	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
