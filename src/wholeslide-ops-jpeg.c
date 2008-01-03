@@ -115,6 +115,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   printf("d_x: %d, d_y: %d\n", d_x, d_y);
 
+  uint64_t pixels_wasted = rows_to_skip * data->cinfo.output_width;
+
   while (data->cinfo.output_scanline < data->cinfo.output_height
 	 && rows_left > 0) {
     //printf("reading scanline %d\n", data->cinfo.output_scanline);
@@ -125,12 +127,14 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     while (rows_read > 0 && rows_left > 0) {
       // copy a row
       if (rows_to_skip == 0) {
-	for (uint32_t i = 0; i < w && i < (data->cinfo.output_width - d_x); i++) {
+	uint32_t i;
+	for (i = 0; i < w && i < (data->cinfo.output_width - d_x); i++) {
 	  dest[i] = 0xFF000000 |                          // A
 	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
 	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
 	}
+	pixels_wasted += d_x + data->cinfo.output_width - i;
       }
 
       // advance everything 1 row
@@ -145,6 +149,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       }
     }
   }
+
+  printf("pixels wasted: %lld\n", pixels_wasted);
 
   // free buffers
   for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
