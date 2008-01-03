@@ -75,7 +75,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	 opt_filename, map_filename, image_filename);
 
   // check image filename (the others are sort of optional)
-  if (!image_filename) {
+  if (!image_filename || !map_filename) {
     goto FAIL;
   }
 
