@@ -41,7 +41,6 @@ void ws_close(wholeslide_t *wsd) {
     (wsd->ops->destroy)(wsd);
   }
 
-  g_free(wsd->layers);
   g_free(wsd->downsamples);
   g_slice_free(wholeslide_t, wsd);
 }
