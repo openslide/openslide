@@ -59,7 +59,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   // clear
   memset(dest, 0, w * h * sizeof(uint32_t));
 
-  if (layer >= wsd->layer_count || x >= data->jpegs[0].width || y >= data->jpegs[0].height) {
+  // in layer bounds?
+  if (layer >= wsd->layer_count) {
     return;
   }
 
@@ -67,9 +68,17 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   struct layer_lookup *ll = &data->layers[layer];
   struct one_jpeg *jpeg = &data->jpegs[ll->jpeg_number];
   uint32_t scale_denom = ll->scale_denom;
-  uint32_t downsample = data->jpegs[0].width / (jpeg->width / scale_denom);
+  uint32_t rel_downsample = data->jpegs[0].width / jpeg->width;
 
-  printf("jpeg: %d, downsample: %d, scale_denom: %d\n", ll->jpeg_number, downsample, scale_denom);
+  printf("jpeg: %d, rel_downsample: %d, scale_denom: %d\n",
+	 ll->jpeg_number, rel_downsample, scale_denom);
+
+  // scale x and y into this jpeg's space
+  x /= rel_downsample;
+  y /= rel_downsample;
+  if (x >= jpeg->width || y >= jpeg->height) {
+    return;
+  }
 
   // figure out where to start the data stream
   uint32_t tile_y = y / jpeg->tile_height;
@@ -79,9 +88,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   uint32_t img_height_in_tiles = jpeg->height / jpeg->tile_height;
 
   imaxdiv_t divtmp;
-  divtmp = imaxdiv((w * downsample) + (x % jpeg->tile_width), jpeg->tile_width);
+  divtmp = imaxdiv((w * scale_denom) + (x % jpeg->tile_width), jpeg->tile_width);
   uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv((h * downsample) + (y % jpeg->tile_height), jpeg->tile_height);
+  divtmp = imaxdiv((h * scale_denom) + (y % jpeg->tile_height), jpeg->tile_height);
   uint32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
 
   // clamp width and height
@@ -124,8 +133,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   }
 
   // decompress
-  uint32_t d_x = (x % jpeg->tile_width) / downsample;
-  uint32_t d_y = (y % jpeg->tile_height) / downsample;
+  uint32_t d_x = (x % jpeg->tile_width) / scale_denom;
+  uint32_t d_y = (y % jpeg->tile_height) / scale_denom;
   uint32_t rows_to_skip = d_y;
 
   printf("d_x: %d, d_y: %d\n", d_x, d_y);
