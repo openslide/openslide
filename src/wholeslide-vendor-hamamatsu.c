@@ -123,6 +123,12 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *image_filename = NULL;
   bool success = false;
 
+  // this format has 2 jpeg files
+  FILE *jpegs[2] = { NULL, NULL };
+  uint64_t mcu_starts_count_array[2] = { 0, 0 };
+  int64_t *mcu_starts_array[2] = { NULL, NULL };
+
+
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
@@ -178,11 +184,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     goto FAIL;
   }
 
-  // this format has 2 jpeg files, compute the optimization lists
-  FILE *jpegs[2] = { NULL, NULL };
-  uint64_t mcu_starts_count_array[2];
-  int64_t *mcu_starts_array[2];
-
+  // compute the optimization lists
   // image 0
   if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
     goto FAIL;
