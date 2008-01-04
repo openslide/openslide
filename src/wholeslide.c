@@ -14,8 +14,9 @@ wholeslide_t *ws_open(const char *filename) {
   wholeslide_t *wsd = g_slice_new0(wholeslide_t);
 
   // try to read it
-  if (!(_ws_try_trestle(wsd, filename) ||
-	_ws_try_hamamatsu(wsd, filename))) {
+  if (!(_ws_try_hamamatsu(wsd, filename) ||
+	_ws_try_trestle(wsd, filename) ||
+	_ws_try_aperio(wsd, filename))) {
     // failure
     ws_close(wsd);
     return NULL;

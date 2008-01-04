@@ -33,6 +33,7 @@ struct _wholeslide_ops {
 
 /* vendor detection and parsing */
 bool _ws_try_trestle(wholeslide_t *wsd, const char* filename);
+bool _ws_try_aperio(wholeslide_t *wsd, const char* filename);
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char* filename);
 
 
