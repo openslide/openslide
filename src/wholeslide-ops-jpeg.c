@@ -20,7 +20,7 @@
 
 #include "wholeslide-private.h"
 
-struct _ws_jpegopsdata {
+struct one_jpeg {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
@@ -32,17 +32,30 @@ struct _ws_jpegopsdata {
   uint32_t tile_width;
   uint32_t tile_height;
 
-  char *comment;
+  uint32_t width;
+  uint32_t height;
 
-  uint32_t widths[4];    // 4 layers
-  uint32_t heights[4];
+  char *comment;
+};
+
+struct layer_lookup {
+  uint32_t jpeg_number;
+  uint32_t scale_denom;
+};
+
+struct jpegops_data {
+  uint32_t jpeg_count;
+  struct one_jpeg *jpegs;
+
+  struct layer_lookup *layers;
 };
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
-  struct _ws_jpegopsdata *data = wsd->data;
+  /*
+  struct jpegops_data *data = wsd->data;
 
   // clear
   memset(dest, 0, w * h * sizeof(uint32_t));
@@ -160,110 +173,198 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // last thing, stop jpeg
   jpeg_abort_decompress(&data->cinfo);
+  */
 }
 
 
 static void destroy(wholeslide_t *wsd) {
-  struct _ws_jpegopsdata *data = wsd->data;
+  /*
+  struct jpegops_data *data = wsd->data;
 
   jpeg_destroy_decompress(&data->cinfo);
   fclose(data->f);
 
   g_free(data->mcu_starts);
   g_free(data->comment);
-  g_slice_free(struct _ws_jpegopsdata, data);
+  g_slice_free(struct jpegops_data, data);
+  */
 }
 
 static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
 			   uint32_t *w, uint32_t *h) {
-  struct _ws_jpegopsdata *data = wsd->data;
+  struct jpegops_data *data = wsd->data;
 
   // check bounds
-  if (layer >= 4) {
+  if (layer >= wsd->layer_count) {
     *w = 0;
     *h = 0;
     return;
   }
 
-  *w = data->widths[layer];
-  *h = data->heights[layer];
+  struct layer_lookup *ll = &data->layers[layer];
+  struct one_jpeg *jpeg = &data->jpegs[ll->jpeg_number];
+  *w = jpeg->width / ll->scale_denom;
+  *h = jpeg->height / ll->scale_denom;
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
-  struct _ws_jpegopsdata *data = wsd->data;
-  return data->comment;
+  struct jpegops_data *data = wsd->data;
+  return data->jpegs[0].comment;
 }
 
-static struct _wholeslide_ops _ws_jpeg_ops = {
+static struct _wholeslide_ops jpeg_ops = {
   .read_region = read_region,
   .destroy = destroy,
   .get_dimensions = get_dimensions,
   .get_comment = get_comment,
 };
 
-void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      FILE *f,
-		      uint64_t mcu_starts_count,
-		      int64_t *mcu_starts) {
-  g_assert(wsd->data == NULL);
 
-  // allocate private data
-  struct _ws_jpegopsdata *data =  g_slice_new0(struct _ws_jpegopsdata);
-  wsd->data = data;
-
-  // copy parameters
-  data->f = f;
-  data->mcu_starts_count = mcu_starts_count;
-  data->mcu_starts = mcu_starts;
+static void init_one_jpeg(struct one_jpeg *jpeg) {
+  FILE *f = jpeg->f;
 
   // init jpeg
   rewind(f);
-  data->cinfo.err = jpeg_std_error(&data->jerr);
-  jpeg_create_decompress(&data->cinfo);
-  _ws_jpeg_fancy_src(&data->cinfo, f,
+  jpeg->cinfo.err = jpeg_std_error(&jpeg->jerr);
+  jpeg_create_decompress(&jpeg->cinfo);
+  _ws_jpeg_fancy_src(&jpeg->cinfo, f,
 		     NULL, 0, 0, 0, 0);
 
   // extract comment
-  jpeg_save_markers(&data->cinfo, JPEG_COM, 0xFFFF);
-  jpeg_read_header(&data->cinfo, FALSE);
-  if (data->cinfo.marker_list) {
+  jpeg_save_markers(&jpeg->cinfo, JPEG_COM, 0xFFFF);
+  jpeg_read_header(&jpeg->cinfo, FALSE);
+  if (jpeg->cinfo.marker_list) {
     // copy everything out
-    char *com = g_strndup(data->cinfo.marker_list->data,
-			  data->cinfo.marker_list->data_length);
+    char *com = g_strndup(jpeg->cinfo.marker_list->data,
+			  jpeg->cinfo.marker_list->data_length);
     // but only really save everything up to the first '\0'
-    data->comment = g_strdup(com);
+    jpeg->comment = g_strdup(com);
     g_free(com);
   }
-  jpeg_save_markers(&data->cinfo, JPEG_COM, 0);  // stop saving
-
-
-  // all JPEG can be downsampled to 1/1, 1/2, 1/4, 1/8
-  wsd->layer_count = 4;
-  wsd->layers = g_new(uint32_t, wsd->layer_count);
+  jpeg_save_markers(&jpeg->cinfo, JPEG_COM, 0);  // stop saving
 
   // save dimensions
-  for (int i = 0; i < 4; i++) {
-    wsd->layers[i] = i;
-
-    data->cinfo.scale_denom = 1 << i;
-    jpeg_calc_output_dimensions(&data->cinfo);
-    data->widths[i] = data->cinfo.output_width;
-    data->heights[i] = data->cinfo.output_height;
-  }
+  jpeg_calc_output_dimensions(&jpeg->cinfo);
+  jpeg->width = jpeg->cinfo.output_width;
+  jpeg->height = jpeg->cinfo.output_height;
 
   // save "tile" dimensions
-  jpeg_start_decompress(&data->cinfo);
-  data->tile_width = data->widths[0] /
-    (data->cinfo.MCUs_per_row / data->cinfo.restart_interval);
-  data->tile_height = data->heights[0] / data->cinfo.MCU_rows_in_scan;
+  jpeg_start_decompress(&jpeg->cinfo);
+  jpeg->tile_width = jpeg->width /
+    (jpeg->cinfo.MCUs_per_row / jpeg->cinfo.restart_interval);
+  jpeg->tile_height = jpeg->height / jpeg->cinfo.MCU_rows_in_scan;
 
-  //  printf("jpeg \"tile\" dimensions: %dx%d\n", data->tile_width, data->tile_height);
+  //  printf("jpeg \"tile\" dimensions: %dx%d\n", jpeg->tile_width, jpeg->tile_height);
 
   // quiesce jpeg
-  jpeg_abort_decompress(&data->cinfo);
+  jpeg_abort_decompress(&jpeg->cinfo);
+}
+
+struct populate_layer_data {
+  uint32_t i;
+  struct jpegops_data *data;
+};
+
+static void populate_layer_array_helper(gpointer key, gpointer value, gpointer user_data) {
+  uint32_t w = (uint32_t) key;
+  uint32_t n = (uint32_t) value;
+  struct populate_layer_data *d = user_data;
+
+  //  printf("%d: %d -> %d\n", d->i, w, n);
+
+  struct layer_lookup *ll = &d->data->layers[d->i++];
+  ll->jpeg_number = n;
+  ll->scale_denom = d->data->jpegs[n].width / w;
+  //  printf(" %d: %d\n", ll->jpeg_number, ll->scale_denom);
+}
+
+static int layer_lookup_compare(const void *p1, const void *p2) {
+  const struct layer_lookup *ll1 = p1;
+  const struct layer_lookup *ll2 = p2;
+
+  uint32_t j1 = ll1->jpeg_number;
+  uint32_t j2 = ll2->jpeg_number;
+  uint32_t s1 = ll1->scale_denom;
+  uint32_t s2 = ll2->scale_denom;
+
+  // sort by jpeg_number, then scale_denom
+  int v1 = (j1 > j2) - (j1 < j2);
+  if (v1 != 0) {
+    return v1;
+  } else {
+    return (s1 > s2) - (s1 < s2);
+  }
+}
+
+static int jpegops_width_compare(const void *p1, const void *p2) {
+  uint32_t w1 = ((const struct one_jpeg *) p1)->width;
+  uint32_t w2 = ((const struct one_jpeg *) p2)->width;
+
+  return (w1 < w2) - (w1 > w2);
+}
+
+void _ws_add_jpeg_ops(wholeslide_t *wsd,
+		      uint32_t file_count,
+		      FILE **f,
+		      uint64_t *mcu_starts_count,
+		      int64_t **mcu_starts) {
+  g_assert(wsd->data == NULL);
+
+  // allocate private data
+  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
+  wsd->data = data;
+
+  data->jpeg_count = file_count;
+  data->jpegs = g_new0(struct one_jpeg, data->jpeg_count);
+
+  for (uint32_t i = 0; i < data->jpeg_count; i++) {
+    // copy parameters
+    struct one_jpeg *jpeg = &data->jpegs[i];
+
+    jpeg->f = f[i];
+    jpeg->mcu_starts_count = mcu_starts_count[i];
+    jpeg->mcu_starts = mcu_starts[i];
+
+    init_one_jpeg(jpeg);
+  }
+
+  // sort the jpegs by base width, larger to smaller
+  qsort(data->jpegs, data->jpeg_count, sizeof(struct one_jpeg),
+	jpegops_width_compare);
+
+  // map downsampled width to jpeg number, favoring smaller scale_denoms
+  GHashTable *layer_hash = g_hash_table_new(NULL, NULL);
+  for (uint32_t i = 0; i < data->jpeg_count; i++) {
+    for (uint32_t j = 0; j < 4; j++) {
+      // each JPEG can be read as 1/1, 1/2, 1/4, 1/8
+      uint32_t d = 1 << j;
+      uint32_t w = data->jpegs[i].width / d;
+
+      g_hash_table_insert(layer_hash,
+			  (gpointer) w, (gpointer) i); // will replace previous ones
+    }
+  }
+
+  // populate the layer list
+  wsd->layer_count = g_hash_table_size(layer_hash);
+  data->layers = g_new(struct layer_lookup, wsd->layer_count);
+
+  struct populate_layer_data pld = { .i = 0, .data = data };
+  g_hash_table_foreach(layer_hash, populate_layer_array_helper, &pld);
+  g_hash_table_destroy(layer_hash);
+
+
+  // now, make sure the layer list is sorted
+  qsort(data->layers, wsd->layer_count, sizeof(struct layer_lookup),
+	layer_lookup_compare);
+
+  for (uint32_t i = 0; i < wsd->layer_count; i++) {
+    printf("%d: %d\n", data->layers[i].jpeg_number,
+	   data->layers[i].scale_denom);
+  }
 
   // set ops
-  wsd->ops = &_ws_jpeg_ops;
+  wsd->ops = &jpeg_ops;
 }
 
 
