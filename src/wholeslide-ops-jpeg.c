@@ -178,16 +178,26 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
 static void destroy(wholeslide_t *wsd) {
-  /*
   struct jpegops_data *data = wsd->data;
 
-  jpeg_destroy_decompress(&data->cinfo);
-  fclose(data->f);
+  // layer_lookup
+  g_free(data->layers);
 
-  g_free(data->mcu_starts);
-  g_free(data->comment);
+  // each jpeg in turn
+  for (uint32_t i = 0; i < data->jpeg_count; i++) {
+    struct one_jpeg *jpeg = &data->jpegs[i];
+
+    jpeg_destroy_decompress(&jpeg->cinfo);
+    fclose(jpeg->f);
+    g_free(jpeg->mcu_starts);
+    g_free(jpeg->comment);
+  }
+
+  // the array
+  g_free(data->jpegs);
+
+  // the structure
   g_slice_free(struct jpegops_data, data);
-  */
 }
 
 static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
