@@ -54,32 +54,34 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
-  /*
   struct jpegops_data *data = wsd->data;
 
   // clear
   memset(dest, 0, w * h * sizeof(uint32_t));
 
-  if (layer >= 4 || x >= data->widths[0] || y >= data->heights[0]) {
+  if (layer >= wsd->layer_count || x >= data->jpegs[0].width || y >= data->jpegs[0].height) {
     return;
   }
 
-  // select downsample
-  uint32_t downsample = 1 << layer;
+  // figure out jpeg and downsample
+  struct layer_lookup *ll = &data->layers[layer];
+  struct one_jpeg *jpeg = &data->jpegs[ll->jpeg_number];
+  uint32_t scale_denom = ll->scale_denom;
+  uint32_t downsample = data->jpegs[0].width / (jpeg->width / scale_denom);
 
-  printf("downsample: %d\n", downsample);
+  printf("jpeg: %d, downsample: %d, scale_denom: %d\n", ll->jpeg_number, downsample, scale_denom);
 
   // figure out where to start the data stream
-  uint32_t tile_y = y / data->tile_height;
-  uint32_t tile_x = x / data->tile_width;
+  uint32_t tile_y = y / jpeg->tile_height;
+  uint32_t tile_x = x / jpeg->tile_width;
 
-  uint32_t stride_in_tiles = data->widths[0] / data->tile_width;
-  uint32_t img_height_in_tiles = data->heights[0] / data->tile_height;
+  uint32_t stride_in_tiles = jpeg->width / jpeg->tile_width;
+  uint32_t img_height_in_tiles = jpeg->height / jpeg->tile_height;
 
   imaxdiv_t divtmp;
-  divtmp = imaxdiv((w * downsample) + (x % data->tile_width), data->tile_width);
+  divtmp = imaxdiv((w * downsample) + (x % jpeg->tile_width), jpeg->tile_width);
   uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv((h * downsample) + (y % data->tile_height), data->tile_height);
+  divtmp = imaxdiv((h * downsample) + (y % jpeg->tile_height), jpeg->tile_height);
   uint32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
 
   // clamp width and height
@@ -89,65 +91,65 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
   printf("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
 
-  rewind(data->f);
-  _ws_jpeg_fancy_src(&data->cinfo, data->f,
-  		     data->mcu_starts,
-		     data->mcu_starts_count,
+  rewind(jpeg->f);
+  _ws_jpeg_fancy_src(&jpeg->cinfo, jpeg->f,
+  		     jpeg->mcu_starts,
+		     jpeg->mcu_starts_count,
 		     tile_y * stride_in_tiles + tile_x,
 		     width_in_tiles,
 		     stride_in_tiles);
 
   // begin decompress
   uint32_t rows_left = h;
-  jpeg_read_header(&data->cinfo, TRUE);
-  data->cinfo.scale_denom = downsample;
-  data->cinfo.image_width = width_in_tiles * data->tile_width;  // cunning
-  data->cinfo.image_height = height_in_tiles * data->tile_height;
+  jpeg_read_header(&jpeg->cinfo, TRUE);
+  jpeg->cinfo.scale_denom = scale_denom;
+  jpeg->cinfo.image_width = width_in_tiles * jpeg->tile_width;  // cunning
+  jpeg->cinfo.image_height = height_in_tiles * jpeg->tile_height;
 
-  jpeg_start_decompress(&data->cinfo);
-  g_assert(data->cinfo.output_components == 3);
+  jpeg_start_decompress(&jpeg->cinfo);
+  g_assert(jpeg->cinfo.output_components == 3);
 
-  printf("output_width: %d\n", data->cinfo.output_width);
+  printf("output_width: %d\n", jpeg->cinfo.output_width);
 
   // allocate scanline buffers
   JSAMPARRAY buffer =
-    g_slice_alloc(sizeof(JSAMPROW) * data->cinfo.rec_outbuf_height);
+    g_slice_alloc(sizeof(JSAMPROW) * jpeg->cinfo.rec_outbuf_height);
   gsize row_size =
     sizeof(JSAMPLE)
-    * data->cinfo.output_width
+    * jpeg->cinfo.output_width
     * 3;  // output components
-  for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
+  for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
     buffer[i] = g_slice_alloc(row_size);
     //printf("buffer[%d]: %p\n", i, buffer[i]);
   }
 
   // decompress
-  uint32_t d_x = (x % data->tile_width) / downsample;
-  uint32_t d_y = (y % data->tile_height) / downsample;
+  uint32_t d_x = (x % jpeg->tile_width) / downsample;
+  uint32_t d_y = (y % jpeg->tile_height) / downsample;
   uint32_t rows_to_skip = d_y;
 
   printf("d_x: %d, d_y: %d\n", d_x, d_y);
 
-  uint64_t pixels_wasted = rows_to_skip * data->cinfo.output_width;
+  uint64_t pixels_wasted = rows_to_skip * jpeg->cinfo.output_width;
 
-  while (data->cinfo.output_scanline < data->cinfo.output_height
+  while (jpeg->cinfo.output_scanline < jpeg->cinfo.output_height
 	 && rows_left > 0) {
-    //printf("reading scanline %d\n", data->cinfo.output_scanline);
-    JDIMENSION rows_read = jpeg_read_scanlines(&data->cinfo,
+    //printf("reading scanline %d\n", jpeg->cinfo.output_scanline);
+    JDIMENSION rows_read = jpeg_read_scanlines(&jpeg->cinfo,
 					       buffer,
-					       data->cinfo.rec_outbuf_height);
+					       jpeg->cinfo.rec_outbuf_height);
     int cur_buffer = 0;
     while (rows_read > 0 && rows_left > 0) {
       // copy a row
       if (rows_to_skip == 0) {
 	uint32_t i;
-	for (i = 0; i < w && i < (data->cinfo.output_width - d_x); i++) {
+	for (i = 0; i < w && i < (jpeg->cinfo.output_width - d_x); i++) {
 	  dest[i] = 0xFF000000 |                          // A
 	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
 	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
 	}
-	pixels_wasted += d_x + data->cinfo.output_width - i;
+	pixels_wasted += d_x + jpeg->cinfo.output_width - i;
       }
 
       // advance everything 1 row
@@ -166,14 +168,13 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   printf("pixels wasted: %lld\n", pixels_wasted);
 
   // free buffers
-  for (int i = 0; i < data->cinfo.rec_outbuf_height; i++) {
+  for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
     g_slice_free1(row_size, buffer[i]);
   }
-  g_slice_free1(sizeof(JSAMPROW) * data->cinfo.rec_outbuf_height, buffer);
+  g_slice_free1(sizeof(JSAMPROW) * jpeg->cinfo.rec_outbuf_height, buffer);
 
   // last thing, stop jpeg
-  jpeg_abort_decompress(&data->cinfo);
-  */
+  jpeg_abort_decompress(&jpeg->cinfo);
 }
 
 
@@ -571,6 +572,7 @@ void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
     src->buffer = (JOCTET *)
       (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
 				  INPUT_BUF_SIZE * sizeof(JOCTET));
+    printf("init fancy src with %p\n", src);
   }
 
   printf("fancy: start_positions_count: %lld, topleft: %lld, width: %d, stride: %d\n",
