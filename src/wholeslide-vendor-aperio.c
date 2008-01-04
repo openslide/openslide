@@ -67,3 +67,8 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
 
   return true;
 }
+
+
+void _ws_register_aperio_codec(void) {
+  printf("Registering Aperio codec 33003\n");
+}

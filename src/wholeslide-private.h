@@ -58,4 +58,8 @@ void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
 			uint32_t width, uint32_t stride);
 int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
 
+/* some TIFF support */
+void _ws_register_aperio_codec(void);
+
+
 #endif

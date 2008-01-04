@@ -9,7 +9,18 @@
 
 #include "wholeslide-private.h"
 
+static gpointer one_time_init(gpointer data) {
+  // register private libtiff codecs
+  _ws_register_aperio_codec();
+
+  return NULL;
+}
+
 wholeslide_t *ws_open(const char *filename) {
+  // do one time initialization
+  static GOnce my_once = G_ONCE_INIT;
+  g_once(&my_once, one_time_init, NULL);
+
   // alloc memory
   wholeslide_t *wsd = g_slice_new0(wholeslide_t);
 
