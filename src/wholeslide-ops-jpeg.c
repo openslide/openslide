@@ -542,7 +542,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
   size_t bytes_to_read = INPUT_BUF_SIZE;
   if (pos < src->stop_position) {
     // don't read past
-    bytes_to_read = MIN(src->stop_position - pos, bytes_to_read);
+    bytes_to_read = MIN((uint64_t) (src->stop_position - pos), bytes_to_read);
   } else if (pos == src->stop_position) {
     // skip to the jump point
     compute_next_positions(src);
@@ -551,7 +551,8 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
     fseeko(src->infile, src->next_start_position, SEEK_SET);
 
     // figure out new stop position
-    bytes_to_read = MIN(src->stop_position - src->next_start_position, bytes_to_read);
+    bytes_to_read = MIN((uint64_t) (src->stop_position - src->next_start_position),
+			bytes_to_read);
   }
 
   nbytes = fread(src->buffer, 1, bytes_to_read, src->infile);
