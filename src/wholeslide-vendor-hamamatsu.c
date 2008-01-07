@@ -9,7 +9,6 @@
 #include "wholeslide-private.h"
 
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
-static const char KEY_OPT_FILE[] = "OptimisationFile";
 static const char KEY_MAP_FILE[] = "MapFile";
 static const char KEY_IMAGE_FILE[] = "ImageFile";
 static const char KEY_OBJECTIVE[] = "SourceLens";
@@ -118,7 +117,6 @@ static bool compute_optimization(FILE *f,
 
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
-  char *opt_filename = NULL;
   char *map_filename = NULL;
   char *image_filename = NULL;
   bool success = false;
@@ -143,18 +141,15 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
   printf("vms file has group\n");
 
+  char **all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
+  char **tmp2;
+  for (tmp2 = all_keys; *tmp2 != NULL; tmp2++) {
+    printf(" %s: %s\n", *tmp2, g_key_file_get_string(vms_file, GROUP_VMS, *tmp2, NULL));
+  }
+  g_strfreev(all_keys);
 
   // extract relevant info
   char *tmp;
-  tmp = g_key_file_get_string(vms_file,
-			      GROUP_VMS,
-			      KEY_OPT_FILE,
-			      NULL);
-  if (tmp) {
-    opt_filename = g_build_filename(dirname, tmp, NULL);
-    g_free(tmp);
-  }
-
   tmp = g_key_file_get_string(vms_file,
 			      GROUP_VMS,
 			      KEY_MAP_FILE,
@@ -176,8 +171,8 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   wsd->objective_power =
     g_key_file_get_double(vms_file, GROUP_VMS, KEY_OBJECTIVE, NULL);
 
-  printf("opt: %s, map: %s, image: %s\n",
-	 opt_filename, map_filename, image_filename);
+  printf("map: %s, image: %s\n",
+	 map_filename, image_filename);
 
   // check image filename (the others are sort of optional)
   if (!image_filename || !map_filename) {
@@ -218,7 +213,6 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
  DONE:
   g_free(dirname);
-  g_free(opt_filename);
   g_free(image_filename);
   g_free(map_filename);
   g_key_file_free(vms_file);
