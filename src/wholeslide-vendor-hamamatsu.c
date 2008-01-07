@@ -53,6 +53,7 @@ static bool verify_jpeg(FILE *f) {
     return false;
   }
 
+  jpeg_destroy_decompress(&cinfo);
   return true;
 }
 
