@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  ws_get_baseline_dimensions(wsd, &w, &h);
+  ws_get_layer0_dimensions(wsd, &w, &h);
   printf("dimensions: %d x %d\n", w, h);
   printf("comment: %s\n", ws_get_comment(wsd));
 

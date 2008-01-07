@@ -36,7 +36,7 @@ wholeslide_t *ws_open(const char *filename) {
   // compute downsamples
   uint32_t blw, blh;
   wsd->downsamples = g_new(double, wsd->layer_count);
-  ws_get_baseline_dimensions(wsd, &blw, &blh);
+  ws_get_layer0_dimensions(wsd, &blw, &blh);
   for (uint32_t i = 0; i < wsd->layer_count; i++) {
     uint32_t w, h;
     ws_get_layer_dimensions(wsd, i, &w, &h);
@@ -58,8 +58,8 @@ void ws_close(wholeslide_t *wsd) {
 }
 
 
-void ws_get_baseline_dimensions(wholeslide_t *wsd,
-				uint32_t *w, uint32_t *h) {
+void ws_get_layer0_dimensions(wholeslide_t *wsd,
+			      uint32_t *w, uint32_t *h) {
   ws_get_layer_dimensions(wsd, 0, w, h);
 }
 

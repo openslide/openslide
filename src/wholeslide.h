@@ -102,14 +102,14 @@ wholeslide_public
 uint32_t ws_get_layer_count(wholeslide_t *wsd);
 
 /**
- * Get the dimensions of the baseline image.
+ * Get the dimensions of layer 0 (the largest layer).
  *
  * @param wsd The whole slide image handle.
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
  */
 wholeslide_public
-void ws_get_baseline_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
+void ws_get_layer0_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
 
 /**
  * Get the dimensions of a layer.
