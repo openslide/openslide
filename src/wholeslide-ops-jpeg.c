@@ -174,7 +174,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     }
   }
 
-  printf("pixels wasted: %lld\n", pixels_wasted);
+  printf("pixels wasted: %llu\n", pixels_wasted);
 
   // free buffers
   for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
@@ -338,12 +338,12 @@ static void compute_optimization(FILE *f,
   jpeg_read_header(&cinfo, TRUE);
   jpeg_start_decompress(&cinfo);
 
-  *mcu_starts_count = (cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan) / cinfo.restart_interval;
+  uint64_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
+  *mcu_starts_count = MCUs / cinfo.restart_interval;
   *mcu_starts = g_new0(int64_t, *mcu_starts_count);
 
   // the first entry
   (*mcu_starts)[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
-  printf("offset: %#llx\n", (*mcu_starts)[0]);
 
   // now find the rest of the MCUs
   bool last_was_ff = false;
@@ -643,7 +643,7 @@ void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
     printf("init fancy src with %p\n", src);
   }
 
-  printf("fancy: start_positions_count: %lld, topleft: %lld, width: %d, stride: %d\n",
+  printf("fancy: start_positions_count: %llu, topleft: %llu, width: %d, stride: %d\n",
 	 start_positions_count, topleft, width, stride);
 
   src = (struct my_src_mgr *) cinfo->src;

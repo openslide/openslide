@@ -38,8 +38,6 @@ static bool verify_jpeg(FILE *f) {
   JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
-  uint64_t MCUs = MCUs_per_row * MCU_rows_in_scan;
-
   unsigned int leftover_mcus = MCUs_per_row % restart_interval;
 
   printf("w: %d, h: %d, restart_interval: %d\n"
