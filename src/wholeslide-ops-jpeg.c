@@ -323,11 +323,65 @@ static int jpegops_width_compare(const void *p1, const void *p2) {
   return (w1 < w2) - (w1 > w2);
 }
 
+static void compute_optimization(FILE *f,
+				 uint64_t *mcu_starts_count,
+				 int64_t **mcu_starts) {
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  // generate the optimization list, by finding restart markers
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+  rewind(f);
+  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
+
+  jpeg_read_header(&cinfo, TRUE);
+  jpeg_start_decompress(&cinfo);
+
+  *mcu_starts_count = (cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan) / cinfo.restart_interval;
+  *mcu_starts = g_new0(int64_t, *mcu_starts_count);
+
+  // the first entry
+  (*mcu_starts)[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+  printf("offset: %#llx\n", (*mcu_starts)[0]);
+
+  // now find the rest of the MCUs
+  bool last_was_ff = false;
+  uint64_t marker = 0;
+  while (marker < *mcu_starts_count) {
+    if (cinfo.src->bytes_in_buffer == 0) {
+      (cinfo.src->fill_input_buffer)(&cinfo);
+    }
+    uint8_t b = *(cinfo.src->next_input_byte++);
+    cinfo.src->bytes_in_buffer--;
+
+    if (last_was_ff) {
+      // EOI?
+      if (b == JPEG_EOI) {
+	// we're done
+	break;
+      } else if (b >= 0xD0 && b < 0xD8) {
+	// marker
+	(*mcu_starts)[1 + marker++] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+      }
+    }
+    last_was_ff = b == 0xFF;
+  }
+
+  /*
+  for (uint64_t i = 0; i < *mcu_starts_count; i++) {
+    printf(" %lld\n", (*mcu_starts)[i]);
+  }
+  */
+
+  // success, now clean up
+  jpeg_destroy_decompress(&cinfo);
+}
+
+
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t file_count,
-		      FILE **f,
-		      uint64_t *mcu_starts_count,
-		      int64_t **mcu_starts) {
+		      FILE **f) {
   g_assert(wsd->data == NULL);
 
   // allocate private data
@@ -341,9 +395,14 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     // copy parameters
     struct one_jpeg *jpeg = &data->jpegs[i];
 
+    uint64_t mcu_starts_count;
+    int64_t *mcu_starts;
+
+    compute_optimization(f[i], &mcu_starts_count, &mcu_starts);
+
     jpeg->f = f[i];
-    jpeg->mcu_starts_count = mcu_starts_count[i];
-    jpeg->mcu_starts = mcu_starts[i];
+    jpeg->mcu_starts_count = mcu_starts_count;
+    jpeg->mcu_starts = mcu_starts;
 
     init_one_jpeg(jpeg);
   }

@@ -15,11 +15,7 @@ static const char KEY_OBJECTIVE[] = "SourceLens";
 
 #define INPUT_BUF_SIZE  4096
 
-
-static bool compute_optimization(FILE *f,
-				 uint64_t *mcu_starts_count,
-				 int64_t **mcu_starts) {
-  // check to make sure the image is a real jpeg
+static bool verify_jpeg(FILE *f) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
@@ -29,7 +25,7 @@ static bool compute_optimization(FILE *f,
   int header_result;
 
   jpeg_stdio_src(&cinfo, f);
-  header_result = jpeg_read_header(&cinfo, FALSE);  // read headers
+  header_result = jpeg_read_header(&cinfo, TRUE);
   if ((header_result != JPEG_HEADER_OK
        && header_result != JPEG_HEADER_TABLES_ONLY)
       || cinfo.num_components != 3 || cinfo.restart_interval == 0) {
@@ -44,8 +40,6 @@ static bool compute_optimization(FILE *f,
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
   uint64_t MCUs = MCUs_per_row * MCU_rows_in_scan;
-
-  *mcu_starts_count = MCUs / restart_interval;
 
   unsigned int leftover_mcus = MCUs_per_row % restart_interval;
 
@@ -62,57 +56,8 @@ static bool compute_optimization(FILE *f,
     return false;
   }
 
-
-  // generate the optimization list, by finding restart markers
-  jpeg_destroy_decompress(&cinfo);
-
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
-  rewind(f);
-  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
-
-  *mcu_starts = g_new0(int64_t, *mcu_starts_count);
-
-  jpeg_read_header(&cinfo, FALSE);
-
-  // the first entry
-  (*mcu_starts)[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
-  printf("offset: %#llx\n", (*mcu_starts)[0]);
-
-  // now find the rest of the MCUs
-  bool last_was_ff = false;
-  uint64_t marker = 0;
-  while (marker < *mcu_starts_count) {
-    if (cinfo.src->bytes_in_buffer == 0) {
-      (cinfo.src->fill_input_buffer)(&cinfo);
-    }
-    uint8_t b = *(cinfo.src->next_input_byte++);
-    cinfo.src->bytes_in_buffer--;
-
-    if (last_was_ff) {
-      // EOI?
-      if (b == JPEG_EOI) {
-	// we're done
-	break;
-      } else if (b >= 0xD0 && b < 0xD8) {
-	// marker
-	(*mcu_starts)[1 + marker++] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
-      }
-    }
-    last_was_ff = b == 0xFF;
-  }
-
-  /*
-  for (uint64_t i = 0; i < *mcu_starts_count; i++) {
-    printf(" %lld\n", (*mcu_starts)[i]);
-  }
-  */
-
-  // success, now clean up
-  jpeg_destroy_decompress(&cinfo);
   return true;
 }
-
 
 
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
@@ -123,9 +68,6 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
   // this format has 2 jpeg files
   FILE *jpegs[2] = { NULL, NULL };
-  uint64_t mcu_starts_count_array[2] = { 0, 0 };
-  int64_t *mcu_starts_array[2] = { NULL, NULL };
-
 
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
@@ -184,8 +126,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
     goto FAIL;
   }
-  if (!compute_optimization(jpegs[0],
-			    &mcu_starts_count_array[0], &mcu_starts_array[0])) {
+  if (!verify_jpeg(jpegs[0])) {
     goto FAIL;
   }
 
@@ -193,12 +134,11 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   if ((jpegs[1] = fopen(map_filename, "rb")) == NULL) {
     goto FAIL;
   }
-  if (!compute_optimization(jpegs[1],
-			    &mcu_starts_count_array[1], &mcu_starts_array[1])) {
+  if (!verify_jpeg(jpegs[1])) {
     goto FAIL;
   }
 
-  _ws_add_jpeg_ops(wsd, 2, jpegs, mcu_starts_count_array, mcu_starts_array);
+  _ws_add_jpeg_ops(wsd, 2, jpegs);
   success = true;
   goto DONE;
 
