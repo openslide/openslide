@@ -14,8 +14,6 @@ struct _wholeslide {
 
   uint32_t layer_count;
   double *downsamples;
-
-  double objective_power;
 };
 
 /* the function pointer structure for backends */

@@ -9,7 +9,6 @@
 
 static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
-static const char OBJECTIVE_POWER[] = "Objective Power=";
 
 bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   char *tagval;
@@ -56,10 +55,6 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
       }
 
       g_strfreev(second_pass);
-    } else if (g_str_has_prefix(*cur_str, OBJECTIVE_POWER)) {
-      // found a different one
-      wsd->objective_power = g_ascii_strtod(*cur_str + strlen(OBJECTIVE_POWER),
-					    NULL);
     }
   }
 

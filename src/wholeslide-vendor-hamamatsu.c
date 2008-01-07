@@ -11,7 +11,6 @@
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
 static const char KEY_IMAGE_FILE[] = "ImageFile";
-static const char KEY_OBJECTIVE[] = "SourceLens";
 
 #define INPUT_BUF_SIZE  4096
 
@@ -109,9 +108,6 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     image_filename = g_build_filename(dirname, tmp, NULL);
     g_free(tmp);
   }
-
-  wsd->objective_power =
-    g_key_file_get_double(vms_file, GROUP_VMS, KEY_OBJECTIVE, NULL);
 
   printf("map: %s, image: %s\n",
 	 map_filename, image_filename);
