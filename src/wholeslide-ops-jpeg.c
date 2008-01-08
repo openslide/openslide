@@ -70,8 +70,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   uint32_t scale_denom = ll->scale_denom;
   uint32_t rel_downsample = data->jpegs[0].width / jpeg->width;
 
-  printf("jpeg: %d, rel_downsample: %d, scale_denom: %d\n",
-	 ll->jpeg_number, rel_downsample, scale_denom);
+  //  printf("jpeg: %d, rel_downsample: %d, scale_denom: %d\n",
+  //	 ll->jpeg_number, rel_downsample, scale_denom);
 
   // scale x and y into this jpeg's space
   x /= rel_downsample;
@@ -97,8 +97,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   width_in_tiles = MIN(width_in_tiles, stride_in_tiles - tile_x);
   height_in_tiles = MIN(height_in_tiles, img_height_in_tiles - tile_y);
 
-  printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
-  printf("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
+  //  printf("width_in_tiles: %d, stride_in_tiles: %d\n", width_in_tiles, stride_in_tiles);
+  //  printf("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
 
   rewind(jpeg->f);
   _ws_jpeg_fancy_src(&jpeg->cinfo, jpeg->f,
@@ -118,7 +118,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   jpeg_start_decompress(&jpeg->cinfo);
   g_assert(jpeg->cinfo.output_components == 3);
 
-  printf("output_width: %d\n", jpeg->cinfo.output_width);
+  //  printf("output_width: %d\n", jpeg->cinfo.output_width);
 
   // allocate scanline buffers
   JSAMPARRAY buffer =
@@ -137,7 +137,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   uint32_t d_y = (y % jpeg->tile_height) / scale_denom;
   uint32_t rows_to_skip = d_y;
 
-  printf("d_x: %d, d_y: %d\n", d_x, d_y);
+  //  printf("d_x: %d, d_y: %d\n", d_x, d_y);
 
   uint64_t pixels_wasted = rows_to_skip * jpeg->cinfo.output_width;
 
@@ -174,7 +174,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     }
   }
 
-  printf("pixels wasted: %llu\n", pixels_wasted);
+  //  printf("pixels wasted: %llu\n", pixels_wasted);
 
   // free buffers
   for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
@@ -438,8 +438,8 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 	layer_lookup_compare);
 
   for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    printf("%d: %d\n", data->layers[i].jpeg_number,
-	   data->layers[i].scale_denom);
+    //    printf("%d: %d\n", data->layers[i].jpeg_number,
+    //	   data->layers[i].scale_denom);
   }
 
   // set ops
@@ -641,11 +641,11 @@ void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
     src->buffer = (JOCTET *)
       (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
 				  INPUT_BUF_SIZE * sizeof(JOCTET));
-    printf("init fancy src with %p\n", src);
+    //    printf("init fancy src with %p\n", src);
   }
 
-  printf("fancy: start_positions_count: %llu, topleft: %llu, width: %d, stride: %d\n",
-	 start_positions_count, topleft, width, stride);
+  //  printf("fancy: start_positions_count: %llu, topleft: %llu, width: %d, stride: %d\n",
+  //	 start_positions_count, topleft, width, stride);
 
   src = (struct my_src_mgr *) cinfo->src;
   src->pub.init_source = init_source;

@@ -175,7 +175,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     dst_y += th - ovr_y;
   }
 
-  printf("tiles decoded: %d\n", num_tiles_decoded);
+  //printf("tiles decoded: %d\n", num_tiles_decoded);
 
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
