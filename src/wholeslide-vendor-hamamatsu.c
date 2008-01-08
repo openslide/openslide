@@ -11,6 +11,9 @@
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
 static const char KEY_IMAGE_FILE[] = "ImageFile";
+static const char KEY_NUM_LAYERS[] = "NoLayers";
+static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
+static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 
 #define INPUT_BUF_SIZE  4096
 
@@ -116,7 +119,33 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     goto FAIL;
   }
 
-  // compute the optimization lists
+  // make sure values are within known bounds
+  int num_layers = g_key_file_get_integer(vms_file,
+					  GROUP_VMS,
+					  KEY_NUM_LAYERS,
+					  NULL);
+  if (num_layers != 1) {
+    goto FAIL;
+  }
+
+  int num_jpeg_cols = g_key_file_get_integer(vms_file,
+					  GROUP_VMS,
+					  KEY_NUM_JPEG_COLS,
+					  NULL);
+  if (num_jpeg_cols != 1) {  // TODO
+    goto FAIL;
+  }
+
+  int num_jpeg_rows = g_key_file_get_integer(vms_file,
+					  GROUP_VMS,
+					  KEY_NUM_JPEG_ROWS,
+					  NULL);
+  if (num_jpeg_rows != 1) {  // TODO
+    goto FAIL;
+  }
+
+  // verify jpegs
+
   // image 0
   if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
     goto FAIL;
