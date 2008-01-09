@@ -10,6 +10,7 @@ libwholeslide_la_SOURCES = wholeslide.c \
 
 libwholeslide_la_CPPFLAGS = -DBUILDING_DLL $(GLIB2_CFLAGS)
 
+libwholeslide_la_LDFLAGS = -version-info 0:0:0
 
 
 pkginclude_HEADERS = wholeslide.h wholeslide-features.h
