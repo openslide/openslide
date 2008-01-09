@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  printf("ws_can_open returns %s\n", ws_can_open(argv[1]) ? "true" : "false");
   wholeslide_t *wsd = ws_open(argv[1]);
 
   uint32_t w, h;

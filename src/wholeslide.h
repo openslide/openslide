@@ -10,10 +10,19 @@
 
 #include <stdio.h>
 #include <stdint.h>
-
+#include <stdbool.h>
 
 
 typedef struct _wholeslide wholeslide_t;
+
+/**
+ * Do a quick check to see if a whole slide image is valid.
+ *
+ * @param filename The filename to check.
+ * @return If ws_open() will succeed.
+ */
+wholeslide_public
+bool ws_can_open(const char *filename);
 
 /**
  * Open a whole slide image.

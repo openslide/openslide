@@ -181,12 +181,15 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 }
 
 
-static void destroy(wholeslide_t *wsd) {
-  struct _ws_tiffopsdata *data = wsd->data;
-
+static void destroy_data(struct _ws_tiffopsdata *data) {
   TIFFClose(data->tiff);
   g_free(data->overlaps);
   g_free(data->layers);
+}
+
+static void destroy(wholeslide_t *wsd) {
+  struct _ws_tiffopsdata *data = wsd->data;
+  destroy_data(data);
   g_slice_free(struct _ws_tiffopsdata, data);
 }
 
@@ -265,13 +268,10 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      uint32_t *overlaps,
 		      uint32_t layer_count,
 		      uint32_t *layers) {
-  g_assert(wsd->data == NULL);
-
   // allocate private data
   struct _ws_tiffopsdata *data =  g_slice_new(struct _ws_tiffopsdata);
 
   // store layer info
-  wsd->layer_count = layer_count;
   data->layers = layers;
 
   // populate private data
@@ -279,7 +279,16 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
   data->overlap_count = overlap_count;
   data->overlaps = overlaps;
 
+  if (wsd == NULL) {
+    // free now and return
+    destroy_data(data);
+    return;
+  }
+
   // store tiff-specific data into wsd
+  g_assert(wsd->data == NULL);
+
+  wsd->layer_count = layer_count;
   wsd->data = data;
   wsd->ops = &_ws_tiff_ops;
 }

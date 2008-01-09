@@ -9,25 +9,39 @@
 
 #include "wholeslide-private.h"
 
-static gpointer one_time_init(gpointer data) {
+static gpointer one_time_init_fn(gpointer data) {
   // register private libtiff codecs
   _ws_register_aperio_codec();
 
   return NULL;
 }
 
-wholeslide_t *ws_open(const char *filename) {
-  // do one time initialization
+static void do_one_time_init(void) {
   static GOnce my_once = G_ONCE_INIT;
-  g_once(&my_once, one_time_init, NULL);
+  g_once(&my_once, one_time_init_fn, NULL);
+}
 
+static bool try_all_formats(wholeslide_t *wsd, const char *filename) {
+  do_one_time_init();
+
+  return
+    _ws_try_hamamatsu(wsd, filename) ||
+    _ws_try_trestle(wsd, filename) ||
+    _ws_try_aperio(wsd, filename);
+}
+
+bool ws_can_open(const char *filename) {
+  // quick test
+  return try_all_formats(NULL, filename);
+}
+
+
+wholeslide_t *ws_open(const char *filename) {
   // alloc memory
   wholeslide_t *wsd = g_slice_new0(wholeslide_t);
 
   // try to read it
-  if (!(_ws_try_hamamatsu(wsd, filename) ||
-	_ws_try_trestle(wsd, filename) ||
-	_ws_try_aperio(wsd, filename))) {
+  if (!try_all_formats(wsd, filename)) {
     // failure
     ws_close(wsd);
     return NULL;

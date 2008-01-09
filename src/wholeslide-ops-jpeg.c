@@ -382,6 +382,15 @@ static void compute_optimization(FILE *f,
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t file_count,
 		      FILE **f) {
+  if (wsd == NULL) {
+    // free now and return
+    for (uint32_t i = 0; i < file_count; i++) {
+      fclose(f[i]);
+    }
+    return;
+  }
+
+
   g_assert(wsd->data == NULL);
 
   // allocate private data
