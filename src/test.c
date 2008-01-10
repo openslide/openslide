@@ -19,6 +19,7 @@ static void test_image_fetch(wholeslide_t *wsd,
 			     bool skip_write) {
   char *filename;
 
+  printf("test image fetch %s\n", name);
   //  for (uint32_t layer = 0; layer < 1; layer++) {
   for (uint32_t layer = 0; layer < ws_get_layer_count(wsd); layer++) {
     asprintf(&filename, "%s-%.2d.ppm", name, layer);
@@ -26,6 +27,7 @@ static void test_image_fetch(wholeslide_t *wsd,
     //printf("Going to allocate %d bytes...\n", num_bytes);
     uint32_t *buf = malloc(num_bytes);
 
+    printf("x: %d, y: %d, layer: %d, w: %d, h: %d\n", x, y, layer, w, h);
     ws_read_region(wsd, buf, x, y, layer, w, h);
 
     // write as PPM
@@ -93,12 +95,14 @@ int main(int argc, char **argv) {
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
 
-  bool skip = true;
+  bool skip = false;
 
   test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, skip);
   test_image_fetch(wsd, "test2", w - 500, h - 300, 900, 800, skip);
   test_image_fetch(wsd, "test3", w*2, h*2, 900, 800, skip);
   test_image_fetch(wsd, "test4", 10, 10, 1900, 800, skip);
+  test_image_fetch(wsd, "test5", w - 20, 0, 40, 100, skip);
+  test_image_fetch(wsd, "test6", 0, h - 20, 100, 40, skip);
 
   ws_close(wsd);
 
