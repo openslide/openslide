@@ -110,7 +110,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // begin decompress
   uint32_t rows_left = h;
-  jpeg_read_header(&jpeg->cinfo, TRUE);
+  jpeg_read_header(&jpeg->cinfo, FALSE);
   jpeg->cinfo.scale_denom = scale_denom;
   jpeg->cinfo.image_width = width_in_tiles * jpeg->tile_width;  // cunning
   jpeg->cinfo.image_height = height_in_tiles * jpeg->tile_height;
@@ -119,6 +119,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   g_assert(jpeg->cinfo.output_components == 3);
 
   //  printf("output_width: %d\n", jpeg->cinfo.output_width);
+  //  printf("output_height: %d\n", jpeg->cinfo.output_height);
 
   // allocate scanline buffers
   JSAMPARRAY buffer =
@@ -141,12 +142,15 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   uint64_t pixels_wasted = rows_to_skip * jpeg->cinfo.output_width;
 
+  //  abort();
+
   while (jpeg->cinfo.output_scanline < jpeg->cinfo.output_height
 	 && rows_left > 0) {
-    //printf("reading scanline %d\n", jpeg->cinfo.output_scanline);
     JDIMENSION rows_read = jpeg_read_scanlines(&jpeg->cinfo,
 					       buffer,
 					       jpeg->cinfo.rec_outbuf_height);
+    //    printf("just read scanline %d\n", jpeg->cinfo.output_scanline - rows_read);
+    //    printf(" rows read: %d\n", rows_read);
     int cur_buffer = 0;
     while (rows_read > 0 && rows_left > 0) {
       // copy a row
@@ -564,6 +568,8 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
 			bytes_to_read);
   }
 
+  //  printf(" bytes_to_read: %d\n", bytes_to_read);
+
   nbytes = fread(src->buffer, 1, bytes_to_read, src->infile);
 
   if (nbytes <= 0) {
@@ -584,6 +590,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo) {
       uint8_t b = src->buffer[i];
       if (last_was_ff && b >= 0xD0 && b < 0xD8) {
 	src->buffer[i] = 0xD0 | src->next_restart_marker;
+	//	printf("rewrite %x -> %x\n", b, src->buffer[i]);
 	src->next_restart_marker = (src->next_restart_marker + 1) % 8;
       }
       last_was_ff = b == 0xFF;
