@@ -46,9 +46,9 @@ static void copy_rgba_tile(const uint32_t *tile,
 			   uint32_t dest_w, uint32_t dest_h) {
   uint32_t src_origin_y;
   if (dest_origin_y < 0) {  // off the top
-    src_origin_y = src_h - 1 + dest_origin_y;
+    src_origin_y = -dest_origin_y;
   } else {
-    src_origin_y = src_h - 1;
+    src_origin_y = 0;
   }
 
   //  printf("src_origin_y: %d, dest_origin_y: %d\n", src_origin_y, dest_origin_y);
@@ -64,8 +64,8 @@ static void copy_rgba_tile(const uint32_t *tile,
 
   //  printf("\n");
 
-  for (uint32_t src_y = src_origin_y; (int32_t) src_y >= 0; src_y--) {
-    int32_t dest_y = dest_origin_y + (src_h - 1) - src_y;  // inverted y
+  for (uint32_t src_y = src_origin_y; src_y < src_h; src_y++) {
+    int32_t dest_y = dest_origin_y + src_y;
     //    printf("src_y: %d, dest_y: %d\n", src_y, dest_y);
     if (dest_y < dest_h) {
       for (uint32_t src_x = src_origin_x; src_x < src_w; src_x++) {
@@ -149,7 +149,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   TIFFRGBAImage img;
   char emsg[1024] = "";
   TIFFRGBAImageBegin(&img, tiff, 0, emsg);
-  //  img.req_orientation = ORIENTATION_TOPLEFT;
+  img.req_orientation = ORIENTATION_TOPLEFT;
 
   while (src_y < ((end_y / th) + 1) * th) {
     uint32_t src_x = start_x;
