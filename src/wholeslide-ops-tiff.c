@@ -151,6 +151,11 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   uint32_t num_tiles_decoded = 0;
 
+  TIFFRGBAImage img;
+  char emsg[1024] = "";
+  TIFFRGBAImageBegin(&img, tiff, 0, emsg);
+  //  img.req_orientation = ORIENTATION_TOPLEFT;
+
   while (src_y < ((end_y / th) + 1) * th) {
     uint32_t src_x = start_x;
     uint32_t dst_x = 0;
@@ -163,7 +168,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
       //      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
       //      printf(" offset: %d,%d\n", off_x, off_y);
-      TIFFReadRGBATile(tiff, round_x, round_y, tile);
+      img.col_offset = round_x;
+      img.row_offset = round_y;
+      TIFFRGBAImageGet(&img, tile, tw, th);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
       num_tiles_decoded++;
 
@@ -177,6 +184,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   //printf("tiles decoded: %d\n", num_tiles_decoded);
 
+  TIFFRGBAImageEnd(&img);
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
 
