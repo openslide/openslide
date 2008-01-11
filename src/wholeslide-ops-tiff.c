@@ -67,24 +67,19 @@ static void copy_rgba_tile(const uint32_t *tile,
   for (uint32_t src_y = src_origin_y; (int32_t) src_y >= 0; src_y--) {
     int32_t dest_y = dest_origin_y + (src_h - 1) - src_y;  // inverted y
     //    printf("src_y: %d, dest_y: %d\n", src_y, dest_y);
-    if (dest_y >= dest_h) {
-      break;
-    }
+    if (dest_y < dest_h) {
+      for (uint32_t src_x = src_origin_x; src_x < src_w; src_x++) {
+	int32_t dest_x = dest_origin_x + src_x;
+	if (dest_x < dest_w) {
+	  uint32_t dest_i = dest_y * dest_w + dest_x;
+	  uint32_t i = src_y * src_w + src_x;
 
-    for (uint32_t src_x = src_origin_x; src_x < src_w; src_x++) {
-      int32_t dest_x = dest_origin_x + src_x;
-      if (dest_x >= dest_w) {
-	break;
-      }
-
-      uint32_t dest_i = dest_y * dest_w + dest_x;
-      uint32_t i = src_y * src_w + src_x;
-
-      //      printf("%d %d -> %d %d\n", src_x, src_y, dest_x, dest_y);
-
-      if (TIFFGetA(tile[i])) {
-	dest[dest_i] = TIFFGetA(tile[i]) << 24 | TIFFGetR(tile[i]) << 16
-	  | TIFFGetG(tile[i]) << 8 | TIFFGetB(tile[i]);
+	  //      printf("%d %d -> %d %d\n", src_x, src_y, dest_x, dest_y);
+	  uint32_t tile_val = tile[i];
+	  dest[dest_i] = (tile_val & 0xFF00FF00)
+	    | ((tile_val << 16) & 0xFF0000)
+	    | ((tile_val >> 16) & 0xFF);
+	}
       }
     }
   }
