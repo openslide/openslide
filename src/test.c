@@ -5,11 +5,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <sys/time.h>
 
 static void test_next_biggest(wholeslide_t *wsd, double downsample) {
   uint32_t layer = ws_get_best_layer_for_downsample(wsd, downsample);
   printf("layer for downsample %g: %d (%g)\n",
 	 downsample, layer, ws_get_layer_downsample(wsd, layer));
+}
+
+static void test_tile_walk(wholeslide_t *wsd,
+			   uint32_t tile_size) {
+  struct timeval tv, tv2;
+  uint32_t *buf = malloc(ws_get_region_num_bytes(wsd, tile_size, tile_size));
+
+  uint32_t w, h;
+  ws_get_layer0_dimensions(wsd, &w, &h);
+
+  for (uint32_t y = 0; y < h; y += tile_size) {
+    for (uint32_t x = 0; x < w; x += tile_size) {
+      gettimeofday(&tv, NULL);
+      ws_read_region(wsd, buf, x, y, 0, tile_size, tile_size);
+      gettimeofday(&tv2, NULL);
+      printf("time: %d\n", (tv2.tv_sec - tv.tv_sec) * 1000 +
+	     (tv2.tv_usec - tv.tv_usec) / 1000);
+    }
+  }
+
+  free(buf);
 }
 
 static void test_image_fetch(wholeslide_t *wsd,
@@ -90,12 +112,14 @@ int main(int argc, char **argv) {
   test_next_biggest(wsd, 100);
   test_next_biggest(wsd, 1000);
   test_next_biggest(wsd, 10000);
-
+ 
   uint32_t prefetch_hint = ws_give_prefetch_hint(wsd, 0, 0, 0, 5, 5);
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
 
-  bool skip = false;
+  bool skip = true;
+
+  test_tile_walk(wsd, 256);
 
   test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, skip);
   test_image_fetch(wsd, "test2", w - 500, h - 300, 900, 800, skip);
