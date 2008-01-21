@@ -72,7 +72,10 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   }
 
   // all set, load up the TIFF-specific ops
-  _ws_add_tiff_ops(wsd, tiff, overlap_count, overlaps, layer_count, layers);
+  _ws_add_tiff_ops(wsd, tiff, overlap_count, overlaps, layer_count, layers,
+		   _ws_generic_tiff_tilereader_create,
+		   _ws_generic_tiff_tilereader_read,
+		   _ws_generic_tiff_tilereader_destroy);
 
   g_strfreev(first_pass);
 

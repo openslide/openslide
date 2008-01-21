@@ -9,21 +9,7 @@
 
 #include "wholeslide-private.h"
 
-static gpointer one_time_init_fn(gpointer data) {
-  // register private libtiff codecs
-  _ws_register_aperio_codec();
-
-  return NULL;
-}
-
-static void do_one_time_init(void) {
-  static GOnce my_once = G_ONCE_INIT;
-  g_once(&my_once, one_time_init_fn, NULL);
-}
-
 static bool try_all_formats(wholeslide_t *wsd, const char *filename) {
-  do_one_time_init();
-
   return
     _ws_try_hamamatsu(wsd, filename) ||
     _ws_try_trestle(wsd, filename) ||

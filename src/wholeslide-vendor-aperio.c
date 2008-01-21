@@ -46,12 +46,10 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
   } while (i < layer_count);
 
   // all set, load up the TIFF-specific ops
-  _ws_add_tiff_ops(wsd, tiff, 0, NULL, layer_count, layers);
+  _ws_add_tiff_ops(wsd, tiff, 0, NULL, layer_count, layers,
+ 		   _ws_generic_tiff_tilereader_create, /* XXX */
+		   _ws_generic_tiff_tilereader_read,
+		   _ws_generic_tiff_tilereader_destroy);
 
   return true;
-}
-
-
-void _ws_register_aperio_codec(void) {
-  printf("Registering Aperio codec 33003\n");
 }

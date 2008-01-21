@@ -11,6 +11,12 @@ struct _ws_tiffopsdata {
   uint32_t overlap_count;
   uint32_t *overlaps;
   uint32_t *layers;
+
+  struct _ws_tiff_tilereader *(*tilereader_create)(TIFF *tiff);
+  void (*tilereader_read)(struct _ws_tiff_tilereader *wtt,
+			  uint32_t *dest,
+			  uint32_t x, uint32_t y);
+  void (*tilereader_destroy)(struct _ws_tiff_tilereader *wtt);
 };
 
 
@@ -146,10 +152,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   uint32_t num_tiles_decoded = 0;
 
-  TIFFRGBAImage img;
-  char emsg[1024] = "";
-  TIFFRGBAImageBegin(&img, tiff, 0, emsg);
-  img.req_orientation = ORIENTATION_TOPLEFT;
+  struct _ws_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
   while (src_y < ((end_y / th) + 1) * th) {
     uint32_t src_x = start_x;
@@ -163,9 +166,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
       //      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
       //      printf(" offset: %d,%d\n", off_x, off_y);
-      img.col_offset = round_x;
-      img.row_offset = round_y;
-      TIFFRGBAImageGet(&img, tile, tw, th);
+      data->tilereader_read(tilereader, tile, round_x, round_y);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
       num_tiles_decoded++;
 
@@ -179,7 +180,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   //printf("tiles decoded: %d\n", num_tiles_decoded);
 
-  TIFFRGBAImageEnd(&img);
+  data->tilereader_destroy(tilereader);
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
 
@@ -270,7 +271,12 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      uint32_t overlap_count,
 		      uint32_t *overlaps,
 		      uint32_t layer_count,
-		      uint32_t *layers) {
+		      uint32_t *layers,
+		      struct _ws_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
+		      void (*tilereader_read)(struct _ws_tiff_tilereader *wtt,
+					      uint32_t *dest,
+					      uint32_t x, uint32_t y),
+		      void (*tilereader_destroy)(struct _ws_tiff_tilereader *wtt)) {
   // allocate private data
   struct _ws_tiffopsdata *data =  g_slice_new(struct _ws_tiffopsdata);
 
@@ -281,6 +287,10 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
   data->tiff = tiff;
   data->overlap_count = overlap_count;
   data->overlaps = overlaps;
+
+  data->tilereader_create = tilereader_create;
+  data->tilereader_read = tilereader_read;
+  data->tilereader_destroy = tilereader_destroy;
 
   if (wsd == NULL) {
     // free now and return
@@ -294,4 +304,36 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
   wsd->layer_count = layer_count;
   wsd->data = data;
   wsd->ops = &_ws_tiff_ops;
+}
+
+
+struct _ws_tiff_tilereader {
+  TIFFRGBAImage img;
+  uint32_t tile_width;
+  uint32_t tile_height;
+};
+
+struct _ws_tiff_tilereader *_ws_generic_tiff_tilereader_create(TIFF *tiff) {
+  struct _ws_tiff_tilereader *wtt = g_slice_new(struct _ws_tiff_tilereader);
+
+  char emsg[1024] = "";
+  TIFFRGBAImageBegin(&wtt->img, tiff, 0, emsg);
+  wtt->img.req_orientation = ORIENTATION_TOPLEFT;
+
+  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &wtt->tile_width);
+  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &wtt->tile_height);
+
+  return wtt;
+}
+
+void _ws_generic_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
+				      uint32_t *dest,
+				      uint32_t x, uint32_t y) {
+  wtt->img.col_offset = x;
+  wtt->img.row_offset = y;
+  TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height);
+}
+
+void _ws_generic_tiff_tilereader_destroy(struct _ws_tiff_tilereader *wtt) {
+  g_slice_free(struct _ws_tiff_tilereader, wtt);
 }
