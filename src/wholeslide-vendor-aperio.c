@@ -13,12 +13,33 @@ static const char APERIO_DESCRIPTION[] = "Aperio Image Library";
 
 struct _ws_tiff_tilereader {
   TIFF *tiff;
+  uint32_t tile_width;
+  uint32_t tile_height;
+
+  jas_matrix_t *mat_y;
+  jas_matrix_t *mat_u;
+  jas_matrix_t *mat_v;
 };
 
+
+// XXX revisit assumptions that color is always downsampled in x by 2
 static struct _ws_tiff_tilereader *_ws_aperio_tiff_tilereader_create(TIFF *tiff) {
   struct _ws_tiff_tilereader *wtt = g_slice_new(struct _ws_tiff_tilereader);
 
   wtt->tiff = tiff;
+
+  uint32_t w;
+  uint32_t h;
+
+  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &w);
+  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &h);
+  wtt->tile_width = w;
+  wtt->tile_height = h;
+
+  wtt->mat_y = jas_matrix_create(h, w);
+  wtt->mat_u = jas_matrix_create(h, w / 2);
+  wtt->mat_v = jas_matrix_create(h, w / 2);
+
   return wtt;
 }
 
@@ -27,6 +48,8 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
 					    uint32_t x, uint32_t y) {
   // get tile number
   ttile_t tile_no = TIFFComputeTile(wtt->tiff, x, y, 0, 0);
+
+  printf("aperio reading tile_no: %d\n", tile_no);
 
   // get tile size
   tsize_t max_tile_size = TIFFTileSize(wtt->tiff);
@@ -41,20 +64,28 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   // make a jasper image
   jas_image_t *jas_image = jpc_decode(jas_stream, "");
 
-  // set proper colorspace
-  jas_image_setclrspc(jas_image, JAS_CLRSPC_SYCBCR);
-  jas_image_setcmpttype(jas_image, 0,
-			JAS_IMAGE_CT_COLOR(JAS_CHANIND_YCBCR_Y));
-  jas_image_setcmpttype(jas_image, 1,
-			JAS_IMAGE_CT_COLOR(JAS_CHANIND_YCBCR_CB));
-  jas_image_setcmpttype(jas_image, 2,
-			JAS_IMAGE_CT_COLOR(JAS_CHANIND_YCBCR_CR));
-
-  // set subsampling
-  
-
   // decode it
-  
+  int yy;
+  int uu;
+  int vv;
+  for (uint32_t ty = 0; ty < wtt->tile_height; ty++) {
+    for (uint32_t tx = 0; tx < wtt->tile_width; tx++) {
+      yy = jas_image_readcmptsample(jas_image, 0, tx, ty);
+
+      // uu and vv are subsampled by 2 in format 33003
+      if (!(tx & 1)) {
+	uu = jas_image_readcmptsample(jas_image, 1, tx / 2, ty);
+	vv = jas_image_readcmptsample(jas_image, 2, tx / 2, ty);
+      }
+
+      uint8_t r = yy;
+      uint8_t g = yy;
+      uint8_t b = yy;
+
+      uint32_t i = ty * wtt->tile_width + tx;
+      dest[i] = 0xFF000000 | (r << 16) | (g << 8) | (b);
+    }
+  }
 
   // erase
   jas_image_destroy(jas_image);
@@ -110,6 +141,8 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
   TIFFSetDirectory(tiff, 0);
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
+
+  printf("compression mode: %d\n", compression_mode);
 
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
