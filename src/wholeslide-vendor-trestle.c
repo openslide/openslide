@@ -19,17 +19,19 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
     return false; // not TIFF, not trestle
   }
 
-  TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
-  if (tagval && strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE))) {
+  int tiff_result;
+  tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
+  if (!tiff_result ||
+      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
     // not trestle
     TIFFClose(tiff);
     return false;
   }
 
   // parse
-  TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-  if (tagval == NULL) {
-    // not trestle
+  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+  if (!tiff_result) {
+    // no description, not trestle
     TIFFClose(tiff);
     return false;
   }

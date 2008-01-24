@@ -77,8 +77,10 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
     return false; // not TIFF, not aperio
   }
 
-  TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-  if (tagval && strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION))) {
+  int tiff_result;
+  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+  if (!tiff_result ||
+      (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
     // not aperio
     TIFFClose(tiff);
     return false;
