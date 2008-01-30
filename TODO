@@ -1,15 +1,7 @@
-Fix black border off edge of TIFF (alpha problem?)
-
-Reduce number of redraws in WholeslideView
-
-Draw screen first, then offscreen in WholeslideView
-
 Fancy zooming/scrolling in WholeslideView
 
 Rotation in WholeslideView
 
-
-Copyright notices at the top of each file
 
 Make swig generated Java code not public
 
