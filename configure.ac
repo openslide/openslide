@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([wholeslide], [0.2], [agoode@andrew.cmu.edu])
+AC_INIT([wholeslide], [0.3], [agoode@andrew.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign 1.9])
@@ -49,7 +49,6 @@ AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Werror-implicit-function-declaration -Wstri
 
 AC_CONFIG_FILES([
 Makefile
-doc/Makefile
 src/Makefile
 wholeslide.pc
 ])
