@@ -34,6 +34,26 @@ static void test_tile_walk(wholeslide_t *wsd,
   free(buf);
 }
 
+static void write_as_ppm(const char *filename,
+			 uint32_t w, uint32_t h, uint32_t *buf) {
+  FILE *f = fopen(filename, "w");
+  if (f == NULL) {
+    perror("Cannot open file");
+    return;
+  }
+
+  fprintf(f, "P6\n%d %d\n255\n", w, h);
+  for (uint32_t i = 0; i < w * h; i++) {
+    uint32_t val = buf[i];
+    putc((val >> 16) & 0xFF, f); // R
+    putc((val >> 8) & 0xFF, f);  // G
+    putc((val >> 0) & 0xFF, f);  // B
+    // no A
+  }
+
+  fclose(f);
+}
+
 static void test_image_fetch(wholeslide_t *wsd,
 			     const char *name,
 			     uint32_t x, uint32_t y,
@@ -54,28 +74,38 @@ static void test_image_fetch(wholeslide_t *wsd,
 
     // write as PPM
     if (!skip_write) {
-      FILE *f = fopen(filename, "w");
-      if (f == NULL) {
-	perror("Cannot open file");
-	break;
-      }
-
-      fprintf(f, "P6\n%d %d\n255\n", w, h);
-      for (int i = 0; i < num_bytes / 4; i++) {
-	uint32_t val = buf[i];
-	putc((val >> 16) & 0xFF, f); // R
-	putc((val >> 8) & 0xFF, f);  // G
-	putc((val >> 0) & 0xFF, f);  // B
-	// no A
-      }
-
-      fclose(f);
+      write_as_ppm(filename, w, h, buf);
     }
 
     free(buf);
     free(filename);
   }
 }
+
+static void dump_as_tiles(wholeslide_t *wsd, const char *name,
+			  uint32_t tile_w, uint32_t tile_h) {
+  uint32_t w, h;
+  ws_get_layer0_dimensions(wsd, &w, &h);
+
+  uint32_t *buf = malloc(tile_w * tile_h * 4);
+
+  for (uint32_t y = 0; y < h; y += tile_h) {
+    for (uint32_t x = 0; x < w; x += tile_w) {
+      char *filename;
+      asprintf(&filename, "%s-%.10d-%.10d.ppm",
+	       name, x, y);
+
+      printf("%s\n", filename);
+
+      ws_read_region(wsd, buf, x, y, 0, tile_w, tile_h);
+      write_as_ppm(filename, tile_w, tile_h, buf);
+      free(filename);
+    }
+  }
+
+  free(buf);
+}
+
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -112,10 +142,13 @@ int main(int argc, char **argv) {
   test_next_biggest(wsd, 100);
   test_next_biggest(wsd, 1000);
   test_next_biggest(wsd, 10000);
- 
+
   uint32_t prefetch_hint = ws_give_prefetch_hint(wsd, 0, 0, 0, 5, 5);
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
+  dump_as_tiles(wsd, "file1", 512, 512);
+
+  return 0;
 
   bool skip = true;
 
