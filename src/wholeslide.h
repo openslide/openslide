@@ -37,6 +37,8 @@ wholeslide_t *ws_open(const char *filename);
  * Compute minimum buffer size for given image region.
  *
  * @param wsd The whole slide image handle.
+ * @param w The width of the region.
+ * @param h The height of the region.
  * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
 wholeslide_public
