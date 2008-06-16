@@ -27,3 +27,7 @@ Makefile.in
 /wholeslide.pc
 
 /src/test
+
+/doc/html
+/doc/latex
+/doc/man
