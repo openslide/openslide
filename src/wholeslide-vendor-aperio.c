@@ -1,13 +1,13 @@
 #include "config.h"
 
-#include <jasper/jasper.h>
-
 #include "wholeslide-private.h"
 
 #include <glib.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
+
+#include <openjpeg.h>
 
 static const char APERIO_DESCRIPTION[] = "Aperio Image Library";
 
@@ -16,9 +16,7 @@ struct _ws_tiff_tilereader {
   uint32_t tile_width;
   uint32_t tile_height;
 
-  jas_matrix_t *mat_y;
-  jas_matrix_t *mat_u;
-  jas_matrix_t *mat_v;
+  opj_dinfo_t *decoder;
 };
 
 
@@ -36,9 +34,8 @@ static struct _ws_tiff_tilereader *_ws_aperio_tiff_tilereader_create(TIFF *tiff)
   wtt->tile_width = w;
   wtt->tile_height = h;
 
-  wtt->mat_y = jas_matrix_create(h, w);
-  wtt->mat_u = jas_matrix_create(h, w / 2);
-  wtt->mat_v = jas_matrix_create(h, w / 2);
+  // make a decoder
+  wtt->decoder = opj_create_decompress(CODEC_J2K);
 
   return wtt;
 }
@@ -58,42 +55,19 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   tdata_t buf = g_slice_alloc(max_tile_size);
   tsize_t size = TIFFReadRawTile(wtt->tiff, tile_no, buf, max_tile_size); // XXX?
 
-  // make a jasper stream
-  jas_stream_t *jas_stream = jas_stream_memopen(buf, size);
+  // source of compressed data
+  opj_cio_t *j2k_source = opj_cio_open((opj_common_ptr) wtt->decoder, buf, size);
 
-  // make a jasper image
-  jas_image_t *jas_image = jpc_decode(jas_stream, "");
-
-  // decode it
-  int yy;
-  int uu;
-  int vv;
-  for (uint32_t ty = 0; ty < wtt->tile_height; ty++) {
-    for (uint32_t tx = 0; tx < wtt->tile_width; tx++) {
-      yy = jas_image_readcmptsample(jas_image, 0, tx, ty);
-
-      // uu and vv are subsampled by 2 in format 33003
-      if (!(tx & 1)) {
-	uu = jas_image_readcmptsample(jas_image, 1, tx / 2, ty);
-	vv = jas_image_readcmptsample(jas_image, 2, tx / 2, ty);
-      }
-
-      uint8_t r = yy;
-      uint8_t g = yy;
-      uint8_t b = yy;
-
-      uint32_t i = ty * wtt->tile_width + tx;
-      dest[i] = 0xFF000000 | (r << 16) | (g << 8) | (b);
-    }
-  }
+  // decode
+  opj_image_t *image = opj_decode(wtt->decoder, j2k_source);
 
   // erase
-  jas_image_destroy(jas_image);
-  jas_stream_close(jas_stream);
+  opj_cio_close(j2k_source);
   g_slice_free1(max_tile_size, buf);
 }
 
 static void _ws_aperio_tiff_tilereader_destroy(struct _ws_tiff_tilereader *wtt) {
+  opj_destroy_decompress(wtt->decoder);
   g_slice_free(struct _ws_tiff_tilereader, wtt);
 }
 

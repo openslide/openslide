@@ -34,9 +34,10 @@ AC_SUBST(PKGCONFIG_REQUIRES)
 
 
 # libraries
+AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
-AC_SEARCH_LIBS([jas_init], [jasper],, AC_MSG_FAILURE([cannot find JasPer]))
+AC_SEARCH_LIBS([opj_create_decompress], [openjpeg],, AC_MSG_FAILURE([cannot find OpenJPEG]))
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.10])
