@@ -33,6 +33,7 @@ struct _wholeslide_ops {
 bool _ws_try_trestle(wholeslide_t *wsd, const char* filename);
 bool _ws_try_aperio(wholeslide_t *wsd, const char* filename);
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char* filename);
+bool _ws_try_generic_jp2k(wholeslide_t *wsd, const char* filename);
 
 
 /* TIFF support */
@@ -68,6 +69,9 @@ void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
 			uint64_t topleft,
 			uint32_t width, uint32_t stride);
 int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
+
+
+/* JPEG-2000 support */
 
 
 #endif
