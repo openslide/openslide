@@ -1,4 +1,4 @@
-SUBDIRS = src
+SUBDIRS = libopenjpeg src
 
 EXTRA_DIST = README TODO
 

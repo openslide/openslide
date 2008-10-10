@@ -37,7 +37,7 @@ AC_SUBST(PKGCONFIG_REQUIRES)
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
-AC_SEARCH_LIBS([opj_create_decompress], [openjpeg],, AC_MSG_FAILURE([cannot find OpenJPEG]))
+#AC_SEARCH_LIBS([opj_create_decompress], [openjpeg],, AC_MSG_FAILURE([cannot find OpenJPEG]))
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.10])
@@ -50,6 +50,7 @@ AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Werror-implicit-function-declaration -Wstri
 
 AC_CONFIG_FILES([
 Makefile
+libopenjpeg/Makefile
 src/Makefile
 wholeslide.pc
 ])
