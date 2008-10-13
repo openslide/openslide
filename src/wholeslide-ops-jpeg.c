@@ -116,7 +116,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   jpeg->cinfo.image_height = height_in_tiles * jpeg->tile_height;
 
   jpeg_start_decompress(&jpeg->cinfo);
-  g_assert(jpeg->cinfo.output_components == 3);
+  g_assert(jpeg->cinfo.output_components == 3); // XXX remove this assertion
 
   //  printf("output_width: %d\n", jpeg->cinfo.output_width);
   //  printf("output_height: %d\n", jpeg->cinfo.output_height);
