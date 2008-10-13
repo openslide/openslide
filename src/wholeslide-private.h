@@ -6,14 +6,15 @@
 #include <stdbool.h>
 #include <tiffio.h>
 #include <jpeglib.h>
+#include <openjpeg.h>
 
 /* the main structure */
 struct _wholeslide {
   struct _wholeslide_ops *ops;
   void *data;
-
   uint32_t layer_count;
-  double *downsamples;
+
+  double *downsamples;  // filled in automatically
 };
 
 /* the function pointer structure for backends */
@@ -34,7 +35,6 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char* filename);
 bool _ws_try_aperio(wholeslide_t *wsd, const char* filename);
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char* filename);
 bool _ws_try_generic_jp2k(wholeslide_t *wsd, const char* filename);
-
 
 /* TIFF support */
 struct _ws_tiff_tilereader;
@@ -72,6 +72,8 @@ int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
 
 
 /* JPEG-2000 support */
-
+void _ws_add_jp2k_ops(wholeslide_t *wsd,
+		      FILE *f,
+		      uint32_t w, uint32_t h);
 
 #endif
