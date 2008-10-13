@@ -10,6 +10,8 @@ AM_INIT_AUTOMAKE([foreign 1.9])
 # Checks for programs.
 AC_PROG_CC_C99
 
+AC_HEADER_STDBOOL
+
 # Largefile
 AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
