@@ -45,7 +45,7 @@ static OPJ_UINT32 _ws_opj_mem_stream_read (void *p_buffer,
     new_offset = ss->size;
   }
 
-  memcpy(p_buffer, ss->buf + ss->offset, bytes_to_read);
+  memcpy(p_buffer, ((uint8_t *) ss->buf) + ss->offset, bytes_to_read);
   ss->offset = new_offset;
 
   return bytes_to_read;

@@ -259,7 +259,7 @@ static void init_one_jpeg(struct one_jpeg *jpeg) {
   jpeg_read_header(&jpeg->cinfo, FALSE);
   if (jpeg->cinfo.marker_list) {
     // copy everything out
-    char *com = g_strndup(jpeg->cinfo.marker_list->data,
+    char *com = g_strndup((const gchar *) jpeg->cinfo.marker_list->data,
 			  jpeg->cinfo.marker_list->data_length);
     // but only really save everything up to the first '\0'
     jpeg->comment = g_strdup(com);
