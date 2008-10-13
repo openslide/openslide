@@ -184,6 +184,7 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
 
   // erase
   g_slice_free1(max_tile_size, buf);
+  opj_image_destroy(image);
   opj_stream_destroy(stream);
   opj_destroy_codec(codec);
 }
