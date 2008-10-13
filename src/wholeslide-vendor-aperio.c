@@ -142,17 +142,44 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   opj_image_t *image;
   opj_read_header(codec, &image,
 		  &tx0, &ty0, &tw, &th, &ntx, &nty, stream);
+
+
   image = opj_decode(codec, stream);
   opj_end_decompress(codec, stream);
   opj_image_comp_t *comps = image->comps;
 
   // copy
   for (int i = 0; i < wtt->tile_height * wtt->tile_width; i++) {
-    uint32_t pixel = 255 << 24 | // A
-      (comps[0].data[i] << 16) | // R
-      (comps[0].data[i] << 8) | // G
-      comps[0].data[i]; // B
-    dest[i] = pixel;
+    uint8_t Y = comps[0].data[i];
+    uint8_t Cr = comps[1].data[i/2];
+    uint8_t Cb = comps[2].data[i/2];
+
+    uint8_t A = 255;
+    double R = Y + 1.402 * (Cr - 128);
+    double G = Y - 0.34414 * (Cb - 128) - 0.71414 * (Cr - 128);
+    double B = Y + 1.772 * (Cb - 128);
+
+    if (R > 255) {
+      R = 255;
+    }
+    if (R < 0) {
+      R = 0;
+    }
+    if (G > 255) {
+      G = 255;
+    }
+    if (G < 0) {
+      G = 0;
+    }
+    if (B > 255) {
+      B = 255;
+    }
+    if (B < 0) {
+      B = 0;
+    }
+
+    dest[i] = A << 24 |
+      ((uint8_t) R) << 16 | ((uint8_t) G << 8) | ((uint8_t) B);
   }
 
   // erase
