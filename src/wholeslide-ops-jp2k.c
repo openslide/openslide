@@ -1,5 +1,7 @@
 #include "config.h"
 
+#define USE_OPJ_DEPRECATED
+
 #include <stdio.h>
 #include <glib.h>
 #include <openjpeg.h>
@@ -44,53 +46,106 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
   *h = data->h >> layer;
 }
 
+static void info_callback(const OPJ_CHAR *msg, void *data) {
+  g_message("%s", msg);
+}
+static void warning_callback(const OPJ_CHAR *msg, void *data) {
+  g_warning("%s", msg);
+}
+static void error_callback(const OPJ_CHAR *msg, void *data) {
+  g_error("%s", msg);
+}
+
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
 			uint32_t w, uint32_t h) {
   struct _ws_jp2kopsdata *data = wsd->data;
 
+  printf("read_region: (%d,%d) layer: %d, size: (%d,%d)\n",
+	 x, y, layer, w, h);
+
   OPJ_INT32 tx0;
   OPJ_INT32 ty0;
+  OPJ_INT32 tx1;
+  OPJ_INT32 ty1;
   OPJ_UINT32 tw;
   OPJ_UINT32 th;
   OPJ_UINT32 ntx;
   OPJ_UINT32 nty;
 
+  opj_codec_t *codec = opj_create_decompress(CODEC_JP2);
+  opj_set_info_handler(codec, info_callback, NULL);
+  opj_set_warning_handler(codec, warning_callback, NULL);
+  opj_set_error_handler(codec, error_callback, NULL);
+
   rewind(data->f);
   opj_stream_t *stream = opj_stream_create_default_file_stream(data->f, true);
-  opj_codec_t *codec = opj_create_decompress(CODEC_JP2);
-  opj_dparameters_t parameters;
+
+  //opj_dparameters_t parameters;
   opj_image_t *image;
 
-  opj_set_default_decoder_parameters(&parameters);
-  parameters.cp_reduce = layer;
-  opj_setup_decoder(codec, &parameters);
   opj_read_header(codec, &image,
 		  &tx0, &ty0, &tw, &th, &ntx, &nty, stream);
-  opj_set_decode_area(codec, x, y, x + (w << layer), y + (h << layer));
+  //opj_set_default_decoder_parameters(&parameters);
+  //  parameters.cp_reduce = layer;
+  //opj_setup_decoder(codec, &parameters);
+
+  int32_t ddx1 = x + w;
+  int32_t ddy1 = y + h;
+  printf("want to set decode area to (%d,%d), (%d,%d)\n",
+	 x, y, ddx1, ddy1);
+
+  //opj_set_decode_area(codec, x, y, ddx1, ddy1);
 
   printf("%d %d %d %d %d %d %d %d\n", tx0, ty0, tw, th, ntx, nty, image->numcomps, image->color_space);
 
+  OPJ_UINT32 tile_index;
+  OPJ_UINT32 data_size;
+  OPJ_UINT32 nb_comps;
+  bool should_go_on = true;
+
+  /*
+  while(should_go_on) {
+    g_debug("reading tile header");
+    g_assert(opj_read_tile_header(codec,
+				  &tile_index,
+				  &data_size,
+				  &tx0, &ty0, &tx1, &ty1,
+				  &nb_comps, &should_go_on,
+				  stream));
+    printf("tile_index: %d, data_size: %d, (%d,%d),(%d,%d), comps: %d, go_on: %d\n", tile_index, data_size, tx0, ty0, tx1, ty1, nb_comps, should_go_on);
+
+    printf("data_size: %d\n", data_size);
+
+    g_assert(opj_decode_tile_data(codec, tile_index,
+				  (OPJ_BYTE *) dest,
+				  w * h * 4,
+				  stream));
+
+
+  }
+  */
   image = opj_decode(codec, stream);
-  opj_end_decompress(codec, stream);
 
-
+  // XXX temp
   opj_image_comp_t *comps = image->comps;
-
   for (int i = 0; i < w * h; i++) {
-    uint8_t A = 255;
     uint8_t R = comps[0].data[i];
     uint8_t G = comps[1].data[i];
     uint8_t B = comps[2].data[i];
+    uint8_t A = 255;
 
     dest[i] = A << 24 | R << 16 | G << 8 | B;
   }
 
+  opj_end_decompress(codec, stream);
   opj_image_destroy(image);
-  opj_destroy_codec(codec);
   opj_stream_destroy(stream);
+  opj_destroy_codec(codec);
 }
+
+
 
 static struct _wholeslide_ops _ws_jp2k_ops = {
   .read_region = read_region,
