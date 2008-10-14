@@ -457,6 +457,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 
   // set ops
   wsd->ops = &jpeg_ops;
+  g_warning("JPEG support is buggy and unfinished");
 }
 
 
