@@ -82,21 +82,21 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   rewind(data->f);
   opj_stream_t *stream = opj_stream_create_default_file_stream(data->f, true);
 
-  //opj_dparameters_t parameters;
+  opj_dparameters_t parameters;
   opj_image_t *image;
 
   opj_read_header(codec, &image,
 		  &tx0, &ty0, &tw, &th, &ntx, &nty, stream);
-  //opj_set_default_decoder_parameters(&parameters);
-  //  parameters.cp_reduce = layer;
-  //opj_setup_decoder(codec, &parameters);
+  opj_set_default_decoder_parameters(&parameters);
+  parameters.cp_reduce = layer;
+  opj_setup_decoder(codec, &parameters);
 
   int32_t ddx1 = x + w;
   int32_t ddy1 = y + h;
   printf("want to set decode area to (%d,%d), (%d,%d)\n",
 	 x, y, ddx1, ddy1);
 
-  //opj_set_decode_area(codec, x, y, ddx1, ddy1);
+  opj_set_decode_area(codec, x, y, ddx1, ddy1);
 
   printf("%d %d %d %d %d %d %d %d\n", tx0, ty0, tw, th, ntx, nty, image->numcomps, image->color_space);
 
@@ -105,8 +105,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   OPJ_UINT32 nb_comps;
   bool should_go_on = true;
 
-  /*
-  while(should_go_on) {
+  //  while(true) {
     g_debug("reading tile header");
     g_assert(opj_read_tile_header(codec,
 				  &tile_index,
@@ -118,26 +117,33 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
     printf("data_size: %d\n", data_size);
 
+    if (!should_go_on) {
+      //  break;
+    }
+
+    OPJ_BYTE *img_data = g_slice_alloc(data_size);
     g_assert(opj_decode_tile_data(codec, tile_index,
-				  (OPJ_BYTE *) dest,
-				  w * h * 4,
+				  img_data,
+				  data_size,
 				  stream));
 
+    // copy
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+	int i = y * w + x;
 
-  }
-  */
-  image = opj_decode(codec, stream);
+	uint8_t A = 255;
+	uint8_t R = img_data[i];
+	uint8_t G = img_data[i + data_size / 3];
+	uint8_t B = img_data[i + 2 * (data_size / 3)];
 
-  // XXX temp
-  opj_image_comp_t *comps = image->comps;
-  for (int i = 0; i < w * h; i++) {
-    uint8_t R = comps[0].data[i];
-    uint8_t G = comps[1].data[i];
-    uint8_t B = comps[2].data[i];
-    uint8_t A = 255;
+	dest[i] = A << 24 | R << 16 | G << 8 | B;
+      }
+    }
 
-    dest[i] = A << 24 | R << 16 | G << 8 | B;
-  }
+    g_slice_free1(data_size, img_data);
+
+    //  }
 
   opj_end_decompress(codec, stream);
   opj_image_destroy(image);
@@ -165,7 +171,7 @@ void _ws_add_jp2k_ops(wholeslide_t *wsd,
   data->h = h;
 
   // compute layer info
-  uint32_t layer_count = 1 + log2(MIN(data->w, data->h));
+  uint32_t layer_count = log2(MIN(data->w, data->h));
   printf("layer_count: %d\n", layer_count);
 
   if (wsd == NULL) {
