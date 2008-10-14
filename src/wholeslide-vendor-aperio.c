@@ -87,6 +87,16 @@ static bool _ws_opj_mem_stream_seek (OPJ_SIZE_T p_nb_bytes,
   return true;
 }
 
+static void info_callback(const OPJ_CHAR *msg, void *data) {
+  g_message("%s", msg);
+}
+static void warning_callback(const OPJ_CHAR *msg, void *data) {
+  g_warning("%s", msg);
+}
+static void error_callback(const OPJ_CHAR *msg, void *data) {
+  g_critical("%s", msg);
+}
+
 // XXX revisit assumptions that color is always downsampled in x by 2
 static struct _ws_tiff_tilereader *_ws_aperio_tiff_tilereader_create(TIFF *tiff) {
   struct _ws_tiff_tilereader *wtt = g_slice_new(struct _ws_tiff_tilereader);
@@ -139,6 +149,11 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   OPJ_UINT32 ntx;
   OPJ_UINT32 nty;
   opj_codec_t *codec = opj_create_decompress(CODEC_J2K);
+
+  opj_set_info_handler(codec, info_callback, NULL);
+  opj_set_warning_handler(codec, warning_callback, NULL);
+  opj_set_error_handler(codec, error_callback, NULL);
+
   opj_image_t *image;
   opj_read_header(codec, &image,
 		  &tx0, &ty0, &tw, &th, &ntx, &nty, stream);
