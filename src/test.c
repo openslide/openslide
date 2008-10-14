@@ -146,12 +146,13 @@ int main(int argc, char **argv) {
   uint32_t prefetch_hint = ws_give_prefetch_hint(wsd, 0, 0, 0, 5, 5);
   ws_cancel_prefetch_hint(wsd, prefetch_hint);
 
-  dump_as_tiles(wsd, "file1", 512, 512);
+  //  dump_as_tiles(wsd, "file1", 512, 512);
 
-  return 0;
+  //  return 0;
 
   bool skip = true;
 
+  test_tile_walk(wsd, 16);
   test_tile_walk(wsd, 256);
 
   test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, skip);
