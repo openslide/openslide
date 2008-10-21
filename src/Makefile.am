@@ -4,7 +4,7 @@ libwholeslide_la_LIBADD = $(GLIB2_LIBS) ../libopenjpeg/libopenjpeg.la
 
 libwholeslide_la_SOURCES = wholeslide.c \
 	wholeslide-vendor-trestle.c wholeslide-vendor-hamamatsu.c \
-	wholeslide-vendor-aperio.c \ wholeslide-vendor-generic-jp2k.c \
+	wholeslide-vendor-aperio.c wholeslide-vendor-generic-jp2k.c \
 	wholeslide-ops-tiff.c wholeslide-ops-jpeg.c wholeslide-ops-jp2k.c
 
 libwholeslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I../libopenjpeg $(GLIB2_CFLAGS)
