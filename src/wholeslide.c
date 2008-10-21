@@ -11,7 +11,7 @@
 
 static bool try_all_formats(wholeslide_t *wsd, const char *filename) {
   return
-    _ws_try_generic_jp2k(wsd, filename) ||
+    //_ws_try_generic_jp2k(wsd, filename) ||
     _ws_try_hamamatsu(wsd, filename) ||
     _ws_try_trestle(wsd, filename) ||
     _ws_try_aperio(wsd, filename);
