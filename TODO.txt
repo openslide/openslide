@@ -12,3 +12,5 @@ Magnification and other metadata ?
 Error handling
 
 JP2
+
+Ship docs
