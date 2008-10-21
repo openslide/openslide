@@ -42,4 +42,9 @@ libopenjpeg_la_SOURCES = tcd.c \
   tgt.h \
   profile.h \
   invert.h \
-  function_list.h
+  function_list.h \
+  opj_includes.h \
+  opj_malloc.h \
+  opj_configure.h \
+  fix.h \
+  t1_luts.h
