@@ -7,8 +7,8 @@ Make swig generated Java code not public
 
 Multi-file (col,row) jpeg for hamamatsu
 
-Aperio
-
 Magnification and other metadata ?
 
 Error handling
+
+JP2
