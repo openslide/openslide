@@ -7,7 +7,7 @@ libwholeslide_la_SOURCES = wholeslide.c \
 	wholeslide-vendor-aperio.c wholeslide-vendor-generic-jp2k.c \
 	wholeslide-ops-tiff.c wholeslide-ops-jpeg.c wholeslide-ops-jp2k.c
 
-libwholeslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS)
+libwholeslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Wholeslide\"
 
 libwholeslide_la_LDFLAGS = -version-info 0:0:0
 
