@@ -76,7 +76,7 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
       int i = 0;
       // skip fieldname
       for (char **cur_str2 = second_pass + 1; *cur_str2 != NULL; cur_str2++) {
-	overlaps[i] = atoi(*cur_str2);
+	overlaps[i] = g_ascii_strtoull(*cur_str2, NULL, 10);
 	i++;
       }
 
