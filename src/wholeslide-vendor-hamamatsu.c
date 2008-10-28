@@ -27,6 +27,7 @@
 #include <glib.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <jpeglib.h>
 
@@ -88,35 +89,53 @@ static bool verify_jpeg(FILE *f) {
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
   char *map_filename = NULL;
-  char *image_filename = NULL;
-  bool success = false;
+  char **image_filenames = NULL;
+  FILE **jpegs = NULL;
 
-  // this format has 2 jpeg files
-  FILE *jpegs[2] = { NULL, NULL };
+  bool success = false;
+  char *tmp;
 
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
     goto FAIL;
   }
-
-  printf("vms file exists\n");
-
   if (!g_key_file_has_group(vms_file, GROUP_VMS)) {
     goto FAIL;
   }
 
-  printf("vms file has group\n");
 
-  char **all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
-  char **tmp2;
-  for (tmp2 = all_keys; *tmp2 != NULL; tmp2++) {
-    printf(" %s: %s\n", *tmp2, g_key_file_get_string(vms_file, GROUP_VMS, *tmp2, NULL));
+  // make sure values are within known bounds
+  int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
+					  NULL);
+  if (num_layers != 1) {
+    g_warning("Cannot handle VMS files with NoLayers != 1");
+    goto FAIL;
   }
-  g_strfreev(all_keys);
 
-  // extract relevant info
-  char *tmp;
+  int num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
+					     KEY_NUM_JPEG_COLS,
+					     NULL);
+  if (num_jpeg_cols < 1) {
+    goto FAIL;
+  }
+
+  int num_jpeg_rows = g_key_file_get_integer(vms_file,
+					  GROUP_VMS,
+					  KEY_NUM_JPEG_ROWS,
+					  NULL);
+  if (num_jpeg_rows < 1) {
+    goto FAIL;
+  }
+
+  // this format has cols*rows jpeg files, plus the map
+  int num_jpegs = (num_jpeg_cols * num_jpeg_rows);
+  image_filenames = g_new0(char *, num_jpegs);
+  jpegs = g_new0(FILE *, num_jpegs);
+
+  g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
+
+  // extract MapFile
   tmp = g_key_file_get_string(vms_file,
 			      GROUP_VMS,
 			      KEY_MAP_FILE,
@@ -126,54 +145,71 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     g_free(tmp);
   }
 
+
+  // now each ImageFile
+  char **all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
+  char **tmp2;
+  for (tmp2 = all_keys; *tmp2 != NULL; tmp2++) {
+    char *key = *tmp2;
+    char *value = g_key_file_get_string(vms_file, GROUP_VMS, key, NULL);
+
+    g_debug("%s", key);
+
+    if (strncmp(KEY_IMAGE_FILE, key, strlen(KEY_IMAGE_FILE)) == 0) {
+      // starts with ImageFile
+      char *suffix = key + strlen(KEY_IMAGE_FILE);
+
+      int col;
+      int row;
+
+      if (suffix[0] != '\0') {
+	// parse out the row and col
+	char *endptr;
+
+	// skip (
+	suffix++;
+
+	// col
+	col = g_ascii_strtoll(suffix, &endptr, 10);
+	g_debug("%d", col);
+
+	// skip comma
+	endptr++;
+
+	// row
+	row = g_ascii_strtoll(endptr, NULL, 10);
+	g_debug("%d", row);
+      } else {
+	col = 0;
+	row = 0;
+      }
+
+      g_debug("col: %d, row: %d", col, row);
+    }
+  }
+  g_strfreev(all_keys);
+
+
   tmp = g_key_file_get_string(vms_file,
 			      GROUP_VMS,
 			      KEY_IMAGE_FILE,
 			      NULL);
   if (tmp) {
-    image_filename = g_build_filename(dirname, tmp, NULL);
+    //image_filename = g_build_filename(dirname, tmp, NULL);
     g_free(tmp);
   }
 
-  printf("map: %s, image: %s\n",
-	 map_filename, image_filename);
-
   // check image filename (the others are sort of optional)
-  if (!image_filename || !map_filename) {
-    goto FAIL;
-  }
+  //  if (!image_filename || !map_filename) {
+  // goto FAIL;
+  //}
 
-  // make sure values are within known bounds
-  int num_layers = g_key_file_get_integer(vms_file,
-					  GROUP_VMS,
-					  KEY_NUM_LAYERS,
-					  NULL);
-  if (num_layers != 1) {
-    goto FAIL;
-  }
-
-  int num_jpeg_cols = g_key_file_get_integer(vms_file,
-					  GROUP_VMS,
-					  KEY_NUM_JPEG_COLS,
-					  NULL);
-  if (num_jpeg_cols != 1) {  // TODO
-    goto FAIL;
-  }
-
-  int num_jpeg_rows = g_key_file_get_integer(vms_file,
-					  GROUP_VMS,
-					  KEY_NUM_JPEG_ROWS,
-					  NULL);
-  if (num_jpeg_rows != 1) {  // TODO
-    goto FAIL;
-  }
-
-  // verify jpegs
+  // open jpegs
 
   // image 0
-  if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
-    goto FAIL;
-  }
+  //if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
+  //  goto FAIL;
+  // }
   if (!verify_jpeg(jpegs[0])) {
     goto FAIL;
   }
@@ -191,6 +227,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   goto DONE;
 
  FAIL:
+
   if (jpegs[0]) {
     fclose(jpegs[0]);
   }
@@ -201,7 +238,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
  DONE:
   g_free(dirname);
-  g_free(image_filename);
+  //g_free(image_filename);
   g_free(map_filename);
   g_key_file_free(vms_file);
 
