@@ -91,6 +91,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *map_filename = NULL;
   char **image_filenames = NULL;
   FILE **jpegs = NULL;
+  int num_jpegs = 0;
 
   bool success = false;
   char *tmp;
@@ -98,9 +99,11 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
+    g_debug("Can't load VMS file");
     goto FAIL;
   }
   if (!g_key_file_has_group(vms_file, GROUP_VMS)) {
+    g_debug("Can't find VMS group");
     goto FAIL;
   }
 
@@ -129,7 +132,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   }
 
   // this format has cols*rows jpeg files, plus the map
-  int num_jpegs = (num_jpeg_cols * num_jpeg_rows);
+  num_jpegs = (num_jpeg_cols * num_jpeg_rows);
   image_filenames = g_new0(char *, num_jpegs);
   jpegs = g_new0(FILE *, num_jpegs);
 
@@ -153,7 +156,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     char *key = *tmp2;
     char *value = g_key_file_get_string(vms_file, GROUP_VMS, key, NULL);
 
-    g_debug("%s", key);
+    //    g_debug("%s", key);
 
     if (strncmp(KEY_IMAGE_FILE, key, strlen(KEY_IMAGE_FILE)) == 0) {
       // starts with ImageFile
@@ -173,7 +176,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	col = g_ascii_strtoll(suffix, &endptr, 10);
 	g_debug("%d", col);
 
-	// skip comma
+	// skip ,
 	endptr++;
 
 	// row
@@ -185,60 +188,75 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
       }
 
       g_debug("col: %d, row: %d", col, row);
+
+      if (col >= num_jpeg_cols || row >= num_jpeg_rows) {
+	g_debug("Invalid row or column in VMS file");
+	goto FAIL;
+      }
+
+      // add the filename
+      image_filenames[row * num_jpeg_cols + col] =
+	g_build_filename(dirname, value, NULL);
     }
   }
   g_strfreev(all_keys);
+  all_keys = NULL;
 
-
-  tmp = g_key_file_get_string(vms_file,
-			      GROUP_VMS,
-			      KEY_IMAGE_FILE,
-			      NULL);
-  if (tmp) {
-    //image_filename = g_build_filename(dirname, tmp, NULL);
-    g_free(tmp);
+  // check image filenames (the others are sort of optional)
+  if (!map_filename) {
+    g_debug("Can't read map filename");
+    goto FAIL;
   }
-
-  // check image filename (the others are sort of optional)
-  //  if (!image_filename || !map_filename) {
-  // goto FAIL;
-  //}
+  for (int i = 0; i < num_jpegs; i++) {
+    if (!image_filenames[i]) {
+      g_debug("Can't read image filename %d", i);
+      goto FAIL;
+    }
+  }
 
   // open jpegs
-
-  // image 0
-  //if ((jpegs[0] = fopen(image_filename, "rb")) == NULL) {
-  //  goto FAIL;
-  // }
-  if (!verify_jpeg(jpegs[0])) {
-    goto FAIL;
+  for (int i = 0; i < num_jpegs; i++) {
+    if ((jpegs[i] = fopen(image_filenames[i], "rb")) == NULL) {
+      g_debug("Can't open JPEG %d", i);
+      goto FAIL;
+    }
+    if (!verify_jpeg(jpegs[i])) {
+      g_debug("Can't verify JPEG %d", i);
+      goto FAIL;
+    }
   }
 
-  // image 1
-  if ((jpegs[1] = fopen(map_filename, "rb")) == NULL) {
-    goto FAIL;
-  }
-  if (!verify_jpeg(jpegs[1])) {
-    goto FAIL;
-  }
-
-  _ws_add_jpeg_ops(wsd, 2, jpegs);
+  _ws_add_jpeg_ops(wsd, 2, jpegs); // TODO
   success = true;
   goto DONE;
 
  FAIL:
+  if (all_keys) {
+    g_strfreev(all_keys);
+  }
 
-  if (jpegs[0]) {
-    fclose(jpegs[0]);
+  if (jpegs) {
+    for (int i = 0; i < num_jpegs; i++) {
+      if (jpegs[i]) {
+	fclose(jpegs[i]);
+      }
+    }
   }
-  if (jpegs[1]) {
-    fclose(jpegs[1]);
-  }
+
+  g_free(jpegs);
+
   success = false;
 
  DONE:
   g_free(dirname);
-  //g_free(image_filename);
+
+  if (image_filenames) {
+    for (int i = 0; i < num_jpegs; i++) {
+      g_free(image_filenames[i]);
+    }
+  }
+  g_free(image_filenames);
+
   g_free(map_filename);
   g_key_file_free(vms_file);
 
