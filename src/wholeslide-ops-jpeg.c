@@ -408,19 +408,23 @@ static void compute_optimization(FILE *f,
 
 
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      uint32_t file_count,
-		      FILE **f) {
+		      uint32_t count,
+		      struct _ws_jpeg_fragment **fragments) {
   if (wsd == NULL) {
     // free now and return
-    for (uint32_t i = 0; i < file_count; i++) {
-      fclose(f[i]);
+    for (uint32_t i = 0; i < count; i++) {
+      fclose(fragments[i]->f);
+      g_free(fragments[i]);
     }
+    g_free(fragments);
     return;
   }
 
-
   g_assert(wsd->data == NULL);
 
+
+  // TODO
+  /*
   // allocate private data
   struct jpegops_data *data = g_slice_new0(struct jpegops_data);
   wsd->data = data;
@@ -482,6 +486,8 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   // set ops
   wsd->ops = &jpeg_ops;
   g_warning("JPEG support is buggy and unfinished");
+
+  */
 }
 
 

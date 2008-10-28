@@ -88,10 +88,11 @@ static bool verify_jpeg(FILE *f) {
 
 bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
-  char *map_filename = NULL;
   char **image_filenames = NULL;
-  FILE **jpegs = NULL;
+  struct _ws_jpeg_fragment **jpegs = NULL;
   int num_jpegs = 0;
+
+  char **all_keys = NULL;
 
   bool success = false;
   char *tmp;
@@ -132,9 +133,9 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   }
 
   // this format has cols*rows jpeg files, plus the map
-  num_jpegs = (num_jpeg_cols * num_jpeg_rows);
+  num_jpegs = (num_jpeg_cols * num_jpeg_rows) + 1;
   image_filenames = g_new0(char *, num_jpegs);
-  jpegs = g_new0(FILE *, num_jpegs);
+  jpegs = g_new0(struct _ws_jpeg_fragment *, num_jpegs);
 
   g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
 
@@ -144,13 +145,19 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 			      KEY_MAP_FILE,
 			      NULL);
   if (tmp) {
-    map_filename = g_build_filename(dirname, tmp, NULL);
+    image_filenames[num_jpegs - 1] = g_build_filename(dirname, tmp, NULL);
+    struct _ws_jpeg_fragment *frag = g_new0(struct _ws_jpeg_fragment, 1);
+    frag->x = 0;
+    frag->y = 0;
+    frag->z = 1;  // map is smaller
+    jpegs[num_jpegs - 1] = frag;
+
     g_free(tmp);
   }
 
 
   // now each ImageFile
-  char **all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
+  all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
   char **tmp2;
   for (tmp2 = all_keys; *tmp2 != NULL; tmp2++) {
     char *key = *tmp2;
@@ -195,18 +202,18 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
       }
 
       // add the filename
-      image_filenames[row * num_jpeg_cols + col] =
-	g_build_filename(dirname, value, NULL);
+      int i = row * num_jpeg_cols + col;
+      image_filenames[i] = g_build_filename(dirname, value, NULL);
+
+      // init the fragment
+      jpegs[i] = g_new0(struct _ws_jpeg_fragment, 1);
+      jpegs[i]->x = col;
+      jpegs[i]->y = row;
+      jpegs[i]->z = 0;
     }
   }
-  g_strfreev(all_keys);
-  all_keys = NULL;
 
   // check image filenames (the others are sort of optional)
-  if (!map_filename) {
-    g_debug("Can't read map filename");
-    goto FAIL;
-  }
   for (int i = 0; i < num_jpegs; i++) {
     if (!image_filenames[i]) {
       g_debug("Can't read image filename %d", i);
@@ -216,48 +223,47 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
   // open jpegs
   for (int i = 0; i < num_jpegs; i++) {
-    if ((jpegs[i] = fopen(image_filenames[i], "rb")) == NULL) {
+    if ((jpegs[i]->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_debug("Can't open JPEG %d", i);
       goto FAIL;
     }
-    if (!verify_jpeg(jpegs[i])) {
+    if (!verify_jpeg(jpegs[i]->f)) {
       g_debug("Can't verify JPEG %d", i);
       goto FAIL;
     }
   }
 
-  _ws_add_jpeg_ops(wsd, 2, jpegs); // TODO
+  _ws_add_jpeg_ops(wsd, num_jpegs, jpegs);
   success = true;
   goto DONE;
 
  FAIL:
-  if (all_keys) {
-    g_strfreev(all_keys);
-  }
-
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
-      if (jpegs[i]) {
-	fclose(jpegs[i]);
+      FILE *f = jpegs[i]->f;
+      if (f) {
+	fclose(f);
       }
+      g_free(jpegs[i]);
     }
+    g_free(jpegs);
   }
-
-  g_free(jpegs);
 
   success = false;
 
  DONE:
+  if (all_keys) {
+    g_strfreev(all_keys);
+  }
+
   g_free(dirname);
 
   if (image_filenames) {
     for (int i = 0; i < num_jpegs; i++) {
       g_free(image_filenames[i]);
     }
+    g_free(image_filenames);
   }
-  g_free(image_filenames);
-
-  g_free(map_filename);
   g_key_file_free(vms_file);
 
   return success;

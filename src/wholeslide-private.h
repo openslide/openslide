@@ -83,9 +83,35 @@ void _ws_generic_tiff_tilereader_destroy(struct _ws_tiff_tilereader *wtt);
 
 
 /* JPEG support */
+struct _ws_jpeg_fragment {
+  FILE *f;
+
+  // all fragments together should form a dense space,
+  // with no gaps in x,y,z
+
+  // these coordinates start from 0 and look like this:
+  //
+  // ----------------
+  // |       |      |
+  // |       |      |
+  // | (0,0) | (1,0)|
+  // |       |      |
+  // |       |      |
+  // ----------------
+  // |       |      |
+  // | (0,1) | (1,1)|
+  // |       |      |
+  // ----------------
+  uint32_t x;
+  uint32_t y;
+
+  // this value starts from 0 at the largest layer
+  uint32_t z;
+};
+
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      uint32_t file_count,
-		      FILE **f);
+		      uint32_t count,
+		      struct _ws_jpeg_fragment **fragments);
 
 void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
 			int64_t *start_positions,
