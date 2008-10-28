@@ -410,6 +410,13 @@ static void compute_optimization(FILE *f,
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
 		      struct _ws_jpeg_fragment **fragments) {
+  g_debug("count: %d", count);
+  for (int i = 0; i < count; i++) {
+    struct _ws_jpeg_fragment *frag = fragments[i];
+    g_debug("%d: file: %p, x: %d, y: %d, z: %d",
+	    i, frag->f, frag->x, frag->y, frag->z);
+  }
+
   if (wsd == NULL) {
     // free now and return
     for (uint32_t i = 0; i < count; i++) {
