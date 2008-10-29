@@ -86,7 +86,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t w, uint32_t h) {
   struct _ws_jp2kopsdata *data = wsd->data;
 
-  printf("read_region: (%d,%d) layer: %d, size: (%d,%d)\n",
+  g_debug("read_region: (%d,%d) layer: %d, size: (%d,%d)",
 	 x, y, layer, w, h);
 
   OPJ_INT32 tx0;
@@ -117,12 +117,12 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   int32_t ddx1 = x + w;
   int32_t ddy1 = y + h;
-  printf("want to set decode area to (%d,%d), (%d,%d)\n",
+  g_debug("want to set decode area to (%d,%d), (%d,%d)",
 	 x, y, ddx1, ddy1);
 
   opj_set_decode_area(codec, x, y, ddx1, ddy1);
 
-  printf("%d %d %d %d %d %d %d %d\n", tx0, ty0, tw, th, ntx, nty, image->numcomps, image->color_space);
+  g_debug("%d %d %d %d %d %d %d %d", tx0, ty0, tw, th, ntx, nty, image->numcomps, image->color_space);
 
   OPJ_UINT32 tile_index;
   OPJ_UINT32 data_size;
@@ -137,9 +137,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 				  &tx0, &ty0, &tx1, &ty1,
 				  &nb_comps, &should_go_on,
 				  stream));
-    printf("tile_index: %d, data_size: %d, (%d,%d),(%d,%d), comps: %d, go_on: %d\n", tile_index, data_size, tx0, ty0, tx1, ty1, nb_comps, should_go_on);
+    g_debug("tile_index: %d, data_size: %d, (%d,%d),(%d,%d), comps: %d, go_on: %d", tile_index, data_size, tx0, ty0, tx1, ty1, nb_comps, should_go_on);
 
-    printf("data_size: %d\n", data_size);
+    g_debug("data_size: %d", data_size);
 
     if (!should_go_on) {
       //  break;
@@ -196,7 +196,7 @@ void _ws_add_jp2k_ops(wholeslide_t *wsd,
 
   // compute layer info
   uint32_t layer_count = log2(MIN(data->w, data->h));
-  printf("layer_count: %d\n", layer_count);
+  g_debug("layer_count: %d", layer_count);
 
   if (wsd == NULL) {
     // free now and return

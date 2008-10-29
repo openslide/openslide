@@ -65,7 +65,7 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
 
   char **first_pass = g_strsplit(tagval, ";", -1);
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
-    //fprintf(stderr, " XX: %s\n", *cur_str);
+    //g_debug(" XX: %s", *cur_str);
     if (g_str_has_prefix(*cur_str, OVERLAPS_XY)) {
       // found it
       char **second_pass = g_strsplit(*cur_str, " ", -1);

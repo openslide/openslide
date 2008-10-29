@@ -68,9 +68,9 @@ static bool verify_jpeg(FILE *f) {
 
   unsigned int leftover_mcus = MCUs_per_row % restart_interval;
 
-  printf("w: %d, h: %d, restart_interval: %d\n"
+  g_debug("w: %d, h: %d, restart_interval: %d\n"
 	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-	 "leftover mcus: %d\n",
+	 "leftover mcus: %d",
 	 cinfo.output_width, cinfo.output_height,
 	 restart_interval,
 	 MCUs_per_row, MCU_rows_in_scan,

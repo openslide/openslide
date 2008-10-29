@@ -81,7 +81,7 @@ static void copy_rgba_tile(const uint32_t *tile,
     src_origin_y = 0;
   }
 
-  //  printf("src_origin_y: %d, dest_origin_y: %d\n", src_origin_y, dest_origin_y);
+  //  g_debug("src_origin_y: %d, dest_origin_y: %d", src_origin_y, dest_origin_y);
 
   uint32_t src_origin_x;
   if (dest_origin_x < 0) {  // off the left
@@ -90,13 +90,13 @@ static void copy_rgba_tile(const uint32_t *tile,
     src_origin_x = 0;
   }
 
-  //  printf("src_origin_x: %d, dest_origin_x: %d\n", src_origin_x, dest_origin_x);
+  //  g_debug("src_origin_x: %d, dest_origin_x: %d", src_origin_x, dest_origin_x);
 
-  //  printf("\n");
+  //  g_debug("");
 
   for (uint32_t src_y = src_origin_y; src_y < src_h; src_y++) {
     int32_t dest_y = dest_origin_y + src_y;
-    //    printf("src_y: %d, dest_y: %d\n", src_y, dest_y);
+    //    g_debug("src_y: %d, dest_y: %d", src_y, dest_y);
     if (dest_y < dest_h) {
       for (uint32_t src_x = src_origin_x; src_x < src_w; src_x++) {
 	int32_t dest_x = dest_origin_x + src_x;
@@ -104,7 +104,7 @@ static void copy_rgba_tile(const uint32_t *tile,
 	  uint32_t dest_i = dest_y * dest_w + dest_x;
 	  uint32_t i = src_y * src_w + src_x;
 
-	  //      printf("%d %d -> %d %d\n", src_x, src_y, dest_x, dest_y);
+	  //      g_debug("%d %d -> %d %d", src_x, src_y, dest_x, dest_y);
 	  uint32_t tile_val = tile[i];
 	  dest[dest_i] = (tile_val & 0xFF00FF00)
 	    | ((tile_val << 16) & 0xFF0000)
@@ -164,7 +164,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     end_y = raw_h - 1;
   }
 
-  //printf("from (%d,%d) to (%d,%d)\n", start_x, start_y, end_x, end_y);
+  //g_debug("from (%d,%d) to (%d,%d)", start_x, start_y, end_x, end_y);
 
 
   // for each tile, draw it where it should go
@@ -188,8 +188,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       uint32_t off_x = src_x - round_x;
       uint32_t off_y = src_y - round_y;
 
-      //      printf("going to readRGBA @ %d,%d\n", round_x, round_y);
-      //      printf(" offset: %d,%d\n", off_x, off_y);
+      //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
+      //      g_debug(" offset: %d,%d", off_x, off_y);
       data->tilereader_read(tilereader, tile, round_x, round_y);
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
       num_tiles_decoded++;
@@ -202,7 +202,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     dst_y += th - ovr_y;
   }
 
-  //printf("tiles decoded: %d\n", num_tiles_decoded);
+  //g_debug("tiles decoded: %d", num_tiles_decoded);
 
   data->tilereader_destroy(tilereader);
   g_slice_free1(tw * th * sizeof(uint32_t), tile);
@@ -270,7 +270,7 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
     *h = ih;
   }
 
-  //  printf("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n\n",
+  //  g_debug("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n",
   //	 layer,
   //	 tw, th, iw, ih, tx, ty);
 }

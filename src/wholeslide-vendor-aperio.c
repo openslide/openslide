@@ -54,7 +54,7 @@ static OPJ_UINT32 _ws_opj_mem_stream_read (void *p_buffer,
   struct _ws_opj_mem_stream_state *ss =
     (struct _ws_opj_mem_stream_state *) p_user_data;
 
-  //  printf("READ: %p, %d\n", p_buffer, p_nb_bytes);
+  //  g_debug("READ: %p, %d", p_buffer, p_nb_bytes);
 
   if (ss->offset == ss->size) {
     return -1; // EOF
@@ -144,7 +144,7 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   // get tile number
   ttile_t tile_no = TIFFComputeTile(wtt->tiff, x, y, 0, 0);
 
-  //  printf("aperio reading tile_no: %d\n", tile_no);
+  //  g_debug("aperio reading tile_no: %d", tile_no);
 
   // get tile size
   tsize_t max_tile_size = TIFFTileSize(wtt->tiff);
@@ -267,7 +267,7 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
   do {
     if (TIFFIsTiled(tiff)) {
       layers[i++] = TIFFCurrentDirectory(tiff);
-      printf("tiled layer: %d\n", TIFFCurrentDirectory(tiff));
+      g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
     }
     TIFFReadDirectory(tiff);
   } while (i < layer_count);
@@ -277,7 +277,7 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
-  printf("compression mode: %d\n", compression_mode);
+  g_debug("compression mode: %d", compression_mode);
 
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
