@@ -226,7 +226,7 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
     // is this the end of this layer? then flush
     if (i == count - 1 || fragments[i + 1]->z != fr->z) {
       layer_jpegs_tmp = g_slist_reverse(layer_jpegs_tmp);
-      generate_layers_into_map(layer_jpegs_tmp, fr->x, fr->y,
+      generate_layers_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
 			       l_pw, l_ph,
 			       width_to_layer_map);
 
