@@ -108,7 +108,8 @@ static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
 }
 
 static guint int64_hash(gconstpointer v) {
-  return (guint) *((int64_t *) v);
+  int64_t i = *((const int64_t *) v);
+  return i ^ (i >> 32);
 }
 
 static gboolean int64_equal(gconstpointer v1, gconstpointer v2) {
