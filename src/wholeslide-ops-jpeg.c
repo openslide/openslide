@@ -62,17 +62,46 @@ struct one_jpeg {
   char *comment;
 };
 
-struct layer_lookup {
-  uint32_t jpeg_number;
+struct layer {
+  struct one_jpeg **layer_jpegs; // count given by jpeg_w * jpeg_h
+
+  // total size
+  uint32_t pixel_w;
+  uint32_t pixel_h;
+
+  uint32_t jpeg_w;       // how many distinct jpeg files across?
+  uint32_t jpeg_h;       // how many distinct jpeg files down?
+
   uint32_t scale_denom;
 };
 
 struct jpegops_data {
   uint32_t jpeg_count;
-  struct one_jpeg *jpegs;
+  struct one_jpeg *all_jpegs;
 
-  struct layer_lookup *layers;
+  uint32_t layer_count;
+  struct layer *layers;
 };
+
+
+static GHashTable *create_width_to_layer_map(uint32_t count,
+					     struct _ws_jpeg_fragment **fragments) {
+  uint32_t max_x = 0;
+  uint32_t max_y = 0;
+  uint32_t max_z = 0;
+
+  for (uint32_t i = 0; i < count; i++) {
+    struct _ws_jpeg_fragment *fr = fragments[i];
+
+    // the fragments MUST be in sorted order by z,x,y
+    g_assert(fr->x >= max_x && fr->y >= max_y && fr->z >= max_z);
+    max_x = fr->x;
+    max_y = fr->y;
+    max_z = fr->z;
+
+    
+  }
+}
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
@@ -87,6 +116,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   if (layer >= wsd->layer_count) {
     return;
   }
+
+  /*
 
   // figure out jpeg and downsample
   struct layer_lookup *ll = &data->layers[layer];
@@ -212,18 +243,17 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   // last thing, stop jpeg
   jpeg_abort_decompress(&jpeg->cinfo);
+
+  */
 }
 
 
 static void destroy(wholeslide_t *wsd) {
   struct jpegops_data *data = wsd->data;
 
-  // layer_lookup
-  g_free(data->layers);
-
   // each jpeg in turn
   for (uint32_t i = 0; i < data->jpeg_count; i++) {
-    struct one_jpeg *jpeg = &data->jpegs[i];
+    struct one_jpeg *jpeg = &data->all_jpegs[i];
 
     jpeg_destroy_decompress(&jpeg->cinfo);
     fclose(jpeg->f);
@@ -231,8 +261,18 @@ static void destroy(wholeslide_t *wsd) {
     g_free(jpeg->comment);
   }
 
-  // the array
-  g_free(data->jpegs);
+  // each layer in turn
+  for (uint32_t i = 0; i < data->layer_count; i++) {
+    struct layer *l = &data->layers[i];
+
+    g_free(l->layer_jpegs);
+  }
+
+  // the JPEG array
+  g_free(data->all_jpegs);
+
+  // the layer array
+  g_free(data->layers);
 
   // the structure
   g_slice_free(struct jpegops_data, data);
@@ -249,15 +289,14 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
     return;
   }
 
-  struct layer_lookup *ll = &data->layers[layer];
-  struct one_jpeg *jpeg = &data->jpegs[ll->jpeg_number];
-  *w = jpeg->width / ll->scale_denom;
-  *h = jpeg->height / ll->scale_denom;
+  struct layer *l = &data->layers[layer];
+  *w = l->pixel_w;
+  *h = l->pixel_h;
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
   struct jpegops_data *data = wsd->data;
-  return data->jpegs[0].comment;
+  return data->all_jpegs[0].comment;
 }
 
 static struct _wholeslide_ops jpeg_ops = {
@@ -267,89 +306,6 @@ static struct _wholeslide_ops jpeg_ops = {
   .get_comment = get_comment,
 };
 
-
-static void init_one_jpeg(struct one_jpeg *jpeg) {
-  FILE *f = jpeg->f;
-
-  // init jpeg
-  rewind(f);
-  jpeg->cinfo.err = jpeg_std_error(&jpeg->jerr);
-  jpeg_create_decompress(&jpeg->cinfo);
-  _ws_jpeg_fancy_src(&jpeg->cinfo, f,
-		     NULL, 0, 0, 0, 0);
-
-  // extract comment
-  jpeg_save_markers(&jpeg->cinfo, JPEG_COM, 0xFFFF);
-  jpeg_read_header(&jpeg->cinfo, FALSE);
-  if (jpeg->cinfo.marker_list) {
-    // copy everything out
-    char *com = g_strndup((const gchar *) jpeg->cinfo.marker_list->data,
-			  jpeg->cinfo.marker_list->data_length);
-    // but only really save everything up to the first '\0'
-    jpeg->comment = g_strdup(com);
-    g_free(com);
-  }
-  jpeg_save_markers(&jpeg->cinfo, JPEG_COM, 0);  // stop saving
-
-  // save dimensions
-  jpeg_calc_output_dimensions(&jpeg->cinfo);
-  jpeg->width = jpeg->cinfo.output_width;
-  jpeg->height = jpeg->cinfo.output_height;
-
-  // save "tile" dimensions
-  jpeg_start_decompress(&jpeg->cinfo);
-  jpeg->tile_width = jpeg->width /
-    (jpeg->cinfo.MCUs_per_row / jpeg->cinfo.restart_interval);
-  jpeg->tile_height = jpeg->height / jpeg->cinfo.MCU_rows_in_scan;
-
-  //  g_debug("jpeg \"tile\" dimensions: %dx%d", jpeg->tile_width, jpeg->tile_height);
-
-  // quiesce jpeg
-  jpeg_abort_decompress(&jpeg->cinfo);
-}
-
-struct populate_layer_data {
-  uint32_t i;
-  struct jpegops_data *data;
-};
-
-static void populate_layer_array_helper(gpointer key, gpointer value, gpointer user_data) {
-  uint32_t w = (uint32_t) key;
-  uint32_t n = (uint32_t) value;
-  struct populate_layer_data *d = user_data;
-
-  //  g_debug("%d: %d -> %d", d->i, w, n);
-
-  struct layer_lookup *ll = &d->data->layers[d->i++];
-  ll->jpeg_number = n;
-  ll->scale_denom = d->data->jpegs[n].width / w;
-  //  g_debug(" %d: %d", ll->jpeg_number, ll->scale_denom);
-}
-
-static int layer_lookup_compare(const void *p1, const void *p2) {
-  const struct layer_lookup *ll1 = p1;
-  const struct layer_lookup *ll2 = p2;
-
-  uint32_t j1 = ll1->jpeg_number;
-  uint32_t j2 = ll2->jpeg_number;
-  uint32_t s1 = ll1->scale_denom;
-  uint32_t s2 = ll2->scale_denom;
-
-  // sort by jpeg_number, then scale_denom
-  int v1 = (j1 > j2) - (j1 < j2);
-  if (v1 != 0) {
-    return v1;
-  } else {
-    return (s1 > s2) - (s1 < s2);
-  }
-}
-
-static int jpegops_width_compare(const void *p1, const void *p2) {
-  uint32_t w1 = ((const struct one_jpeg *) p1)->width;
-  uint32_t w2 = ((const struct one_jpeg *) p2)->width;
-
-  return (w1 < w2) - (w1 > w2);
-}
 
 static void compute_optimization(FILE *f,
 				 uint64_t *mcu_starts_count,
@@ -406,6 +362,97 @@ static void compute_optimization(FILE *f,
   jpeg_destroy_decompress(&cinfo);
 }
 
+static void init_one_jpeg(struct one_jpeg *onej,
+			  struct _ws_jpeg_fragment *fragment) {
+  FILE *f = onej->f = fragment->f;
+
+  // optimization
+  compute_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
+
+  // init jpeg
+  rewind(f);
+  onej->cinfo.err = jpeg_std_error(&onej->jerr);
+  jpeg_create_decompress(&onej->cinfo);
+  _ws_jpeg_fancy_src(&onej->cinfo, f,
+		     NULL, 0, 0, 0, 0);
+
+  // extract comment
+  jpeg_save_markers(&onej->cinfo, JPEG_COM, 0xFFFF);
+  jpeg_read_header(&onej->cinfo, FALSE);
+  if (onej->cinfo.marker_list) {
+    // copy everything out
+    char *com = g_strndup((const gchar *) onej->cinfo.marker_list->data,
+			  onej->cinfo.marker_list->data_length);
+    // but only really save everything up to the first '\0'
+    onej->comment = g_strdup(com);
+    g_free(com);
+  }
+  jpeg_save_markers(&onej->cinfo, JPEG_COM, 0);  // stop saving
+
+  // save dimensions
+  jpeg_calc_output_dimensions(&onej->cinfo);
+  onej->width = onej->cinfo.output_width;
+  onej->height = onej->cinfo.output_height;
+
+  // save "tile" dimensions
+  jpeg_start_decompress(&onej->cinfo);
+  onej->tile_width = onej->width /
+    (onej->cinfo.MCUs_per_row / onej->cinfo.restart_interval);
+  onej->tile_height = onej->height / onej->cinfo.MCU_rows_in_scan;
+
+  //  g_debug("jpeg \"tile\" dimensions: %dx%d", onej->tile_width, onej->tile_height);
+
+  // quiesce jpeg
+  jpeg_abort_decompress(&onej->cinfo);
+}
+
+struct populate_layer_data {
+  uint32_t i;
+  struct jpegops_data *data;
+};
+
+
+/*
+static void populate_layer_array_helper(gpointer key, gpointer value, gpointer user_data) {
+  uint32_t w = (uint32_t) key;
+  uint32_t n = (uint32_t) value;
+  struct populate_layer_data *d = user_data;
+
+  //  g_debug("%d: %d -> %d", d->i, w, n);
+
+  struct layer *l = &d->data->layers[d->i++];
+  l->jpeg_number = n;
+  l->scale_denom = d->data->jpegs[n].width / w;
+  //  g_debug(" %d: %d", ll->jpeg_number, ll->scale_denom);
+}
+
+static int layer_lookup_compare(const void *p1, const void *p2) {
+  const struct layer_lookup *ll1 = p1;
+  const struct layer_lookup *ll2 = p2;
+
+  uint32_t j1 = ll1->jpeg_number;
+  uint32_t j2 = ll2->jpeg_number;
+  uint32_t s1 = ll1->scale_denom;
+  uint32_t s2 = ll2->scale_denom;
+
+  // sort by jpeg_number, then scale_denom
+  int v1 = (j1 > j2) - (j1 < j2);
+  if (v1 != 0) {
+    return v1;
+  } else {
+    return (s1 > s2) - (s1 < s2);
+  }
+}
+
+static int jpegops_width_compare(const void *p1, const void *p2) {
+  uint32_t w1 = ((const struct one_jpeg *) p1)->width;
+  uint32_t w2 = ((const struct one_jpeg *) p2)->width;
+
+  return (w1 < w2) - (w1 > w2);
+}
+
+*/
+
 
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
@@ -414,7 +461,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   for (int i = 0; i < count; i++) {
     struct _ws_jpeg_fragment *frag = fragments[i];
     g_debug("%d: file: %p, x: %d, y: %d, z: %d",
-	    i, frag->f, frag->x, frag->y, frag->z);
+	    i, (void *) frag->f, frag->x, frag->y, frag->z);
   }
 
   if (wsd == NULL) {
@@ -430,30 +477,22 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   g_assert(wsd->data == NULL);
 
 
-  // TODO
-  /*
   // allocate private data
   struct jpegops_data *data = g_slice_new0(struct jpegops_data);
   wsd->data = data;
 
-  data->jpeg_count = file_count;
-  data->jpegs = g_new0(struct one_jpeg, data->jpeg_count);
-
+  // load all jpegs (assume all are useful)
+  data->jpeg_count = count;
+  data->all_jpegs = g_new0(struct one_jpeg, count);
   for (uint32_t i = 0; i < data->jpeg_count; i++) {
-    // copy parameters
-    struct one_jpeg *jpeg = &data->jpegs[i];
-
-    uint64_t mcu_starts_count;
-    int64_t *mcu_starts;
-
-    compute_optimization(f[i], &mcu_starts_count, &mcu_starts);
-
-    jpeg->f = f[i];
-    jpeg->mcu_starts_count = mcu_starts_count;
-    jpeg->mcu_starts = mcu_starts;
-
-    init_one_jpeg(jpeg);
+    g_debug("init JPEG %d", i);
+    init_one_jpeg(&data->all_jpegs[i], fragments[i]);
   }
+
+  // create map from width to layers
+  GHashTable *width_to_layer_map = create_width_to_layer_map(count, fragments);
+
+  /*
 
   // sort the jpegs by base width, larger to smaller
   qsort(data->jpegs, data->jpeg_count, sizeof(struct one_jpeg),
