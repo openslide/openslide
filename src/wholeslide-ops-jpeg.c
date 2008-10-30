@@ -128,6 +128,16 @@ static void layer_free(gpointer data) {
   g_slice_free(struct layer, l);
 }
 
+static void print_wlmap_entry(gpointer key, gpointer value,
+			      gpointer user_data) {
+  int64_t k = *((int64_t *) key);
+  struct layer *v = (struct layer *) value;
+
+  g_debug("%" PRId64 " -> ( pw: %" PRId64 ", ph: %" PRId64
+	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32 " )",
+	  k, v->pixel_w, v->pixel_h, v->jpeg_w, v->jpeg_h, v->scale_denom);
+}
+
 static void generate_layers_into_map(GSList *jpegs,
 				     uint32_t jpeg_w, uint32_t jpeg_h,
 				     int64_t pixel_w, int64_t pixel_h,
@@ -629,7 +639,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 							     fragments,
 							     data->all_jpegs);
 
-  
+  g_hash_table_foreach(width_to_layer_map, print_wlmap_entry, NULL);
 
   // delete all the fragments
   for (uint32_t i = 0; i < count; i++) {
