@@ -79,7 +79,7 @@ struct jpegops_data {
   uint32_t jpeg_count;
   struct one_jpeg *all_jpegs;
 
-  uint32_t layer_count;
+  // layer_count is in the wsd struct
   struct layer *layers;
 };
 
@@ -407,7 +407,7 @@ static void destroy(wholeslide_t *wsd) {
   }
 
   // each layer in turn
-  for (uint32_t i = 0; i < data->layer_count; i++) {
+  for (uint32_t i = 0; i < wsd->layer_count; i++) {
     struct layer *l = &data->layers[i];
 
     g_free(l->layer_jpegs);
@@ -615,6 +615,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   for (uint32_t i = 0; i < count; i++) {
     g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
   }
+  g_free(fragments);
 
   // get sorted keys
   GList *layer_keys = NULL;

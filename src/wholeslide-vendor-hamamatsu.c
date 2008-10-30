@@ -216,6 +216,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	jpegs[i]->z = 0;
       }
     }
+    g_free(value);
   }
 
   // check image filenames (the others are sort of optional)
