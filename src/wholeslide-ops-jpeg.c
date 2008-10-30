@@ -84,22 +84,44 @@ struct jpegops_data {
 };
 
 
+static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
+			     int64_t z, int64_t x, int64_t y) {
+  if (z == pz + 1) {
+    return x == 0 && y == 0;
+  }
+  if (z != pz) {
+    return false;
+  }
+
+  // z == pz
+
+  if (x == px + 1) {
+    return y == 0;
+  }
+  if (x != px) {
+    return false;
+  }
+
+  // x == px
+
+  return y == py + 1;
+}
+
 static GHashTable *create_width_to_layer_map(uint32_t count,
 					     struct _ws_jpeg_fragment **fragments) {
-  uint32_t max_x = 0;
-  uint32_t max_y = 0;
-  uint32_t max_z = 0;
+  int64_t prev_z = -1;
+  int64_t prev_x = -1;
+  int64_t prev_y = -1;
 
   for (uint32_t i = 0; i < count; i++) {
     struct _ws_jpeg_fragment *fr = fragments[i];
 
     // the fragments MUST be in sorted order by z,x,y
-    g_assert(fr->x >= max_x && fr->y >= max_y && fr->z >= max_z);
-    max_x = fr->x;
-    max_y = fr->y;
-    max_z = fr->z;
-
-    
+    g_assert(is_zxy_successor(prev_z, prev_x, prev_y,
+			      fr->z, fr->x, fr->y));
+    prev_z = fr->z;
+    prev_x = fr->x;
+    prev_y = fr->y;
   }
 }
 
