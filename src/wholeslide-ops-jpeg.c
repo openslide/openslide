@@ -434,9 +434,11 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
     return;
   }
 
-  struct layer *l = &data->layers[layer];
+  struct layer *l = data->layers + layer;
   *w = l->pixel_w;
   *h = l->pixel_h;
+
+  //  g_debug("dimensions of layer %" PRId32 ": (%" PRId32 ",%" PRId32 ")", layer, *w, *h);
 }
 
 static const char* get_comment(wholeslide_t *wsd) {
@@ -551,53 +553,21 @@ static void init_one_jpeg(struct one_jpeg *onej,
   jpeg_abort_decompress(&onej->cinfo);
 }
 
-struct populate_layer_data {
-  uint32_t i;
-  struct jpegops_data *data;
-};
+static gint width_compare(gconstpointer a, gconstpointer b) {
+  int64_t w1 = *((const int64_t *) a);
+  int64_t w2 = *((const int64_t *) b);
 
-
-/*
-static void populate_layer_array_helper(gpointer key, gpointer value, gpointer user_data) {
-  uint32_t w = (uint32_t) key;
-  uint32_t n = (uint32_t) value;
-  struct populate_layer_data *d = user_data;
-
-  //  g_debug("%d: %d -> %d", d->i, w, n);
-
-  struct layer *l = &d->data->layers[d->i++];
-  l->jpeg_number = n;
-  l->scale_denom = d->data->jpegs[n].width / w;
-  //  g_debug(" %d: %d", ll->jpeg_number, ll->scale_denom);
-}
-
-static int layer_lookup_compare(const void *p1, const void *p2) {
-  const struct layer_lookup *ll1 = p1;
-  const struct layer_lookup *ll2 = p2;
-
-  uint32_t j1 = ll1->jpeg_number;
-  uint32_t j2 = ll2->jpeg_number;
-  uint32_t s1 = ll1->scale_denom;
-  uint32_t s2 = ll2->scale_denom;
-
-  // sort by jpeg_number, then scale_denom
-  int v1 = (j1 > j2) - (j1 < j2);
-  if (v1 != 0) {
-    return v1;
-  } else {
-    return (s1 > s2) - (s1 < s2);
-  }
-}
-
-static int jpegops_width_compare(const void *p1, const void *p2) {
-  uint32_t w1 = ((const struct one_jpeg *) p1)->width;
-  uint32_t w2 = ((const struct one_jpeg *) p2)->width;
+  g_assert(w1 >= 0 && w2 >= 0);
 
   return (w1 < w2) - (w1 > w2);
 }
 
-*/
-
+static void get_keys(gpointer key, gpointer value,
+		     gpointer user_data) {
+  GList *keys = *((GList **) user_data);
+  keys = g_list_prepend(keys, key);
+  *((GList **) user_data) = keys;
+}
 
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
@@ -646,48 +616,49 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
   }
 
-  /*
+  // get sorted keys
+  GList *layer_keys = NULL;
+  g_hash_table_foreach(width_to_layer_map, get_keys, &layer_keys);
+  layer_keys = g_list_sort(layer_keys, width_compare);
 
-  // sort the jpegs by base width, larger to smaller
-  qsort(data->jpegs, data->jpeg_count, sizeof(struct one_jpeg),
-	jpegops_width_compare);
+  //  g_debug("number of keys: %d", g_list_length(layer_keys));
 
-  // map downsampled width to jpeg number, favoring smaller scale_denoms
-  GHashTable *layer_hash = g_hash_table_new(NULL, NULL);
-  for (uint32_t i = 0; i < data->jpeg_count; i++) {
-    for (uint32_t j = 0; j < 4; j++) {
-      // each JPEG can be read as 1/1, 1/2, 1/4, 1/8
-      uint32_t d = 1 << j;
-      uint32_t w = data->jpegs[i].width / d;
 
-      g_hash_table_insert(layer_hash,
-			  (gpointer) w, (gpointer) i); // will replace previous ones
-    }
+  // populate the layer_count
+  wsd->layer_count = g_hash_table_size(width_to_layer_map);
+
+  // load into data array
+  data->layers = g_new(struct layer, g_hash_table_size(width_to_layer_map));
+  GList *tmp_list = layer_keys;
+
+  int i = 0;
+
+  g_debug("copying sorted layers");
+  while(tmp_list != NULL) {
+    // get a key and value
+    struct layer *l = g_hash_table_lookup(width_to_layer_map, tmp_list->data);
+
+    print_wlmap_entry(tmp_list->data, l, NULL);
+
+    // copy
+    struct layer *dest = data->layers + i;
+    *dest = *l;    // shallow copy
+
+    // manually free some things, because of that shallow copy
+    g_hash_table_steal(width_to_layer_map, tmp_list->data);
+    int64_free(tmp_list->data);  // key
+    g_slice_free(struct layer, l); // shallow deletion of layer
+
+    // consume the head and continue
+    tmp_list = g_list_delete_link(tmp_list, tmp_list);
+    i++;
   }
 
-  // populate the layer list
-  wsd->layer_count = g_hash_table_size(layer_hash);
-  data->layers = g_new(struct layer_lookup, wsd->layer_count);
-
-  struct populate_layer_data pld = { .i = 0, .data = data };
-  g_hash_table_foreach(layer_hash, populate_layer_array_helper, &pld);
-  g_hash_table_destroy(layer_hash);
-
-
-  // now, make sure the layer list is sorted
-  qsort(data->layers, wsd->layer_count, sizeof(struct layer_lookup),
-	layer_lookup_compare);
-
-  for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    //    g_debug("%d: %d", data->layers[i].jpeg_number,
-    //	   data->layers[i].scale_denom);
-  }
+  // unref the hash table
+  g_hash_table_unref(width_to_layer_map);
 
   // set ops
   wsd->ops = &jpeg_ops;
-  g_warning("JPEG support is buggy and unfinished");
-
-  */
 }
 
 
