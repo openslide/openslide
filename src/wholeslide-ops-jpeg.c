@@ -65,9 +65,9 @@ struct one_jpeg {
 struct layer {
   struct one_jpeg **layer_jpegs; // count given by jpeg_w * jpeg_h
 
-  // total size
-  uint32_t pixel_w;
-  uint32_t pixel_h;
+  // total size, premultipled by 1/scale_denom
+  int64_t pixel_w;
+  int64_t pixel_h;
 
   uint32_t jpeg_w;       // how many distinct jpeg files across?
   uint32_t jpeg_h;       // how many distinct jpeg files down?
@@ -107,22 +107,135 @@ static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
   return y == py + 1;
 }
 
+static guint int64_hash(gconstpointer v) {
+  return (guint) *((int64_t *) v);
+}
+
+static gboolean int64_equal(gconstpointer v1, gconstpointer v2) {
+  return *((int64_t *) v1) == *((int64_t *) v2);
+}
+
+static void int64_free(gpointer data) {
+  g_slice_free(int64_t, data);
+}
+
+static void layer_free(gpointer data) {
+  g_debug("layer_free: %p", data);
+
+  struct layer *l = data;
+
+  g_free(l->layer_jpegs);
+  g_slice_free(struct layer, l);
+}
+
+static void generate_layers_into_map(GSList *jpegs,
+				     uint32_t jpeg_w, uint32_t jpeg_h,
+				     int64_t pixel_w, int64_t pixel_h,
+				     GHashTable *width_to_layer_map) {
+  // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
+  // need to create 4 layers per set of JPEGs
+
+  uint32_t num_jpegs = jpeg_w * jpeg_h;
+
+  int scale_denom = 1;
+  while (scale_denom <= 8) {
+    // create layer
+    struct layer *l = g_slice_new0(struct layer);
+    l->jpeg_w = jpeg_w;
+    l->jpeg_h = jpeg_h;
+    l->pixel_w = pixel_w / scale_denom;
+    l->pixel_h = pixel_h / scale_denom;
+    l->scale_denom = scale_denom;
+
+    // create array and copy
+    l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
+    GSList *jj = jpegs;
+    for (uint32_t i = 0; i < num_jpegs; i++) {
+      g_assert(jj);
+      l->layer_jpegs[i] = (struct one_jpeg *) jj->data;
+      jj = jj->next;
+    }
+
+    // put into map
+    int64_t *key = g_slice_new(int64_t);
+    *key = l->pixel_w;
+
+    g_debug("insert %" PRId64 ", scale_denom: %d", *key, scale_denom);
+    g_hash_table_insert(width_to_layer_map, key, l);
+
+    scale_denom <<= 1;
+  }
+}
+
 static GHashTable *create_width_to_layer_map(uint32_t count,
-					     struct _ws_jpeg_fragment **fragments) {
+					     struct _ws_jpeg_fragment **fragments,
+					     struct one_jpeg *jpegs) {
   int64_t prev_z = -1;
   int64_t prev_x = -1;
   int64_t prev_y = -1;
 
+  GSList *layer_jpegs_tmp = NULL;
+  int64_t l_pw = 0;
+  int64_t l_ph = 0;
+
+  // int* -> struct layer*
+  GHashTable *width_to_layer_map = g_hash_table_new_full(int64_hash,
+							 int64_equal,
+							 int64_free,
+							 layer_free);
+
+  // go through the fragments, accumulating to layers
   for (uint32_t i = 0; i < count; i++) {
     struct _ws_jpeg_fragment *fr = fragments[i];
+    struct one_jpeg *oj = &jpegs[i];
 
     // the fragments MUST be in sorted order by z,x,y
     g_assert(is_zxy_successor(prev_z, prev_x, prev_y,
 			      fr->z, fr->x, fr->y));
+
+    // special case for first layer
+    if (prev_z == -1) {
+      prev_z = 0;
+      prev_x = 0;
+      prev_y = 0;
+    }
+
+    // accumulate size
+    if (fr->y == 0) {
+      l_pw += oj->width;
+    }
+    if (fr->x == 0) {
+      l_ph += oj->height;
+    }
+
+    g_debug(" pw: %" PRId64 ", ph: %" PRId64, l_pw, l_ph);
+
+    // accumulate to layer
+    layer_jpegs_tmp = g_slist_prepend(layer_jpegs_tmp, oj);
+
+    // is this the end of this layer? then flush
+    if (i == count - 1 || fragments[i + 1]->z != fr->z) {
+      layer_jpegs_tmp = g_slist_reverse(layer_jpegs_tmp);
+      generate_layers_into_map(layer_jpegs_tmp, fr->x, fr->y,
+			       l_pw, l_ph,
+			       width_to_layer_map);
+
+      // clear for next round
+      l_pw = 0;
+      l_ph = 0;
+
+      while (layer_jpegs_tmp != NULL) {
+	layer_jpegs_tmp = g_slist_delete_link(layer_jpegs_tmp, layer_jpegs_tmp);
+      }
+    }
+
+    // update prevs
     prev_z = fr->z;
     prev_x = fr->x;
     prev_y = fr->y;
   }
+
+  return width_to_layer_map;
 }
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
@@ -480,7 +593,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
 		      struct _ws_jpeg_fragment **fragments) {
   g_debug("count: %d", count);
-  for (int i = 0; i < count; i++) {
+  for (uint32_t i = 0; i < count; i++) {
     struct _ws_jpeg_fragment *frag = fragments[i];
     g_debug("%d: file: %p, x: %d, y: %d, z: %d",
 	    i, (void *) frag->f, frag->x, frag->y, frag->z);
@@ -490,7 +603,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     // free now and return
     for (uint32_t i = 0; i < count; i++) {
       fclose(fragments[i]->f);
-      g_free(fragments[i]);
+      g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
     }
     g_free(fragments);
     return;
@@ -511,8 +624,17 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
     init_one_jpeg(&data->all_jpegs[i], fragments[i]);
   }
 
-  // create map from width to layers
-  GHashTable *width_to_layer_map = create_width_to_layer_map(count, fragments);
+  // create map from width to layers, using the fragments
+  GHashTable *width_to_layer_map = create_width_to_layer_map(count,
+							     fragments,
+							     data->all_jpegs);
+
+  
+
+  // delete all the fragments
+  for (uint32_t i = 0; i < count; i++) {
+    g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
+  }
 
   /*
 

@@ -146,7 +146,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 			      NULL);
   if (tmp) {
     image_filenames[num_jpegs - 1] = g_build_filename(dirname, tmp, NULL);
-    struct _ws_jpeg_fragment *frag = g_new0(struct _ws_jpeg_fragment, 1);
+    struct _ws_jpeg_fragment *frag = g_slice_new0(struct _ws_jpeg_fragment);
     frag->x = 0;
     frag->y = 0;
     frag->z = 1;  // map is smaller
