@@ -109,6 +109,7 @@ struct _ws_jpeg_fragment {
   uint32_t z;
 };
 
+// note: fragments MUST be sorted by z, then x, then y
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
 		      struct _ws_jpeg_fragment **fragments);
