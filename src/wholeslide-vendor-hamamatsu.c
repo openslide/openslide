@@ -210,7 +210,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
       } else {
 	image_filenames[i] = g_build_filename(dirname, value, NULL);
 
-	jpegs[i] = g_new0(struct _ws_jpeg_fragment, 1);
+	jpegs[i] = g_slice_new0(struct _ws_jpeg_fragment);
 	jpegs[i]->x = col;
 	jpegs[i]->y = row;
 	jpegs[i]->z = 0;
