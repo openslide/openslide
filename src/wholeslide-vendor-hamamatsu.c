@@ -201,15 +201,20 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	goto FAIL;
       }
 
-      // add the filename
+      // compute index from x,y
       int i = row * num_jpeg_cols + col;
-      image_filenames[i] = g_build_filename(dirname, value, NULL);
 
       // init the fragment
-      jpegs[i] = g_new0(struct _ws_jpeg_fragment, 1);
-      jpegs[i]->x = col;
-      jpegs[i]->y = row;
-      jpegs[i]->z = 0;
+      if (jpegs[i]) {
+	g_warning("Ignoring duplicate image for (%d,%d)", col, row);
+      } else {
+	image_filenames[i] = g_build_filename(dirname, value, NULL);
+
+	jpegs[i] = g_new0(struct _ws_jpeg_fragment, 1);
+	jpegs[i]->x = col;
+	jpegs[i]->y = row;
+	jpegs[i]->z = 0;
+      }
     }
   }
 
