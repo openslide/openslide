@@ -67,6 +67,7 @@ wholeslide_t *ws_open(const char *filename) {
     ws_get_layer_dimensions(wsd, i, &w, &h);
 
     wsd->downsamples[i] = (double) blh / (double) h;
+    g_assert(wsd->downsamples[i] >= 1.0);
   }
 
   return wsd;
