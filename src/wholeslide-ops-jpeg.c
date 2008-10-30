@@ -199,7 +199,7 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
   // go through the fragments, accumulating to layers
   for (uint32_t i = 0; i < count; i++) {
     struct _ws_jpeg_fragment *fr = fragments[i];
-    struct one_jpeg *oj = &jpegs[i];
+    struct one_jpeg *oj = jpegs + i;
 
     // the fragments MUST be in sorted order by z,x,y
     g_assert(is_zxy_successor(prev_z, prev_x, prev_y,
@@ -400,7 +400,7 @@ static void destroy(wholeslide_t *wsd) {
 
   // each jpeg in turn
   for (uint32_t i = 0; i < data->jpeg_count; i++) {
-    struct one_jpeg *jpeg = &data->all_jpegs[i];
+    struct one_jpeg *jpeg = data->all_jpegs + i;
 
     jpeg_destroy_decompress(&jpeg->cinfo);
     fclose(jpeg->f);
@@ -410,7 +410,7 @@ static void destroy(wholeslide_t *wsd) {
 
   // each layer in turn
   for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    struct layer *l = &data->layers[i];
+    struct layer *l = data->layers + i;
 
     //    g_debug("g_free(%p)", (void *) l->layer_jpegs);
     g_free(l->layer_jpegs);
