@@ -120,10 +120,11 @@ static void int64_free(gpointer data) {
 }
 
 static void layer_free(gpointer data) {
-  g_debug("layer_free: %p", data);
+  //  g_debug("layer_free: %p", data);
 
   struct layer *l = data;
 
+  //  g_debug("g_free(%p)", (void *) l->layer_jpegs);
   g_free(l->layer_jpegs);
   g_slice_free(struct layer, l);
 }
@@ -159,6 +160,7 @@ static void generate_layers_into_map(GSList *jpegs,
 
     // create array and copy
     l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
+    //    g_debug("g_new(struct one_jpeg *) -> %p", (void *) l->layer_jpegs);
     GSList *jj = jpegs;
     for (uint32_t i = 0; i < num_jpegs; i++) {
       g_assert(jj);
@@ -410,6 +412,7 @@ static void destroy(wholeslide_t *wsd) {
   for (uint32_t i = 0; i < wsd->layer_count; i++) {
     struct layer *l = &data->layers[i];
 
+    //    g_debug("g_free(%p)", (void *) l->layer_jpegs);
     g_free(l->layer_jpegs);
   }
 
