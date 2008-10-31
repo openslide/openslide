@@ -62,7 +62,7 @@ struct one_jpeg {
 struct layer {
   struct one_jpeg **layer_jpegs; // count given by jpeg_w * jpeg_h
 
-  // total size, premultipled by 1/scale_denom
+  // total size (not premultiplied by scale_denom)
   int64_t pixel_w;
   int64_t pixel_h;
 
@@ -70,7 +70,7 @@ struct layer {
   uint32_t jpegs_down;         // how many distinct jpeg files down?
 
   // the size of image (0,0), which is used to find the jpeg we want
-  // from a given (x,y) (again premultiplied)
+  // from a given (x,y) (not premultiplied)
   uint32_t image00_w;
   uint32_t image00_h;
 
@@ -164,11 +164,11 @@ static void generate_layers_into_map(GSList *jpegs,
     struct layer *l = g_slice_new0(struct layer);
     l->jpegs_across = jpegs_across;
     l->jpegs_down = jpegs_down;
-    l->pixel_w = pixel_w / scale_denom;
-    l->pixel_h = pixel_h / scale_denom;
+    l->pixel_w = pixel_w;
+    l->pixel_h = pixel_h;
     l->scale_denom = scale_denom;
-    l->image00_w = image00_w / scale_denom;
-    l->image00_h = image00_h / scale_denom;
+    l->image00_w = image00_w;
+    l->image00_h = image00_h;
     l->no_scale_denom_downsample = (double) layer0_w / (double) pixel_w;
 
     // create array and copy
@@ -183,7 +183,7 @@ static void generate_layers_into_map(GSList *jpegs,
 
     // put into map
     int64_t *key = g_slice_new(int64_t);
-    *key = l->pixel_w;
+    *key = l->pixel_w / l->scale_denom;
 
     g_debug("insert %" PRId64 ", scale_denom: %d", *key, scale_denom);
     g_hash_table_insert(width_to_layer_map, key, l);
@@ -471,8 +471,8 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
   }
 
   struct layer *l = data->layers + layer;
-  *w = l->pixel_w;
-  *h = l->pixel_h;
+  *w = l->pixel_w / l->scale_denom;
+  *h = l->pixel_h / l->scale_denom;
 
   //  g_debug("dimensions of layer %" PRId32 ": (%" PRId32 ",%" PRId32 ")", layer, *w, *h);
 }
