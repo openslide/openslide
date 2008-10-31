@@ -78,7 +78,7 @@ struct layer {
   uint32_t image00_h;
 
   uint32_t scale_denom;
-  uint32_t no_scale_denom_downsample;  // layer0_w div non_premult_pixel_w
+  double no_scale_denom_downsample;  // layer0_w div non_premult_pixel_w
 };
 
 struct jpegops_data {
@@ -146,7 +146,7 @@ static void print_wlmap_entry(gpointer key, gpointer value,
 
   g_debug("%" PRId64 " -> ( pw: %" PRId64 ", ph: %" PRId64
 	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32
-	  ", img00_w: %" PRId32 ", img00_h: %" PRId32 ", no_scale_denom_downsample: %" PRId32 " )",
+	  ", img00_w: %" PRId32 ", img00_h: %" PRId32 ", no_scale_denom_downsample: %g )",
 	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom, v->image00_w, v->image00_h, v->no_scale_denom_downsample);
 }
 
@@ -172,7 +172,7 @@ static void generate_layers_into_map(GSList *jpegs,
     l->scale_denom = scale_denom;
     l->image00_w = image00_w / scale_denom;
     l->image00_h = image00_h / scale_denom;
-    l->no_scale_denom_downsample = layer0_w / pixel_w;
+    l->no_scale_denom_downsample = (double) layer0_w / (double) pixel_w;
 
     // create array and copy
     l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
