@@ -45,9 +45,6 @@
 #include "wholeslide-private.h"
 
 struct one_jpeg {
-  struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
-
   FILE *f;
 
   uint64_t mcu_starts_count;
@@ -439,7 +436,6 @@ static void destroy(wholeslide_t *wsd) {
   for (uint32_t i = 0; i < data->jpeg_count; i++) {
     struct one_jpeg *jpeg = data->all_jpegs + i;
 
-    jpeg_destroy_decompress(&jpeg->cinfo);
     fclose(jpeg->f);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->comment);
@@ -552,45 +548,49 @@ static void compute_optimization(FILE *f,
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _ws_jpeg_fragment *fragment) {
   FILE *f = onej->f = fragment->f;
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
 
   // optimization
   compute_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
 
   // init jpeg
   rewind(f);
-  onej->cinfo.err = jpeg_std_error(&onej->jerr);
-  jpeg_create_decompress(&onej->cinfo);
-  _ws_jpeg_fancy_src(&onej->cinfo, f,
-		     NULL, 0, 0, 0, 0);
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
 
   // extract comment
-  jpeg_save_markers(&onej->cinfo, JPEG_COM, 0xFFFF);
-  jpeg_read_header(&onej->cinfo, FALSE);
-  if (onej->cinfo.marker_list) {
+  jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
+  jpeg_read_header(&cinfo, FALSE);
+  if (cinfo.marker_list) {
     // copy everything out
-    char *com = g_strndup((const gchar *) onej->cinfo.marker_list->data,
-			  onej->cinfo.marker_list->data_length);
+    char *com = g_strndup((const gchar *) cinfo.marker_list->data,
+			  cinfo.marker_list->data_length);
     // but only really save everything up to the first '\0'
     onej->comment = g_strdup(com);
     g_free(com);
   }
-  jpeg_save_markers(&onej->cinfo, JPEG_COM, 0);  // stop saving
+  jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
 
   // save dimensions
-  jpeg_calc_output_dimensions(&onej->cinfo);
-  onej->width = onej->cinfo.output_width;
-  onej->height = onej->cinfo.output_height;
+  jpeg_calc_output_dimensions(&cinfo);
+  onej->width = cinfo.output_width;
+  onej->height = cinfo.output_height;
+
+  g_debug(" w: %d, h: %d", cinfo.output_width, cinfo.output_height);
 
   // save "tile" dimensions
-  jpeg_start_decompress(&onej->cinfo);
+  jpeg_start_decompress(&cinfo);
   onej->tile_width = onej->width /
-    (onej->cinfo.MCUs_per_row / onej->cinfo.restart_interval);
-  onej->tile_height = onej->height / onej->cinfo.MCU_rows_in_scan;
+    (cinfo.MCUs_per_row / cinfo.restart_interval);
+  onej->tile_height = onej->height / cinfo.MCU_rows_in_scan;
 
   //  g_debug("jpeg \"tile\" dimensions: %dx%d", onej->tile_width, onej->tile_height);
 
-  // quiesce jpeg
-  jpeg_abort_decompress(&onej->cinfo);
+  // destroy jpeg
+  jpeg_destroy_decompress(&cinfo);
 }
 
 static gint width_compare(gconstpointer a, gconstpointer b) {
