@@ -78,6 +78,7 @@ struct layer {
   uint32_t image00_h;
 
   uint32_t scale_denom;
+  uint32_t no_scale_denom_downsample;  // layer0_w div non_premult_pixel_w
 };
 
 struct jpegops_data {
@@ -145,14 +146,15 @@ static void print_wlmap_entry(gpointer key, gpointer value,
 
   g_debug("%" PRId64 " -> ( pw: %" PRId64 ", ph: %" PRId64
 	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32
-	  ", img00_w: %" PRId32 ", img00_h: %" PRId32 " )",
-	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom, v->image00_w, v->image00_h);
+	  ", img00_w: %" PRId32 ", img00_h: %" PRId32 ", no_scale_denom_downsample: %" PRId32 " )",
+	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom, v->image00_w, v->image00_h, v->no_scale_denom_downsample);
 }
 
 static void generate_layers_into_map(GSList *jpegs,
 				     uint32_t jpegs_across, uint32_t jpegs_down,
 				     int64_t pixel_w, int64_t pixel_h,
 				     uint32_t image00_w, uint32_t image00_h,
+				     int64_t layer0_w,
 				     GHashTable *width_to_layer_map) {
   // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
   // need to create 4 layers per set of JPEGs
@@ -170,6 +172,7 @@ static void generate_layers_into_map(GSList *jpegs,
     l->scale_denom = scale_denom;
     l->image00_w = image00_w / scale_denom;
     l->image00_h = image00_h / scale_denom;
+    l->no_scale_denom_downsample = layer0_w / pixel_w;
 
     // create array and copy
     l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
@@ -205,6 +208,8 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
 
   uint32_t img00_w = 0;
   uint32_t img00_h = 0;
+
+  int64_t layer0_w = 0;
 
   // int* -> struct layer*
   GHashTable *width_to_layer_map = g_hash_table_new_full(int64_hash,
@@ -250,9 +255,16 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
     // is this the end of this layer? then flush
     if (i == count - 1 || fragments[i + 1]->z != fr->z) {
       layer_jpegs_tmp = g_slist_reverse(layer_jpegs_tmp);
+
+      // save layer0 width
+      if (fr->z == 0) {
+	layer0_w = l_pw;
+      }
+
       generate_layers_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
 			       l_pw, l_ph,
 			       img00_w, img00_h,
+			       layer0_w,
 			       width_to_layer_map);
 
       // clear for next round
