@@ -72,6 +72,11 @@ struct layer {
   uint32_t jpegs_across;       // how many distinct jpeg files across?
   uint32_t jpegs_down;         // how many distinct jpeg files down?
 
+  // the size of image (0,0), which is used to find the jpeg we want
+  // from a given (x,y) (again premultiplied)
+  uint32_t image00_w;
+  uint32_t image00_h;
+
   uint32_t scale_denom;
 };
 
@@ -139,13 +144,15 @@ static void print_wlmap_entry(gpointer key, gpointer value,
   struct layer *v = (struct layer *) value;
 
   g_debug("%" PRId64 " -> ( pw: %" PRId64 ", ph: %" PRId64
-	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32 " )",
-	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom);
+	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32
+	  ", img00_w: %" PRId32 ", img00_h: %" PRId32 " )",
+	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom, v->image00_w, v->image00_h);
 }
 
 static void generate_layers_into_map(GSList *jpegs,
 				     uint32_t jpegs_across, uint32_t jpegs_down,
 				     int64_t pixel_w, int64_t pixel_h,
+				     uint32_t image00_w, uint32_t image00_h,
 				     GHashTable *width_to_layer_map) {
   // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
   // need to create 4 layers per set of JPEGs
@@ -161,6 +168,8 @@ static void generate_layers_into_map(GSList *jpegs,
     l->pixel_w = pixel_w / scale_denom;
     l->pixel_h = pixel_h / scale_denom;
     l->scale_denom = scale_denom;
+    l->image00_w = image00_w / scale_denom;
+    l->image00_h = image00_h / scale_denom;
 
     // create array and copy
     l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
@@ -194,6 +203,9 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
   int64_t l_pw = 0;
   int64_t l_ph = 0;
 
+  uint32_t img00_w = 0;
+  uint32_t img00_h = 0;
+
   // int* -> struct layer*
   GHashTable *width_to_layer_map = g_hash_table_new_full(int64_hash,
 							 int64_equal,
@@ -216,6 +228,12 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
       prev_y = 0;
     }
 
+    // save first image dimensions
+    if (fr->x == 0 && fr->y == 0) {
+      img00_w = oj->width;
+      img00_h = oj->height;
+    }
+
     // accumulate size
     if (fr->y == 0) {
       l_pw += oj->width;
@@ -234,11 +252,14 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
       layer_jpegs_tmp = g_slist_reverse(layer_jpegs_tmp);
       generate_layers_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
 			       l_pw, l_ph,
+			       img00_w, img00_h,
 			       width_to_layer_map);
 
       // clear for next round
       l_pw = 0;
       l_ph = 0;
+      img00_w = 0;
+      img00_h = 0;
 
       while (layer_jpegs_tmp != NULL) {
 	layer_jpegs_tmp = g_slist_delete_link(layer_jpegs_tmp, layer_jpegs_tmp);
