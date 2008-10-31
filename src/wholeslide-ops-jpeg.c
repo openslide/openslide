@@ -298,23 +298,21 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     return;
   }
 
-  /*
+  // get the layer
+  struct layer *l = data->layers + layer;
+  uint32_t scale_denom = l->scale_denom;
+  double rel_downsample = l->no_scale_denom_downsample;
+  //  g_debug("layer: %d, rel_downsample: %g, scale_denom: %d",
+  //	  layer, rel_downsample, scale_denom);
 
-  // figure out jpeg and downsample
-  struct layer_lookup *ll = &data->layers[layer];
-  struct one_jpeg *jpeg = &data->jpegs[ll->jpeg_number];
-  uint32_t scale_denom = ll->scale_denom;
-  uint32_t rel_downsample = data->jpegs[0].width / jpeg->width;
-
-  //  g_debug("jpeg: %d, rel_downsample: %d, scale_denom: %d",
-  //	 ll->jpeg_number, rel_downsample, scale_denom);
 
   // scale x and y into this jpeg's space
   x /= rel_downsample;
   y /= rel_downsample;
-  if (x >= jpeg->width || y >= jpeg->height) {
-    return;
-  }
+
+  // determine the relevant JPEG files to load from (and how much?)
+
+  /*
 
   // figure out where to start the data stream
   uint32_t tile_y = y / jpeg->tile_height;
