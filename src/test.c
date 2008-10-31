@@ -50,8 +50,7 @@ static void test_tile_walk(wholeslide_t *wsd,
       gettimeofday(&tv, NULL);
       ws_read_region(wsd, buf, x, y, 0, tile_size, tile_size);
       gettimeofday(&tv2, NULL);
-      printf("time: %d\n", (tv2.tv_sec - tv.tv_sec) * 1000 +
-	     (tv2.tv_usec - tv.tv_usec) / 1000);
+      //      printf("time: %d\n", (tv2.tv_sec - tv.tv_sec) * 1000 + (tv2.tv_usec - tv.tv_usec) / 1000);
     }
   }
 
