@@ -86,6 +86,9 @@ struct jpegops_data {
 
 static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
 			     int64_t z, int64_t x, int64_t y) {
+  g_debug("p_zxy: (%" PRId64 ",%" PRId64 ",%" PRId64 "), zxy: (%"
+	  PRId64 ",%" PRId64 ",%" PRId64 ")",
+	  pz, px, py, z, x, y);
   if (z == pz + 1) {
     return x == 0 && y == 0;
   }
@@ -95,16 +98,16 @@ static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
 
   // z == pz
 
-  if (x == px + 1) {
-    return y == 0;
+  if (y == py + 1) {
+    return x == 0;
   }
-  if (x != px) {
+  if (y != py) {
     return false;
   }
 
-  // x == px
+  // y == py
 
-  return y == py + 1;
+  return x == px + 1;
 }
 
 static guint int64_hash(gconstpointer v) {
