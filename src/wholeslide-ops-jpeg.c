@@ -69,8 +69,8 @@ struct layer {
   int64_t pixel_w;
   int64_t pixel_h;
 
-  uint32_t jpeg_w;       // how many distinct jpeg files across?
-  uint32_t jpeg_h;       // how many distinct jpeg files down?
+  uint32_t jpegs_across;       // how many distinct jpeg files across?
+  uint32_t jpegs_down;         // how many distinct jpeg files down?
 
   uint32_t scale_denom;
 };
@@ -140,24 +140,24 @@ static void print_wlmap_entry(gpointer key, gpointer value,
 
   g_debug("%" PRId64 " -> ( pw: %" PRId64 ", ph: %" PRId64
 	  ", jw: %" PRId32 ", jh: %" PRId32 ", scale_denom: %" PRId32 " )",
-	  k, v->pixel_w, v->pixel_h, v->jpeg_w, v->jpeg_h, v->scale_denom);
+	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom);
 }
 
 static void generate_layers_into_map(GSList *jpegs,
-				     uint32_t jpeg_w, uint32_t jpeg_h,
+				     uint32_t jpegs_across, uint32_t jpegs_down,
 				     int64_t pixel_w, int64_t pixel_h,
 				     GHashTable *width_to_layer_map) {
   // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
   // need to create 4 layers per set of JPEGs
 
-  uint32_t num_jpegs = jpeg_w * jpeg_h;
+  uint32_t num_jpegs = jpegs_across * jpegs_down;
 
   int scale_denom = 1;
   while (scale_denom <= 8) {
     // create layer
     struct layer *l = g_slice_new0(struct layer);
-    l->jpeg_w = jpeg_w;
-    l->jpeg_h = jpeg_h;
+    l->jpegs_across = jpegs_across;
+    l->jpegs_down = jpegs_down;
     l->pixel_w = pixel_w / scale_denom;
     l->pixel_h = pixel_h / scale_denom;
     l->scale_denom = scale_denom;
