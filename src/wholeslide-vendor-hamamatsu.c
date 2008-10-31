@@ -42,9 +42,13 @@ static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 
 #define INPUT_BUF_SIZE  4096
 
-static bool verify_jpeg(FILE *f) {
+// returns w and h as a convenience
+static bool verify_jpeg(FILE *f, uint32_t *w, uint32_t *h) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
+
+  *w = 0;
+  *h = 0;
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
@@ -67,6 +71,9 @@ static bool verify_jpeg(FILE *f) {
   JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
   unsigned int leftover_mcus = MCUs_per_row % restart_interval;
+
+  *w = cinfo.output_width;
+  *h = cinfo.output_height;
 
   g_debug("w: %d, h: %d, restart_interval: %d\n"
 	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
@@ -228,14 +235,39 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   }
 
   // open jpegs
+  uint32_t img00_w;
+  uint32_t img00_h;
+  uint32_t w;
+  uint32_t h;
   for (int i = 0; i < num_jpegs; i++) {
-    if ((jpegs[i]->f = fopen(image_filenames[i], "rb")) == NULL) {
+    struct _ws_jpeg_fragment *jp = jpegs[i];
+
+    if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_debug("Can't open JPEG %d", i);
       goto FAIL;
     }
-    if (!verify_jpeg(jpegs[i]->f)) {
+    if (!verify_jpeg(jp->f, &w, &h)) {
       g_debug("Can't verify JPEG %d", i);
       goto FAIL;
+    }
+
+    // verify that all files except the right and bottom edges are
+    // the same size as image 0,0
+    g_assert(jp->z != 2);
+    if (jp->z == 0) { // revisit if we support NoLayers != 1
+      if (jp->x == 0 && jp->y == 0) {
+	img00_w = w;
+	img00_h = h;
+      } else {
+	if ((jp->x != num_jpeg_cols - 1) && (w != img00_w)) {
+	  g_debug("Incorrect width at non-right edge");
+	  goto FAIL;
+	}
+	if ((jp->y != num_jpeg_rows - 1) && (h != img00_h)) {
+	  g_debug("Incorrect height at non-bottom edge");
+	  goto FAIL;
+	}
+      }
     }
   }
 
