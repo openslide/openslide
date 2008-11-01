@@ -307,10 +307,32 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
   // scale x and y into this jpeg's space
-  x /= rel_downsample;
-  y /= rel_downsample;
+  int64_t cur_x = x / rel_downsample;
+  int64_t cur_y = y / rel_downsample;
 
-  // determine the relevant JPEG files to load from (and how much?)
+  // set end
+  int64_t end_x = cur_x + w;
+  int64_t end_y = cur_y + h;
+
+  // go file by file
+  while (cur_y < end_y && cur_y < l->pixel_h) {
+    uint32_t file_y = cur_y / l->image00_h;
+    int64_t segment_y_end = MIN((file_y + 1) * l->image00_h, l->pixel_h);
+
+    while (cur_x < end_x && cur_x < l->pixel_w) {
+      uint32_t file_x = cur_x / l->image00_w;
+      int64_t segment_x_end = MIN((file_x + 1) * l->image00_w, l->pixel_w);
+
+      g_debug("copy from image(%" PRId32 ",%" PRId32 "), "
+	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
+	      file_x, file_y, cur_x, cur_y, segment_x_end, segment_y_end);
+
+      cur_x = segment_x_end;
+    }
+    cur_y = segment_y_end;
+  }
+
+
 
   /*
 
