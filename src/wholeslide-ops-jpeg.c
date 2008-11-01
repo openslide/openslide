@@ -306,29 +306,29 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   //	  layer, rel_downsample, scale_denom);
 
 
-  // scale x and y into this jpeg's space
-  int64_t cur_x = x / rel_downsample;
-  int64_t cur_y = y / rel_downsample;
 
-  g_debug("rel_downsample: %g, cur: (%" PRId64 ",%" PRId64 ")",
-	  rel_downsample, cur_x, cur_y);
-
-  // set end
-  int64_t end_x = MIN(cur_x + w, l->pixel_w);
-  int64_t end_y = MIN(cur_y + h, l->pixel_h);
-
-  g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
-	  cur_x, cur_y, end_x, end_y);
 
   // go file by file
-  while (cur_y < end_y && cur_y < l->pixel_h) {
+
+  int64_t cur_y = y / rel_downsample;  // scale into this jpeg's space
+  int64_t dest_y = 0;
+  int64_t end_y = MIN(cur_y + h, l->pixel_h);  // set the end
+
+  while (cur_y < end_y) {
     uint32_t file_y = cur_y / l->image00_h;
     int64_t segment_y_origin = file_y * l->image00_h;
     int64_t segment_y_end = MIN((file_y + 1) * l->image00_h, end_y)
       - segment_y_origin;
     int64_t segment_y = cur_y - segment_y_origin;
 
-    while (cur_x < end_x && cur_x < l->pixel_w) {
+    int64_t cur_x = x / rel_downsample;
+    int64_t dest_x = 0;
+    int64_t end_x = MIN(cur_x + w, l->pixel_w);
+
+    g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
+	    cur_x, cur_y, end_x, end_y);
+
+    while (cur_x < end_x) {
       uint32_t file_x = cur_x / l->image00_w;
       int64_t segment_x_origin = file_x * l->image00_w;
       int64_t segment_x_end = MIN((file_x + 1) * l->image00_w, end_x)
@@ -338,9 +338,14 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
 	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
 	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
+      g_debug(" -> (%" PRId64 ",%" PRId64 ")",
+	      dest_x, dest_y);
 
+      // advance dest by amount already copied
+      dest_x += (segment_x_end - segment_x) / scale_denom;
       cur_x = segment_x_end + segment_x_origin;
     }
+    dest_y += (segment_y_end - segment_y) / scale_denom;
     cur_y = segment_y_end + segment_y_origin;
   }
 
