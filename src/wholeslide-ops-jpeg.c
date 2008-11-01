@@ -310,26 +310,38 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   int64_t cur_x = x / rel_downsample;
   int64_t cur_y = y / rel_downsample;
 
+  g_debug("rel_downsample: %g, cur: (%" PRId64 ",%" PRId64 ")",
+	  rel_downsample, cur_x, cur_y);
+
   // set end
-  int64_t end_x = cur_x + w;
-  int64_t end_y = cur_y + h;
+  int64_t end_x = MIN(cur_x + w, l->pixel_w);
+  int64_t end_y = MIN(cur_y + h, l->pixel_h);
+
+  g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
+	  cur_x, cur_y, end_x, end_y);
 
   // go file by file
   while (cur_y < end_y && cur_y < l->pixel_h) {
     uint32_t file_y = cur_y / l->image00_h;
-    int64_t segment_y_end = MIN((file_y + 1) * l->image00_h, l->pixel_h);
+    int64_t segment_y_origin = file_y * l->image00_h;
+    int64_t segment_y_end = MIN((file_y + 1) * l->image00_h, end_y)
+      - segment_y_origin;
+    int64_t segment_y = cur_y - segment_y_origin;
 
     while (cur_x < end_x && cur_x < l->pixel_w) {
       uint32_t file_x = cur_x / l->image00_w;
-      int64_t segment_x_end = MIN((file_x + 1) * l->image00_w, l->pixel_w);
+      int64_t segment_x_origin = file_x * l->image00_w;
+      int64_t segment_x_end = MIN((file_x + 1) * l->image00_w, end_x)
+	- segment_x_origin;
+      int64_t segment_x = cur_x - segment_x_origin;
 
-      g_debug("copy from image(%" PRId32 ",%" PRId32 "), "
+      g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
 	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
-	      file_x, file_y, cur_x, cur_y, segment_x_end, segment_y_end);
+	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
 
-      cur_x = segment_x_end;
+      cur_x = segment_x_end + segment_x_origin;
     }
-    cur_y = segment_y_end;
+    cur_y = segment_y_end + segment_y_origin;
   }
 
 
