@@ -284,6 +284,131 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
   return width_to_layer_map;
 }
 
+
+static void read_from_one_jpeg (struct one_jpeg *jpeg,
+				uint32_t *dest,
+				uint32_t x, uint32_t y,
+				uint32_t scale_denom,
+				uint32_t w, uint32_t h) {
+  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d, w: %d, h: %d", (void *) jpeg, (void *) dest, x, y, scale_denom, w, h);
+
+  // init JPEG
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+
+  // figure out where to start the data stream
+  uint32_t tile_y = y / jpeg->tile_height;
+  uint32_t tile_x = x / jpeg->tile_width;
+
+  uint32_t stride_in_tiles = jpeg->width / jpeg->tile_width;
+  uint32_t img_height_in_tiles = jpeg->height / jpeg->tile_height;
+
+  imaxdiv_t divtmp;
+  divtmp = imaxdiv((w * scale_denom) + (x % jpeg->tile_width), jpeg->tile_width);
+  uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
+  divtmp = imaxdiv((h * scale_denom) + (y % jpeg->tile_height), jpeg->tile_height);
+  uint32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
+
+  // clamp width and height
+  width_in_tiles = MIN(width_in_tiles, stride_in_tiles - tile_x);
+  height_in_tiles = MIN(height_in_tiles, img_height_in_tiles - tile_y);
+
+  //  g_debug("width_in_tiles: %d, stride_in_tiles: %d", width_in_tiles, stride_in_tiles);
+  //  g_debug("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
+
+  rewind(jpeg->f);
+  _ws_jpeg_fancy_src(&cinfo, jpeg->f,
+  		     jpeg->mcu_starts,
+		     jpeg->mcu_starts_count,
+		     tile_y * stride_in_tiles + tile_x,
+		     width_in_tiles,
+		     stride_in_tiles);
+
+  // begin decompress
+  uint32_t rows_left = h;
+  jpeg_read_header(&cinfo, FALSE);
+  cinfo.scale_denom = scale_denom;
+  cinfo.image_width = width_in_tiles * jpeg->tile_width;  // cunning
+  cinfo.image_height = height_in_tiles * jpeg->tile_height;
+
+  jpeg_start_decompress(&cinfo);
+  g_assert(cinfo.output_components == 3); // XXX remove this assertion
+
+  //  g_debug("output_width: %d", cinfo.output_width);
+  //  g_debug("output_height: %d", cinfo.output_height);
+
+  // allocate scanline buffers
+  JSAMPARRAY buffer =
+    g_slice_alloc(sizeof(JSAMPROW) * cinfo.rec_outbuf_height);
+  gsize row_size =
+    sizeof(JSAMPLE)
+    * cinfo.output_width
+    * 3;  // output components
+  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+    buffer[i] = g_slice_alloc(row_size);
+    //g_debug("buffer[%d]: %p", i, buffer[i]);
+  }
+
+  // decompress
+  uint32_t d_x = (x % jpeg->tile_width) / scale_denom;
+  uint32_t d_y = (y % jpeg->tile_height) / scale_denom;
+  uint32_t rows_to_skip = d_y;
+
+  //  g_debug("d_x: %d, d_y: %d", d_x, d_y);
+
+  uint64_t pixels_wasted = rows_to_skip * cinfo.output_width;
+
+  //  abort();
+
+  while (cinfo.output_scanline < cinfo.output_height
+	 && rows_left > 0) {
+    JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+					       buffer,
+					       cinfo.rec_outbuf_height);
+    //    g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
+    //    g_debug(" rows read: %d", rows_read);
+    int cur_buffer = 0;
+    while (rows_read > 0 && rows_left > 0) {
+      // copy a row
+      if (rows_to_skip == 0) {
+	uint32_t i;
+	for (i = 0; i < w && i < (cinfo.output_width - d_x); i++) {
+	  dest[i] = 0xFF000000 |                          // A
+	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
+	}
+	pixels_wasted += d_x + cinfo.output_width - i;
+      }
+
+      // advance everything 1 row
+      rows_read--;
+      cur_buffer++;
+
+      if (rows_to_skip > 0) {
+	rows_to_skip--;
+      } else {
+	rows_left--;
+	dest += w;
+      }
+    }
+  }
+
+  //  g_debug("pixels wasted: %llu", pixels_wasted);
+
+  // free buffers
+  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+    g_slice_free1(row_size, buffer[i]);
+  }
+  g_slice_free1(sizeof(JSAMPROW) * cinfo.rec_outbuf_height, buffer);
+
+  // last thing, stop jpeg
+  jpeg_destroy_decompress(&cinfo);
+}
+
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			uint32_t x, uint32_t y,
 			uint32_t layer,
@@ -326,7 +451,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     int64_t end_x = MIN(cur_x + w, l->pixel_w);
 
     g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
-	    cur_x, cur_y, end_x, end_y);
+    	    cur_x, cur_y, end_x, end_y);
 
     while (cur_x < end_x) {
       uint32_t file_x = cur_x / l->image00_w;
@@ -335,11 +460,20 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 	- segment_x_origin;
       int64_t segment_x = cur_x - segment_x_origin;
 
+      uint32_t dest_w = segment_x_end - segment_x;
+      uint32_t dest_h = segment_y_end - segment_y;
+
       g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
-	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
-	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
-      g_debug(" -> (%" PRId64 ",%" PRId64 ")",
-	      dest_x, dest_y);
+      	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
+      	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
+      g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
+    	      dest_x, dest_y, dest_w, dest_h);
+
+      struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
+      uint32_t *cur_dest = dest + (dest_y * w + dest_x);
+
+      read_from_one_jpeg(jpeg, cur_dest, segment_x, segment_y,
+			 scale_denom, dest_w, dest_h);
 
       // advance dest by amount already copied
       dest_x += (segment_x_end - segment_x) / scale_denom;
@@ -348,121 +482,6 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     dest_y += (segment_y_end - segment_y) / scale_denom;
     cur_y = segment_y_end + segment_y_origin;
   }
-
-
-
-  /*
-
-  // figure out where to start the data stream
-  uint32_t tile_y = y / jpeg->tile_height;
-  uint32_t tile_x = x / jpeg->tile_width;
-
-  uint32_t stride_in_tiles = jpeg->width / jpeg->tile_width;
-  uint32_t img_height_in_tiles = jpeg->height / jpeg->tile_height;
-
-  imaxdiv_t divtmp;
-  divtmp = imaxdiv((w * scale_denom) + (x % jpeg->tile_width), jpeg->tile_width);
-  uint32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv((h * scale_denom) + (y % jpeg->tile_height), jpeg->tile_height);
-  uint32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
-
-  // clamp width and height
-  width_in_tiles = MIN(width_in_tiles, stride_in_tiles - tile_x);
-  height_in_tiles = MIN(height_in_tiles, img_height_in_tiles - tile_y);
-
-  //  g_debug("width_in_tiles: %d, stride_in_tiles: %d", width_in_tiles, stride_in_tiles);
-  //  g_debug("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
-
-  rewind(jpeg->f);
-  _ws_jpeg_fancy_src(&jpeg->cinfo, jpeg->f,
-  		     jpeg->mcu_starts,
-		     jpeg->mcu_starts_count,
-		     tile_y * stride_in_tiles + tile_x,
-		     width_in_tiles,
-		     stride_in_tiles);
-
-  // begin decompress
-  uint32_t rows_left = h;
-  jpeg_read_header(&jpeg->cinfo, FALSE);
-  jpeg->cinfo.scale_denom = scale_denom;
-  jpeg->cinfo.image_width = width_in_tiles * jpeg->tile_width;  // cunning
-  jpeg->cinfo.image_height = height_in_tiles * jpeg->tile_height;
-
-  jpeg_start_decompress(&jpeg->cinfo);
-  g_assert(jpeg->cinfo.output_components == 3); // XXX remove this assertion
-
-  //  g_debug("output_width: %d", jpeg->cinfo.output_width);
-  //  g_debug("output_height: %d", jpeg->cinfo.output_height);
-
-  // allocate scanline buffers
-  JSAMPARRAY buffer =
-    g_slice_alloc(sizeof(JSAMPROW) * jpeg->cinfo.rec_outbuf_height);
-  gsize row_size =
-    sizeof(JSAMPLE)
-    * jpeg->cinfo.output_width
-    * 3;  // output components
-  for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
-    buffer[i] = g_slice_alloc(row_size);
-    //g_debug("buffer[%d]: %p", i, buffer[i]);
-  }
-
-  // decompress
-  uint32_t d_x = (x % jpeg->tile_width) / scale_denom;
-  uint32_t d_y = (y % jpeg->tile_height) / scale_denom;
-  uint32_t rows_to_skip = d_y;
-
-  //  g_debug("d_x: %d, d_y: %d", d_x, d_y);
-
-  uint64_t pixels_wasted = rows_to_skip * jpeg->cinfo.output_width;
-
-  //  abort();
-
-  while (jpeg->cinfo.output_scanline < jpeg->cinfo.output_height
-	 && rows_left > 0) {
-    JDIMENSION rows_read = jpeg_read_scanlines(&jpeg->cinfo,
-					       buffer,
-					       jpeg->cinfo.rec_outbuf_height);
-    //    g_debug("just read scanline %d", jpeg->cinfo.output_scanline - rows_read);
-    //    g_debug(" rows read: %d", rows_read);
-    int cur_buffer = 0;
-    while (rows_read > 0 && rows_left > 0) {
-      // copy a row
-      if (rows_to_skip == 0) {
-	uint32_t i;
-	for (i = 0; i < w && i < (jpeg->cinfo.output_width - d_x); i++) {
-	  dest[i] = 0xFF000000 |                          // A
-	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
-	}
-	pixels_wasted += d_x + jpeg->cinfo.output_width - i;
-      }
-
-      // advance everything 1 row
-      rows_read--;
-      cur_buffer++;
-
-      if (rows_to_skip > 0) {
-	rows_to_skip--;
-      } else {
-	rows_left--;
-	dest += w;
-      }
-    }
-  }
-
-  //  g_debug("pixels wasted: %llu", pixels_wasted);
-
-  // free buffers
-  for (int i = 0; i < jpeg->cinfo.rec_outbuf_height; i++) {
-    g_slice_free1(row_size, buffer[i]);
-  }
-  g_slice_free1(sizeof(JSAMPROW) * jpeg->cinfo.rec_outbuf_height, buffer);
-
-  // last thing, stop jpeg
-  jpeg_abort_decompress(&jpeg->cinfo);
-
-  */
 }
 
 
