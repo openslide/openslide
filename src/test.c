@@ -39,6 +39,8 @@ static void test_next_biggest(wholeslide_t *wsd, double downsample) {
 
 static void test_tile_walk(wholeslide_t *wsd,
 			   uint32_t tile_size) {
+  printf("test_tile_walk: %d\n", tile_size);
+
   struct timeval tv, tv2;
   uint32_t *buf = malloc(ws_get_region_num_bytes(wsd, tile_size, tile_size));
 
@@ -175,9 +177,11 @@ int main(int argc, char **argv) {
 
   bool skip = true;
 
-  test_tile_walk(wsd, 16);
-  test_tile_walk(wsd, 256);
+  //  test_tile_walk(wsd, 16);
+  //test_tile_walk(wsd, 4096);
+  //test_tile_walk(wsd, 256);
 
+  test_image_fetch(wsd, "test0", 61000, 61000, 1024, 1024, skip);
   test_image_fetch(wsd, "test1", w/2, h/2, 1024, 1024, skip);
   test_image_fetch(wsd, "test2", w - 500, h - 300, 900, 800, skip);
   test_image_fetch(wsd, "test3", w*2, h*2, 900, 800, skip);
