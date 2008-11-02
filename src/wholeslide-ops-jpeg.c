@@ -89,9 +89,9 @@ struct jpegops_data {
 
 static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
 			     int64_t z, int64_t x, int64_t y) {
-  g_debug("p_zxy: (%" PRId64 ",%" PRId64 ",%" PRId64 "), zxy: (%"
-	  PRId64 ",%" PRId64 ",%" PRId64 ")",
-	  pz, px, py, z, x, y);
+  //  g_debug("p_zxy: (%" PRId64 ",%" PRId64 ",%" PRId64 "), zxy: (%"
+  //	  PRId64 ",%" PRId64 ",%" PRId64 ")",
+  //	  pz, px, py, z, x, y);
   if (z == pz + 1) {
     return x == 0 && y == 0;
   }
@@ -185,7 +185,7 @@ static void generate_layers_into_map(GSList *jpegs,
     int64_t *key = g_slice_new(int64_t);
     *key = l->pixel_w / l->scale_denom;
 
-    g_debug("insert %" PRId64 ", scale_denom: %d", *key, scale_denom);
+    //    g_debug("insert %" PRId64 ", scale_denom: %d", *key, scale_denom);
     g_hash_table_insert(width_to_layer_map, key, l);
 
     scale_denom <<= 1;
@@ -244,7 +244,7 @@ static GHashTable *create_width_to_layer_map(uint32_t count,
       l_ph += oj->height;
     }
 
-    g_debug(" pw: %" PRId64 ", ph: %" PRId64, l_pw, l_ph);
+    //    g_debug(" pw: %" PRId64 ", ph: %" PRId64, l_pw, l_ph);
 
     // accumulate to layer
     layer_jpegs_tmp = g_slist_prepend(layer_jpegs_tmp, oj);
@@ -290,7 +290,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t x, uint32_t y,
 				uint32_t scale_denom,
 				uint32_t w, uint32_t h) {
-  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d, w: %d, h: %d", (void *) jpeg, (void *) dest, x, y, scale_denom, w, h);
+  //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d, w: %d, h: %d", (void *) jpeg, (void *) dest, x, y, scale_denom, w, h);
 
   // init JPEG
   struct jpeg_decompress_struct cinfo;
@@ -450,8 +450,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
     int64_t dest_x = 0;
     int64_t end_x = MIN(cur_x + w, l->pixel_w);
 
-    g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
-    	    cur_x, cur_y, end_x, end_y);
+    //g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
+    //	    cur_x, cur_y, end_x, end_y);
 
     while (cur_x < end_x) {
       uint32_t file_x = cur_x / l->image00_w;
@@ -463,11 +463,11 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       uint32_t dest_w = segment_x_end - segment_x;
       uint32_t dest_h = segment_y_end - segment_y;
 
-      g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
-      	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
-      	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
-      g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
-    	      dest_x, dest_y, dest_w, dest_h);
+      //      g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
+      //	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
+      //	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
+      //g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
+      //	      dest_x, dest_y, dest_w, dest_h);
 
       struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
       uint32_t *cur_dest = dest + (dest_y * w + dest_x);
@@ -635,7 +635,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->width = cinfo.output_width;
   onej->height = cinfo.output_height;
 
-  g_debug(" w: %d, h: %d", cinfo.output_width, cinfo.output_height);
+  //  g_debug(" w: %d, h: %d", cinfo.output_width, cinfo.output_height);
 
   // save "tile" dimensions
   jpeg_start_decompress(&cinfo);
@@ -668,12 +668,12 @@ static void get_keys(gpointer key, gpointer value,
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
 		      uint32_t count,
 		      struct _ws_jpeg_fragment **fragments) {
-  g_debug("count: %d", count);
-  for (uint32_t i = 0; i < count; i++) {
-    struct _ws_jpeg_fragment *frag = fragments[i];
-    g_debug("%d: file: %p, x: %d, y: %d, z: %d",
-	    i, (void *) frag->f, frag->x, frag->y, frag->z);
-  }
+  //  g_debug("count: %d", count);
+  //  for (uint32_t i = 0; i < count; i++) {
+    //    struct _ws_jpeg_fragment *frag = fragments[i];
+    //    g_debug("%d: file: %p, x: %d, y: %d, z: %d",
+    //	    i, (void *) frag->f, frag->x, frag->y, frag->z);
+  //  }
 
   if (wsd == NULL) {
     // free now and return
@@ -705,7 +705,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 							     fragments,
 							     data->all_jpegs);
 
-  g_hash_table_foreach(width_to_layer_map, print_wlmap_entry, NULL);
+  //  g_hash_table_foreach(width_to_layer_map, print_wlmap_entry, NULL);
 
   // delete all the fragments
   for (uint32_t i = 0; i < count; i++) {
@@ -730,12 +730,12 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 
   int i = 0;
 
-  g_debug("copying sorted layers");
+  //  g_debug("copying sorted layers");
   while(tmp_list != NULL) {
     // get a key and value
     struct layer *l = g_hash_table_lookup(width_to_layer_map, tmp_list->data);
 
-    print_wlmap_entry(tmp_list->data, l, NULL);
+    //    print_wlmap_entry(tmp_list->data, l, NULL);
 
     // copy
     struct layer *dest = data->layers + i;

@@ -75,13 +75,13 @@ static bool verify_jpeg(FILE *f, uint32_t *w, uint32_t *h) {
   *w = cinfo.output_width;
   *h = cinfo.output_height;
 
-  g_debug("w: %d, h: %d, restart_interval: %d\n"
-	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-	 "leftover mcus: %d",
-	 cinfo.output_width, cinfo.output_height,
-	 restart_interval,
-	 MCUs_per_row, MCU_rows_in_scan,
-	 leftover_mcus);
+  //  g_debug("w: %d, h: %d, restart_interval: %d\n"
+  //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
+  //	 "leftover mcus: %d",
+  //	 cinfo.output_width, cinfo.output_height,
+  //	 restart_interval,
+  //	 MCUs_per_row, MCU_rows_in_scan,
+  //	 leftover_mcus);
 
   if (leftover_mcus != 0) {
     jpeg_destroy_decompress(&cinfo);
@@ -188,23 +188,23 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 
 	// col
 	col = g_ascii_strtoll(suffix, &endptr, 10);
-	g_debug("%d", col);
+	//	g_debug("%d", col);
 
 	// skip ,
 	endptr++;
 
 	// row
 	row = g_ascii_strtoll(endptr, NULL, 10);
-	g_debug("%d", row);
+	//	g_debug("%d", row);
       } else {
 	col = 0;
 	row = 0;
       }
 
-      g_debug("col: %d, row: %d", col, row);
+      //      g_debug("col: %d, row: %d", col, row);
 
       if (col >= num_jpeg_cols || row >= num_jpeg_rows) {
-	g_debug("Invalid row or column in VMS file");
+	g_warning("Invalid row or column in VMS file");
 	goto FAIL;
       }
 
@@ -229,25 +229,25 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   // check image filenames (the others are sort of optional)
   for (int i = 0; i < num_jpegs; i++) {
     if (!image_filenames[i]) {
-      g_debug("Can't read image filename %d", i);
+      g_warning("Can't read image filename %d", i);
       goto FAIL;
     }
   }
 
   // open jpegs
-  uint32_t img00_w;
-  uint32_t img00_h;
+  uint32_t img00_w = 0;
+  uint32_t img00_h = 0;
   uint32_t w;
   uint32_t h;
   for (int i = 0; i < num_jpegs; i++) {
     struct _ws_jpeg_fragment *jp = jpegs[i];
 
     if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
-      g_debug("Can't open JPEG %d", i);
+      g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
     if (!verify_jpeg(jp->f, &w, &h)) {
-      g_debug("Can't verify JPEG %d", i);
+      g_warning("Can't verify JPEG %d", i);
       goto FAIL;
     }
 
@@ -260,11 +260,11 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 	img00_h = h;
       } else {
 	if ((jp->x != num_jpeg_cols - 1) && (w != img00_w)) {
-	  g_debug("Incorrect width at non-right edge");
+	  g_warning("Incorrect width at non-right edge");
 	  goto FAIL;
 	}
 	if ((jp->y != num_jpeg_rows - 1) && (h != img00_h)) {
-	  g_debug("Incorrect height at non-bottom edge");
+	  g_warning("Incorrect height at non-bottom edge");
 	  goto FAIL;
 	}
       }
