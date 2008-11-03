@@ -160,6 +160,7 @@ void ws_read_region(wholeslide_t *wsd,
 
   //  for (int64_t i = 0; i < w * h; i++) {
   //    dest[i] = 0xFFFF0000; // red
+  //  }
 
   if (layer > wsd->layer_count || layer < 0) {
     return;
