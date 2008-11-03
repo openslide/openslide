@@ -1,16 +1,9 @@
-Fancy zooming/scrolling in WholeslideView
-
-Rotation in WholeslideView
-
-
-Make swig generated Java code not public
-
-Multi-file (col,row) jpeg for hamamatsu
-
 Magnification and other metadata ?
 
 Error handling
 
 JP2
+
+Bacus
 
 Ship docs
