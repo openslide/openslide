@@ -68,6 +68,9 @@ wholeslide_t *ws_open(const char *filename) {
 
     wsd->downsamples[i] = (double) blh / (double) h;
     g_assert(wsd->downsamples[i] >= 1.0);
+    if (i > 0) {
+      g_assert(wsd->downsamples[i] >= wsd->downsamples[i - 1]);
+    }
   }
 
   return wsd;
