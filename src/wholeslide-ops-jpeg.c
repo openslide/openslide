@@ -289,7 +289,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t *dest,
 				int32_t x, int32_t y,
 				int32_t scale_denom,
-				int32_t w, int32_t h) {
+				int32_t w, int32_t h,
+				int32_t stride) {
   //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d, w: %d, h: %d", (void *) jpeg, (void *) dest, x, y, scale_denom, w, h);
 
   // init JPEG
@@ -392,7 +393,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 	rows_to_skip--;
       } else {
 	rows_left--;
-	dest += w;
+	dest += stride;
       }
     }
   }
@@ -470,7 +471,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       uint32_t *cur_dest = dest + (dest_y * w + dest_x);
 
       read_from_one_jpeg(jpeg, cur_dest, segment_x, segment_y,
-			 scale_denom, dest_w, dest_h);
+			 scale_denom, dest_w, dest_h, w);
 
       // advance dest by amount already copied
       dest_x += (segment_x_end - segment_x) / scale_denom;
