@@ -5,7 +5,7 @@ Carnegie Mellon University
 http://wholeslide.cs.cmu.edu/
 
 
-2008-10-21
+2008-11-03
 
 ==========================
 
@@ -37,8 +37,7 @@ This library requires libjpeg, libtiff, and glib >= 2.10.
 Features
 ========
 
-The library can read Trestle and Aperio formats. Some Hamamatsu files
-can also be read.
+The library can read Trestle, Aperio, and Hamamatsu formats.
 
 
 How to build?
