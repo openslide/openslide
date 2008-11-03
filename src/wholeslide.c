@@ -169,9 +169,21 @@ void ws_read_region(wholeslide_t *wsd,
   //    dest[i] = 0xFFFF0000; // red
   //  }
 
+  // check constraints
   if (layer > wsd->layer_count || layer < 0 || x < 0 || y < 0) {
     return;
   }
 
+  // we could also check to make sure that (x / ds) + w and (y / ds) + h
+  // doesn't exceed the bounds of the image, but this situation is
+  // less harmful and can be cleanly handled by the ops backends anyway,
+  // so we allow it
+  //
+  // also, we don't want to introduce rounding errors here with our
+  // double representation of downsampling -- backends have more precise
+  // ways of representing this
+
+
+  // now fully within all bounds, go for it
   (wsd->ops->read_region)(wsd, dest, x, y, layer, w, h);
 }
