@@ -419,11 +419,6 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   struct jpegops_data *data = wsd->data;
 
-  // in layer bounds?
-  if (layer >= wsd->layer_count) {
-    return;
-  }
-
   // get the layer
   struct layer *l = data->layers + layer;
   int32_t scale_denom = l->scale_denom;

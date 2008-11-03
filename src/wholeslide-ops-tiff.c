@@ -125,14 +125,6 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   struct _ws_tiffopsdata *data = wsd->data;
   TIFF *tiff = data->tiff;
 
-  // fill
-  //  memset(dest, 0, w * h * sizeof(uint32_t));
-
-  // set directory
-  if (layer >= wsd->layer_count) {
-    return;
-  }
-
   double downsample = ws_get_layer_downsample(wsd, layer);
   int64_t ds_x = x / downsample;
   int64_t ds_y = y / downsample;
