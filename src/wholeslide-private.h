@@ -36,7 +36,7 @@
 struct _wholeslide {
   struct _wholeslide_ops *ops;
   void *data;
-  uint32_t layer_count;
+  int32_t layer_count;
 
   double *downsamples;  // filled in automatically
 };
@@ -44,12 +44,12 @@ struct _wholeslide {
 /* the function pointer structure for backends */
 struct _wholeslide_ops {
   void (*read_region)(wholeslide_t *wsd, uint32_t *dest,
-		      uint32_t x, uint32_t y,
-		      uint32_t layer,
-		      uint32_t w, uint32_t h);
+		      int64_t x, int64_t y,
+		      int32_t layer,
+		      int64_t w, int64_t h);
   void (*destroy)(wholeslide_t *wsd);
-  void (*get_dimensions)(wholeslide_t *wsd, uint32_t layer,
-			 uint32_t *w, uint32_t *h);
+  void (*get_dimensions)(wholeslide_t *wsd, int32_t layer,
+			 int64_t *w, int64_t *h);
   const char* (*get_comment)(wholeslide_t *wsd);
 };
 
@@ -65,20 +65,20 @@ struct _ws_tiff_tilereader;
 
 void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
-		      uint32_t overlap_count,
-		      uint32_t *overlaps,
-		      uint32_t layer_count,
-		      uint32_t *layers,
+		      int32_t overlap_count,
+		      int32_t *overlaps,
+		      int32_t layer_count,
+		      int32_t *layers,
 		      struct _ws_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
 		      void (*tilereader_read)(struct _ws_tiff_tilereader *wtt,
 					      uint32_t *dest,
-					      uint32_t x, uint32_t y),
+					      int64_t x, int64_t y),
 		      void (*tilereader_destroy)(struct _ws_tiff_tilereader *wtt));
 
 struct _ws_tiff_tilereader *_ws_generic_tiff_tilereader_create(TIFF *tiff);
 void _ws_generic_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
 				      uint32_t *dest,
-				      uint32_t x, uint32_t y);
+				      int64_t x, int64_t y);
 void _ws_generic_tiff_tilereader_destroy(struct _ws_tiff_tilereader *wtt);
 
 
@@ -102,29 +102,29 @@ struct _ws_jpeg_fragment {
   // | (0,1) | (1,1)|
   // |       |      |
   // ----------------
-  uint32_t x;
-  uint32_t y;
+  int32_t x;
+  int32_t y;
 
   // this value starts from 0 at the largest layer
-  uint32_t z;
+  int32_t z;
 };
 
 // note: fragments MUST be sorted by z, then x, then y
 void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      uint32_t count,
+		      int32_t count,
 		      struct _ws_jpeg_fragment **fragments);
 
 void _ws_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
 			int64_t *start_positions,
-			uint64_t start_positions_count,
-			uint64_t topleft,
-			uint32_t width, uint32_t stride);
+			int64_t start_positions_count,
+			int64_t topleft,
+			int32_t width, int32_t stride);
 int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
 
 
 /* JPEG-2000 support */
 void _ws_add_jp2k_ops(wholeslide_t *wsd,
 		      FILE *f,
-		      uint32_t w, uint32_t h);
+		      int64_t w, int64_t h);
 
 #endif

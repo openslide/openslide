@@ -30,14 +30,15 @@
 #include <glib.h>
 #include <openjpeg.h>
 #include <math.h>
+#include <inttypes.h>
 
 #include "wholeslide-private.h"
 
 struct _ws_jp2kopsdata {
   FILE *f;
 
-  uint32_t w;
-  uint32_t h;
+  int64_t w;
+  int64_t h;
 };
 
 static void destroy_data(struct _ws_jp2kopsdata *data) {
@@ -54,8 +55,8 @@ static const char *get_comment(wholeslide_t *wsd) {
   return "";      // TODO
 }
 
-static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
-			   uint32_t *w, uint32_t *h) {
+static void get_dimensions(wholeslide_t *wsd, int32_t layer,
+			   int64_t *w, int64_t *h) {
   struct _ws_jp2kopsdata *data = wsd->data;
 
   // check bounds
@@ -81,13 +82,14 @@ static void error_callback(const OPJ_CHAR *msg, void *data) {
 }
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
-			uint32_t x, uint32_t y,
-			uint32_t layer,
-			uint32_t w, uint32_t h) {
+			int64_t x, int64_t y,
+			int32_t layer,
+			int64_t w, int64_t h) {
   struct _ws_jp2kopsdata *data = wsd->data;
 
-  g_debug("read_region: (%d,%d) layer: %d, size: (%d,%d)",
-	 x, y, layer, w, h);
+  g_debug("read_region: (%" PRId64 ",%" PRId64 ") layer: %" PRId32
+	  ", size: (%" PRId64 " ,%" PRId64 ")",
+	  x, y, layer, w, h);
 
   OPJ_INT32 tx0;
   OPJ_INT32 ty0;
@@ -117,7 +119,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
   int32_t ddx1 = x + w;
   int32_t ddy1 = y + h;
-  g_debug("want to set decode area to (%d,%d), (%d,%d)",
+  g_debug("want to set decode area to (%" PRId64 ",%" PRId64 "), (%d,%d)",
 	 x, y, ddx1, ddy1);
 
   opj_set_decode_area(codec, x, y, ddx1, ddy1);
@@ -186,7 +188,7 @@ static struct _wholeslide_ops _ws_jp2k_ops = {
 
 void _ws_add_jp2k_ops(wholeslide_t *wsd,
 		      FILE *f,
-		      uint32_t w, uint32_t h) {
+		      int64_t w, int64_t h) {
   // allocate private data
   struct _ws_jp2kopsdata *data = g_slice_new(struct _ws_jp2kopsdata);
 
@@ -195,7 +197,7 @@ void _ws_add_jp2k_ops(wholeslide_t *wsd,
   data->h = h;
 
   // compute layer info
-  uint32_t layer_count = log2(MIN(data->w, data->h));
+  int32_t layer_count = log2(MIN(data->w, data->h));
   g_debug("layer_count: %d", layer_count);
 
   if (wsd == NULL) {

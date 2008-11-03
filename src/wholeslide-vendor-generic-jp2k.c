@@ -61,7 +61,7 @@ bool _ws_try_generic_jp2k(wholeslide_t *wsd, const char *filename) {
   }
 
   g_debug("%d %d %d %d %d %d %d %d", tx0, ty0, tw, th, ntx, nty, image->numcomps, image->color_space);
-  for (int i = 0; i < image->numcomps; i++) {
+  for (int i = 0; i < (int) image->numcomps; i++) {
     opj_image_comp_t *comp = (image->comps) + i;
     g_debug(" %d: %d %d %d %d %d %d", i, comp->dx, comp->dy,
 	   comp->w, comp->h, comp->resno_decoded, comp->factor);

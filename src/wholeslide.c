@@ -59,11 +59,11 @@ wholeslide_t *ws_open(const char *filename) {
   }
 
   // compute downsamples
-  uint32_t blw, blh;
+  int64_t blw, blh;
   wsd->downsamples = g_new(double, wsd->layer_count);
   ws_get_layer0_dimensions(wsd, &blw, &blh);
-  for (uint32_t i = 0; i < wsd->layer_count; i++) {
-    uint32_t w, h;
+  for (int32_t i = 0; i < wsd->layer_count; i++) {
+    int64_t w, h;
     ws_get_layer_dimensions(wsd, i, &w, &h);
 
     wsd->downsamples[i] = (double) blh / (double) h;
@@ -85,13 +85,18 @@ void ws_close(wholeslide_t *wsd) {
 
 
 void ws_get_layer0_dimensions(wholeslide_t *wsd,
-			      uint32_t *w, uint32_t *h) {
+			      int64_t *w, int64_t *h) {
   ws_get_layer_dimensions(wsd, 0, w, h);
 }
 
-void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
-			     uint32_t *w, uint32_t *h) {
-  (wsd->ops->get_dimensions)(wsd, layer, w, h);
+void ws_get_layer_dimensions(wholeslide_t *wsd, int32_t layer,
+			     int64_t *w, int64_t *h) {
+  if (layer > wsd->layer_count || layer < 0) {
+    *w = 0;
+    *h = 0;
+  } else {
+    (wsd->ops->get_dimensions)(wsd, layer, w, h);
+  }
 }
 
 const char *ws_get_comment(wholeslide_t *wsd) {
@@ -99,20 +104,20 @@ const char *ws_get_comment(wholeslide_t *wsd) {
 }
 
 
-uint32_t ws_get_layer_count(wholeslide_t *wsd) {
+int32_t ws_get_layer_count(wholeslide_t *wsd) {
   return wsd->layer_count;
 }
 
 
-uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd,
-					  double downsample) {
+int32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd,
+					 double downsample) {
   // too small, return first
   if (downsample < wsd->downsamples[0]) {
     return 0;
   }
 
   // find where we are in the middle
-  for (uint32_t i = 1; i < wsd->layer_count; i++) {
+  for (int32_t i = 1; i < wsd->layer_count; i++) {
     if (downsample < wsd->downsamples[i]) {
       return i - 1;
     }
@@ -123,8 +128,8 @@ uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd,
 }
 
 
-double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer) {
-  if (layer > wsd->layer_count) {
+double ws_get_layer_downsample(wholeslide_t *wsd, int32_t layer) {
+  if (layer > wsd->layer_count || layer < 0) {
     return 0.0;
   }
 
@@ -132,30 +137,57 @@ double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer) {
 }
 
 
-uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
-			       uint32_t x, uint32_t y,
-			       uint32_t layer,
-			       uint32_t w, uint32_t h) {
+int ws_give_prefetch_hint(wholeslide_t *wsd,
+			  int64_t x, int64_t y,
+			  int32_t layer,
+			  int64_t w, int64_t h) {
   // TODO
   return 0;
 }
 
-void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id) {
+void ws_cancel_prefetch_hint(wholeslide_t *wsd, int prefetch_id) {
   // TODO
   return;
 }
 
 
-size_t ws_get_region_num_bytes(wholeslide_t *wsd,
-			       uint32_t w, uint32_t h) {
-  return w * h * 4;
+int64_t ws_get_region_num_bytes(wholeslide_t *wsd,
+				int64_t w, int64_t h) {
+  return MIN(w * h * 4, 0);
 }
 
 
 void ws_read_region(wholeslide_t *wsd,
 		    uint32_t *dest,
-		    uint32_t x, uint32_t y,
-		    uint32_t layer,
-		    uint32_t w, uint32_t h) {
-  (wsd->ops->read_region)(wsd, dest, x, y, layer, w, h);
+		    int64_t x, int64_t y,
+		    int32_t layer,
+		    int64_t w, int64_t h) {
+  // start cleared
+  memset(dest, 0, w * h * 4);
+
+  if (layer > wsd->layer_count || layer < 0) {
+    return;
+  }
+
+  // translate if x or y are negative
+  int64_t new_w = w;
+  int64_t new_x = x;
+  if (x < 0) {
+    new_w += x;
+    new_x = 0;
+  }
+  int64_t new_h = h;
+  int64_t new_y = y;
+  if (y < 0) {
+    new_h += y;
+    new_y = 0;
+  }
+
+  // is there anything left to paint?
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+
+  uint32_t *new_dest = dest + ((new_y - y) * w + (new_x - x));
+  (wsd->ops->read_region)(wsd, new_dest, new_x, new_y, layer, new_w, new_h);
 }

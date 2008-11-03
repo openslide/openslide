@@ -66,8 +66,8 @@ wholeslide_t *ws_open(const char *filename);
  * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
  */
 wholeslide_public
-size_t ws_get_region_num_bytes(wholeslide_t *wsd,
-			       uint32_t w, uint32_t h);
+int64_t ws_get_region_num_bytes(wholeslide_t *wsd,
+				int64_t w, int64_t h);
 
 /**
  * Copy ARGB data from a whole slide image.
@@ -88,9 +88,9 @@ size_t ws_get_region_num_bytes(wholeslide_t *wsd,
 wholeslide_public
 void ws_read_region(wholeslide_t *wsd,
 		    uint32_t *dest,
-		    uint32_t x, uint32_t y,
-		    uint32_t layer,
-		    uint32_t w, uint32_t h);
+		    int64_t x, int64_t y,
+		    int32_t layer,
+		    int64_t w, int64_t h);
 
 /**
  * Give a non-blocking hint that a region is likely to be needed soon.
@@ -104,10 +104,10 @@ void ws_read_region(wholeslide_t *wsd,
  * @returns A unique identifier for this prefetch hint.
  */
 wholeslide_public
-uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
-			       uint32_t x, uint32_t y,
-			       uint32_t layer,
-			       uint32_t w, uint32_t h);
+int ws_give_prefetch_hint(wholeslide_t *wsd,
+			  int64_t x, int64_t y,
+			  int32_t layer,
+			  int64_t w, int64_t h);
 
 /**
  * Cancel an existing prefetch hint.
@@ -116,7 +116,7 @@ uint32_t ws_give_prefetch_hint(wholeslide_t *wsd,
  * @param prefetch_id An identifier returned by ws_give_prefetch_hint().
  */
 wholeslide_public
-void ws_cancel_prefetch_hint(wholeslide_t *wsd, uint32_t prefetch_id);
+void ws_cancel_prefetch_hint(wholeslide_t *wsd, int prefetch_id);
 
 
 /**
@@ -134,7 +134,7 @@ void ws_close(wholeslide_t *wsd);
  * @return The number of layers.
  */
 wholeslide_public
-uint32_t ws_get_layer_count(wholeslide_t *wsd);
+int32_t ws_get_layer_count(wholeslide_t *wsd);
 
 /**
  * Get the dimensions of layer 0 (the largest layer).
@@ -144,7 +144,7 @@ uint32_t ws_get_layer_count(wholeslide_t *wsd);
  * @param[out] h The height of the image.
  */
 wholeslide_public
-void ws_get_layer0_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
+void ws_get_layer0_dimensions(wholeslide_t *wsd, int64_t *w, int64_t *h);
 
 /**
  * Get the dimensions of a layer.
@@ -155,8 +155,8 @@ void ws_get_layer0_dimensions(wholeslide_t *wsd, uint32_t *w, uint32_t *h);
  * @param[out] h The height of the image.
  */
 wholeslide_public
-void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
-			     uint32_t *w, uint32_t *h);
+void ws_get_layer_dimensions(wholeslide_t *wsd, int32_t layer,
+			     int64_t *w, int64_t *h);
 
 /**
  * Get the downsampling factor of a given layer.
@@ -166,7 +166,7 @@ void ws_get_layer_dimensions(wholeslide_t *wsd, uint32_t layer,
  * @return The downsampling factor for this layer.
  */
 wholeslide_public
-double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer);
+double ws_get_layer_downsample(wholeslide_t *wsd, int32_t layer);
 
 
 /**
@@ -177,7 +177,7 @@ double ws_get_layer_downsample(wholeslide_t *wsd, uint32_t layer);
  * @return The layer identifier.
  */
 wholeslide_public
-uint32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd, double downsample);
+int32_t ws_get_best_layer_for_downsample(wholeslide_t *wsd, double downsample);
 
 
 /**

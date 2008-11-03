@@ -60,8 +60,8 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
     return false;
   }
 
-  uint32_t overlap_count = 0;
-  uint32_t *overlaps = NULL;
+  int32_t overlap_count = 0;
+  int32_t *overlaps = NULL;
 
   char **first_pass = g_strsplit(tagval, ";", -1);
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
@@ -71,7 +71,7 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
       char **second_pass = g_strsplit(*cur_str, " ", -1);
 
       overlap_count = g_strv_length(second_pass) - 1; // skip fieldname
-      overlaps = g_new(uint32_t, overlap_count);
+      overlaps = g_new(int32_t, overlap_count);
 
       int i = 0;
       // skip fieldname
@@ -85,15 +85,15 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   }
 
   // count layers
-  uint32_t layer_count = 0;
-  uint32_t *layers = NULL;
+  int32_t layer_count = 0;
+  int32_t *layers = NULL;
   do {
     layer_count++;
   } while (TIFFReadDirectory(tiff));
-  layers = g_new(uint32_t, layer_count);
+  layers = g_new(int32_t, layer_count);
 
   // directories are linear
-  for (uint32_t i = 0; i < layer_count; i++) {
+  for (int32_t i = 0; i < layer_count; i++) {
     layers[i] = i;
   }
 

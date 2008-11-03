@@ -43,7 +43,7 @@ static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 #define INPUT_BUF_SIZE  4096
 
 // returns w and h as a convenience
-static bool verify_jpeg(FILE *f, uint32_t *w, uint32_t *h) {
+static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
@@ -68,7 +68,7 @@ static bool verify_jpeg(FILE *f, uint32_t *w, uint32_t *h) {
 
   unsigned int restart_interval = cinfo.restart_interval;
   JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
-  JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
+  //  JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
 
   unsigned int leftover_mcus = MCUs_per_row % restart_interval;
 
@@ -107,7 +107,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
-    g_debug("Can't load VMS file");
+    //    g_debug("Can't load VMS file");
     goto FAIL;
   }
   if (!g_key_file_has_group(vms_file, GROUP_VMS)) {
@@ -235,10 +235,10 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   }
 
   // open jpegs
-  uint32_t img00_w = 0;
-  uint32_t img00_h = 0;
-  uint32_t w;
-  uint32_t h;
+  int32_t img00_w = 0;
+  int32_t img00_h = 0;
+  int32_t w;
+  int32_t h;
   for (int i = 0; i < num_jpegs; i++) {
     struct _ws_jpeg_fragment *jp = jpegs[i];
 

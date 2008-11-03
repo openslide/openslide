@@ -32,20 +32,20 @@
 struct _ws_tiffopsdata {
   TIFF *tiff;
 
-  uint32_t overlap_count;
-  uint32_t *overlaps;
-  uint32_t *layers;
+  int32_t overlap_count;
+  int32_t *overlaps;
+  int32_t *layers;
 
   struct _ws_tiff_tilereader *(*tilereader_create)(TIFF *tiff);
   void (*tilereader_read)(struct _ws_tiff_tilereader *wtt,
 			  uint32_t *dest,
-			  uint32_t x, uint32_t y);
+			  int64_t x, int64_t y);
   void (*tilereader_destroy)(struct _ws_tiff_tilereader *wtt);
 };
 
 
-static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
-			 uint32_t *x, uint32_t *y) {
+static void get_overlaps(wholeslide_t *wsd, int32_t layer,
+			 int32_t *x, int32_t *y) {
   struct _ws_tiffopsdata *data = wsd->data;
 
   if (data->overlap_count >= 2 * (layer + 1)) {
@@ -58,11 +58,11 @@ static void get_overlaps(wholeslide_t *wsd, uint32_t layer,
 }
 
 static void add_in_overlaps(wholeslide_t *wsd,
-			    uint32_t layer,
-			    uint32_t tw, uint32_t th,
-			    uint32_t x, uint32_t y,
-			    uint32_t *out_x, uint32_t *out_y) {
-  uint32_t ox, oy;
+			    int32_t layer,
+			    int64_t tw, int64_t th,
+			    int64_t x, int64_t y,
+			    int64_t *out_x, int64_t *out_y) {
+  int32_t ox, oy;
   get_overlaps(wsd, layer, &ox, &oy);
   *out_x = x + (x / (tw - ox)) * ox;
   *out_y = y + (y / (th - oy)) * oy;
@@ -71,10 +71,10 @@ static void add_in_overlaps(wholeslide_t *wsd,
 
 static void copy_rgba_tile(const uint32_t *tile,
 			   uint32_t *dest,
-			   uint32_t src_w, uint32_t src_h,
-			   int32_t dest_origin_x, int32_t dest_origin_y,
-			   uint32_t dest_w, uint32_t dest_h) {
-  uint32_t src_origin_y;
+			   int64_t src_w, int64_t src_h,
+			   int64_t dest_origin_x, int64_t dest_origin_y,
+			   int64_t dest_w, int64_t dest_h) {
+  int64_t src_origin_y;
   if (dest_origin_y < 0) {  // off the top
     src_origin_y = -dest_origin_y;
   } else {
@@ -83,7 +83,7 @@ static void copy_rgba_tile(const uint32_t *tile,
 
   //  g_debug("src_origin_y: %d, dest_origin_y: %d", src_origin_y, dest_origin_y);
 
-  uint32_t src_origin_x;
+  int64_t src_origin_x;
   if (dest_origin_x < 0) {  // off the left
     src_origin_x = -dest_origin_x;
   } else {
@@ -94,15 +94,15 @@ static void copy_rgba_tile(const uint32_t *tile,
 
   //  g_debug("");
 
-  for (uint32_t src_y = src_origin_y; src_y < src_h; src_y++) {
-    int32_t dest_y = dest_origin_y + src_y;
+  for (int64_t src_y = src_origin_y; src_y < src_h; src_y++) {
+    int64_t dest_y = dest_origin_y + src_y;
     //    g_debug("src_y: %d, dest_y: %d", src_y, dest_y);
     if (dest_y < dest_h) {
-      for (uint32_t src_x = src_origin_x; src_x < src_w; src_x++) {
-	int32_t dest_x = dest_origin_x + src_x;
+      for (int64_t src_x = src_origin_x; src_x < src_w; src_x++) {
+	int64_t dest_x = dest_origin_x + src_x;
 	if (dest_x < dest_w) {
-	  uint32_t dest_i = dest_y * dest_w + dest_x;
-	  uint32_t i = src_y * src_w + src_x;
+	  int64_t dest_i = dest_y * dest_w + dest_x;
+	  int64_t i = src_y * src_w + src_x;
 
 	  //      g_debug("%d %d -> %d %d", src_x, src_y, dest_x, dest_y);
 	  uint32_t tile_val = tile[i];
@@ -117,9 +117,11 @@ static void copy_rgba_tile(const uint32_t *tile,
 
 
 static void read_region(wholeslide_t *wsd, uint32_t *dest,
-			uint32_t x, uint32_t y,
-			uint32_t layer,
-			uint32_t w, uint32_t h) {
+			int64_t x, int64_t y,
+			int32_t layer,
+			int64_t w, int64_t h) {
+  uint32_t tmp;
+
   struct _ws_tiffopsdata *data = wsd->data;
   TIFF *tiff = data->tiff;
 
@@ -132,20 +134,22 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   }
 
   double downsample = ws_get_layer_downsample(wsd, layer);
-  uint32_t ds_x = x / downsample;
-  uint32_t ds_y = y / downsample;
+  int64_t ds_x = x / downsample;
+  int64_t ds_y = y / downsample;
 
   // select layer
   TIFFSetDirectory(tiff, data->layers[layer]);
 
   // allocate space for 1 tile
-  uint32_t tw, th;
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw);
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &th);
+  int64_t tw, th;
+  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
+  tw = tmp;
+  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
+  th = tmp;
   uint32_t *tile = g_slice_alloc(tw * th * sizeof(uint32_t));
 
   // figure out range of tiles
-  uint32_t start_x, start_y, end_x, end_y;
+  int64_t start_x, start_y, end_x, end_y;
 
   // add in overlaps
   add_in_overlaps(wsd, layer, tw, th, ds_x, ds_y, &start_x, &start_y);
@@ -153,9 +157,11 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 		  &end_x, &end_y);
 
   // check bounds
-  uint32_t raw_w, raw_h;
-  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &raw_w);
-  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &raw_h);
+  int64_t raw_w, raw_h;
+  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
+  raw_w = tmp;
+  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp);
+  raw_h = tmp;
 
   if (end_x >= raw_w) {
     end_x = raw_w - 1;
@@ -168,25 +174,25 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
   // for each tile, draw it where it should go
-  uint32_t ovr_x, ovr_y;
+  int32_t ovr_x, ovr_y;
   get_overlaps(wsd, layer, &ovr_x, &ovr_y);
 
-  uint32_t src_y = start_y;
-  uint32_t dst_y = 0;
+  int64_t src_y = start_y;
+  int64_t dst_y = 0;
 
-  uint32_t num_tiles_decoded = 0;
+  int num_tiles_decoded = 0;
 
   struct _ws_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
   while (src_y < ((end_y / th) + 1) * th) {
-    uint32_t src_x = start_x;
-    uint32_t dst_x = 0;
+    int64_t src_x = start_x;
+    int64_t dst_x = 0;
 
     while (src_x < ((end_x / tw) + 1) * tw) {
-      uint32_t round_x = (src_x / tw) * tw;
-      uint32_t round_y = (src_y / th) * th;
-      uint32_t off_x = src_x - round_x;
-      uint32_t off_y = src_y - round_y;
+      int round_x = (src_x / tw) * tw;
+      int round_y = (src_y / th) * th;
+      int off_x = src_x - round_x;
+      int off_y = src_y - round_y;
 
       //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
       //      g_debug(" offset: %d,%d", off_x, off_y);
@@ -221,8 +227,10 @@ static void destroy(wholeslide_t *wsd) {
   g_slice_free(struct _ws_tiffopsdata, data);
 }
 
-static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
-			   uint32_t *w, uint32_t *h) {
+static void get_dimensions(wholeslide_t *wsd, int32_t layer,
+			   int64_t *w, int64_t *h) {
+  uint32_t tmp;
+
   struct _ws_tiffopsdata *data = wsd->data;
   TIFF *tiff = data->tiff;
 
@@ -237,25 +245,29 @@ static void get_dimensions(wholeslide_t *wsd, uint32_t layer,
   TIFFSetDirectory(tiff, data->layers[layer]);
 
   // figure out tile size
-  uint32_t tw, th;
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw);
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &th);
+  int64_t tw, th;
+  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
+  tw = tmp;
+  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
+  th = tmp;
 
   // get image size
-  uint32_t iw, ih;
-  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &iw);
-  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &ih);
+  int64_t iw, ih;
+  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
+  iw = tmp;
+  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp);
+  ih = tmp;
 
   // get num tiles
-  uint32_t tx = iw / tw;
-  uint32_t ty = ih / th;
+  int64_t tx = iw / tw;
+  int64_t ty = ih / th;
 
   // overlaps information seems to only make sense when dealing
   // with images that are divided perfectly by tiles ?
   // thus, we have these if-else below
 
   // subtract overlaps and compute
-  uint32_t overlap_x, overlap_y;
+  int32_t overlap_x, overlap_y;
   get_overlaps(wsd, layer, &overlap_x, &overlap_y);
 
   if (overlap_x) {
@@ -292,14 +304,14 @@ static struct _wholeslide_ops _ws_tiff_ops = {
 
 void _ws_add_tiff_ops(wholeslide_t *wsd,
 		      TIFF *tiff,
-		      uint32_t overlap_count,
-		      uint32_t *overlaps,
-		      uint32_t layer_count,
-		      uint32_t *layers,
+		      int32_t overlap_count,
+		      int32_t *overlaps,
+		      int32_t layer_count,
+		      int32_t *layers,
 		      struct _ws_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
 		      void (*tilereader_read)(struct _ws_tiff_tilereader *wtt,
 					      uint32_t *dest,
-					      uint32_t x, uint32_t y),
+					      int64_t x, int64_t y),
 		      void (*tilereader_destroy)(struct _ws_tiff_tilereader *wtt)) {
   // allocate private data
   struct _ws_tiffopsdata *data =  g_slice_new(struct _ws_tiffopsdata);
@@ -333,8 +345,8 @@ void _ws_add_tiff_ops(wholeslide_t *wsd,
 
 struct _ws_tiff_tilereader {
   TIFFRGBAImage img;
-  uint32_t tile_width;
-  uint32_t tile_height;
+  int64_t tile_width;
+  int64_t tile_height;
 };
 
 struct _ws_tiff_tilereader *_ws_generic_tiff_tilereader_create(TIFF *tiff) {
@@ -352,7 +364,7 @@ struct _ws_tiff_tilereader *_ws_generic_tiff_tilereader_create(TIFF *tiff) {
 
 void _ws_generic_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
 				      uint32_t *dest,
-				      uint32_t x, uint32_t y) {
+				      int64_t x, int64_t y) {
   wtt->img.col_offset = x;
   wtt->img.row_offset = y;
   TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height);
