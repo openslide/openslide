@@ -9,7 +9,7 @@ libwholeslide_la_SOURCES = wholeslide.c \
 
 libwholeslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Wholeslide\"
 
-libwholeslide_la_LDFLAGS = -version-info 0:0:0
+libwholeslide_la_LDFLAGS = -version-info 1:0:0
 
 
 pkginclude_HEADERS = wholeslide.h wholeslide-features.h
