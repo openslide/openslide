@@ -155,6 +155,10 @@ void ws_read_region(wholeslide_t *wsd,
 		    int64_t x, int64_t y,
 		    int32_t layer,
 		    int64_t w, int64_t h) {
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+
   // start cleared
   memset(dest, 0, w * h * 4);
 
@@ -162,29 +166,9 @@ void ws_read_region(wholeslide_t *wsd,
   //    dest[i] = 0xFFFF0000; // red
   //  }
 
-  if (layer > wsd->layer_count || layer < 0) {
+  if (layer > wsd->layer_count || layer < 0 || x < 0 || y < 0) {
     return;
   }
 
-  // translate if x or y are negative
-  int64_t new_w = w;
-  int64_t new_x = x;
-  if (x < 0) {
-    new_w += x;
-    new_x = 0;
-  }
-  int64_t new_h = h;
-  int64_t new_y = y;
-  if (y < 0) {
-    new_h += y;
-    new_y = 0;
-  }
-
-  // is there anything left to paint?
-  if (w <= 0 || h <= 0) {
-    return;
-  }
-
-  uint32_t *new_dest = dest + ((new_y - y) * w + (new_x - x));
-  (wsd->ops->read_region)(wsd, new_dest, new_x, new_y, layer, new_w, new_h);
+  (wsd->ops->read_region)(wsd, dest, x, y, layer, w, h);
 }

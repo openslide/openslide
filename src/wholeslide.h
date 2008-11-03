@@ -67,11 +67,11 @@ wholeslide_t *ws_open(const char *filename);
  *
  * @param wsd The whole slide image handle.
  * @param dest The destination buffer for the ARGB data.
- * @param x The top left x-coordinate.
- * @param y The top left y-coordinate.
+ * @param x The top left x-coordinate. Must be non-negative.
+ * @param y The top left y-coordinate. Must be non-negative
  * @param layer The desired layer.
- * @param w The width of the region.
- * @param h The height of the region.
+ * @param w The width of the region. Must be greater than 0.
+ * @param h The height of the region. Must be greater than 0.
  */
 wholeslide_public
 void ws_read_region(wholeslide_t *wsd,
