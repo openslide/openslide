@@ -414,6 +414,9 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 			int64_t x, int64_t y,
 			int32_t layer,
 			int64_t w, int64_t h) {
+  //  g_debug("jpeg ops read_region: x: %" PRId64 ", y: %" PRId64 ", layer: %d, w: %" PRId64 ", h: %" PRId64 "",
+  //	  x, y, layer, w, h);
+
   struct jpegops_data *data = wsd->data;
 
   // in layer bounds?
@@ -429,56 +432,66 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   //	  layer, rel_downsample, scale_denom);
 
 
+  // all things with scale_denom are accounted for in the JPEG library
+  // so, we don't adjust here for it, except in w,h
 
 
   // go file by file
 
-  int64_t cur_y = y / rel_downsample;  // scale into this jpeg's space
+  int64_t src_y = y / rel_downsample;  // scale into this jpeg's space
   int64_t dest_y = 0;
-  int64_t end_y = MIN(cur_y + h, l->pixel_h);  // set the end
+  int64_t end_src_y = MIN(src_y + h * scale_denom, l->pixel_h);  // set the end
 
-  while (cur_y < end_y) {
-    int32_t file_y = cur_y / l->image00_h;
-    int64_t segment_y_origin = file_y * l->image00_h;
-    int64_t segment_y_end = MIN((file_y + 1) * l->image00_h, end_y)
-      - segment_y_origin;
-    int64_t segment_y = cur_y - segment_y_origin;
+  while (src_y < end_src_y) {
+    int32_t file_y = src_y / l->image00_h;
+    int64_t origin_src_segment_y = file_y * (int64_t) l->image00_h;
+    int32_t end_in_src_segment_y = MIN((file_y + 1) * (int64_t) l->image00_h,
+				       end_src_y) - origin_src_segment_y;
+    int32_t start_in_src_segment_y = src_y - origin_src_segment_y;
 
-    int64_t cur_x = x / rel_downsample;
+    int32_t dest_h = (end_in_src_segment_y - start_in_src_segment_y)
+      / scale_denom;
+
+    int64_t src_x = x / rel_downsample;
     int64_t dest_x = 0;
-    int64_t end_x = MIN(cur_x + w, l->pixel_w);
+    int64_t end_src_x = MIN(src_x + w * scale_denom, l->pixel_w);
 
-    //g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
-    //	    cur_x, cur_y, end_x, end_y);
+    //    g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
+    //    	    src_x, src_y, end_src_x, end_src_y);
 
-    while (cur_x < end_x) {
-      int32_t file_x = cur_x / l->image00_w;
-      int64_t segment_x_origin = file_x * l->image00_w;
-      int64_t segment_x_end = MIN((file_x + 1) * l->image00_w, end_x)
-	- segment_x_origin;
-      int64_t segment_x = cur_x - segment_x_origin;
+    while (src_x < end_src_x) {
+      int32_t file_x = src_x / l->image00_w;
+      int64_t origin_src_segment_x = file_x * l->image00_w;
+      int32_t end_in_src_segment_x = MIN((file_x + 1) * (int64_t) l->image00_w,
+					 end_src_x) - origin_src_segment_x;
+      int32_t start_in_src_segment_x = src_x - origin_src_segment_x;
 
-      int32_t dest_w = segment_x_end - segment_x;
-      int32_t dest_h = segment_y_end - segment_y;
+      int32_t dest_w = (end_in_src_segment_x - start_in_src_segment_x)
+	/ scale_denom;
 
       //      g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
-      //	      "from (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 ")",
-      //	      file_x, file_y, segment_x, segment_y, segment_x_end, segment_y_end);
-      //g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
+      //	      "from (%" PRId32 ",%" PRId32 ") to (%" PRId32 ",%" PRId32 ")",
+      //	      file_x, file_y,
+      //	      start_in_src_segment_x, start_in_src_segment_y,
+      //	      end_in_src_segment_x, end_in_src_segment_y);
+      //      g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
       //	      dest_x, dest_y, dest_w, dest_h);
 
       struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
       uint32_t *cur_dest = dest + (dest_y * w + dest_x);
 
-      read_from_one_jpeg(jpeg, cur_dest, segment_x, segment_y,
+      //      g_debug(" jpeg w: %d, jpeg h: %d", jpeg->width, jpeg->height);
+
+      read_from_one_jpeg(jpeg, cur_dest,
+			 start_in_src_segment_x, start_in_src_segment_y,
 			 scale_denom, dest_w, dest_h, w);
 
       // advance dest by amount already copied
-      dest_x += (segment_x_end - segment_x) / scale_denom;
-      cur_x = segment_x_end + segment_x_origin;
+      dest_x += dest_w;
+      src_x = end_in_src_segment_x + origin_src_segment_x;
     }
-    dest_y += (segment_y_end - segment_y) / scale_denom;
-    cur_y = segment_y_end + segment_y_origin;
+    dest_y += dest_h;
+    src_y = end_in_src_segment_y + origin_src_segment_y;
   }
 }
 
