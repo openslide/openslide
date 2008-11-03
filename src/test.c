@@ -43,7 +43,7 @@ static void test_tile_walk(wholeslide_t *wsd,
   printf("test_tile_walk: %" PRId64 "\n", tile_size);
 
   struct timeval tv, tv2;
-  uint32_t *buf = malloc(ws_get_region_num_bytes(wsd, tile_size, tile_size));
+  uint32_t *buf = malloc(tile_size * tile_size * 4);
 
   int64_t w, h;
   ws_get_layer0_dimensions(wsd, &w, &h);
@@ -91,7 +91,7 @@ static void test_image_fetch(wholeslide_t *wsd,
   //  for (int32_t layer = 0; layer < 1; layer++) {
   for (int32_t layer = 0; layer < ws_get_layer_count(wsd); layer++) {
     asprintf(&filename, "%s-%.2d.ppm", name, layer);
-    int64_t num_bytes = ws_get_region_num_bytes(wsd, w, h);
+    int64_t num_bytes = w * h * 4;
     printf("Going to allocate %" PRId64 " bytes...\n", num_bytes);
     uint32_t *buf = malloc(num_bytes);
 

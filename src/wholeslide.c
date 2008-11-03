@@ -150,13 +150,6 @@ void ws_cancel_prefetch_hint(wholeslide_t *wsd, int prefetch_id) {
   return;
 }
 
-
-int64_t ws_get_region_num_bytes(wholeslide_t *wsd,
-				int64_t w, int64_t h) {
-  return MAX(w * h * 4, 0);
-}
-
-
 void ws_read_region(wholeslide_t *wsd,
 		    uint32_t *dest,
 		    int64_t x, int64_t y,

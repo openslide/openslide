@@ -58,24 +58,12 @@ wholeslide_public
 wholeslide_t *ws_open(const char *filename);
 
 /**
- * Compute minimum buffer size for given image region.
- *
- * @param wsd The whole slide image handle.
- * @param w The width of the region.
- * @param h The height of the region.
- * @return The minimum number of bytes needed to hold the uncompressed image data for the region.
- */
-wholeslide_public
-int64_t ws_get_region_num_bytes(wholeslide_t *wsd,
-				int64_t w, int64_t h);
-
-/**
  * Copy ARGB data from a whole slide image.
  *
  * This function reads and decompresses a region of a whole slide
  * image into the specified memory location. @p dest must be a valid
  * pointer to enough memory to hold the region. To compute the proper
- * size for @p dest, use ws_get_region_num_bytes().
+ * size for @p dest, use @p w * @p h * 4.
  *
  * @param wsd The whole slide image handle.
  * @param dest The destination buffer for the ARGB data.
