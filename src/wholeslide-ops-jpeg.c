@@ -439,6 +439,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
   // go file by file
 
   int64_t src_y = y / rel_downsample;  // scale into this jpeg's space
+  src_y = (src_y / scale_denom) * scale_denom; // round down to scaled pixel boundary
   int64_t dest_y = 0;
   int64_t end_src_y = MIN(src_y + h * scale_denom, l->pixel_h);  // set the end
 
@@ -453,6 +454,7 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
       / scale_denom;
 
     int64_t src_x = x / rel_downsample;
+    src_x = (src_x / scale_denom) * scale_denom;
     int64_t dest_x = 0;
     int64_t end_src_x = MIN(src_x + w * scale_denom, l->pixel_w);
 
