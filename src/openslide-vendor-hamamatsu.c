@@ -1,23 +1,23 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
@@ -31,7 +31,7 @@
 
 #include <jpeglib.h>
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
@@ -93,10 +93,10 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h) {
 }
 
 
-bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
+bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
-  struct _ws_jpeg_fragment **jpegs = NULL;
+  struct _openslide_jpeg_fragment **jpegs = NULL;
   int num_jpegs = 0;
 
   char **all_keys = NULL;
@@ -142,7 +142,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   // this format has cols*rows jpeg files, plus the map
   num_jpegs = (num_jpeg_cols * num_jpeg_rows) + 1;
   image_filenames = g_new0(char *, num_jpegs);
-  jpegs = g_new0(struct _ws_jpeg_fragment *, num_jpegs);
+  jpegs = g_new0(struct _openslide_jpeg_fragment *, num_jpegs);
 
   g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
 
@@ -153,7 +153,8 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
 			      NULL);
   if (tmp) {
     image_filenames[num_jpegs - 1] = g_build_filename(dirname, tmp, NULL);
-    struct _ws_jpeg_fragment *frag = g_slice_new0(struct _ws_jpeg_fragment);
+    struct _openslide_jpeg_fragment *frag =
+      g_slice_new0(struct _openslide_jpeg_fragment);
     frag->x = 0;
     frag->y = 0;
     frag->z = 1;  // map is smaller
@@ -217,7 +218,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
       } else {
 	image_filenames[i] = g_build_filename(dirname, value, NULL);
 
-	jpegs[i] = g_slice_new0(struct _ws_jpeg_fragment);
+	jpegs[i] = g_slice_new0(struct _openslide_jpeg_fragment);
 	jpegs[i]->x = col;
 	jpegs[i]->y = row;
 	jpegs[i]->z = 0;
@@ -240,7 +241,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
   int32_t w;
   int32_t h;
   for (int i = 0; i < num_jpegs; i++) {
-    struct _ws_jpeg_fragment *jp = jpegs[i];
+    struct _openslide_jpeg_fragment *jp = jpegs[i];
 
     if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
@@ -271,7 +272,7 @@ bool _ws_try_hamamatsu(wholeslide_t *wsd, const char *filename) {
     }
   }
 
-  _ws_add_jpeg_ops(wsd, num_jpegs, jpegs);
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
   success = true;
   goto DONE;
 

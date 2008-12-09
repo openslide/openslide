@@ -24,7 +24,7 @@ Makefile.in
 /ltmain.sh
 /missing
 /stamp-h1
-/wholeslide.pc
+/*.pc
 
 /src/test
 

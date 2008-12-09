@@ -1,23 +1,23 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
@@ -32,35 +32,35 @@
 #include <math.h>
 #include <inttypes.h>
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
-struct _ws_jp2kopsdata {
+struct _openslide_jp2kopsdata {
   FILE *f;
 
   int64_t w;
   int64_t h;
 };
 
-static void destroy_data(struct _ws_jp2kopsdata *data) {
+static void destroy_data(struct _openslide_jp2kopsdata *data) {
   fclose(data->f);
 }
 
-static void destroy(wholeslide_t *wsd) {
-  struct _ws_jp2kopsdata *data = wsd->data;
+static void destroy(openslide_t *osr) {
+  struct _openslide_jp2kopsdata *data = osr->data;
   destroy_data(data);
-  g_slice_free(struct _ws_jp2kopsdata, data);
+  g_slice_free(struct _openslide_jp2kopsdata, data);
 }
 
-static const char *get_comment(wholeslide_t *wsd) {
+static const char *get_comment(openslide_t *osr) {
   return "";      // TODO
 }
 
-static void get_dimensions(wholeslide_t *wsd, int32_t layer,
+static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *w, int64_t *h) {
-  struct _ws_jp2kopsdata *data = wsd->data;
+  struct _openslide_jp2kopsdata *data = osr->data;
 
   // check bounds
-  if (layer >= wsd->layer_count) {
+  if (layer >= osr->layer_count) {
     *w = 0;
     *h = 0;
     return;
@@ -81,11 +81,11 @@ static void error_callback(const OPJ_CHAR *msg, void *data) {
   g_error("%s", msg);
 }
 
-static void read_region(wholeslide_t *wsd, uint32_t *dest,
+static void read_region(openslide_t *osr, uint32_t *dest,
 			int64_t x, int64_t y,
 			int32_t layer,
 			int64_t w, int64_t h) {
-  struct _ws_jp2kopsdata *data = wsd->data;
+  struct _openslide_jp2kopsdata *data = osr->data;
 
   g_debug("read_region: (%" PRId64 ",%" PRId64 ") layer: %" PRId32
 	  ", size: (%" PRId64 " ,%" PRId64 ")",
@@ -179,18 +179,18 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 
 
 
-static struct _wholeslide_ops _ws_jp2k_ops = {
+static struct _openslide_ops _openslide_jp2k_ops = {
   .read_region = read_region,
   .destroy = destroy,
   .get_dimensions = get_dimensions,
   .get_comment = get_comment,
 };
 
-void _ws_add_jp2k_ops(wholeslide_t *wsd,
+void _openslide_add_jp2k_ops(openslide_t *osr,
 		      FILE *f,
 		      int64_t w, int64_t h) {
   // allocate private data
-  struct _ws_jp2kopsdata *data = g_slice_new(struct _ws_jp2kopsdata);
+  struct _openslide_jp2kopsdata *data = g_slice_new(struct _openslide_jp2kopsdata);
 
   data->f = f;
   data->w = w;
@@ -200,15 +200,15 @@ void _ws_add_jp2k_ops(wholeslide_t *wsd,
   int32_t layer_count = log2(MIN(data->w, data->h));
   g_debug("layer_count: %d", layer_count);
 
-  if (wsd == NULL) {
+  if (osr == NULL) {
     // free now and return
     destroy_data(data);
     return;
   }
 
-  g_assert(wsd->data == NULL);
+  g_assert(osr->data == NULL);
 
-  wsd->layer_count = layer_count;
-  wsd->data = data;
-  wsd->ops = &_ws_jp2k_ops;
+  osr->layer_count = layer_count;
+  osr->data = data;
+  osr->ops = &_openslide_jp2k_ops;
 }

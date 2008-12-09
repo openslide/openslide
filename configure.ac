@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([wholeslide], [1.0.0], [agoode@andrew.cmu.edu])
+AC_INIT([openslide], [1.0.0], [agoode@andrew.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign 1.9])
@@ -56,6 +56,6 @@ AC_CONFIG_FILES([
 Makefile
 libopenjpeg/Makefile
 src/Makefile
-wholeslide.pc
+openslide.pc
 ])
 AC_OUTPUT

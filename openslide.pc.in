@@ -3,11 +3,11 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: wholeslide
+Name: openslide
 Description: A library for reading whole slide images.
 
 @PKGCONFIG_REQUIRES@: glib-2.0
 Version: @VERSION@
-Libs: -L${libdir} -lwholeslide
+Libs: -L${libdir} -lopenslide
 Libs.private: @LIBS@
-Cflags: -I${includedir}/wholeslide
+Cflags: -I${includedir}/openslide

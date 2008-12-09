@@ -1,30 +1,30 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
 
 #include "config.h"
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
 #include <glib.h>
 #include <string.h>
@@ -35,24 +35,24 @@
 
 static const char APERIO_DESCRIPTION[] = "Aperio Image Library";
 
-struct _ws_tiff_tilereader {
+struct _openslide_tiff_tilereader {
   TIFF *tiff;
   int64_t tile_width;
   int64_t tile_height;
 };
 
 // OpenJPEG memory-read functions
-struct _ws_opj_mem_stream_state {
+struct _openslide_opj_mem_stream_state {
   const tdata_t buf;
   const tsize_t size;
   toff_t offset;
 };
 
-static OPJ_UINT32 _ws_opj_mem_stream_read (void *p_buffer,
-					   OPJ_UINT32 p_nb_bytes,
-					   void *p_user_data) {
-  struct _ws_opj_mem_stream_state *ss =
-    (struct _ws_opj_mem_stream_state *) p_user_data;
+static OPJ_UINT32 _openslide_opj_mem_stream_read (void *p_buffer,
+						  OPJ_UINT32 p_nb_bytes,
+						  void *p_user_data) {
+  struct _openslide_opj_mem_stream_state *ss =
+    (struct _openslide_opj_mem_stream_state *) p_user_data;
 
   //  g_debug("READ: %p, %d", p_buffer, p_nb_bytes);
 
@@ -75,10 +75,10 @@ static OPJ_UINT32 _ws_opj_mem_stream_read (void *p_buffer,
   return bytes_to_read;
 }
 
-static OPJ_SIZE_T _ws_opj_mem_stream_skip (OPJ_SIZE_T p_nb_bytes,
-					   void *p_user_data) {
-  struct _ws_opj_mem_stream_state *ss =
-    (struct _ws_opj_mem_stream_state *) p_user_data;
+static OPJ_SIZE_T _openslide_opj_mem_stream_skip (OPJ_SIZE_T p_nb_bytes,
+						  void *p_user_data) {
+  struct _openslide_opj_mem_stream_state *ss =
+    (struct _openslide_opj_mem_stream_state *) p_user_data;
 
   if (ss->offset == ss->size) {
     return -1; // EOF
@@ -97,10 +97,10 @@ static OPJ_SIZE_T _ws_opj_mem_stream_skip (OPJ_SIZE_T p_nb_bytes,
   return bytes_to_skip;
 }
 
-static bool _ws_opj_mem_stream_seek (OPJ_SIZE_T p_nb_bytes,
-				     void *p_user_data) {
-  struct _ws_opj_mem_stream_state *ss =
-    (struct _ws_opj_mem_stream_state *) p_user_data;
+static bool _openslide_opj_mem_stream_seek (OPJ_SIZE_T p_nb_bytes,
+					    void *p_user_data) {
+  struct _openslide_opj_mem_stream_state *ss =
+    (struct _openslide_opj_mem_stream_state *) p_user_data;
 
   if (p_nb_bytes > ss->size) {
     return false;
@@ -122,8 +122,8 @@ static void error_callback(const OPJ_CHAR *msg, void *data) {
 }
 
 // XXX revisit assumptions that color is always downsampled in x by 2
-static struct _ws_tiff_tilereader *_ws_aperio_tiff_tilereader_create(TIFF *tiff) {
-  struct _ws_tiff_tilereader *wtt = g_slice_new(struct _ws_tiff_tilereader);
+static struct _openslide_tiff_tilereader *_openslide_aperio_tiff_tilereader_create(TIFF *tiff) {
+  struct _openslide_tiff_tilereader *wtt = g_slice_new(struct _openslide_tiff_tilereader);
   uint32_t tmp;
 
   wtt->tiff = tiff;
@@ -136,9 +136,9 @@ static struct _ws_tiff_tilereader *_ws_aperio_tiff_tilereader_create(TIFF *tiff)
   return wtt;
 }
 
-static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
-					    uint32_t *dest,
-					    int64_t x, int64_t y) {
+static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
+						   uint32_t *dest,
+						   int64_t x, int64_t y) {
   // get tile number
   ttile_t tile_no = TIFFComputeTile(wtt->tiff, x, y, 0, 0);
 
@@ -152,15 +152,15 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   tsize_t size = TIFFReadRawTile(wtt->tiff, tile_no, buf, max_tile_size); // XXX?
 
   // set source of compressed data
-  struct _ws_opj_mem_stream_state stream_state = {
+  struct _openslide_opj_mem_stream_state stream_state = {
     .buf = buf,
     .size = size,
     .offset = 0,
   };
   opj_stream_t *stream = opj_stream_default_create(true);
-  opj_stream_set_read_function(stream, _ws_opj_mem_stream_read);
-  opj_stream_set_skip_function(stream, _ws_opj_mem_stream_skip);
-  opj_stream_set_seek_function(stream, _ws_opj_mem_stream_seek);
+  opj_stream_set_read_function(stream, _openslide_opj_mem_stream_read);
+  opj_stream_set_skip_function(stream, _openslide_opj_mem_stream_skip);
+  opj_stream_set_seek_function(stream, _openslide_opj_mem_stream_seek);
   opj_stream_set_user_data(stream, &stream_state);
 
   // decode
@@ -226,13 +226,13 @@ static void _ws_aperio_tiff_tilereader_read(struct _ws_tiff_tilereader *wtt,
   opj_destroy_codec(codec);
 }
 
-static void _ws_aperio_tiff_tilereader_destroy(struct _ws_tiff_tilereader *wtt) {
-  g_slice_free(struct _ws_tiff_tilereader, wtt);
+static void _openslide_aperio_tiff_tilereader_destroy(struct _openslide_tiff_tilereader *wtt) {
+  g_slice_free(struct _openslide_tiff_tilereader, wtt);
 }
 
 
 
-bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
+bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   char *tagval;
 
   // first, see if it's a TIFF
@@ -279,16 +279,16 @@ bool _ws_try_aperio(wholeslide_t *wsd, const char *filename) {
 
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
-    _ws_add_tiff_ops(wsd, tiff, 0, NULL, layer_count, layers,
-		     _ws_aperio_tiff_tilereader_create,
-		     _ws_aperio_tiff_tilereader_read,
-		     _ws_aperio_tiff_tilereader_destroy);
+    _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
+			    _openslide_aperio_tiff_tilereader_create,
+			    _openslide_aperio_tiff_tilereader_read,
+			    _openslide_aperio_tiff_tilereader_destroy);
   } else {
     // let libtiff handle it
-    _ws_add_tiff_ops(wsd, tiff, 0, NULL, layer_count, layers,
-		     _ws_generic_tiff_tilereader_create,
-		     _ws_generic_tiff_tilereader_read,
-		     _ws_generic_tiff_tilereader_destroy);
+    _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
+			    _openslide_generic_tiff_tilereader_create,
+			    _openslide_generic_tiff_tilereader_read,
+			    _openslide_generic_tiff_tilereader_destroy);
   }
 
   return true;

@@ -1,8 +1,8 @@
-Wholeslide
+OpenSlide
 
 Carnegie Mellon University
 
-http://wholeslide.cs.cmu.edu/
+http://openslide.cs.cmu.edu/
 
 
 2008-11-03
@@ -49,13 +49,19 @@ See the Carnegie Mellon SCS Technical Report:
  http://reports-archive.adm.cs.cmu.edu/anon/2008/abstracts/08-136.html
  http://reports-archive.adm.cs.cmu.edu/anon/2008/CMU-CS-08-136.pdf
 
-Note that this report contains API documentation for a previous, unreleased
-version of this library. Since the report was released, the API has changed
-to prefer signed integers over unsigned and to use 64-bit types for
-positions and dimensions. The ws_get_region_num_bytes function was also
-removed.
 
-See wholeslide.h in this distribution for the definitive API reference.
+Changes from Tech Report
+========================
+
+The CMU CS TR contains API documentation for a previous, unreleased
+version of this library. Since the report was released, the API has
+changed to prefer signed integers over unsigned and to use 64-bit
+types for positions and dimensions. The ws_get_region_num_bytes
+function was removed. Additionally, "wholeslide" was renamed to
+"openslide", the "ws_" prefix changed to "openslide_", and "wholeslide_t"
+is now "openslide_t".
+
+See openslide.h in this distribution for the definitive API reference.
 
 
 How to build?

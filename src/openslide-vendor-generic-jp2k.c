@@ -1,30 +1,30 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
 
 #include "config.h"
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
 #include <glib.h>
 #include <string.h>
@@ -33,7 +33,7 @@
 
 #include <openjpeg.h>
 
-bool _ws_try_generic_jp2k(wholeslide_t *wsd, const char *filename) {
+bool _openslide_try_generic_jp2k(openslide_t *osr, const char *filename) {
   FILE *f = fopen(filename, "r");
   if (f == NULL) {
     return false;
@@ -67,9 +67,9 @@ bool _ws_try_generic_jp2k(wholeslide_t *wsd, const char *filename) {
 	   comp->w, comp->h, comp->resno_decoded, comp->factor);
   }
 
-  _ws_add_jp2k_ops(wsd, f,
-		   image->comps->dx * image->comps->w,
-		   image->comps->dx * image->comps->h);
+  _openslide_add_jp2k_ops(osr, f,
+			  image->comps->dx * image->comps->w,
+			  image->comps->dx * image->comps->h);
   opj_image_destroy(image);
   opj_destroy_codec(codec);
   opj_stream_destroy(stream);

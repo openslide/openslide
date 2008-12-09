@@ -1,30 +1,30 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
 
 #include "config.h"
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
 #include <glib.h>
 #include <string.h>
@@ -34,7 +34,7 @@
 static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
 
-bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
+bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
   char *tagval;
 
   // first, see if it's a TIFF
@@ -98,10 +98,11 @@ bool _ws_try_trestle(wholeslide_t *wsd, const char *filename) {
   }
 
   // all set, load up the TIFF-specific ops
-  _ws_add_tiff_ops(wsd, tiff, overlap_count, overlaps, layer_count, layers,
-		   _ws_generic_tiff_tilereader_create,
-		   _ws_generic_tiff_tilereader_read,
-		   _ws_generic_tiff_tilereader_destroy);
+  _openslide_add_tiff_ops(osr, tiff, overlap_count, overlaps,
+			  layer_count, layers,
+			  _openslide_generic_tiff_tilereader_create,
+			  _openslide_generic_tiff_tilereader_read,
+			  _openslide_generic_tiff_tilereader_destroy);
 
   g_strfreev(first_pass);
 

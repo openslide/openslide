@@ -1,20 +1,20 @@
-lib_LTLIBRARIES = libwholeslide.la
+lib_LTLIBRARIES = libopenslide.la
 
-libwholeslide_la_LIBADD = $(GLIB2_LIBS) ../libopenjpeg/libopenjpeg.la
+libopenslide_la_LIBADD = $(GLIB2_LIBS) ../libopenjpeg/libopenjpeg.la
 
-libwholeslide_la_SOURCES = wholeslide.c \
-	wholeslide-vendor-trestle.c wholeslide-vendor-hamamatsu.c \
-	wholeslide-vendor-aperio.c wholeslide-vendor-generic-jp2k.c \
-	wholeslide-ops-tiff.c wholeslide-ops-jpeg.c wholeslide-ops-jp2k.c
+libopenslide_la_SOURCES = openslide.c \
+	openslide-vendor-trestle.c openslide-vendor-hamamatsu.c \
+	openslide-vendor-aperio.c openslide-vendor-generic-jp2k.c \
+	openslide-ops-tiff.c openslide-ops-jpeg.c openslide-ops-jp2k.c
 
-libwholeslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Wholeslide\"
+libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
 
-libwholeslide_la_LDFLAGS = -version-info 1:0:0
+libopenslide_la_LDFLAGS = -version-info 0:0:0
 
 
-pkginclude_HEADERS = wholeslide.h wholeslide-features.h
+pkginclude_HEADERS = openslide.h openslide-features.h
 
-noinst_HEADERS = wholeslide-private.h
+noinst_HEADERS = openslide-private.h
 
 
 
@@ -22,4 +22,4 @@ noinst_PROGRAMS = test
 
 test_CPPFLAGS = $(GLIB2_CFLAGS)
 
-test_LDADD = libwholeslide.la $(GLIB2_LIBS)
+test_LDADD = libopenslide.la $(GLIB2_LIBS)

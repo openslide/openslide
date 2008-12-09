@@ -1,23 +1,23 @@
 /*
- *  Wholeslide, a library for reading whole slide image files
+ *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2008 Carnegie Mellon University
  *  All rights reserved.
  *
- *  Wholeslide is free software: you can redistribute it and/or modify
+ *  OpenSlide is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, version 2.
  *
- *  Wholeslide is distributed in the hope that it will be useful,
+ *  OpenSlide is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Wholeslide. If not, see <http://www.gnu.org/licenses/>.
+ *  along with OpenSlide. If not, see <http://www.gnu.org/licenses/>.
  *
- *  Linking Wholeslide statically or dynamically with other modules is
- *  making a combined work based on Wholeslide. Thus, the terms and
+ *  Linking OpenSlide statically or dynamically with other modules is
+ *  making a combined work based on OpenSlide. Thus, the terms and
  *  conditions of the GNU General Public License cover the whole
  *  combination.
  */
@@ -42,7 +42,7 @@
 
 #include <sys/types.h>   // for off_t ?
 
-#include "wholeslide-private.h"
+#include "openslide-private.h"
 
 struct one_jpeg {
   FILE *f;
@@ -82,7 +82,7 @@ struct jpegops_data {
   int32_t jpeg_count;
   struct one_jpeg *all_jpegs;
 
-  // layer_count is in the wsd struct
+  // layer_count is in the osr struct
   struct layer *layers;
 };
 
@@ -193,7 +193,7 @@ static void generate_layers_into_map(GSList *jpegs,
 }
 
 static GHashTable *create_width_to_layer_map(int32_t count,
-					     struct _ws_jpeg_fragment **fragments,
+					     struct _openslide_jpeg_fragment **fragments,
 					     struct one_jpeg *jpegs) {
   int64_t prev_z = -1;
   int64_t prev_x = -1;
@@ -216,7 +216,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
   // go through the fragments, accumulating to layers
   for (int32_t i = 0; i < count; i++) {
-    struct _ws_jpeg_fragment *fr = fragments[i];
+    struct _openslide_jpeg_fragment *fr = fragments[i];
     struct one_jpeg *oj = jpegs + i;
 
     // the fragments MUST be in sorted order by z,x,y
@@ -321,12 +321,12 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   //  g_debug("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
 
   rewind(jpeg->f);
-  _ws_jpeg_fancy_src(&cinfo, jpeg->f,
-  		     jpeg->mcu_starts,
-		     jpeg->mcu_starts_count,
-		     tile_y * stride_in_tiles + tile_x,
-		     width_in_tiles,
-		     stride_in_tiles);
+  _openslide_jpeg_fancy_src(&cinfo, jpeg->f,
+			    jpeg->mcu_starts,
+			    jpeg->mcu_starts_count,
+			    tile_y * stride_in_tiles + tile_x,
+			    width_in_tiles,
+			    stride_in_tiles);
 
   // begin decompress
   int32_t rows_left = h;
@@ -410,14 +410,14 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   jpeg_destroy_decompress(&cinfo);
 }
 
-static void read_region(wholeslide_t *wsd, uint32_t *dest,
+static void read_region(openslide_t *osr, uint32_t *dest,
 			int64_t x, int64_t y,
 			int32_t layer,
 			int64_t w, int64_t h) {
   //  g_debug("jpeg ops read_region: x: %" PRId64 ", y: %" PRId64 ", layer: %d, w: %" PRId64 ", h: %" PRId64 "",
   //	  x, y, layer, w, h);
 
-  struct jpegops_data *data = wsd->data;
+  struct jpegops_data *data = osr->data;
 
   // get the layer
   struct layer *l = data->layers + layer;
@@ -493,8 +493,8 @@ static void read_region(wholeslide_t *wsd, uint32_t *dest,
 }
 
 
-static void destroy(wholeslide_t *wsd) {
-  struct jpegops_data *data = wsd->data;
+static void destroy(openslide_t *osr) {
+  struct jpegops_data *data = osr->data;
 
   // each jpeg in turn
   for (int32_t i = 0; i < data->jpeg_count; i++) {
@@ -506,7 +506,7 @@ static void destroy(wholeslide_t *wsd) {
   }
 
   // each layer in turn
-  for (int32_t i = 0; i < wsd->layer_count; i++) {
+  for (int32_t i = 0; i < osr->layer_count; i++) {
     struct layer *l = data->layers + i;
 
     //    g_debug("g_free(%p)", (void *) l->layer_jpegs);
@@ -523,12 +523,12 @@ static void destroy(wholeslide_t *wsd) {
   g_slice_free(struct jpegops_data, data);
 }
 
-static void get_dimensions(wholeslide_t *wsd, int32_t layer,
+static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *w, int64_t *h) {
-  struct jpegops_data *data = wsd->data;
+  struct jpegops_data *data = osr->data;
 
   // check bounds
-  if (layer >= wsd->layer_count) {
+  if (layer >= osr->layer_count) {
     *w = 0;
     *h = 0;
     return;
@@ -541,12 +541,12 @@ static void get_dimensions(wholeslide_t *wsd, int32_t layer,
   //  g_debug("dimensions of layer %" PRId32 ": (%" PRId32 ",%" PRId32 ")", layer, *w, *h);
 }
 
-static const char* get_comment(wholeslide_t *wsd) {
-  struct jpegops_data *data = wsd->data;
+static const char* get_comment(openslide_t *osr) {
+  struct jpegops_data *data = osr->data;
   return data->all_jpegs[0].comment;
 }
 
-static struct _wholeslide_ops jpeg_ops = {
+static struct _openslide_ops jpeg_ops = {
   .read_region = read_region,
   .destroy = destroy,
   .get_dimensions = get_dimensions,
@@ -564,7 +564,7 @@ static void compute_optimization(FILE *f,
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
   rewind(f);
-  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
+  _openslide_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
 
   jpeg_read_header(&cinfo, TRUE);
   jpeg_start_decompress(&cinfo);
@@ -574,7 +574,7 @@ static void compute_optimization(FILE *f,
   *mcu_starts = g_new0(int64_t, *mcu_starts_count);
 
   // the first entry
-  (*mcu_starts)[0] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+  (*mcu_starts)[0] = _openslide_jpeg_fancy_src_get_filepos(&cinfo);
 
   // now find the rest of the MCUs
   bool last_was_ff = false;
@@ -593,7 +593,7 @@ static void compute_optimization(FILE *f,
 	break;
       } else if (b >= 0xD0 && b < 0xD8) {
 	// marker
-	(*mcu_starts)[1 + marker++] = _ws_jpeg_fancy_src_get_filepos(&cinfo);
+	(*mcu_starts)[1 + marker++] = _openslide_jpeg_fancy_src_get_filepos(&cinfo);
       }
     }
     last_was_ff = b == 0xFF;
@@ -610,7 +610,7 @@ static void compute_optimization(FILE *f,
 }
 
 static void init_one_jpeg(struct one_jpeg *onej,
-			  struct _ws_jpeg_fragment *fragment) {
+			  struct _openslide_jpeg_fragment *fragment) {
   FILE *f = onej->f = fragment->f;
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
@@ -623,7 +623,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
-  _ws_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
+  _openslide_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
 
   // extract comment
   jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
@@ -673,32 +673,32 @@ static void get_keys(gpointer key, gpointer value,
   *((GList **) user_data) = keys;
 }
 
-void _ws_add_jpeg_ops(wholeslide_t *wsd,
-		      int32_t count,
-		      struct _ws_jpeg_fragment **fragments) {
+void _openslide_add_jpeg_ops(openslide_t *osr,
+			     int32_t count,
+			     struct _openslide_jpeg_fragment **fragments) {
   //  g_debug("count: %d", count);
   //  for (int32_t i = 0; i < count; i++) {
-    //    struct _ws_jpeg_fragment *frag = fragments[i];
+    //    struct _openslide_jpeg_fragment *frag = fragments[i];
     //    g_debug("%d: file: %p, x: %d, y: %d, z: %d",
     //	    i, (void *) frag->f, frag->x, frag->y, frag->z);
   //  }
 
-  if (wsd == NULL) {
+  if (osr == NULL) {
     // free now and return
     for (int32_t i = 0; i < count; i++) {
       fclose(fragments[i]->f);
-      g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
+      g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
     }
     g_free(fragments);
     return;
   }
 
-  g_assert(wsd->data == NULL);
+  g_assert(osr->data == NULL);
 
 
   // allocate private data
   struct jpegops_data *data = g_slice_new0(struct jpegops_data);
-  wsd->data = data;
+  osr->data = data;
 
   // load all jpegs (assume all are useful)
   data->jpeg_count = count;
@@ -717,7 +717,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 
   // delete all the fragments
   for (int32_t i = 0; i < count; i++) {
-    g_slice_free(struct _ws_jpeg_fragment, fragments[i]);
+    g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
   }
   g_free(fragments);
 
@@ -730,7 +730,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
 
 
   // populate the layer_count
-  wsd->layer_count = g_hash_table_size(width_to_layer_map);
+  osr->layer_count = g_hash_table_size(width_to_layer_map);
 
   // load into data array
   data->layers = g_new(struct layer, g_hash_table_size(width_to_layer_map));
@@ -763,7 +763,7 @@ void _ws_add_jpeg_ops(wholeslide_t *wsd,
   g_hash_table_unref(width_to_layer_map);
 
   // set ops
-  wsd->ops = &jpeg_ops;
+  osr->ops = &jpeg_ops;
 }
 
 
@@ -943,17 +943,17 @@ static void term_source (j_decompress_ptr cinfo) {
   /* no work necessary here */
 }
 
-int64_t _ws_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo) {
+int64_t _openslide_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo) {
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
 
   return ftello(src->infile) - src->pub.bytes_in_buffer;
 }
 
-void _ws_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
-			 int64_t *start_positions,
-			 int64_t start_positions_count,
-			 int64_t topleft,
-			 int32_t width, int32_t stride) {
+void _openslide_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
+				int64_t *start_positions,
+				int64_t start_positions_count,
+				int64_t topleft,
+				int32_t width, int32_t stride) {
   struct my_src_mgr *src;
 
   if (cinfo->src == NULL) {     /* first time for this JPEG object? */
