@@ -32,6 +32,8 @@
 #include <sys/time.h>
 #include <inttypes.h>
 
+#include <glib.h>
+
 static void test_next_biggest(openslide_t *osr, double downsample) {
   int32_t layer = openslide_get_best_layer_for_downsample(osr, downsample);
   printf("layer for downsample %g: %d (%g)\n",
@@ -108,6 +110,48 @@ static void test_image_fetch(openslide_t *osr,
   }
 }
 
+static void test_horizontal_walk(openslide_t *osr,
+				 int64_t start_x,
+				 int64_t y,
+				 int32_t layer,
+				 int64_t patch_w, int64_t patch_h,
+				 int stride) {
+  int64_t w, h;
+  openslide_get_layer_dimensions(osr, layer, &w, &h);
+  int64_t d = MIN(w,h);
+
+  uint32_t *buf = malloc(patch_w * patch_h * 4);
+
+  for (int64_t x = start_x; x < d; x += stride) {
+    openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
+    printf("%d\r", x);
+    fflush(stdout);
+  }
+
+  free(buf);
+}
+
+static void test_vertical_walk(openslide_t *osr,
+			       int64_t x,
+			       int64_t start_y,
+			       int32_t layer,
+			       int64_t patch_w, int64_t patch_h,
+			       int stride) {
+  int64_t w, h;
+  openslide_get_layer_dimensions(osr, layer, &w, &h);
+  int64_t d = MIN(w,h);
+
+  uint32_t *buf = malloc(patch_w * patch_h * 4);
+
+  for (int64_t y = start_y; y < d; y += stride) {
+    openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
+    printf("%d\r", y);
+    fflush(stdout);
+  }
+
+  free(buf);
+}
+
 static void dump_as_tiles(openslide_t *osr, const char *name,
 			  int64_t tile_w, int64_t tile_h) {
   int64_t w, h;
@@ -138,6 +182,9 @@ int main(int argc, char **argv) {
     printf("give file!\n");
     return 1;
   }
+
+  struct timeval start_tv;
+  struct timeval end_tv;
 
   printf("openslide_can_open returns %s\n", openslide_can_open(argv[1]) ? "true" : "false");
   openslide_t *osr = openslide_open(argv[1]);
@@ -172,6 +219,30 @@ int main(int argc, char **argv) {
   int prefetch_hint = openslide_give_prefetch_hint(osr, 0, 0, 0, 5, 5);
   openslide_cancel_prefetch_hint(osr, prefetch_hint);
 
+
+  int64_t elapsed;
+
+  // simulate horizonal scrolling?
+  gettimeofday(&start_tv, NULL);
+  printf("test_horizontal_walk start\n");
+  test_horizontal_walk(osr, 0, 0, 0, 10, 400, 10);
+  gettimeofday(&end_tv, NULL);
+  elapsed = (end_tv.tv_sec * 1000 + end_tv.tv_usec / 1000) -
+    (start_tv.tv_sec * 1000 + start_tv.tv_usec / 1000);
+
+  printf("test_horizontal_walk end: %d\n", elapsed);
+
+
+  // simulate vertical scrolling?
+  gettimeofday(&start_tv, NULL);
+  printf("test_vertical_walk start\n");
+  test_vertical_walk(osr, 0, 0, 0, 400, 10, 10);
+  gettimeofday(&end_tv, NULL);
+  elapsed = (end_tv.tv_sec * 1000 + end_tv.tv_usec / 1000) -
+    (start_tv.tv_sec * 1000 + start_tv.tv_usec / 1000);
+
+  printf("test_vertical_walk end: %d\n", elapsed);
+
   //  dump_as_tiles(osr, "file1", 512, 512);
 
   //  return 0;
@@ -182,13 +253,13 @@ int main(int argc, char **argv) {
   //test_tile_walk(osr, 4096);
   //test_tile_walk(osr, 256);
 
-  test_image_fetch(osr, "test0", 61000, 61000, 1024, 1024, skip);
-  test_image_fetch(osr, "test1", w/2, h/2, 1024, 1024, skip);
-  test_image_fetch(osr, "test2", w - 500, h - 300, 900, 800, skip);
-  test_image_fetch(osr, "test3", w*2, h*2, 900, 800, skip);
-  test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
-  test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
-  test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
+  //test_image_fetch(osr, "test0", 61000, 61000, 1024, 1024, skip);
+  //test_image_fetch(osr, "test1", w/2, h/2, 1024, 1024, skip);
+  //  test_image_fetch(osr, "test2", w - 500, h - 300, 900, 800, skip);
+  //  test_image_fetch(osr, "test3", w*2, h*2, 900, 800, skip);
+  //  test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
+  //  test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
+  //  test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
 
   openslide_close(osr);
 
