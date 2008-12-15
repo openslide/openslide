@@ -43,6 +43,7 @@
 #include <sys/types.h>   // for off_t ?
 
 #include "openslide-private.h"
+#include "openslide-cache.h"
 
 struct one_jpeg {
   FILE *f;
@@ -84,6 +85,9 @@ struct jpegops_data {
 
   // layer_count is in the osr struct
   struct layer *layers;
+
+  // cache
+  struct _openslide_cache *cache;
 };
 
 
@@ -519,6 +523,9 @@ static void destroy(openslide_t *osr) {
   // the layer array
   g_free(data->layers);
 
+  // the cache
+  _openslide_cache_destroy(data->cache);
+
   // the structure
   g_slice_free(struct jpegops_data, data);
 }
@@ -758,6 +765,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     tmp_list = g_list_delete_link(tmp_list, tmp_list);
     i++;
   }
+
+  // init cache
+  data->cache = _openslide_cache_create(1024*1024*16);
 
   // unref the hash table
   g_hash_table_unref(width_to_layer_map);
