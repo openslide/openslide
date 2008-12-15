@@ -130,11 +130,11 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
 }
 
 void _openslide_cache_destroy(struct _openslide_cache *cache) {
-  // clear list
-  g_queue_free(cache->list);
-
   // clear hashtable (auto-deletes all data)
   g_hash_table_unref(cache->hashtable);
+
+  // clear list
+  g_queue_free(cache->list);
 
   // destroy struct
   g_slice_free(struct _openslide_cache, cache);
