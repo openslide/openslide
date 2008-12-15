@@ -344,7 +344,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   }
 
   // create cache
-  data->cache = _openslide_cache_create(1024*1024*16);
+  data->cache = _openslide_cache_create(1024*1024*32);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);
