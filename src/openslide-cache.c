@@ -181,7 +181,10 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   value->link = g_queue_peek_head_link(cache->list);
 
   // insert into hash table
-  g_hash_table_insert(cache->hashtable, key, value);
+  g_hash_table_replace(cache->hashtable, key, value);
+
+  // increase size
+  cache->total_size += size_in_bytes;
 
   // possibly evict once more, this will auto-delete anything too big for
   // the entire cache
