@@ -28,6 +28,7 @@
 #include <tiffio.h>
 
 #include "openslide-private.h"
+#include "openslide-cache.h"
 
 struct _openslide_tiffopsdata {
   TIFF *tiff;
@@ -35,6 +36,8 @@ struct _openslide_tiffopsdata {
   int32_t overlap_count;
   int32_t *overlaps;
   int32_t *layers;
+
+  struct _openslide_cache *cache;
 
   struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff);
   void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
@@ -132,13 +135,14 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   // select layer
   TIFFSetDirectory(tiff, data->layers[layer]);
 
-  // allocate space for 1 tile
+  // determine space for 1 tile
   int64_t tw, th;
   TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
   tw = tmp;
   TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
   th = tmp;
-  uint32_t *tile = g_slice_alloc(tw * th * sizeof(uint32_t));
+
+  int tile_size = tw * th * sizeof(uint32_t);
 
   // figure out range of tiles
   int64_t start_x, start_y, end_x, end_y;
@@ -188,9 +192,26 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
       //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
       //      g_debug(" offset: %d,%d", off_x, off_y);
-      data->tilereader_read(tilereader, tile, round_x, round_y);
+      uint32_t *cache_tile = _openslide_cache_get(data->cache, round_x, round_y, layer);
+      uint32_t *new_tile = NULL;
+      uint32_t *tile;
+      if (cache_tile != NULL) {
+	// use cached tile
+	tile = cache_tile;
+      } else {
+	// make new tile
+	new_tile = g_slice_alloc(tile_size);
+	data->tilereader_read(tilereader, new_tile, round_x, round_y);
+	tile = new_tile;
+
+	num_tiles_decoded++;
+      }
       copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
-      num_tiles_decoded++;
+
+      if (new_tile != NULL) {
+	// if not cached already, store into the cache
+	_openslide_cache_put(data->cache, round_x, round_y, layer, new_tile, tile_size);
+      }
 
       src_x += tw;
       dst_x += tw - ovr_x;
@@ -203,7 +224,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   //g_debug("tiles decoded: %d", num_tiles_decoded);
 
   data->tilereader_destroy(tilereader);
-  g_slice_free1(tw * th * sizeof(uint32_t), tile);
 }
 
 
@@ -215,6 +235,7 @@ static void destroy_data(struct _openslide_tiffopsdata *data) {
 
 static void destroy(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
+  _openslide_cache_destroy(data->cache);
   destroy_data(data);
   g_slice_free(struct _openslide_tiffopsdata, data);
 }
@@ -326,6 +347,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     destroy_data(data);
     return;
   }
+
+  // create cache
+  data->cache = _openslide_cache_create(1024*1024*16);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);
