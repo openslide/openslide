@@ -72,11 +72,11 @@ static void add_in_overlaps(openslide_t *osr,
 }
 
 
-static void copy_rgba_tile(const uint32_t *tile,
-			   uint32_t *dest,
-			   int64_t src_w, int64_t src_h,
-			   int64_t dest_origin_x, int64_t dest_origin_y,
-			   int64_t dest_w, int64_t dest_h) {
+static void copy_tile(const uint32_t *tile,
+		      uint32_t *dest,
+		      int64_t src_w, int64_t src_h,
+		      int64_t dest_origin_x, int64_t dest_origin_y,
+		      int64_t dest_w, int64_t dest_h) {
   int64_t src_origin_y;
   if (dest_origin_y < 0) {  // off the top
     src_origin_y = -dest_origin_y;
@@ -108,10 +108,7 @@ static void copy_rgba_tile(const uint32_t *tile,
 	  int64_t i = src_y * src_w + src_x;
 
 	  //      g_debug("%d %d -> %d %d", src_x, src_y, dest_x, dest_y);
-	  uint32_t tile_val = tile[i];
-	  dest[dest_i] = (tile_val & 0xFF00FF00)
-	    | ((tile_val << 16) & 0xFF0000)
-	    | ((tile_val >> 16) & 0xFF);
+	  dest[dest_i] = tile[i];
 	}
       }
     }
@@ -194,19 +191,17 @@ static void read_region(openslide_t *osr, uint32_t *dest,
       //      g_debug(" offset: %d,%d", off_x, off_y);
       uint32_t *cache_tile = _openslide_cache_get(data->cache, round_x, round_y, layer);
       uint32_t *new_tile = NULL;
-      uint32_t *tile;
       if (cache_tile != NULL) {
 	// use cached tile
-	tile = cache_tile;
+	copy_tile(cache_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
       } else {
 	// make new tile
 	new_tile = g_slice_alloc(tile_size);
 	data->tilereader_read(tilereader, new_tile, round_x, round_y);
-	tile = new_tile;
-
 	num_tiles_decoded++;
+
+	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
       }
-      copy_rgba_tile(tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
 
       if (new_tile != NULL) {
 	// if not cached already, store into the cache
@@ -386,6 +381,14 @@ void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *
   wtt->img.col_offset = x;
   wtt->img.row_offset = y;
   TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height);
+
+  // permute
+  for (int i = 0; i < (wtt->tile_width * wtt->tile_height); i++) {
+    uint32_t *p = dest + i;
+    *p = (*p & 0xFF00FF00)
+      | ((*p << 16) & 0xFF0000)
+      | ((*p >> 16) & 0xFF);
+  }
 }
 
 void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereader *wtt) {
