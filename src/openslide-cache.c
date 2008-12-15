@@ -60,7 +60,7 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
     struct _openslide_cache_value *value = g_queue_peek_tail(cache->list);
     struct _openslide_cache_key *key = value->key;
 
-    g_debug("EVICT: size: %d", value->size);
+    //    g_debug("EVICT: size: %d", value->size);
 
     size -= value->size;
 
@@ -209,6 +209,8 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   GList *link = value->link;
   g_queue_unlink(cache->list, link);
   g_queue_push_head_link(cache->list, link);
+
+  //  g_debug("cache hit! %d %d %d", x, y, layer);
 
   // return data
   return value->data;
