@@ -188,8 +188,8 @@ static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilere
   // copy
   for (int i = 0; i < wtt->tile_height * wtt->tile_width; i++) {
     uint8_t Y = comps[0].data[i];
-    uint8_t Cr = comps[1].data[i/2];
-    uint8_t Cb = comps[2].data[i/2];
+    uint8_t Cb = comps[1].data[i/2];
+    uint8_t Cr = comps[2].data[i/2];
 
     uint8_t A = 255;
     double R = Y + 1.402 * (Cr - 128);
@@ -215,8 +215,7 @@ static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilere
       B = 0;
     }
 
-    dest[i] = A << 24 |
-      ((uint8_t) R) << 16 | ((uint8_t) G << 8) | ((uint8_t) B);
+    dest[i] = A << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
   }
 
   // erase
