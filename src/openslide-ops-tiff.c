@@ -364,13 +364,17 @@ struct _openslide_tiff_tilereader {
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff) {
   struct _openslide_tiff_tilereader *wtt =
     g_slice_new(struct _openslide_tiff_tilereader);
+  uint32_t tmp;
 
   char emsg[1024] = "";
   TIFFRGBAImageBegin(&wtt->img, tiff, 0, emsg);
   wtt->img.req_orientation = ORIENTATION_TOPLEFT;
 
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &wtt->tile_width);
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &wtt->tile_height);
+
+  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
+  wtt->tile_width = tmp;
+  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
+  wtt->tile_height = tmp;
 
   return wtt;
 }
