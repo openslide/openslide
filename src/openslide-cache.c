@@ -101,7 +101,7 @@ static void hash_destroy_value(gpointer data) {
   g_queue_delete_link(value->cache->list, value->link);
 
   // free the data
-  g_free(value->data);
+  g_slice_free1(value->size, value->data);
 
   // decrement the total size
   value->cache->total_size -= value->size;
