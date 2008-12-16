@@ -51,21 +51,24 @@ static void copy_tile(const uint32_t *tile,
 
   //  g_debug("");
 
-  for (int64_t src_y = src_origin_y; src_y < src_h; src_y++) {
-    int64_t dest_y = dest_origin_y + src_y;
-    //    g_debug("src_y: %d, dest_y: %d", src_y, dest_y);
-    if (dest_y < dest_h) {
-      for (int64_t src_x = src_origin_x; src_x < src_w; src_x++) {
-	int64_t dest_x = dest_origin_x + src_x;
-	if (dest_x < dest_w) {
-	  int64_t dest_i = dest_y * dest_w + dest_x;
-	  int64_t i = src_y * src_w + src_x;
+  int64_t src_y = src_origin_y;
+  int64_t dest_y = dest_origin_y + src_y;
 
-	  //      g_debug("%d %d -> %d %d", src_x, src_y, dest_x, dest_y);
-	  dest[dest_i] = tile[i];
-	}
-      }
+  while ((src_y < src_h) && (dest_y < dest_h)) {
+    int64_t src_x = src_origin_x;
+    int64_t dest_x = dest_origin_x + src_x;
+
+    while((src_x < src_w) && (dest_x < dest_w)) {
+      int64_t dest_i = dest_y * dest_w + dest_x;
+      int64_t i = src_y * src_w + src_x;
+      dest[dest_i] = tile[i];
+
+      src_x++;
+      dest_x++;
     }
+
+    src_y++;
+    dest_y++;
   }
 }
 
