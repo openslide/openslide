@@ -116,6 +116,65 @@ static void copy_tile(const uint32_t *tile,
 }
 
 
+static void read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t end_y,
+		       int32_t ovr_x, int32_t ovr_y,
+		       int64_t dest_w, int64_t dest_h,
+		       int32_t layer,
+		       int64_t tw, int64_t th,
+		       void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
+					       uint32_t *dest, int64_t x, int64_t y),
+		       struct _openslide_tiff_tilereader *tilereader,
+		       uint32_t *dest,
+		       struct _openslide_cache *cache) {
+  int tile_size = tw * th * 4;
+
+  int num_tiles_decoded = 0;
+
+  int64_t src_y = start_y;
+  int64_t dst_y = 0;
+
+  while (src_y < ((end_y / th) + 1) * th) {
+    int64_t src_x = start_x;
+    int64_t dst_x = 0;
+
+    while (src_x < ((end_x / tw) + 1) * tw) {
+      int round_x = (src_x / tw) * tw;
+      int round_y = (src_y / th) * th;
+      int off_x = src_x - round_x;
+      int off_y = src_y - round_y;
+
+      //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
+      //      g_debug(" offset: %d,%d", off_x, off_y);
+      uint32_t *cache_tile = _openslide_cache_get(cache, round_x, round_y, layer);
+      uint32_t *new_tile = NULL;
+      if (cache_tile != NULL) {
+	// use cached tile
+	copy_tile(cache_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+      } else {
+	// make new tile
+	new_tile = g_slice_alloc(tile_size);
+	tilereader_read(tilereader, new_tile, round_x, round_y);
+	num_tiles_decoded++;
+
+	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+      }
+
+      if (new_tile != NULL) {
+	// if not cached already, store into the cache
+	_openslide_cache_put(cache, round_x, round_y, layer, new_tile, tile_size);
+      }
+
+      src_x += tw;
+      dst_x += tw - ovr_x;
+    }
+
+    src_y += th;
+    dst_y += th - ovr_y;
+  }
+
+  //g_debug("tiles decoded: %d", num_tiles_decoded);
+}
+
 static void read_region(openslide_t *osr, uint32_t *dest,
 			int64_t x, int64_t y,
 			int32_t layer,
@@ -138,8 +197,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   tw = tmp;
   TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
   th = tmp;
-
-  int tile_size = tw * th * sizeof(uint32_t);
 
   // figure out range of tiles
   int64_t start_x, start_y, end_x, end_y;
@@ -170,53 +227,11 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   int32_t ovr_x, ovr_y;
   get_overlaps(osr, layer, &ovr_x, &ovr_y);
 
-  int64_t src_y = start_y;
-  int64_t dst_y = 0;
-
-  int num_tiles_decoded = 0;
-
   struct _openslide_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
-  while (src_y < ((end_y / th) + 1) * th) {
-    int64_t src_x = start_x;
-    int64_t dst_x = 0;
-
-    while (src_x < ((end_x / tw) + 1) * tw) {
-      int round_x = (src_x / tw) * tw;
-      int round_y = (src_y / th) * th;
-      int off_x = src_x - round_x;
-      int off_y = src_y - round_y;
-
-      //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
-      //      g_debug(" offset: %d,%d", off_x, off_y);
-      uint32_t *cache_tile = _openslide_cache_get(data->cache, round_x, round_y, layer);
-      uint32_t *new_tile = NULL;
-      if (cache_tile != NULL) {
-	// use cached tile
-	copy_tile(cache_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
-      } else {
-	// make new tile
-	new_tile = g_slice_alloc(tile_size);
-	data->tilereader_read(tilereader, new_tile, round_x, round_y);
-	num_tiles_decoded++;
-
-	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, w, h);
-      }
-
-      if (new_tile != NULL) {
-	// if not cached already, store into the cache
-	_openslide_cache_put(data->cache, round_x, round_y, layer, new_tile, tile_size);
-      }
-
-      src_x += tw;
-      dst_x += tw - ovr_x;
-    }
-
-    src_y += th;
-    dst_y += th - ovr_y;
-  }
-
-  //g_debug("tiles decoded: %d", num_tiles_decoded);
+  read_tiles(start_x, start_y, end_x, end_y, ovr_x, ovr_y,
+	     w, h, layer, tw, th, data->tilereader_read, tilereader,
+	     dest, data->cache);
 
   data->tilereader_destroy(tilereader);
 }
