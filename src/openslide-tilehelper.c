@@ -25,6 +25,7 @@
 #include "openslide-tilehelper.h"
 
 #include <glib.h>
+#include <string.h>
 
 static void copy_tile(const uint32_t *tile,
 		      uint32_t *dest,
@@ -55,17 +56,11 @@ static void copy_tile(const uint32_t *tile,
   int64_t dest_y = dest_origin_y + src_y;
 
   while ((src_y < src_h) && (dest_y < dest_h)) {
-    int64_t src_x = src_origin_x;
-    int64_t dest_x = dest_origin_x + src_x;
+    int64_t dest_x = dest_origin_x + src_origin_x;
 
-    while((src_x < src_w) && (dest_x < dest_w)) {
-      int64_t dest_i = dest_y * dest_w + dest_x;
-      int64_t i = src_y * src_w + src_x;
-      dest[dest_i] = tile[i];
-
-      src_x++;
-      dest_x++;
-    }
+    memcpy(dest + (dest_y * dest_w + dest_x),
+	   tile + (src_y * src_w + src_origin_x),
+	   4 * MIN(src_w - src_origin_x, dest_w - dest_x));
 
     src_y++;
     dest_y++;
