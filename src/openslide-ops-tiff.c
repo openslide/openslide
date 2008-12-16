@@ -121,9 +121,9 @@ static void read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t 
 		       int64_t dest_w, int64_t dest_h,
 		       int32_t layer,
 		       int64_t tw, int64_t th,
-		       void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
+		       void (*tilereader_read)(void *tilereader_data,
 					       uint32_t *dest, int64_t x, int64_t y),
-		       struct _openslide_tiff_tilereader *tilereader,
+		       void *tilereader_data,
 		       uint32_t *dest,
 		       struct _openslide_cache *cache) {
   int tile_size = tw * th * 4;
@@ -153,7 +153,7 @@ static void read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t 
       } else {
 	// make new tile
 	new_tile = g_slice_alloc(tile_size);
-	tilereader_read(tilereader, new_tile, round_x, round_y);
+	tilereader_read(tilereader_data, new_tile, round_x, round_y);
 	num_tiles_decoded++;
 
 	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
@@ -173,6 +173,18 @@ static void read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t 
   }
 
   //g_debug("tiles decoded: %d", num_tiles_decoded);
+}
+
+struct tilereader {
+  struct _openslide_tiff_tilereader *tilereader;
+  void (*tilereader_read)(struct _openslide_tiff_tilereader *tilereader,
+			  uint32_t *dest, int64_t x, int64_t y);
+};
+
+static void tilereader_read(void *tilereader_data,
+			    uint32_t *dest, int64_t x, int64_t y) {
+  struct tilereader *tilereader = tilereader_data;
+  tilereader->tilereader_read(tilereader->tilereader, dest, x, y);
 }
 
 static void read_region(openslide_t *osr, uint32_t *dest,
@@ -229,8 +241,11 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
   struct _openslide_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
+  struct tilereader tilereader_data = { .tilereader = tilereader,
+					.tilereader_read = data->tilereader_read };
+
   read_tiles(start_x, start_y, end_x, end_y, ovr_x, ovr_y,
-	     w, h, layer, tw, th, data->tilereader_read, tilereader,
+	     w, h, layer, tw, th, tilereader_read, &tilereader_data,
 	     dest, data->cache);
 
   data->tilereader_destroy(tilereader);
