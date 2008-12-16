@@ -340,7 +340,6 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   cinfo.image_height = height_in_tiles * jpeg->tile_height;
 
   jpeg_start_decompress(&cinfo);
-  g_assert(cinfo.output_components == 3); // XXX remove this assertion
 
   //  g_debug("output_width: %d", cinfo.output_width);
   //  g_debug("output_height: %d", cinfo.output_height);
