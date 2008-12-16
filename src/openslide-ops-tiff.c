@@ -315,11 +315,13 @@ void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *
   TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height);
 
   // permute
-  for (int i = 0; i < (wtt->tile_width * wtt->tile_height); i++) {
-    uint32_t *p = dest + i;
-    *p = (*p & 0xFF00FF00)
-      | ((*p << 16) & 0xFF0000)
-      | ((*p >> 16) & 0xFF);
+  uint32_t *p = dest;
+  uint32_t *end = dest + wtt->tile_width * wtt->tile_height;
+  while (p < end) {
+    uint32_t val = *p;
+    *p++ = (val & 0xFF00FF00)
+      | ((val << 16) & 0xFF0000)
+      | ((val >> 16) & 0xFF);
   }
 }
 
