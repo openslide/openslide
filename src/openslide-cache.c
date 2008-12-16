@@ -58,6 +58,9 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
   while(size > target) {
     // get key of last element
     struct _openslide_cache_value *value = g_queue_peek_tail(cache->list);
+    if (value == NULL) {
+      return; // cache is empty
+    }
     struct _openslide_cache_key *key = value->key;
 
     //    g_debug("EVICT: size: %d", value->size);
