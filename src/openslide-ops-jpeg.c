@@ -129,9 +129,9 @@ static void term_source (j_decompress_ptr cinfo) {
   g_slice_free1(src->buffer_size, src->buffer);
 }
 
-static void _openslide_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
-				       int64_t header_stop_position,
-				       int64_t start_position, int64_t stop_position) {
+static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
+				    int64_t header_stop_position,
+				    int64_t start_position, int64_t stop_position) {
   struct my_src_mgr *src;
 
   if (cinfo->src == NULL) {     /* first time for this JPEG object? */
@@ -394,10 +394,10 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   } else {
     stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
-  _openslide_jpeg_fancy_src(&cinfo, jpeg->f,
-			    jpeg->mcu_starts[0],
-			    jpeg->mcu_starts[mcu_start],
-			    stop_position);
+  jpeg_random_access_src(&cinfo, jpeg->f,
+			 jpeg->mcu_starts[0],
+			 jpeg->mcu_starts[mcu_start],
+			 stop_position);
   // begin decompress
   jpeg_read_header(&cinfo, FALSE);
   cinfo.scale_denom = scale_denom;
