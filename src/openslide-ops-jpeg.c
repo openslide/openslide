@@ -570,7 +570,7 @@ static void compute_optimization(FILE *f,
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
   rewind(f);
-  _openslide_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
+  jpeg_stdio_src(&cinfo, f);
 
   jpeg_read_header(&cinfo, TRUE);
   jpeg_start_decompress(&cinfo);
@@ -580,7 +580,7 @@ static void compute_optimization(FILE *f,
   *mcu_starts = g_new0(int64_t, *mcu_starts_count);
 
   // the first entry
-  (*mcu_starts)[0] = _openslide_jpeg_fancy_src_get_filepos(&cinfo);
+  (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
 
   // now find the rest of the MCUs
   bool last_was_ff = false;
@@ -599,7 +599,7 @@ static void compute_optimization(FILE *f,
 	break;
       } else if (b >= 0xD0 && b < 0xD8) {
 	// marker
-	(*mcu_starts)[1 + marker++] = _openslide_jpeg_fancy_src_get_filepos(&cinfo);
+	(*mcu_starts)[1 + marker++] = ftello(f) - cinfo.src->bytes_in_buffer;
       }
     }
     last_was_ff = b == 0xFF;
@@ -607,7 +607,7 @@ static void compute_optimization(FILE *f,
 
   /*
   for (int64_t i = 0; i < *mcu_starts_count; i++) {
-    g_debug(" %lld", (*mcu_starts)[i]);
+    g_debug(" %" PRId64, (*mcu_starts)[i]);
   }
   */
 
@@ -629,7 +629,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
-  _openslide_jpeg_fancy_src(&cinfo, f, NULL, 0, 0, 0, 0);
+  jpeg_stdio_src(&cinfo, f);
 
   // extract comment
   jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
