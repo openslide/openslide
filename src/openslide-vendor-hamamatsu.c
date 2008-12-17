@@ -42,13 +42,16 @@ static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 
 #define INPUT_BUF_SIZE  4096
 
-// returns w and h as a convenience
-static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h) {
+// returns w and h and tw and th as a convenience
+static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
+			int32_t *tw, int32_t *th) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
   *w = 0;
   *h = 0;
+  *tw = 0;
+  *th = 0;
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
@@ -74,6 +77,9 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h) {
 
   *w = cinfo.output_width;
   *h = cinfo.output_height;
+
+  *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
+  *th = *h / cinfo.MCU_rows_in_scan;
 
   //  g_debug("w: %d, h: %d, restart_interval: %d\n"
   //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
@@ -240,6 +246,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   int32_t img00_h = 0;
   int32_t w;
   int32_t h;
+  int32_t tw;
+  int32_t th;
+  int32_t layer1_tw;
+  int32_t layer1_th;
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_fragment *jp = jpegs[i];
 
@@ -247,9 +257,22 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
-    if (!verify_jpeg(jp->f, &w, &h)) {
+    if (!verify_jpeg(jp->f, &w, &h, &tw, &th)) {
       g_warning("Can't verify JPEG %d", i);
       goto FAIL;
+    }
+
+    // because map file is last, ensure that all tw and th are the
+    // same for 0 through num_jpegs-2
+    g_debug("tile size: %d %d", tw, th);
+    if (i == 0) {
+      layer1_tw = tw;
+      layer1_th = th;
+    } else if (i < num_jpegs - 1) {
+      if (layer1_tw != tw || layer1_th != th) {
+	g_warning("Tile size not consistent");
+	goto FAIL;
+      }
     }
 
     // verify that all files except the right and bottom edges are
