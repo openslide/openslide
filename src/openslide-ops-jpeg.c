@@ -44,9 +44,11 @@
 
 #include "openslide-private.h"
 #include "openslide-cache.h"
+#include "openslide-tilehelper.h"
 
 struct one_jpeg {
   FILE *f;
+  int64_t file_size;
 
   int64_t mcu_starts_count;
   int64_t *mcu_starts;
@@ -90,6 +92,81 @@ struct jpegops_data {
   struct _openslide_cache *cache;
 };
 
+
+
+/*
+ * Source manager for doing fancy things with libjpeg and restart markers,
+ * initially copied from jdatasrc.c from IJG libjpeg.
+ */
+struct my_src_mgr {
+  struct jpeg_source_mgr pub;   /* public fields */
+
+  JOCTET *buffer;               /* start of buffer */
+  int buffer_size;
+};
+
+static void init_source (j_decompress_ptr cinfo) {
+  /* nothing to be done */
+}
+
+static boolean fill_input_buffer (j_decompress_ptr cinfo) {
+  /* everything is done already */
+  return TRUE;
+}
+
+
+static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
+  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
+
+  src->pub.next_input_byte += (size_t) num_bytes;
+  src->pub.bytes_in_buffer -= (size_t) num_bytes;
+}
+
+
+static void term_source (j_decompress_ptr cinfo) {
+  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
+  g_debug("term_source");
+  g_slice_free1(src->buffer_size, src->buffer);
+}
+
+static void _openslide_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
+				       int64_t header_stop_position,
+				       int64_t start_position, int64_t stop_position) {
+  struct my_src_mgr *src;
+
+  if (cinfo->src == NULL) {     /* first time for this JPEG object? */
+    cinfo->src = (struct jpeg_source_mgr *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+				  sizeof(struct my_src_mgr));
+  }
+
+  src = (struct my_src_mgr *) cinfo->src;
+  src->pub.init_source = init_source;
+  src->pub.fill_input_buffer = fill_input_buffer;
+  src->pub.skip_input_data = skip_input_data;
+  src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  src->pub.term_source = term_source;
+
+  // compute size of buffer and allocate
+  src->buffer_size = header_stop_position + stop_position - start_position;
+  src->pub.bytes_in_buffer = src->buffer_size;
+  src->buffer = g_slice_alloc(src->buffer_size);
+
+  src->pub.next_input_byte = src->buffer;
+
+  // read in the 2 parts
+  //  g_debug("reading from %" PRId64, start_position);
+  rewind(infile);
+  fread(src->buffer, header_stop_position, 1, infile);
+  fseeko(infile, start_position, SEEK_SET);
+  fread(src->buffer + header_stop_position,
+	stop_position - start_position, 1, infile);
+
+  // change the final byte to EOI
+  g_return_if_fail(src->buffer[header_stop_position] != 0xFF);
+  g_return_if_fail(src->buffer[src->buffer_size - 2] == 0xFF);
+  src->buffer[src->buffer_size - 1] = JPEG_EOI;
+}
 
 static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
 			     int64_t z, int64_t x, int64_t y) {
@@ -292,10 +369,8 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t *dest,
 				int32_t x, int32_t y,
-				int32_t scale_denom,
-				int32_t w, int32_t h,
-				int32_t stride) {
-  //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d, w: %d, h: %d", (void *) jpeg, (void *) dest, x, y, scale_denom, w, h);
+				int32_t scale_denom) {
+  //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d", (void *) jpeg, (void *) dest, x, y, scale_denom);
 
   // init JPEG
   struct jpeg_decompress_struct cinfo;
@@ -309,40 +384,30 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   int32_t tile_x = x / jpeg->tile_width;
 
   int32_t stride_in_tiles = jpeg->width / jpeg->tile_width;
-  int32_t img_height_in_tiles = jpeg->height / jpeg->tile_height;
 
-  imaxdiv_t divtmp;
-  divtmp = imaxdiv((w * scale_denom) + (x % jpeg->tile_width), jpeg->tile_width);
-  int32_t width_in_tiles = divtmp.quot + !!divtmp.rem;  // integer ceil
-  divtmp = imaxdiv((h * scale_denom) + (y % jpeg->tile_height), jpeg->tile_height);
-  int32_t height_in_tiles = divtmp.quot + !!divtmp.rem;
+  int64_t mcu_start = tile_y * stride_in_tiles + tile_x;
 
-  // clamp width and height
-  width_in_tiles = MIN(width_in_tiles, stride_in_tiles - tile_x);
-  height_in_tiles = MIN(height_in_tiles, img_height_in_tiles - tile_y);
-
-  //  g_debug("width_in_tiles: %d, stride_in_tiles: %d", width_in_tiles, stride_in_tiles);
-  //  g_debug("tile_x: %d, tile_y: %d\n", tile_x, tile_y);
-
-  rewind(jpeg->f);
+  int64_t stop_position;
+  if (jpeg->mcu_starts_count == mcu_start + 1) {
+    // EOF
+    stop_position = jpeg->file_size;
+  } else {
+    stop_position = jpeg->mcu_starts[mcu_start + 1];
+  }
   _openslide_jpeg_fancy_src(&cinfo, jpeg->f,
-			    jpeg->mcu_starts,
-			    jpeg->mcu_starts_count,
-			    tile_y * stride_in_tiles + tile_x,
-			    width_in_tiles,
-			    stride_in_tiles);
-
+			    jpeg->mcu_starts[0],
+			    jpeg->mcu_starts[mcu_start],
+			    stop_position);
   // begin decompress
-  int32_t rows_left = h;
   jpeg_read_header(&cinfo, FALSE);
   cinfo.scale_denom = scale_denom;
-  cinfo.image_width = width_in_tiles * jpeg->tile_width;  // cunning
-  cinfo.image_height = height_in_tiles * jpeg->tile_height;
+  cinfo.image_width = jpeg->tile_width;  // cunning
+  cinfo.image_height = jpeg->tile_height;
 
   jpeg_start_decompress(&cinfo);
 
-  //  g_debug("output_width: %d", cinfo.output_width);
-  //  g_debug("output_height: %d", cinfo.output_height);
+  //g_debug("output_width: %d", cinfo.output_width);
+  //g_debug("output_height: %d", cinfo.output_height);
 
   // allocate scanline buffers
   JSAMPARRAY buffer =
@@ -357,47 +422,27 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   }
 
   // decompress
-  int32_t d_x = (x % jpeg->tile_width) / scale_denom;
-  int32_t d_y = (y % jpeg->tile_height) / scale_denom;
-  int32_t rows_to_skip = d_y;
-
-  //  g_debug("d_x: %d, d_y: %d", d_x, d_y);
-
-  int64_t pixels_wasted = rows_to_skip * cinfo.output_width;
-
-  //  abort();
-
-  while (cinfo.output_scanline < cinfo.output_height
-	 && rows_left > 0) {
+  while (cinfo.output_scanline < cinfo.output_height) {
     JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
 					       buffer,
 					       cinfo.rec_outbuf_height);
-    //    g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
-    //    g_debug(" rows read: %d", rows_read);
+    //g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
+    //g_debug(" rows read: %d", rows_read);
     int cur_buffer = 0;
-    while (rows_read > 0 && rows_left > 0) {
+    while (rows_read > 0) {
       // copy a row
-      if (rows_to_skip == 0) {
-	int32_t i;
-	for (i = 0; i < w && i < ((int32_t) cinfo.output_width - d_x); i++) {
-	  dest[i] = 0xFF000000 |                          // A
-	    buffer[cur_buffer][(d_x + i) * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][(d_x + i) * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][(d_x + i) * 3 + 2];        // B
-	}
-	pixels_wasted += d_x + cinfo.output_width - i;
+      int32_t i;
+      for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+	dest[i] = 0xFF000000 |                          // A
+	  buffer[cur_buffer][i * 3 + 0] << 16 | // R
+	  buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+	  buffer[cur_buffer][i * 3 + 2];        // B
       }
 
       // advance everything 1 row
       rows_read--;
       cur_buffer++;
-
-      if (rows_to_skip > 0) {
-	rows_to_skip--;
-      } else {
-	rows_left--;
-	dest += stride;
-      }
+      dest += cinfo.output_width;
     }
   }
 
@@ -410,7 +455,31 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   g_slice_free1(sizeof(JSAMPROW) * cinfo.rec_outbuf_height, buffer);
 
   // last thing, stop jpeg
+  jpeg_finish_decompress(&cinfo);   // needed to free buffer in source manager
   jpeg_destroy_decompress(&cinfo);
+}
+
+static void tilereader_read(void *tilereader_data,
+			    uint32_t *dest, int64_t src_x, int64_t src_y) {
+  struct layer *l = tilereader_data;
+
+  src_y *= l->scale_denom;
+  int32_t file_y = src_y / l->image00_h;
+  int64_t origin_src_segment_y = file_y * (int64_t) l->image00_h;
+  int32_t start_in_src_segment_y = src_y - origin_src_segment_y;
+
+  src_x *= l->scale_denom;
+  int32_t file_x = src_x / l->image00_w;
+  int64_t origin_src_segment_x = file_x * (int64_t) l->image00_w;
+  int32_t start_in_src_segment_x = src_x - origin_src_segment_x;
+
+  int file_number = file_y * l->jpegs_across + file_x;
+  g_assert(file_number < l->jpegs_across * l->jpegs_down);
+  struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
+
+  read_from_one_jpeg(jpeg, dest,
+		     start_in_src_segment_x, start_in_src_segment_y,
+		     l->scale_denom);
 }
 
 static void read_region(openslide_t *osr, uint32_t *dest,
@@ -429,70 +498,30 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   //  g_debug("layer: %d, rel_downsample: %g, scale_denom: %d",
   //	  layer, rel_downsample, scale_denom);
 
+  // figure out tile dimensions
+  int64_t tw = l->layer_jpegs[0]->tile_width / scale_denom;
+  int64_t th = l->layer_jpegs[0]->tile_height / scale_denom;
 
-  // all things with scale_denom are accounted for in the JPEG library
-  // so, we don't adjust here for it, except in w,h
+  int64_t ds_x = x / rel_downsample / scale_denom;
+  int64_t ds_y = y / rel_downsample / scale_denom;
 
+  int64_t end_x = ds_x + w;
+  int64_t end_y = ds_y + h;
 
-  // go file by file
-
-  int64_t src_y = y / rel_downsample;  // scale into this jpeg's space
-  src_y = (src_y / scale_denom) * scale_denom; // round down to scaled pixel boundary
-  int64_t dest_y = 0;
-  int64_t end_src_y = MIN(src_y + h * scale_denom, l->pixel_h);  // set the end
-
-  while (src_y < end_src_y) {
-    int32_t file_y = src_y / l->image00_h;
-    int64_t origin_src_segment_y = file_y * (int64_t) l->image00_h;
-    int32_t end_in_src_segment_y = MIN((file_y + 1) * (int64_t) l->image00_h,
-				       end_src_y) - origin_src_segment_y;
-    int32_t start_in_src_segment_y = src_y - origin_src_segment_y;
-
-    int32_t dest_h = (end_in_src_segment_y - start_in_src_segment_y)
-      / scale_denom;
-
-    int64_t src_x = x / rel_downsample;
-    src_x = (src_x / scale_denom) * scale_denom;
-    int64_t dest_x = 0;
-    int64_t end_src_x = MIN(src_x + w * scale_denom, l->pixel_w);
-
-    //    g_debug("for (%" PRId64 ",%" PRId64 ") to (%" PRId64 ",%" PRId64 "):",
-    //    	    src_x, src_y, end_src_x, end_src_y);
-
-    while (src_x < end_src_x) {
-      int32_t file_x = src_x / l->image00_w;
-      int64_t origin_src_segment_x = file_x * l->image00_w;
-      int32_t end_in_src_segment_x = MIN((file_x + 1) * (int64_t) l->image00_w,
-					 end_src_x) - origin_src_segment_x;
-      int32_t start_in_src_segment_x = src_x - origin_src_segment_x;
-
-      int32_t dest_w = (end_in_src_segment_x - start_in_src_segment_x)
-	/ scale_denom;
-
-      //      g_debug(" copy image(%" PRId32 ",%" PRId32 "), "
-      //	      "from (%" PRId32 ",%" PRId32 ") to (%" PRId32 ",%" PRId32 ")",
-      //	      file_x, file_y,
-      //	      start_in_src_segment_x, start_in_src_segment_y,
-      //	      end_in_src_segment_x, end_in_src_segment_y);
-      //      g_debug(" -> (%" PRId64 ",%" PRId64 "), w: %" PRId32 ", h: %" PRId32,
-      //	      dest_x, dest_y, dest_w, dest_h);
-
-      struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
-      uint32_t *cur_dest = dest + (dest_y * w + dest_x);
-
-      //      g_debug(" jpeg w: %d, jpeg h: %d", jpeg->width, jpeg->height);
-
-      read_from_one_jpeg(jpeg, cur_dest,
-			 start_in_src_segment_x, start_in_src_segment_y,
-			 scale_denom, dest_w, dest_h, w);
-
-      // advance dest by amount already copied
-      dest_x += dest_w;
-      src_x = end_in_src_segment_x + origin_src_segment_x;
-    }
-    dest_y += dest_h;
-    src_y = end_in_src_segment_y + origin_src_segment_y;
+  // check bounds
+  int64_t pw = l->pixel_w / scale_denom;
+  int64_t ph = l->pixel_h / scale_denom;
+  if (end_x >= pw) {
+    end_x = pw - 1;
   }
+  if (end_y >= ph) {
+    end_y = ph - 1;
+  }
+
+  _openslide_read_tiles(ds_x, ds_y,
+			end_x, end_y, 0, 0, w, h, layer, tw, th,
+			tilereader_read, l,
+			dest, data->cache);
 }
 
 
@@ -620,6 +649,10 @@ static void init_one_jpeg(struct one_jpeg *onej,
   FILE *f = onej->f = fragment->f;
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
+
+  // file size
+  fseeko(f, 0, SEEK_END);
+  onej->file_size = ftello(f);
 
   // optimization
   compute_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
@@ -766,231 +799,11 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
 
   // init cache
-  data->cache = _openslide_cache_create(1024*1024*16);
+  data->cache = _openslide_cache_create(1024*1024*32);
 
   // unref the hash table
   g_hash_table_unref(width_to_layer_map);
 
   // set ops
   osr->ops = &jpeg_ops;
-}
-
-
-
-/*
- * Source manager for doing fancy things with libjpeg and restart markers,
- * initially copied from jdatasrc.c from IJG libjpeg.
- */
-struct my_src_mgr {
-  struct jpeg_source_mgr pub;   /* public fields */
-
-  FILE *infile;                 /* source stream */
-  JOCTET *buffer;               /* start of buffer */
-  bool start_of_file;
-  uint8_t next_restart_marker;
-
-  int64_t next_start_offset;
-  int64_t next_start_position;
-  int64_t stop_position;
-
-  int64_t header_length;
-  int64_t *start_positions;
-  int64_t start_positions_count;
-  int64_t topleft;
-  int32_t width;
-  int32_t stride;
-};
-
-#define INPUT_BUF_SIZE  4096    /* choose an efficiently fread'able size */
-
-static void compute_next_positions (struct my_src_mgr *src) {
-  if (src->start_positions_count == 0) {
-    // no positions given, do the whole file
-    src->next_start_position = 0;
-    src->stop_position = INT64_MAX;
-
-    //    g_debug("next start offset: %lld", src->next_start_offset);
-    //    g_debug("(count==0) next start: %lld, stop: %lld", src->next_start_position, src->stop_position);
-
-    return;
-  }
-
-  // do special case for header
-  if (src->start_of_file) {
-    src->next_start_offset = src->topleft - src->stride;  // next time, start at topleft
-    src->stop_position = src->start_positions[0];         // stop at data start
-    g_assert(src->next_start_offset < (int64_t) src->start_positions_count);
-    src->next_start_position = 0;
-
-    //    g_debug("next start offset: %lld", src->next_start_offset);
-    //    g_debug("(start_of_file) next start: %lld, stop: %lld", src->next_start_position, src->stop_position);
-
-    return;
-  }
-
-  // advance
-  src->next_start_offset += src->stride;
-
-  // compute next jump point
-  g_assert(src->next_start_offset >= 0
-	   && src->next_start_offset < (int64_t) src->start_positions_count);
-  src->next_start_position = src->start_positions[src->next_start_offset];
-
-  // compute stop point, or end of file
-  int64_t stop_offset = src->next_start_offset + src->width;
-  if (stop_offset < src->start_positions_count) {
-    src->stop_position = src->start_positions[stop_offset];
-  } else {
-    src->stop_position = INT64_MAX;
-  }
-
-  //  g_debug("next start offset: %lld", src->next_start_offset);
-  //  g_debug("next start: %lld, stop: %lld", src->next_start_position, src->stop_position);
-}
-
-static void init_source (j_decompress_ptr cinfo) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-  src->start_of_file = true;
-  src->next_restart_marker = 0;
-  compute_next_positions(src);
-}
-
-static boolean fill_input_buffer (j_decompress_ptr cinfo) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-  size_t nbytes;
-
-  off_t pos = ftello(src->infile);
-
-  boolean rewrite_markers = true;
-  if (src->start_positions_count == 0 || pos < src->start_positions[0]) {
-    rewrite_markers = false; // we are in the header, or we don't know where it is
-  }
-
-  g_assert(pos <= src->stop_position);
-
-  size_t bytes_to_read = INPUT_BUF_SIZE;
-  if (pos < src->stop_position) {
-    // don't read past
-    bytes_to_read = MIN((int64_t) (src->stop_position - pos), bytes_to_read);
-  } else if (pos == src->stop_position) {
-    // skip to the jump point
-    compute_next_positions(src);
-    //    g_debug("at %lld, jump to %lld, will stop again at %lld", pos, src->next_start_position, src->stop_position);
-
-    fseeko(src->infile, src->next_start_position, SEEK_SET);
-
-    // figure out new stop position
-    bytes_to_read = MIN((int64_t) (src->stop_position - src->next_start_position),
-			bytes_to_read);
-  }
-
-  //  g_debug(" bytes_to_read: %d", bytes_to_read);
-
-  nbytes = fread(src->buffer, 1, bytes_to_read, src->infile);
-
-  if (nbytes <= 0) {
-    if (src->start_of_file) {
-      ERREXIT(cinfo, JERR_INPUT_EMPTY);
-    }
-    WARNMS(cinfo, JWRN_JPEG_EOF);
-
-    /* Insert a fake EOI marker */
-    src->buffer[0] = (JOCTET) 0xFF;
-    src->buffer[1] = (JOCTET) JPEG_EOI;
-    nbytes = 2;
-  } else if (rewrite_markers) {
-    // rewrite the restart markers if we know for sure we are not in the header
-    bool last_was_ff = false;
-
-    for (size_t i = 0; i < nbytes; i++) {
-      uint8_t b = src->buffer[i];
-      if (last_was_ff && b >= 0xD0 && b < 0xD8) {
-	src->buffer[i] = 0xD0 | src->next_restart_marker;
-	//	g_debug("rewrite %x -> %x", b, src->buffer[i]);
-	src->next_restart_marker = (src->next_restart_marker + 1) % 8;
-      }
-      last_was_ff = b == 0xFF;
-    }
-
-    // don't end on ff, unless it is the very last byte
-    if (last_was_ff && nbytes > 1) {
-      nbytes--;
-      fseek(src->infile, -1, SEEK_CUR);
-    }
-  }
-
-  src->pub.next_input_byte = src->buffer;
-  src->pub.bytes_in_buffer = nbytes;
-  src->start_of_file = false;
-
-  return TRUE;
-}
-
-
-static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-
-  /* Just a dumb implementation for now.  Could use fseek() except
-   * it doesn't work on pipes.  Not clear that being smart is worth
-   * any trouble anyway --- large skips are infrequent.
-   */
-  if (num_bytes > 0) {
-    while (num_bytes > (long) src->pub.bytes_in_buffer) {
-      num_bytes -= (long) src->pub.bytes_in_buffer;
-      (void) fill_input_buffer(cinfo);
-      /* note we assume that fill_input_buffer will never return FALSE,
-       * so suspension need not be handled.
-       */
-    }
-    src->pub.next_input_byte += (size_t) num_bytes;
-    src->pub.bytes_in_buffer -= (size_t) num_bytes;
-  }
-}
-
-
-static void term_source (j_decompress_ptr cinfo) {
-  /* no work necessary here */
-}
-
-int64_t _openslide_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-
-  return ftello(src->infile) - src->pub.bytes_in_buffer;
-}
-
-void _openslide_jpeg_fancy_src (j_decompress_ptr cinfo, FILE *infile,
-				int64_t *start_positions,
-				int64_t start_positions_count,
-				int64_t topleft,
-				int32_t width, int32_t stride) {
-  struct my_src_mgr *src;
-
-  if (cinfo->src == NULL) {     /* first time for this JPEG object? */
-    cinfo->src = (struct jpeg_source_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(struct my_src_mgr));
-    src = (struct my_src_mgr *) cinfo->src;
-    src->buffer = (JOCTET *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  INPUT_BUF_SIZE * sizeof(JOCTET));
-    //    g_debug("init fancy src with %p", src);
-  }
-
-  //  g_debug("fancy: start_positions_count: %llu, topleft: %llu, width: %d, stride: %d",
-  //	 start_positions_count, topleft, width, stride);
-
-  src = (struct my_src_mgr *) cinfo->src;
-  src->pub.init_source = init_source;
-  src->pub.fill_input_buffer = fill_input_buffer;
-  src->pub.skip_input_data = skip_input_data;
-  src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
-  src->pub.term_source = term_source;
-  src->infile = infile;
-  src->start_positions = start_positions;
-  src->start_positions_count = start_positions_count;
-  src->topleft = topleft;
-  src->width = width;
-  src->stride = stride;
-  src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
-  src->pub.next_input_byte = NULL; /* until buffer loaded */
 }

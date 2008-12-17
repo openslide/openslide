@@ -114,14 +114,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
 			     struct _openslide_jpeg_fragment **fragments);
 
-void _openslide_jpeg_fancy_src(j_decompress_ptr cinfo, FILE *infile,
-			       int64_t *start_positions,
-			       int64_t start_positions_count,
-			       int64_t topleft,
-			       int32_t width, int32_t stride);
-int64_t _openslide_jpeg_fancy_src_get_filepos(j_decompress_ptr cinfo);
-
-
 /* JPEG-2000 support */
 void _openslide_add_jp2k_ops(openslide_t *osr,
 			     FILE *f,
