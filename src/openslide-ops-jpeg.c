@@ -124,9 +124,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
 
 
 static void term_source (j_decompress_ptr cinfo) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-  g_debug("term_source");
-  g_slice_free1(src->buffer_size, src->buffer);
+  /* nothing to do */
 }
 
 static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
@@ -455,7 +453,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   g_slice_free1(sizeof(JSAMPROW) * cinfo.rec_outbuf_height, buffer);
 
   // last thing, stop jpeg
-  jpeg_finish_decompress(&cinfo);   // needed to free buffer in source manager
+  struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
+  g_slice_free1(src->buffer_size, src->buffer);
   jpeg_destroy_decompress(&cinfo);
 }
 
