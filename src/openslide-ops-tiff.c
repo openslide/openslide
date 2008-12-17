@@ -64,12 +64,22 @@ static void get_overlaps(openslide_t *osr, int32_t layer,
 static void add_in_overlaps(openslide_t *osr,
 			    int32_t layer,
 			    int64_t tw, int64_t th,
+			    int64_t total_tiles_across,
+			    int64_t total_tiles_down,
 			    int64_t x, int64_t y,
 			    int64_t *out_x, int64_t *out_y) {
   int32_t ox, oy;
   get_overlaps(osr, layer, &ox, &oy);
-  *out_x = x + (x / (tw - ox)) * ox;
-  *out_y = y + (y / (th - oy)) * oy;
+
+  // the last tile doesn't have an overlap to skip
+  int64_t max_skip_x = (total_tiles_across - 1) * ox;
+  int64_t max_skip_y = (total_tiles_down - 1) * oy;
+
+  int64_t skip_x = (x / (tw - ox)) * ox;
+  int64_t skip_y = (y / (th - oy)) * oy;
+
+  *out_x = x + MIN(max_skip_x, skip_x);
+  *out_y = y + MIN(max_skip_y, skip_y);
 }
 
 
@@ -108,21 +118,27 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
   th = tmp;
 
-  // figure out range of tiles
-  int64_t start_x, start_y, end_x, end_y;
-
-  // add in overlaps
-  add_in_overlaps(osr, layer, tw, th, ds_x, ds_y, &start_x, &start_y);
-  add_in_overlaps(osr, layer, tw, th, ds_x + w, ds_y + h,
-		  &end_x, &end_y);
-
-  // check bounds
   int64_t raw_w, raw_h;
   TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
   raw_w = tmp;
   TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp);
   raw_h = tmp;
 
+  // figure out range of tiles
+  int64_t start_x, start_y, end_x, end_y;
+
+  // add in overlaps
+  int64_t total_tiles_across = raw_w / tw;
+  int64_t total_tiles_down = raw_h / th;
+  add_in_overlaps(osr, layer, tw, th,
+		  total_tiles_across, total_tiles_down,
+		  ds_x, ds_y, &start_x, &start_y);
+  add_in_overlaps(osr, layer, tw, th,
+		  total_tiles_across, total_tiles_down,
+		  ds_x + w, ds_y + h,
+		  &end_x, &end_y);
+
+  // check bounds
   if (end_x >= raw_w) {
     end_x = raw_w - 1;
   }
