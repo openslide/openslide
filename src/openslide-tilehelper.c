@@ -78,6 +78,10 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int6
 			   void *tilereader_data,
 			   uint32_t *dest,
 			   struct _openslide_cache *cache) {
+  //  g_debug("read_tiles: %d %d %d %d %d %d %d %d %d %d %d",
+  //	  start_x, start_y, end_x, end_y, ovr_x, ovr_y,
+  //	  dest_w, dest_h, layer, tw, th);
+
   int tile_size = tw * th * 4;
 
   int num_tiles_decoded = 0;
@@ -107,6 +111,16 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int6
 	new_tile = g_slice_alloc(tile_size);
 	tilereader_read(tilereader_data, new_tile, round_x, round_y);
 	num_tiles_decoded++;
+
+	/*
+	for (int yy = 0; yy < th; yy++) {
+	  for (int xx = 0; xx < tw; xx++) {
+	    if (xx == 0 || yy == 0 || xx == (tw - 1) || yy == (th - 1)) {
+	      new_tile[yy * tw + xx] = 0xFF0000FF; // blue bounding box
+	    }
+	  }
+	}
+	*/
 
 	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
       }
