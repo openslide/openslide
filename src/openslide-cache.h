@@ -27,6 +27,7 @@
 
 #include <openslide.h>
 
+#define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
 
 struct _openslide_cache;
 

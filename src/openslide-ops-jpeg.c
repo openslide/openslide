@@ -799,7 +799,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
 
   // init cache
-  data->cache = _openslide_cache_create(1024*1024*32);
+  data->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
 
   // unref the hash table
   g_hash_table_unref(width_to_layer_map);
