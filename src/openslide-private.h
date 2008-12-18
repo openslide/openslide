@@ -107,6 +107,10 @@ struct _openslide_jpeg_fragment {
 
   // this value starts from 0 at the largest layer
   int32_t z;
+
+  // if known, put mcu starts here, set unknowns to -1
+  int64_t *mcu_starts;
+  int32_t mcu_starts_count;
 };
 
 // note: fragments MUST be sorted by z, then x, then y

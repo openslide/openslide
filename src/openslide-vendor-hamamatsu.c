@@ -39,6 +39,7 @@ static const char KEY_IMAGE_FILE[] = "ImageFile";
 static const char KEY_NUM_LAYERS[] = "NoLayers";
 static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
+static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 
 #define INPUT_BUF_SIZE  4096
 
@@ -98,12 +99,41 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   return true;
 }
 
+static int64_t *extract_one_optimisation(FILE *opt_f,
+					 FILE *jpeg_f,
+					 int32_t num_tiles_down,
+					 int32_t mcu_starts_count) {
+  int64_t *mcu_starts = g_new(int64_t, mcu_starts_count);
+  for (int32_t i = 0; i < mcu_starts_count; i++) {
+    mcu_starts[i] = -1; // UNKNOWN value
+  }
+
+  // optimisation file is in a weird format, it is 32- (or 64- ?) bit
+  // little endian values, giving the file offset into an MCU row,
+  // each offset starts at a 40-byte alignment, and the last row (of the
+  // entire file, not each image) seems to be missing
+
+  // also, for all the images, they are all packed into 1 file
+
+  // we will read the file and verify at least that the markers
+  // are valid, if anything is fishy, we will not use it
+
+  // missing data is represented by -1, which we initialize to,
+  // so if we run out of opt file, we can just stop
+
+  
+
+  return mcu_starts;
+}
+
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
   struct _openslide_jpeg_fragment **jpegs = NULL;
   int num_jpegs = 0;
+
+  char *optimisation_filename = NULL;
 
   char **all_keys = NULL;
 
@@ -169,6 +199,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     g_free(tmp);
   }
 
+
+  // extract OptimisationFile
+  tmp = g_key_file_get_string(vms_file,
+			      GROUP_VMS,
+			      KEY_OPTIMISATION_FILE,
+			      NULL);
+  if (tmp) {
+    optimisation_filename = tmp;
+  }
 
   // now each ImageFile
   all_keys = g_key_file_get_keys(vms_file, GROUP_VMS, NULL, NULL);
@@ -242,6 +281,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   }
 
   // open jpegs
+  FILE *optimisation_file = NULL;
+  if (optimisation_filename != NULL) {
+    optimisation_file = fopen(optimisation_filename, "rb");
+  }
+
+  if (optimisation_file == NULL) {
+    g_warning("Can't use optimisation file");
+  }
+
   int32_t img00_w = 0;
   int32_t img00_h = 0;
   int32_t w;
@@ -294,6 +342,18 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 	}
       }
     }
+
+    // leverage the optimisation file, if present
+    int32_t num_tiles_down = h / th;
+    int32_t mcu_starts_count = (w / tw) * (h / th); // number of tiles
+    int64_t *mcu_starts = extract_one_optimisation(optimisation_file,
+						   jp->f,
+						   num_tiles_down,
+						   mcu_starts_count);
+    if (mcu_starts) {
+      jp->mcu_starts_count = mcu_starts_count;
+      jp->mcu_starts = mcu_starts;
+    }
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
@@ -320,6 +380,14 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   }
 
   g_free(dirname);
+
+  if (optimisation_filename) {
+    g_free(optimisation_filename);
+  }
+
+  if (optimisation_file) {
+    fclose(optimisation_file);
+  }
 
   if (image_filenames) {
     for (int i = 0; i < num_jpegs; i++) {
