@@ -365,6 +365,8 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
 
 static void init_optimization(FILE *f,
+			      int32_t sparse_mcu_starts_count,
+			      int64_t *sparse_mcu_starts,
 			      int32_t *mcu_starts_count,
 			      int64_t **mcu_starts) {
   struct jpeg_decompress_struct cinfo;
@@ -382,13 +384,28 @@ static void init_optimization(FILE *f,
   *mcu_starts_count = MCUs / cinfo.restart_interval;
   *mcu_starts = g_new(int64_t, *mcu_starts_count);
 
+  g_assert((sparse_mcu_starts_count == 0)
+	   || (sparse_mcu_starts_count == *mcu_starts_count));
+
   // init all to -1
   for (int32_t i = 0; i < *mcu_starts_count; i++) {
     (*mcu_starts)[i] = -1;
   }
 
-  // but set the first entry
+  // set the first entry
   (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
+
+  // maybe copy in the starts
+  if (sparse_mcu_starts != NULL) {
+    if (sparse_mcu_starts[0] == (*mcu_starts)[0]) {
+      memcpy(*mcu_starts, sparse_mcu_starts,
+	     *mcu_starts_count * sizeof(int64_t));
+    } else {
+      g_warning("mcu_starts[0] not consistent with external data: "
+		"%" PRId64 " != %" PRId64,
+		(*mcu_starts)[0], sparse_mcu_starts[0]);
+    }
+  }
 
   jpeg_destroy_decompress(&cinfo);
 }
@@ -668,7 +685,11 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->file_size = ftello(f);
 
   // optimization
-  init_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
+  init_optimization(fragment->f,
+		    fragment->mcu_starts_count,
+		    fragment->mcu_starts,
+		    &onej->mcu_starts_count, &onej->mcu_starts);
+  g_free(fragment->mcu_starts);
 
   // init jpeg
   rewind(f);
@@ -739,6 +760,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     // free now and return
     for (int32_t i = 0; i < count; i++) {
       fclose(fragments[i]->f);
+      g_free(fragments[i]->mcu_starts);
       g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
     }
     g_free(fragments);
