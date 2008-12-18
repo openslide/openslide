@@ -129,15 +129,25 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
       uint8_t buf[40];
       int64_t i64;
     } u;
+
     if (fread(u.buf, 40, 1, opt_f) != 1) {
       // EOF or error, we've done all we can
+
+      if (row == 0) {
+	// if we don't even get the first one, deallocate
+	goto FAIL;
+      }
+
       break;
     }
+
+    // get the offset
     int64_t offset = GINT64_FROM_LE(u.i64);
 
     //g_debug("offset: %" PRId64, offset);
 
-    // verify restart markers (only found after first row)
+    // verify restart markers (only found after first row),
+    // we will validate row 0 in init_optimization
     if (row != 0) {
       fseeko(jpeg_f, offset - 2, SEEK_SET);
       int c = getc(jpeg_f);
@@ -160,7 +170,6 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
   return mcu_starts;
 
  FAIL:
-  g_warning("Optimisation file is broken");
   g_free(mcu_starts);
   return NULL;
 }
