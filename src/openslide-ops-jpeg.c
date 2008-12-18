@@ -364,18 +364,76 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 }
 
 
+static void init_optimization(FILE *f,
+			      int64_t *mcu_starts_count,
+			      int64_t **mcu_starts) {
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  // generate the optimization list, by finding restart markers
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+  rewind(f);
+  jpeg_stdio_src(&cinfo, f);
+  jpeg_read_header(&cinfo, TRUE);
+  jpeg_start_decompress(&cinfo);
+
+  int64_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
+  *mcu_starts_count = MCUs / cinfo.restart_interval;
+  *mcu_starts = g_new(int64_t, *mcu_starts_count);
+
+  // init all to -1
+  for (int64_t i = 0; i < *mcu_starts_count; i++) {
+    (*mcu_starts)[i] = -1;
+  }
+
+  // but set the first entry
+  (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
+
+  jpeg_destroy_decompress(&cinfo);
+}
+
+static void compute_mcu_start(FILE *f,
+			      int64_t *mcu_starts,
+			      int64_t target) {
+  if (mcu_starts[target] != -1) {
+    // already done
+    return;
+  }
+
+  // walk backwards, to find the first non -1 offset
+  int64_t first_good = target - 1;
+  while (mcu_starts[first_good] == -1) {
+    first_good--;
+  }
+  //  g_debug("target: %d, first_good: %d", target, first_good);
+
+  // now search for the new restart markers
+  fseeko(f, mcu_starts[first_good], SEEK_SET);
+  bool last_was_ff = false;
+  while (first_good < target) {
+    uint8_t b = getc(f);
+
+    if (last_was_ff) {
+      // EOI?
+      if (b == JPEG_EOI) {
+	// we're done
+	break;
+      } else if (b >= 0xD0 && b < 0xD8) {
+	// marker
+	mcu_starts[1 + first_good++] = ftello(f);
+      }
+    }
+    last_was_ff = b == 0xFF;
+  }
+}
+
+
 static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t *dest,
 				int32_t x, int32_t y,
 				int32_t scale_denom) {
   //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d", (void *) jpeg, (void *) dest, x, y, scale_denom);
-
-  // init JPEG
-  struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
-
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
 
   // figure out where to start the data stream
   int32_t tile_y = y / jpeg->tile_height;
@@ -386,17 +444,28 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   int64_t mcu_start = tile_y * stride_in_tiles + tile_x;
 
   int64_t stop_position;
+
+  compute_mcu_start(jpeg->f, jpeg->mcu_starts, mcu_start);
   if (jpeg->mcu_starts_count == mcu_start + 1) {
     // EOF
     stop_position = jpeg->file_size;
   } else {
+    compute_mcu_start(jpeg->f, jpeg->mcu_starts, mcu_start + 1);
     stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
+
+  // begin decompress
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_decompress(&cinfo);
+
   jpeg_random_access_src(&cinfo, jpeg->f,
 			 jpeg->mcu_starts[0],
 			 jpeg->mcu_starts[mcu_start],
 			 stop_position);
-  // begin decompress
+
   jpeg_read_header(&cinfo, FALSE);
   cinfo.scale_denom = scale_denom;
   cinfo.image_width = jpeg->tile_width;  // cunning
@@ -588,61 +657,6 @@ static struct _openslide_ops jpeg_ops = {
 };
 
 
-static void compute_optimization(FILE *f,
-				 int64_t *mcu_starts_count,
-				 int64_t **mcu_starts) {
-  struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
-
-  // generate the optimization list, by finding restart markers
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
-  rewind(f);
-  jpeg_stdio_src(&cinfo, f);
-
-  jpeg_read_header(&cinfo, TRUE);
-  jpeg_start_decompress(&cinfo);
-
-  int64_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
-  *mcu_starts_count = MCUs / cinfo.restart_interval;
-  *mcu_starts = g_new0(int64_t, *mcu_starts_count);
-
-  // the first entry
-  (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
-
-  // now find the rest of the MCUs
-  bool last_was_ff = false;
-  int64_t marker = 0;
-  while (marker < *mcu_starts_count) {
-    if (cinfo.src->bytes_in_buffer == 0) {
-      (cinfo.src->fill_input_buffer)(&cinfo);
-    }
-    uint8_t b = *(cinfo.src->next_input_byte++);
-    cinfo.src->bytes_in_buffer--;
-
-    if (last_was_ff) {
-      // EOI?
-      if (b == JPEG_EOI) {
-	// we're done
-	break;
-      } else if (b >= 0xD0 && b < 0xD8) {
-	// marker
-	(*mcu_starts)[1 + marker++] = ftello(f) - cinfo.src->bytes_in_buffer;
-      }
-    }
-    last_was_ff = b == 0xFF;
-  }
-
-  /*
-  for (int64_t i = 0; i < *mcu_starts_count; i++) {
-    g_debug(" %" PRId64, (*mcu_starts)[i]);
-  }
-  */
-
-  // success, now clean up
-  jpeg_destroy_decompress(&cinfo);
-}
-
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_fragment *fragment) {
   FILE *f = onej->f = fragment->f;
@@ -654,7 +668,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->file_size = ftello(f);
 
   // optimization
-  compute_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
+  init_optimization(fragment->f, &onej->mcu_starts_count, &onej->mcu_starts);
 
   // init jpeg
   rewind(f);
