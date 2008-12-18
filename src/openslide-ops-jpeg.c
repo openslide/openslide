@@ -50,7 +50,7 @@ struct one_jpeg {
   FILE *f;
   int64_t file_size;
 
-  int64_t mcu_starts_count;
+  int32_t mcu_starts_count;
   int64_t *mcu_starts;
 
   int32_t tile_width;
@@ -365,7 +365,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
 
 static void init_optimization(FILE *f,
-			      int64_t *mcu_starts_count,
+			      int32_t *mcu_starts_count,
 			      int64_t **mcu_starts) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
@@ -378,12 +378,12 @@ static void init_optimization(FILE *f,
   jpeg_read_header(&cinfo, TRUE);
   jpeg_start_decompress(&cinfo);
 
-  int64_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
+  int32_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
   *mcu_starts_count = MCUs / cinfo.restart_interval;
   *mcu_starts = g_new(int64_t, *mcu_starts_count);
 
   // init all to -1
-  for (int64_t i = 0; i < *mcu_starts_count; i++) {
+  for (int32_t i = 0; i < *mcu_starts_count; i++) {
     (*mcu_starts)[i] = -1;
   }
 
