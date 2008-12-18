@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <jpeglib.h>
 
@@ -102,28 +103,66 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 static int64_t *extract_one_optimisation(FILE *opt_f,
 					 FILE *jpeg_f,
 					 int32_t num_tiles_down,
+					 int32_t num_tiles_across,
 					 int32_t mcu_starts_count) {
   int64_t *mcu_starts = g_new(int64_t, mcu_starts_count);
   for (int32_t i = 0; i < mcu_starts_count; i++) {
     mcu_starts[i] = -1; // UNKNOWN value
   }
 
-  // optimisation file is in a weird format, it is 32- (or 64- ?) bit
+  // optimisation file is in a weird format, it is 32- (or 64- or 320- ?) bit
   // little endian values, giving the file offset into an MCU row,
   // each offset starts at a 40-byte alignment, and the last row (of the
   // entire file, not each image) seems to be missing
 
-  // also, for all the images, they are all packed into 1 file
+  // also, the offsets are all packed into 1 file, even with multiple images
 
   // we will read the file and verify at least that the markers
   // are valid, if anything is fishy, we will not use it
 
-  // missing data is represented by -1, which we initialize to,
+  // we represent missing data by -1, which we initialize to,
   // so if we run out of opt file, we can just stop
 
-  
+  for (int32_t row = 0; row < num_tiles_down; row++) {
+    // read 40 bytes
+    union {
+      uint8_t buf[40];
+      int64_t i64;
+    } u;
+    if (fread(u.buf, 40, 1, opt_f) != 1) {
+      // EOF or error, we've done all we can
+      break;
+    }
+    int64_t offset = GINT64_FROM_LE(u.i64);
+
+    //g_debug("offset: %" PRId64, offset);
+
+    // verify restart markers (only found after first row)
+    if (row != 0) {
+      fseeko(jpeg_f, offset - 2, SEEK_SET);
+      int c = getc(jpeg_f);
+      if (c != 0xFF) {
+	g_warning("Expected: 0xFF, got: 0x%x", c);
+	goto FAIL;
+      }
+
+      int marker = getc(jpeg_f);
+      if (marker < 0xD0 || marker > 0xD7) {
+	g_warning("Restart marker not found in expected place");
+	goto FAIL;
+      }
+    }
+
+    // record this marker
+    mcu_starts[row * num_tiles_across] = offset;
+  }
 
   return mcu_starts;
+
+ FAIL:
+  g_warning("Optimisation file is broken");
+  g_free(mcu_starts);
+  return NULL;
 }
 
 
@@ -206,7 +245,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 			      KEY_OPTIMISATION_FILE,
 			      NULL);
   if (tmp) {
-    optimisation_filename = tmp;
+    optimisation_filename = g_build_filename(dirname, tmp, NULL);
+    g_free(tmp);
   }
 
   // now each ImageFile
@@ -345,14 +385,23 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 
     // leverage the optimisation file, if present
     int32_t num_tiles_down = h / th;
+    int32_t num_tiles_across = w / tw;
     int32_t mcu_starts_count = (w / tw) * (h / th); // number of tiles
-    int64_t *mcu_starts = extract_one_optimisation(optimisation_file,
-						   jp->f,
-						   num_tiles_down,
-						   mcu_starts_count);
+    int64_t *mcu_starts = NULL;
+    if (optimisation_file) {
+      mcu_starts = extract_one_optimisation(optimisation_file,
+					    jp->f,
+					    num_tiles_down,
+					    num_tiles_across,
+					    mcu_starts_count);
+    }
     if (mcu_starts) {
       jp->mcu_starts_count = mcu_starts_count;
       jp->mcu_starts = mcu_starts;
+    } else if (optimisation_file != NULL) {
+      // the optimisation file is useless, close it
+      fclose(optimisation_file);
+      optimisation_file = NULL;
     }
   }
 
