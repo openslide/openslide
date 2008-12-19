@@ -848,6 +848,31 @@ static void get_keys(gpointer key, gpointer value,
   *((GList **) user_data) = keys;
 }
 
+static void verify_mcu_starts(struct jpegops_data *data) {
+  g_debug("verifying mcu starts");
+
+  int32_t current_jpeg = 0;
+  int32_t current_mcu_start = 1;
+
+  while(current_jpeg < data->jpeg_count) {
+    struct one_jpeg *oj = data->all_jpegs + current_jpeg;
+
+    int64_t offset = oj->mcu_starts[current_mcu_start];
+    g_assert(offset != -1);
+    fseeko(oj->f, offset - 2, SEEK_SET);
+    g_assert(getc(oj->f) == 0xFF);
+    int marker = getc(oj->f);
+    g_assert(marker >= 0xD0 && marker <= 0xD7);
+
+    current_mcu_start++;
+    if (current_mcu_start >= oj->mcu_starts_count) {
+      current_mcu_start = 1;
+      current_jpeg++;
+      g_debug("done verifying jpeg %d", current_jpeg);
+    }
+  }
+}
+
 static gpointer restart_marker_thread_func(gpointer d) {
   struct jpegops_data *data = d;
 
@@ -880,7 +905,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     g_mutex_unlock(data->restart_marker_mutex);
   }
 
-  g_debug("restart_marker_thread_func done!");
+  //g_debug("restart_marker_thread_func done!");
   return NULL;
 }
 
@@ -983,6 +1008,12 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 						data,
 						TRUE,
 						NULL);
+
+  // for debugging
+  /*
+  g_thread_join(data->restart_marker_thread);
+  verify_mcu_starts(data);
+  */
 
   // set ops
   osr->ops = &jpeg_ops;
