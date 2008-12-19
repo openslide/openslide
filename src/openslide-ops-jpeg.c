@@ -93,6 +93,7 @@ struct jpegops_data {
   struct _openslide_cache *cache;
 
   // thread stuff, for background search of restart markers
+  GTimer *restart_marker_timer;
   GMutex *restart_marker_mutex;
   GThread *restart_marker_thread;
   boolean restart_marker_thread_should_terminate;
@@ -696,6 +697,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 			end_x, end_y, 0, 0, w, h, layer, tw, th,
 			tilereader_read, l,
 			dest, data->cache);
+  g_timer_start(data->restart_marker_timer);
   g_mutex_unlock(data->restart_marker_mutex);
 }
 
@@ -738,6 +740,9 @@ static void destroy(openslide_t *osr) {
 
   // the mutex
   g_mutex_free(data->restart_marker_mutex);
+
+  // the timer
+  g_timer_destroy(data->restart_marker_timer);
 
   // the structure
   g_slice_free(struct jpegops_data, data);
@@ -888,6 +893,18 @@ static gpointer restart_marker_thread_func(gpointer d) {
       break;
     }
 
+    // should we sleep?
+    double time_to_sleep = 1.0 - g_timer_elapsed(data->restart_marker_timer,
+						 NULL);
+    if (time_to_sleep > 0) {
+      g_mutex_unlock(data->restart_marker_mutex);
+      gulong sleep_time = G_USEC_PER_SEC * time_to_sleep;
+      //g_debug("zz: %lu", sleep_time);
+      g_usleep(sleep_time);
+      //g_debug("awake again");
+      continue;
+    }
+
     //    g_debug("current_jpeg: %d, current_mcu_start: %d",
     //	    current_jpeg, current_mcu_start);
 
@@ -1003,6 +1020,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_hash_table_unref(width_to_layer_map);
 
   // init background thread for finding restart markers
+  data->restart_marker_timer = g_timer_new();
   data->restart_marker_mutex = g_mutex_new();
   data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
 						data,
