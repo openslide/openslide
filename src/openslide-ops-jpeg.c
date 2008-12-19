@@ -52,6 +52,7 @@ struct one_jpeg {
 
   int32_t mcu_starts_count;
   int64_t *mcu_starts;
+  int64_t *unreliable_mcu_starts;
 
   int32_t tile_width;
   int32_t tile_height;
@@ -365,14 +366,11 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
 
 static void init_optimization(FILE *f,
-			      int32_t sparse_mcu_starts_count,
-			      int64_t *sparse_mcu_starts,
 			      int32_t *mcu_starts_count,
 			      int64_t **mcu_starts) {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
-  // generate the optimization list, by finding restart markers
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
   rewind(f);
@@ -384,9 +382,6 @@ static void init_optimization(FILE *f,
   *mcu_starts_count = MCUs / cinfo.restart_interval;
   *mcu_starts = g_new(int64_t, *mcu_starts_count);
 
-  g_assert((sparse_mcu_starts_count == 0)
-	   || (sparse_mcu_starts_count == *mcu_starts_count));
-
   // init all to -1
   for (int32_t i = 0; i < *mcu_starts_count; i++) {
     (*mcu_starts)[i] = -1;
@@ -395,30 +390,41 @@ static void init_optimization(FILE *f,
   // set the first entry
   (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
 
-  // maybe copy in the starts
-  if (sparse_mcu_starts != NULL) {
-    if (sparse_mcu_starts[0] == (*mcu_starts)[0]) {
-      memcpy(*mcu_starts, sparse_mcu_starts,
-	     *mcu_starts_count * sizeof(int64_t));
-    } else {
-      g_warning("mcu_starts[0] not consistent with external data: "
-		"%" PRId64 " != %" PRId64,
-		(*mcu_starts)[0], sparse_mcu_starts[0]);
-    }
-  }
-
   jpeg_destroy_decompress(&cinfo);
 }
 
 static void compute_mcu_start(FILE *f,
 			      int64_t *mcu_starts,
+			      int64_t *unreliable_mcu_starts,
 			      int64_t target) {
   if (mcu_starts[target] != -1) {
     // already done
     return;
   }
 
-  // walk backwards, to find the first non -1 offset
+  g_assert(target != 0); // first item is always filled
+
+  // check the unreliable_mcu_starts store first,
+  // and use it if valid
+  int64_t offset = -1;
+  if (unreliable_mcu_starts != NULL) {
+    offset = unreliable_mcu_starts[target];
+  }
+
+  if (offset != -1) {
+    fseeko(f, offset - 2, SEEK_SET);
+    int c = getc(f);
+    int marker = getc(f);
+    if (c != 0xFF || marker < 0xD0 || marker > 0xD7) {
+      g_warning("Restart marker not found in expected place");
+    } else {
+      mcu_starts[target] = offset;
+      return;
+    }
+  }
+
+
+  // otherwise, walk backwards, to find the first non -1 offset
   int64_t first_good = target - 1;
   while (mcu_starts[first_good] == -1) {
     first_good--;
@@ -462,12 +468,16 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
   int64_t stop_position;
 
-  compute_mcu_start(jpeg->f, jpeg->mcu_starts, mcu_start);
+  compute_mcu_start(jpeg->f,
+		    jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
+		    mcu_start);
   if (jpeg->mcu_starts_count == mcu_start + 1) {
     // EOF
     stop_position = jpeg->file_size;
   } else {
-    compute_mcu_start(jpeg->f, jpeg->mcu_starts, mcu_start + 1);
+    compute_mcu_start(jpeg->f,
+		      jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
+		      mcu_start + 1);
     stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
 
@@ -619,6 +629,7 @@ static void destroy(openslide_t *osr) {
 
     fclose(jpeg->f);
     g_free(jpeg->mcu_starts);
+    g_free(jpeg->unreliable_mcu_starts);
     g_free(jpeg->comment);
   }
 
@@ -685,11 +696,13 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->file_size = ftello(f);
 
   // optimization
+  g_assert((fragment->mcu_starts_count == 0 && fragment->mcu_starts == NULL) ||
+	   (fragment->mcu_starts_count != 0 && fragment->mcu_starts != NULL));
   init_optimization(fragment->f,
-		    fragment->mcu_starts_count,
-		    fragment->mcu_starts,
 		    &onej->mcu_starts_count, &onej->mcu_starts);
-  g_free(fragment->mcu_starts);
+  g_assert((fragment->mcu_starts_count == 0)
+	   || (fragment->mcu_starts_count == onej->mcu_starts_count));
+  onej->unreliable_mcu_starts = fragment->mcu_starts;
 
   // init jpeg
   rewind(f);

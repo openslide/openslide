@@ -101,7 +101,6 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 }
 
 static int64_t *extract_one_optimisation(FILE *opt_f,
-					 FILE *jpeg_f,
 					 int32_t num_tiles_down,
 					 int32_t num_tiles_across,
 					 int32_t mcu_starts_count) {
@@ -143,25 +142,6 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
 
     // get the offset
     int64_t offset = GINT64_FROM_LE(u.i64);
-
-    //g_debug("offset: %" PRId64, offset);
-
-    // verify restart markers (only found after first row),
-    // we will validate row 0 in init_optimization
-    if (row != 0) {
-      fseeko(jpeg_f, offset - 2, SEEK_SET);
-      int c = getc(jpeg_f);
-      if (c != 0xFF) {
-	g_warning("Expected: 0xFF, got: 0x%x", c);
-	goto FAIL;
-      }
-
-      int marker = getc(jpeg_f);
-      if (marker < 0xD0 || marker > 0xD7) {
-	g_warning("Restart marker not found in expected place");
-	goto FAIL;
-      }
-    }
 
     // record this marker
     mcu_starts[row * num_tiles_across] = offset;
@@ -399,7 +379,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     int64_t *mcu_starts = NULL;
     if (optimisation_file) {
       mcu_starts = extract_one_optimisation(optimisation_file,
-					    jp->f,
 					    num_tiles_down,
 					    num_tiles_across,
 					    mcu_starts_count);
