@@ -162,6 +162,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   int num_jpegs = 0;
 
   char *optimisation_filename = NULL;
+  FILE *optimisation_file = NULL;
 
   char **all_keys = NULL;
 
@@ -310,7 +311,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   }
 
   // open jpegs
-  FILE *optimisation_file = NULL;
   if (optimisation_filename != NULL) {
     optimisation_file = fopen(optimisation_filename, "rb");
   }
