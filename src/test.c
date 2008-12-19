@@ -196,6 +196,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  openslide_close(osr);
+
+  osr = openslide_open(argv[1]);
+
   openslide_get_layer0_dimensions(osr, &w, &h);
   printf("dimensions: %" PRId64 " x %" PRId64 "\n", w, h);
   printf("comment: %s\n", openslide_get_comment(osr));

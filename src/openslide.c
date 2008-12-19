@@ -48,6 +48,9 @@ bool openslide_can_open(const char *filename) {
 
 
 openslide_t *openslide_open(const char *filename) {
+  // we are threading
+  if (!g_thread_supported ()) g_thread_init (NULL);
+
   // alloc memory
   openslide_t *osr = g_slice_new0(openslide_t);
 

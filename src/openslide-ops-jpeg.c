@@ -91,6 +91,11 @@ struct jpegops_data {
 
   // cache
   struct _openslide_cache *cache;
+
+  // thread stuff, for background search of restart markers
+  GMutex *restart_marker_mutex;
+  GThread *restart_marker_thread;
+  boolean restart_marker_thread_should_terminate;
 };
 
 
@@ -393,9 +398,71 @@ static void init_optimization(FILE *f,
   jpeg_destroy_decompress(&cinfo);
 }
 
+static uint8_t find_next_ff_marker(FILE *f,
+				   uint8_t *buf_start,
+				   uint8_t **buf,
+				   int buf_size,
+				   int64_t file_size,
+				   int64_t *after_marker_pos,
+				   int *bytes_in_buf) {
+  //g_debug("bytes_in_buf: %d", *bytes_in_buf);
+  int64_t file_pos = ftello(f);
+  boolean last_was_ff = false;
+  *after_marker_pos = -1;
+  while (true) {
+    if (*bytes_in_buf == 0) {
+      // fill buffer
+      *buf = buf_start;
+      int bytes_to_read = MIN(buf_size, file_size - file_pos);
+
+      //g_debug("bytes_to_read: %d", bytes_to_read);
+      size_t result = fread(*buf, bytes_to_read, 1, f);
+      if (result == 0) {
+	return 0;
+      }
+
+      file_pos += bytes_to_read;
+      *bytes_in_buf = bytes_to_read;
+    }
+
+    // special case where the last time ended with FF
+    if (last_was_ff) {
+      //g_debug("last_was_ff");
+      uint8_t marker = (*buf)[0];
+      (*buf)++;
+      (*bytes_in_buf)--;
+      *after_marker_pos = file_pos - *bytes_in_buf;
+      return marker;
+    }
+
+    // search for ff
+    uint8_t *ff = memchr(*buf, 0xFF, *bytes_in_buf);
+    if (ff == NULL) {
+      // keep searching
+      *bytes_in_buf = 0;
+    } else {
+      // ff found, advance buffer to consume everything including ff
+      int offset = ff - *buf + 1;
+      *bytes_in_buf -= offset;
+      *buf += offset;
+      g_assert(*bytes_in_buf >= 0);
+
+      if (*bytes_in_buf == 0) {
+	last_was_ff = true;
+      } else {
+	(*bytes_in_buf)--;
+	(*buf)++;
+	*after_marker_pos = file_pos - *bytes_in_buf;
+	return ff[1];
+      }
+    }
+  }
+}
+
 static void compute_mcu_start(FILE *f,
 			      int64_t *mcu_starts,
 			      int64_t *unreliable_mcu_starts,
+			      int64_t file_size,
 			      int64_t target) {
   if (mcu_starts[target] != -1) {
     // already done
@@ -412,10 +479,12 @@ static void compute_mcu_start(FILE *f,
   }
 
   if (offset != -1) {
+    uint8_t buf[2];
     fseeko(f, offset - 2, SEEK_SET);
-    int c = getc(f);
-    int marker = getc(f);
-    if (c != 0xFF || marker < 0xD0 || marker > 0xD7) {
+
+    size_t result = fread(buf, 2, 1, f);
+    if (result == 0 ||
+	buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
       g_warning("Restart marker not found in expected place");
     } else {
       mcu_starts[target] = offset;
@@ -433,21 +502,27 @@ static void compute_mcu_start(FILE *f,
 
   // now search for the new restart markers
   fseeko(f, mcu_starts[first_good], SEEK_SET);
-  bool last_was_ff = false;
-  while (first_good < target) {
-    uint8_t b = getc(f);
 
-    if (last_was_ff) {
-      // EOI?
-      if (b == JPEG_EOI) {
-	// we're done
-	break;
-      } else if (b >= 0xD0 && b < 0xD8) {
-	// marker
-	mcu_starts[1 + first_good++] = ftello(f);
-      }
+  uint8_t buf_start[4096];
+  uint8_t *buf = buf_start;
+  int bytes_in_buf = 0;
+  while (first_good < target) {
+    int64_t after_marker_pos;
+    uint8_t b = find_next_ff_marker(f, buf_start, &buf, 4096,
+				    file_size,
+				    &after_marker_pos,
+				    &bytes_in_buf);
+    g_assert(after_marker_pos > 0);
+    //g_debug("after_marker_pos: %" PRId64, after_marker_pos);
+
+    // EOI?
+    if (b == JPEG_EOI) {
+      // we're done
+      break;
+    } else if (b >= 0xD0 && b < 0xD8) {
+      // marker
+      mcu_starts[1 + first_good++] = after_marker_pos;
     }
-    last_was_ff = b == 0xFF;
   }
 }
 
@@ -470,6 +545,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
   compute_mcu_start(jpeg->f,
 		    jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
+		    jpeg->file_size,
 		    mcu_start);
   if (jpeg->mcu_starts_count == mcu_start + 1) {
     // EOF
@@ -477,6 +553,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   } else {
     compute_mcu_start(jpeg->f,
 		      jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
+		      jpeg->file_size,
 		      mcu_start + 1);
     stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
@@ -554,6 +631,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   jpeg_destroy_decompress(&cinfo);
 }
 
+
 static void tilereader_read(void *tilereader_data,
 			    uint32_t *dest, int64_t src_x, int64_t src_y) {
   struct layer *l = tilereader_data;
@@ -613,15 +691,23 @@ static void read_region(openslide_t *osr, uint32_t *dest,
     end_y = ph - 1;
   }
 
+  g_mutex_lock(data->restart_marker_mutex);
   _openslide_read_tiles(ds_x, ds_y,
 			end_x, end_y, 0, 0, w, h, layer, tw, th,
 			tilereader_read, l,
 			dest, data->cache);
+  g_mutex_unlock(data->restart_marker_mutex);
 }
 
 
 static void destroy(openslide_t *osr) {
   struct jpegops_data *data = osr->data;
+
+  // tell the thread to finish and wait
+  g_mutex_lock(data->restart_marker_mutex);
+  data->restart_marker_thread_should_terminate = true;
+  g_mutex_unlock(data->restart_marker_mutex);
+  g_thread_join(data->restart_marker_thread);
 
   // each jpeg in turn
   for (int32_t i = 0; i < data->jpeg_count; i++) {
@@ -649,6 +735,9 @@ static void destroy(openslide_t *osr) {
 
   // the cache
   _openslide_cache_destroy(data->cache);
+
+  // the mutex
+  g_mutex_free(data->restart_marker_mutex);
 
   // the structure
   g_slice_free(struct jpegops_data, data);
@@ -759,6 +848,42 @@ static void get_keys(gpointer key, gpointer value,
   *((GList **) user_data) = keys;
 }
 
+static gpointer restart_marker_thread_func(gpointer d) {
+  struct jpegops_data *data = d;
+
+  int32_t current_jpeg = 0;
+  int32_t current_mcu_start = 0;
+
+  while(current_jpeg < data->jpeg_count) {
+    g_mutex_lock(data->restart_marker_mutex);
+
+    // check for exit
+    if (data->restart_marker_thread_should_terminate) {
+      g_mutex_unlock(data->restart_marker_mutex);
+      break;
+    }
+
+    //    g_debug("current_jpeg: %d, current_mcu_start: %d",
+    //	    current_jpeg, current_mcu_start);
+
+    struct one_jpeg *oj = data->all_jpegs + current_jpeg;
+    compute_mcu_start(oj->f, oj->mcu_starts, oj->unreliable_mcu_starts,
+		      oj->file_size,
+		      current_mcu_start);
+
+    current_mcu_start++;
+    if (current_mcu_start >= oj->mcu_starts_count) {
+      current_mcu_start = 0;
+      current_jpeg++;
+    }
+
+    g_mutex_unlock(data->restart_marker_mutex);
+  }
+
+  g_debug("restart_marker_thread_func done!");
+  return NULL;
+}
+
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
 			     struct _openslide_jpeg_fragment **fragments) {
@@ -851,6 +976,13 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // unref the hash table
   g_hash_table_unref(width_to_layer_map);
+
+  // init background thread for finding restart markers
+  data->restart_marker_mutex = g_mutex_new();
+  data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
+						data,
+						TRUE,
+						NULL);
 
   // set ops
   osr->ops = &jpeg_ops;
