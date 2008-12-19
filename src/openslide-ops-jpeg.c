@@ -706,6 +706,8 @@ static void destroy(openslide_t *osr) {
   struct jpegops_data *data = osr->data;
 
   // tell the thread to finish and wait
+
+  // XXX wrong, need a new lock around the boolean
   g_mutex_lock(data->restart_marker_mutex);
   data->restart_marker_thread_should_terminate = true;
   g_mutex_unlock(data->restart_marker_mutex);
@@ -884,6 +886,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
+
+  // XXX locking is wrong, can't trust unlock/lock to let anyone else in
   while(current_jpeg < data->jpeg_count) {
     g_mutex_lock(data->restart_marker_mutex);
 
