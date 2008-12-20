@@ -32,6 +32,10 @@ static void copy_tile(const uint32_t *tile,
 		      int64_t src_w, int64_t src_h,
 		      int64_t dest_origin_x, int64_t dest_origin_y,
 		      int64_t dest_w, int64_t dest_h) {
+  if (dest == NULL) {
+    return;
+  }
+
   int64_t src_origin_y;
   if (dest_origin_y < 0) {  // off the top
     src_origin_y = -dest_origin_y;

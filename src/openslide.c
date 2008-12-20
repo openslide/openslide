@@ -166,7 +166,9 @@ void openslide_read_region(openslide_t *osr,
   }
 
   // start cleared
-  memset(dest, 0, w * h * 4);
+  if (dest != NULL) {
+    memset(dest, 0, w * h * 4);
+  }
 
   //  for (int64_t i = 0; i < w * h; i++) {
   //    dest[i] = 0xFFFF0000; // red

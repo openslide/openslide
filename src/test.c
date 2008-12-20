@@ -226,6 +226,9 @@ int main(int argc, char **argv) {
 
   int64_t elapsed;
 
+  // test NULL dest
+  openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
+
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
   printf("test_horizontal_walk start\n");
