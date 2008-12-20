@@ -10,7 +10,7 @@ libopenslide_la_SOURCES = openslide.c \
 
 libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
 
-libopenslide_la_LDFLAGS = -version-info 0:0:0
+libopenslide_la_LDFLAGS = -version-info 0:1:0
 
 
 pkginclude_HEADERS = openslide.h openslide-features.h
