@@ -1011,7 +1011,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   data->jpeg_count = count;
   data->all_jpegs = g_new0(struct one_jpeg, count);
   for (int32_t i = 0; i < data->jpeg_count; i++) {
-    g_debug("init JPEG %d", i);
+    //    g_debug("init JPEG %d", i);
     init_one_jpeg(&data->all_jpegs[i], fragments[i]);
   }
 

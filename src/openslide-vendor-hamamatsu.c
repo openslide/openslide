@@ -176,7 +176,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
   if (!g_key_file_has_group(vms_file, GROUP_VMS)) {
-    g_debug("Can't find VMS group");
+    g_warning("Can't find VMS group");
     goto FAIL;
   }
 
@@ -209,7 +209,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   image_filenames = g_new0(char *, num_jpegs);
   jpegs = g_new0(struct _openslide_jpeg_fragment *, num_jpegs);
 
-  g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
+  //  g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
 
   // extract MapFile
   tmp = g_key_file_get_string(vms_file,
@@ -341,7 +341,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 
     // because map file is last, ensure that all tw and th are the
     // same for 0 through num_jpegs-2
-    g_debug("tile size: %d %d", tw, th);
+    //    g_debug("tile size: %d %d", tw, th);
     if (i == 0) {
       layer1_tw = tw;
       layer1_th = th;
