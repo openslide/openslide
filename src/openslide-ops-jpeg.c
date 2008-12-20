@@ -46,6 +46,12 @@
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 
+enum restart_marker_thread_state {
+  R_M_THREAD_STATE_RUN,
+  R_M_THREAD_STATE_PAUSE,
+  R_M_THREAD_STATE_STOP,
+};
+
 struct one_jpeg {
   FILE *f;
   int64_t file_size;
@@ -96,7 +102,10 @@ struct jpegops_data {
   GTimer *restart_marker_timer;
   GMutex *restart_marker_mutex;
   GThread *restart_marker_thread;
-  boolean restart_marker_thread_should_terminate;
+
+  GCond *restart_marker_cond;
+  GMutex *restart_marker_cond_mutex;
+  enum restart_marker_thread_state restart_marker_thread_state;
 };
 
 
@@ -692,13 +701,27 @@ static void read_region(openslide_t *osr, uint32_t *dest,
     end_y = ph - 1;
   }
 
+  // tell the background thread to pause
+  g_mutex_lock(data->restart_marker_cond_mutex);
+  data->restart_marker_thread_state = R_M_THREAD_STATE_PAUSE;
+  //  g_debug("telling thread to pause");
+  g_mutex_unlock(data->restart_marker_cond_mutex);
+
+  // wait until thread is paused
   g_mutex_lock(data->restart_marker_mutex);
   _openslide_read_tiles(ds_x, ds_y,
 			end_x, end_y, 0, 0, w, h, layer, tw, th,
 			tilereader_read, l,
 			dest, data->cache);
-  g_timer_start(data->restart_marker_timer);
   g_mutex_unlock(data->restart_marker_mutex);
+
+  // tell the background thread to resume
+  g_mutex_lock(data->restart_marker_cond_mutex);
+  g_timer_start(data->restart_marker_timer);
+  data->restart_marker_thread_state = R_M_THREAD_STATE_RUN;
+  //  g_debug("telling thread to awaken");
+  g_cond_signal(data->restart_marker_cond);
+  g_mutex_unlock(data->restart_marker_cond_mutex);
 }
 
 
@@ -706,11 +729,10 @@ static void destroy(openslide_t *osr) {
   struct jpegops_data *data = osr->data;
 
   // tell the thread to finish and wait
-
-  // XXX wrong, need a new lock around the boolean
-  g_mutex_lock(data->restart_marker_mutex);
-  data->restart_marker_thread_should_terminate = true;
-  g_mutex_unlock(data->restart_marker_mutex);
+  g_mutex_lock(data->restart_marker_cond_mutex);
+  data->restart_marker_thread_state = R_M_THREAD_STATE_STOP;
+  g_cond_signal(data->restart_marker_cond);
+  g_mutex_unlock(data->restart_marker_cond_mutex);
   g_thread_join(data->restart_marker_thread);
 
   // each jpeg in turn
@@ -740,11 +762,11 @@ static void destroy(openslide_t *osr) {
   // the cache
   _openslide_cache_destroy(data->cache);
 
-  // the mutex
+  // the background stuff
   g_mutex_free(data->restart_marker_mutex);
-
-  // the timer
   g_timer_destroy(data->restart_marker_timer);
+  g_cond_free(data->restart_marker_cond);
+  g_mutex_free(data->restart_marker_cond_mutex);
 
   // the structure
   g_slice_free(struct jpegops_data, data);
@@ -886,31 +908,58 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
-
-  // XXX locking is wrong, can't trust unlock/lock to let anyone else in
   while(current_jpeg < data->jpeg_count) {
-    g_mutex_lock(data->restart_marker_mutex);
+    g_mutex_lock(data->restart_marker_cond_mutex);
 
-    // check for exit
-    if (data->restart_marker_thread_should_terminate) {
-      g_mutex_unlock(data->restart_marker_mutex);
+    // should we pause?
+    while(data->restart_marker_thread_state == R_M_THREAD_STATE_PAUSE) {
+      //      g_debug("thread paused");
+      g_cond_wait(data->restart_marker_cond,
+		  data->restart_marker_cond_mutex); // zzz
+      //      g_debug("thread awoken");
+    }
+
+    // should we stop?
+    if (data->restart_marker_thread_state == R_M_THREAD_STATE_STOP) {
+      //      g_debug("thread stopping");
+      g_mutex_unlock(data->restart_marker_cond_mutex);
       break;
     }
+
+    g_assert(data->restart_marker_thread_state == R_M_THREAD_STATE_RUN);
 
     // should we sleep?
     double time_to_sleep = 1.0 - g_timer_elapsed(data->restart_marker_timer,
 						 NULL);
     if (time_to_sleep > 0) {
-      g_mutex_unlock(data->restart_marker_mutex);
+      GTimeVal abstime;
       gulong sleep_time = G_USEC_PER_SEC * time_to_sleep;
-      //g_debug("zz: %lu", sleep_time);
-      g_usleep(sleep_time);
-      //g_debug("awake again");
+
+      g_get_current_time(&abstime);
+      g_time_val_add(&abstime, sleep_time);
+
+      //      g_debug("zz: %lu", sleep_time);
+      g_cond_timed_wait(data->restart_marker_cond,
+			data->restart_marker_cond_mutex,
+			&abstime);
+      //      g_debug("running again");
+      g_mutex_unlock(data->restart_marker_cond_mutex);
       continue;
     }
 
-    //    g_debug("current_jpeg: %d, current_mcu_start: %d",
-    //	    current_jpeg, current_mcu_start);
+    // we are finally able to run
+    g_mutex_unlock(data->restart_marker_cond_mutex);
+
+    if (!g_mutex_trylock(data->restart_marker_mutex)) {
+      // just kidding, still not ready, go back and sleep
+      continue;
+    }
+
+    // locked
+
+
+    //g_debug("current_jpeg: %d, current_mcu_start: %d",
+    //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs + current_jpeg;
     compute_mcu_start(oj->f, oj->mcu_starts, oj->unreliable_mcu_starts,
@@ -926,7 +975,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     g_mutex_unlock(data->restart_marker_mutex);
   }
 
-  //g_debug("restart_marker_thread_func done!");
+  //  g_debug("restart_marker_thread_func done!");
   return NULL;
 }
 
@@ -1024,8 +1073,11 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_hash_table_unref(width_to_layer_map);
 
   // init background thread for finding restart markers
+  data->restart_marker_thread_state = R_M_THREAD_STATE_RUN;
   data->restart_marker_timer = g_timer_new();
   data->restart_marker_mutex = g_mutex_new();
+  data->restart_marker_cond = g_cond_new();
+  data->restart_marker_cond_mutex = g_mutex_new();
   data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
 						data,
 						TRUE,
