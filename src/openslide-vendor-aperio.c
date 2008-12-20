@@ -264,7 +264,7 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   do {
     if (TIFFIsTiled(tiff)) {
       layers[i++] = TIFFCurrentDirectory(tiff);
-      g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
+      //      g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
     }
     TIFFReadDirectory(tiff);
   } while (i < layer_count);
@@ -274,7 +274,7 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
-  g_debug("compression mode: %d", compression_mode);
+  //  g_debug("compression mode: %d", compression_mode);
 
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
