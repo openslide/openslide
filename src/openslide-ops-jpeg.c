@@ -818,7 +818,8 @@ static void init_one_jpeg(struct one_jpeg *onej,
   // save "tile" dimensions
   jpeg_start_decompress(&cinfo);
 
-  g_assert((cinfo.MCUs_per_row >= cinfo.restart_interval) ||
+  g_assert(((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
+	    (cinfo.MCUs_per_row % cinfo.restart_interval == 0)) ||
 	   (cinfo.restart_interval == 0));
 
   onej->tile_width = onej->width /
