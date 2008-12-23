@@ -384,35 +384,6 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 }
 
 
-static void init_optimization(FILE *f,
-			      int64_t header_start_position,
-			      int32_t *mcu_starts_count,
-			      int64_t **mcu_starts) {
-  struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
-
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
-  fseeko(f, header_start_position, SEEK_SET);
-  jpeg_stdio_src(&cinfo, f);
-  jpeg_read_header(&cinfo, TRUE);
-  jpeg_start_decompress(&cinfo);
-
-  int32_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
-  *mcu_starts_count = MCUs / cinfo.restart_interval;
-  *mcu_starts = g_new(int64_t, *mcu_starts_count);
-
-  // init all to -1
-  for (int32_t i = 0; i < *mcu_starts_count; i++) {
-    (*mcu_starts)[i] = -1;
-  }
-
-  // set the first entry
-  (*mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
-
-  jpeg_destroy_decompress(&cinfo);
-}
-
 static uint8_t find_next_ff_marker(FILE *f,
 				   uint8_t *buf_start,
 				   uint8_t **buf,
@@ -817,15 +788,6 @@ static void init_one_jpeg(struct one_jpeg *onej,
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
 
-  // optimization
-  g_assert((fragment->mcu_starts_count == 0 && fragment->mcu_starts == NULL) ||
-	   (fragment->mcu_starts_count != 0 && fragment->mcu_starts != NULL));
-  init_optimization(fragment->f, fragment->start_in_file,
-		    &onej->mcu_starts_count, &onej->mcu_starts);
-  g_assert((fragment->mcu_starts_count == 0)
-	   || (fragment->mcu_starts_count == onej->mcu_starts_count));
-  onej->unreliable_mcu_starts = fragment->mcu_starts;
-
   // init jpeg
   fseeko(f, start_in_file, SEEK_SET);
 
@@ -860,6 +822,26 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->tile_height = onej->height / cinfo.MCU_rows_in_scan;
 
   //  g_debug("jpeg \"tile\" dimensions: %dx%d", onej->tile_width, onej->tile_height);
+
+  // mcu_starts
+  g_assert((fragment->mcu_starts_count == 0 && fragment->mcu_starts == NULL) ||
+	   (fragment->mcu_starts_count != 0 && fragment->mcu_starts != NULL));
+
+  int32_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
+  onej->mcu_starts_count = MCUs / cinfo.restart_interval;
+  onej->mcu_starts = g_new(int64_t, onej->mcu_starts_count);
+
+  // init all to -1
+  for (int32_t i = 0; i < onej->mcu_starts_count; i++) {
+    (onej->mcu_starts)[i] = -1;
+  }
+
+  // set the first entry
+  (onej->mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
+
+  g_assert((fragment->mcu_starts_count == 0)
+	   || (fragment->mcu_starts_count == onej->mcu_starts_count));
+  onej->unreliable_mcu_starts = fragment->mcu_starts;
 
   // destroy jpeg
   jpeg_destroy_decompress(&cinfo);
