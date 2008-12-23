@@ -330,12 +330,22 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_fragment *jp = jpegs[i];
 
+    // these jpeg files always start at 0
+    jp->start_in_file = 0;
+
     if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
     if (!verify_jpeg(jp->f, &w, &h, &tw, &th)) {
       g_warning("Can't verify JPEG %d", i);
+      goto FAIL;
+    }
+
+    fseeko(jp->f, 0, SEEK_END);
+    jp->end_in_file = ftello(jp->f);
+    if (jp->end_in_file == -1) {
+      g_warning("Can't read file size for JPEG %d", i);
       goto FAIL;
     }
 

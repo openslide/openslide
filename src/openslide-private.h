@@ -85,6 +85,8 @@ void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereade
 /* JPEG support */
 struct _openslide_jpeg_fragment {
   FILE *f;
+  int64_t start_in_file;
+  int64_t end_in_file;
 
   // all fragments together should form a dense space,
   // with no gaps in x,y,z

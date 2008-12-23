@@ -54,7 +54,8 @@ enum restart_marker_thread_state {
 
 struct one_jpeg {
   FILE *f;
-  int64_t file_size;
+  int64_t start_in_file;
+  int64_t end_in_file;
 
   int32_t mcu_starts_count;
   int64_t *mcu_starts;
@@ -144,6 +145,7 @@ static void term_source (j_decompress_ptr cinfo) {
 }
 
 static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
+				    int64_t header_start_position,
 				    int64_t header_stop_position,
 				    int64_t start_position, int64_t stop_position) {
   struct my_src_mgr *src;
@@ -162,22 +164,24 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->pub.term_source = term_source;
 
   // compute size of buffer and allocate
-  src->buffer_size = header_stop_position + stop_position - start_position;
+  int header_length = header_stop_position - header_start_position;
+  int data_length = stop_position - start_position;
+
+  src->buffer_size = header_length + data_length;
   src->pub.bytes_in_buffer = src->buffer_size;
   src->buffer = g_slice_alloc(src->buffer_size);
 
   src->pub.next_input_byte = src->buffer;
 
   // read in the 2 parts
+  //  g_debug("reading header from %" PRId64, header_start_position);
+  fseeko(infile, header_start_position, SEEK_SET);
+  fread(src->buffer, header_length, 1, infile);
   //  g_debug("reading from %" PRId64, start_position);
-  rewind(infile);
-  fread(src->buffer, header_stop_position, 1, infile);
   fseeko(infile, start_position, SEEK_SET);
-  fread(src->buffer + header_stop_position,
-	stop_position - start_position, 1, infile);
+  fread(src->buffer + header_length, data_length, 1, infile);
 
   // change the final byte to EOI
-  g_return_if_fail(src->buffer[header_stop_position] != 0xFF);
   g_return_if_fail(src->buffer[src->buffer_size - 2] == 0xFF);
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
@@ -381,6 +385,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
 
 static void init_optimization(FILE *f,
+			      int64_t header_start_position,
 			      int32_t *mcu_starts_count,
 			      int64_t **mcu_starts) {
   struct jpeg_decompress_struct cinfo;
@@ -388,7 +393,7 @@ static void init_optimization(FILE *f,
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
-  rewind(f);
+  fseeko(f, header_start_position, SEEK_SET);
   jpeg_stdio_src(&cinfo, f);
   jpeg_read_header(&cinfo, TRUE);
   jpeg_start_decompress(&cinfo);
@@ -472,7 +477,7 @@ static uint8_t find_next_ff_marker(FILE *f,
 static void compute_mcu_start(FILE *f,
 			      int64_t *mcu_starts,
 			      int64_t *unreliable_mcu_starts,
-			      int64_t file_size,
+			      int64_t end_in_file,
 			      int64_t target) {
   if (mcu_starts[target] != -1) {
     // already done
@@ -519,7 +524,7 @@ static void compute_mcu_start(FILE *f,
   while (first_good < target) {
     int64_t after_marker_pos;
     uint8_t b = find_next_ff_marker(f, buf_start, &buf, 4096,
-				    file_size,
+				    end_in_file,
 				    &after_marker_pos,
 				    &bytes_in_buf);
     g_assert(after_marker_pos > 0);
@@ -555,15 +560,15 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
   compute_mcu_start(jpeg->f,
 		    jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
-		    jpeg->file_size,
+		    jpeg->end_in_file,
 		    mcu_start);
   if (jpeg->mcu_starts_count == mcu_start + 1) {
     // EOF
-    stop_position = jpeg->file_size;
+    stop_position = jpeg->end_in_file;
   } else {
     compute_mcu_start(jpeg->f,
 		      jpeg->mcu_starts, jpeg->unreliable_mcu_starts,
-		      jpeg->file_size,
+		      jpeg->end_in_file,
 		      mcu_start + 1);
     stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
@@ -576,6 +581,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   jpeg_create_decompress(&cinfo);
 
   jpeg_random_access_src(&cinfo, jpeg->f,
+			 jpeg->start_in_file,
 			 jpeg->mcu_starts[0],
 			 jpeg->mcu_starts[mcu_start],
 			 stop_position);
@@ -806,24 +812,22 @@ static struct _openslide_ops jpeg_ops = {
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_fragment *fragment) {
   FILE *f = onej->f = fragment->f;
+  int64_t start_in_file = onej->start_in_file = fragment->start_in_file;
+  onej->end_in_file = fragment->end_in_file;
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr jerr;
-
-  // file size
-  fseeko(f, 0, SEEK_END);
-  onej->file_size = ftello(f);
 
   // optimization
   g_assert((fragment->mcu_starts_count == 0 && fragment->mcu_starts == NULL) ||
 	   (fragment->mcu_starts_count != 0 && fragment->mcu_starts != NULL));
-  init_optimization(fragment->f,
+  init_optimization(fragment->f, fragment->start_in_file,
 		    &onej->mcu_starts_count, &onej->mcu_starts);
   g_assert((fragment->mcu_starts_count == 0)
 	   || (fragment->mcu_starts_count == onej->mcu_starts_count));
   onej->unreliable_mcu_starts = fragment->mcu_starts;
 
   // init jpeg
-  rewind(f);
+  fseeko(f, start_in_file, SEEK_SET);
 
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_decompress(&cinfo);
@@ -963,7 +967,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
 
     struct one_jpeg *oj = data->all_jpegs + current_jpeg;
     compute_mcu_start(oj->f, oj->mcu_starts, oj->unreliable_mcu_starts,
-		      oj->file_size,
+		      oj->end_in_file,
 		      current_mcu_start);
 
     current_mcu_start++;
