@@ -71,30 +71,31 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 
   jpeg_start_decompress(&cinfo);
 
-  unsigned int restart_interval = cinfo.restart_interval;
-  JDIMENSION MCUs_per_row = cinfo.MCUs_per_row;
-  //  JDIMENSION MCU_rows_in_scan = cinfo.MCU_rows_in_scan;
-
-  unsigned int leftover_mcus = MCUs_per_row % restart_interval;
-
   *w = cinfo.output_width;
   *h = cinfo.output_height;
 
+  if (cinfo.restart_interval > cinfo.MCUs_per_row) {
+    g_warning("Restart interval greater than MCUs per row");
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
+
   *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
   *th = *h / cinfo.MCU_rows_in_scan;
+  int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
+  if (leftover_mcus != 0) {
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
+
 
   //  g_debug("w: %d, h: %d, restart_interval: %d\n"
   //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
   //	 "leftover mcus: %d",
   //	 cinfo.output_width, cinfo.output_height,
-  //	 restart_interval,
-  //	 MCUs_per_row, MCU_rows_in_scan,
+  //	 cinfo.restart_interval,
+  //	 cinfo.MCUs_per_row, cinfo.MCU_rows_in_scan,
   //	 leftover_mcus);
-
-  if (leftover_mcus != 0) {
-    jpeg_destroy_decompress(&cinfo);
-    return false;
-  }
 
   jpeg_destroy_decompress(&cinfo);
   return true;
