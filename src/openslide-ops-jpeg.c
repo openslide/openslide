@@ -33,6 +33,7 @@
 #include "config.h"
 
 #include <glib.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -1089,4 +1090,35 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // set ops
   osr->ops = &jpeg_ops;
+}
+
+
+static void my_error_exit(j_common_ptr cinfo) {
+  struct _openslide_jpeg_error_mgr *err =
+    (struct _openslide_jpeg_error_mgr *) cinfo->err;
+
+  (err->pub.output_message) (cinfo);
+
+  jpeg_destroy(cinfo);
+
+  //  g_debug("JUMP");
+  longjmp(*(err->env), 1);
+}
+
+static void my_output_message(j_common_ptr cinfo) {
+  char buffer[JMSG_LENGTH_MAX];
+
+  (*cinfo->err->format_message) (cinfo, buffer);
+
+  g_warning("%s", buffer);
+}
+
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+							 jmp_buf *env) {
+  jpeg_std_error(&(err->pub));
+  err->pub.error_exit = my_error_exit;
+  err->pub.output_message = my_output_message;
+  err->env = env;
+
+  return (struct jpeg_error_mgr *) err;
 }

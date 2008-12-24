@@ -28,6 +28,7 @@
 #include "openslide.h"
 
 #include <stdbool.h>
+#include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>
 #include <openjpeg.h>
@@ -119,6 +120,16 @@ struct _openslide_jpeg_fragment {
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
 			     struct _openslide_jpeg_fragment **fragments);
+
+// error function for libjpeg
+struct _openslide_jpeg_error_mgr {
+  struct jpeg_error_mgr pub;      // public fields
+
+  jmp_buf *env;
+};
+
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+							 jmp_buf *env);
 
 /* JPEG-2000 support */
 void _openslide_add_jp2k_ops(openslide_t *osr,
