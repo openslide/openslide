@@ -415,7 +415,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       if (f) {
 	fclose(f);
       }
-      g_free(jpegs[i]);
     }
     g_free(jpegs);
   }
