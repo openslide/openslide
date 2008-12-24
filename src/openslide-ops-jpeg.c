@@ -1099,8 +1099,6 @@ static void my_error_exit(j_common_ptr cinfo) {
 
   (err->pub.output_message) (cinfo);
 
-  jpeg_destroy(cinfo);
-
   //  g_debug("JUMP");
   longjmp(*(err->env), 1);
 }

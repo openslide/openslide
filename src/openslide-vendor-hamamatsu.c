@@ -100,6 +100,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     //	 leftover_mcus);
   } else {
     // setjmp has returned again
+    jpeg_destroy_decompress(&cinfo);
     return false;
   }
 
