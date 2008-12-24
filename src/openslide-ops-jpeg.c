@@ -39,6 +39,7 @@
 #include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
+#include <jerror.h>
 #include <inttypes.h>
 
 #include <sys/types.h>   // for off_t ?
@@ -128,7 +129,9 @@ static void init_source (j_decompress_ptr cinfo) {
 }
 
 static boolean fill_input_buffer (j_decompress_ptr cinfo) {
-  /* everything is done already */
+  /* this should never be called, there is nothing to fill */
+  ERREXIT(cinfo, JERR_INPUT_EMPTY);
+
   return TRUE;
 }
 
@@ -165,8 +168,19 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->pub.term_source = term_source;
 
   // check for problems
-  if (header_start_position == -1 || header_stop_position == -1 ||
-      start_position == -1 || stop_position == -1) {
+  if ((header_start_position == -1) || (header_stop_position == -1) ||
+      (start_position == -1) || (stop_position == -1) ||
+      (header_start_position >= header_stop_position) ||
+      (header_stop_position > start_position) ||
+      (start_position >= stop_position)) {
+    g_critical("Can't do random access JPEG read: "
+	       "header_start_position: %" PRId64 ", "
+	       "header_stop_position: %" PRId64 ", "
+	       "start_position: %" PRId64 ", "
+	       "stop_position: %" PRId64,
+	       header_start_position, header_stop_position,
+	       start_position, stop_position);
+
     src->buffer_size = 0;
     src->pub.bytes_in_buffer = 0;
     src->buffer = NULL;
@@ -508,7 +522,11 @@ static void compute_mcu_start(FILE *f,
 				    end_in_file,
 				    &after_marker_pos,
 				    &bytes_in_buf);
-    g_assert(after_marker_pos > 0);
+    g_assert(after_marker_pos > 0 || after_marker_pos == -1);
+    if (after_marker_pos == -1) {
+      g_critical("after_marker_pos == -1");
+      break;
+    }
     //g_debug("after_marker_pos: %" PRId64, after_marker_pos);
 
     // EOI?
