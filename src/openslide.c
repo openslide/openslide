@@ -69,7 +69,9 @@ openslide_t *openslide_open(const char *filename) {
     int64_t w, h;
     openslide_get_layer_dimensions(osr, i, &w, &h);
 
-    osr->downsamples[i] = (double) blh / (double) h;
+    osr->downsamples[i] =
+      (((double) blh / (double) h) +
+       ((double) blw / (double) w)) / 2.0;
     g_assert(osr->downsamples[i] >= 1.0);
     if (i > 0) {
       g_assert(osr->downsamples[i] >= osr->downsamples[i - 1]);
