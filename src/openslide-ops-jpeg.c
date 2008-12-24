@@ -164,6 +164,15 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->pub.term_source = term_source;
 
+  // check for problems
+  if (header_start_position == -1 || header_stop_position == -1 ||
+      start_position == -1 || stop_position == -1) {
+    src->buffer_size = 0;
+    src->pub.bytes_in_buffer = 0;
+    src->buffer = NULL;
+    return;
+  }
+
   // compute size of buffer and allocate
   int header_length = header_stop_position - header_start_position;
   int data_length = stop_position - start_position;
