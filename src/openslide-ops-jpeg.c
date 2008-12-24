@@ -818,9 +818,11 @@ static void init_one_jpeg(struct one_jpeg *onej,
   // save "tile" dimensions
   jpeg_start_decompress(&cinfo);
 
-  g_assert(((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
-	    (cinfo.MCUs_per_row % cinfo.restart_interval == 0)) ||
-	   (cinfo.restart_interval == 0));
+  if (!(((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
+	 (cinfo.MCUs_per_row % cinfo.restart_interval == 0)) ||
+	(cinfo.restart_interval == 0))) {
+    g_critical("JPEG file seems to have changed from a moment ago");
+  }
 
   onej->tile_width = onej->width /
     (cinfo.MCUs_per_row / cinfo.restart_interval);
@@ -844,9 +846,14 @@ static void init_one_jpeg(struct one_jpeg *onej,
   // set the first entry
   (onej->mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
 
-  g_assert((fragment->mcu_starts_count == 0)
-	   || (fragment->mcu_starts_count == onej->mcu_starts_count));
-  onej->unreliable_mcu_starts = fragment->mcu_starts;
+  if ((fragment->mcu_starts_count == 0)
+      || (fragment->mcu_starts_count == onej->mcu_starts_count)) {
+    onej->unreliable_mcu_starts = fragment->mcu_starts;
+  } else {
+    g_critical("JPEG file seems to have changed from a moment ago");
+    onej->unreliable_mcu_starts = NULL;
+    g_free(fragment->mcu_starts);
+  }
 
   // destroy jpeg
   jpeg_destroy_decompress(&cinfo);
