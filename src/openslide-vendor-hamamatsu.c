@@ -48,54 +48,60 @@ static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th) {
   struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
+  struct _openslide_jpeg_error_mgr jerr;
+  jmp_buf env;
 
   *w = 0;
   *h = 0;
   *tw = 0;
   *th = 0;
 
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
+  if (setjmp(env) == 0) {
+    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+    jpeg_create_decompress(&cinfo);
 
-  int header_result;
+    int header_result;
 
-  jpeg_stdio_src(&cinfo, f);
-  header_result = jpeg_read_header(&cinfo, TRUE);
-  if ((header_result != JPEG_HEADER_OK
-       && header_result != JPEG_HEADER_TABLES_ONLY)
-      || cinfo.num_components != 3 || cinfo.restart_interval == 0) {
-    jpeg_destroy_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, f);
+    header_result = jpeg_read_header(&cinfo, TRUE);
+    if ((header_result != JPEG_HEADER_OK
+	 && header_result != JPEG_HEADER_TABLES_ONLY)
+	|| cinfo.num_components != 3 || cinfo.restart_interval == 0) {
+      jpeg_destroy_decompress(&cinfo);
+      return false;
+    }
+
+    jpeg_start_decompress(&cinfo);
+
+    *w = cinfo.output_width;
+    *h = cinfo.output_height;
+
+    if (cinfo.restart_interval > cinfo.MCUs_per_row) {
+      g_warning("Restart interval greater than MCUs per row");
+      jpeg_destroy_decompress(&cinfo);
+      return false;
+    }
+
+    *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
+    *th = *h / cinfo.MCU_rows_in_scan;
+    int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
+    if (leftover_mcus != 0) {
+      jpeg_destroy_decompress(&cinfo);
+      return false;
+    }
+
+
+    //  g_debug("w: %d, h: %d, restart_interval: %d\n"
+    //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
+    //	 "leftover mcus: %d",
+    //	 cinfo.output_width, cinfo.output_height,
+    //	 cinfo.restart_interval,
+    //	 cinfo.MCUs_per_row, cinfo.MCU_rows_in_scan,
+    //	 leftover_mcus);
+  } else {
+    // setjmp has returned again
     return false;
   }
-
-  jpeg_start_decompress(&cinfo);
-
-  *w = cinfo.output_width;
-  *h = cinfo.output_height;
-
-  if (cinfo.restart_interval > cinfo.MCUs_per_row) {
-    g_warning("Restart interval greater than MCUs per row");
-    jpeg_destroy_decompress(&cinfo);
-    return false;
-  }
-
-  *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
-  *th = *h / cinfo.MCU_rows_in_scan;
-  int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
-  if (leftover_mcus != 0) {
-    jpeg_destroy_decompress(&cinfo);
-    return false;
-  }
-
-
-  //  g_debug("w: %d, h: %d, restart_interval: %d\n"
-  //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-  //	 "leftover mcus: %d",
-  //	 cinfo.output_width, cinfo.output_height,
-  //	 cinfo.restart_interval,
-  //	 cinfo.MCUs_per_row, cinfo.MCU_rows_in_scan,
-  //	 leftover_mcus);
 
   jpeg_destroy_decompress(&cinfo);
   return true;
