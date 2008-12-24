@@ -556,71 +556,80 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
   // begin decompress
   struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
+  struct _openslide_jpeg_error_mgr jerr;
+  jmp_buf env;
 
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
+  gsize row_size = sizeof(JSAMPLE) *
+    (jpeg->tile_width / scale_denom) *
+    3;  // output components
 
-  jpeg_random_access_src(&cinfo, jpeg->f,
-			 jpeg->start_in_file,
-			 jpeg->mcu_starts[0],
-			 jpeg->mcu_starts[mcu_start],
-			 stop_position);
+  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
-  jpeg_read_header(&cinfo, FALSE);
-  cinfo.scale_denom = scale_denom;
-  cinfo.image_width = jpeg->tile_width;  // cunning
-  cinfo.image_height = jpeg->tile_height;
+  if (setjmp(env) == 0) {
+    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+    jpeg_create_decompress(&cinfo);
 
-  jpeg_start_decompress(&cinfo);
+    jpeg_random_access_src(&cinfo, jpeg->f,
+			   jpeg->start_in_file,
+			   jpeg->mcu_starts[0],
+			   jpeg->mcu_starts[mcu_start],
+			   stop_position);
 
-  //g_debug("output_width: %d", cinfo.output_width);
-  //g_debug("output_height: %d", cinfo.output_height);
+    cinfo.rec_outbuf_height = 0;
 
-  // allocate scanline buffers
-  JSAMPARRAY buffer =
-    g_slice_alloc(sizeof(JSAMPROW) * cinfo.rec_outbuf_height);
-  gsize row_size =
-    sizeof(JSAMPLE)
-    * cinfo.output_width
-    * 3;  // output components
-  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-    buffer[i] = g_slice_alloc(row_size);
-    //g_debug("buffer[%d]: %p", i, buffer[i]);
-  }
+    jpeg_read_header(&cinfo, FALSE);
+    cinfo.scale_denom = scale_denom;
+    cinfo.image_width = jpeg->tile_width;  // cunning
+    cinfo.image_height = jpeg->tile_height;
 
-  // decompress
-  while (cinfo.output_scanline < cinfo.output_height) {
-    JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
-					       buffer,
-					       cinfo.rec_outbuf_height);
-    //g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
-    //g_debug(" rows read: %d", rows_read);
-    int cur_buffer = 0;
-    while (rows_read > 0) {
-      // copy a row
-      int32_t i;
-      for (i = 0; i < (int32_t) cinfo.output_width; i++) {
-	dest[i] = 0xFF000000 |                          // A
-	  buffer[cur_buffer][i * 3 + 0] << 16 | // R
-	  buffer[cur_buffer][i * 3 + 1] << 8 |  // G
-	  buffer[cur_buffer][i * 3 + 2];        // B
-      }
+    jpeg_start_decompress(&cinfo);
 
-      // advance everything 1 row
-      rows_read--;
-      cur_buffer++;
-      dest += cinfo.output_width;
+    //g_debug("output_width: %d", cinfo.output_width);
+    //g_debug("output_height: %d", cinfo.output_height);
+
+    // allocate scanline buffers
+    for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+      buffer[i] = g_slice_alloc(row_size);
+      //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
-  }
 
-  //  g_debug("pixels wasted: %llu", pixels_wasted);
+    // decompress
+    while (cinfo.output_scanline < cinfo.output_height) {
+      JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+						 buffer,
+						 cinfo.rec_outbuf_height);
+      //g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
+      //g_debug(" rows read: %d", rows_read);
+      int cur_buffer = 0;
+      while (rows_read > 0) {
+	// copy a row
+	int32_t i;
+	for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+	  dest[i] = 0xFF000000 |                          // A
+	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][i * 3 + 2];        // B
+	}
+
+	// advance everything 1 row
+	rows_read--;
+	cur_buffer++;
+	dest += cinfo.output_width;
+      }
+    }
+
+    //  g_debug("pixels wasted: %llu", pixels_wasted);
+  } else {
+    // setjmp returns again
+    g_critical("JPEG decompression failed");
+    // TODO _openslide_convert_to_error_ops
+  }
 
   // free buffers
   for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
     g_slice_free1(row_size, buffer[i]);
   }
-  g_slice_free1(sizeof(JSAMPROW) * cinfo.rec_outbuf_height, buffer);
+  g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   // last thing, stop jpeg
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
@@ -795,48 +804,62 @@ static void init_one_jpeg(struct one_jpeg *onej,
   FILE *f = onej->f = fragment->f;
   int64_t start_in_file = onej->start_in_file = fragment->start_in_file;
   onej->end_in_file = fragment->end_in_file;
+
   struct jpeg_decompress_struct cinfo;
-  struct jpeg_error_mgr jerr;
+  struct _openslide_jpeg_error_mgr jerr;
+  jmp_buf env;
 
   // init jpeg
   fseeko(f, start_in_file, SEEK_SET);
 
-  cinfo.err = jpeg_std_error(&jerr);
-  jpeg_create_decompress(&cinfo);
-  jpeg_stdio_src(&cinfo, f);
+  if (setjmp(env) == 0) {
+    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, f);
 
-  // extract comment
-  jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
-  jpeg_read_header(&cinfo, FALSE);
-  if (cinfo.marker_list) {
-    // copy everything out
-    char *com = g_strndup((const gchar *) cinfo.marker_list->data,
-			  cinfo.marker_list->data_length);
-    // but only really save everything up to the first '\0'
-    onej->comment = g_strdup(com);
-    g_free(com);
+    // extract comment
+    jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
+    jpeg_read_header(&cinfo, FALSE);
+    if (cinfo.marker_list) {
+      // copy everything out
+      char *com = g_strndup((const gchar *) cinfo.marker_list->data,
+			    cinfo.marker_list->data_length);
+      // but only really save everything up to the first '\0'
+      onej->comment = g_strdup(com);
+      g_free(com);
+    }
+    jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
+
+    // save dimensions
+    jpeg_calc_output_dimensions(&cinfo);
+    onej->width = cinfo.output_width;
+    onej->height = cinfo.output_height;
+
+    //  g_debug(" w: %d, h: %d", cinfo.output_width, cinfo.output_height);
+
+    jpeg_start_decompress(&cinfo);
+  } else {
+    // setjmp returns again
+    g_critical("Error initializing JPEG");
+    // TODO _openslide_convert_to_error_ops
   }
-  jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
-
-  // save dimensions
-  jpeg_calc_output_dimensions(&cinfo);
-  onej->width = cinfo.output_width;
-  onej->height = cinfo.output_height;
-
-  //  g_debug(" w: %d, h: %d", cinfo.output_width, cinfo.output_height);
 
   // save "tile" dimensions
-  jpeg_start_decompress(&cinfo);
-
   if (!(((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
 	 (cinfo.MCUs_per_row % cinfo.restart_interval == 0)) ||
 	(cinfo.restart_interval == 0))) {
     g_critical("JPEG file seems to have changed from a moment ago");
+    // TODO _openslide_convert_to_error_ops
   }
 
-  onej->tile_width = onej->width /
-    (cinfo.MCUs_per_row / cinfo.restart_interval);
-  onej->tile_height = onej->height / cinfo.MCU_rows_in_scan;
+  if (cinfo.restart_interval != 0) {
+    onej->tile_width = onej->width /
+      (cinfo.MCUs_per_row / cinfo.restart_interval);
+    onej->tile_height = onej->height / cinfo.MCU_rows_in_scan;
+  } else {
+    onej->tile_width = onej->width;
+    onej->tile_height = onej->height;
+  }
 
   //  g_debug("jpeg \"tile\" dimensions: %dx%d", onej->tile_width, onej->tile_height);
 
@@ -861,6 +884,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
     onej->unreliable_mcu_starts = fragment->mcu_starts;
   } else {
     g_critical("JPEG file seems to have changed from a moment ago");
+    // TODO _openslide_convert_to_error_ops
     onej->unreliable_mcu_starts = NULL;
     g_free(fragment->mcu_starts);
   }
