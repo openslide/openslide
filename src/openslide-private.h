@@ -59,7 +59,6 @@ struct _openslide_ops {
 bool _openslide_try_trestle(openslide_t *osr, const char* filename);
 bool _openslide_try_aperio(openslide_t *osr, const char* filename);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename);
-bool _openslide_try_generic_jp2k(openslide_t *osr, const char* filename);
 
 /* TIFF support */
 struct _openslide_tiff_tilereader;
@@ -130,10 +129,5 @@ struct _openslide_jpeg_error_mgr {
 
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
 							 jmp_buf *env);
-
-/* JPEG-2000 support */
-void _openslide_add_jp2k_ops(openslide_t *osr,
-			     FILE *f,
-			     int64_t w, int64_t h);
 
 #endif

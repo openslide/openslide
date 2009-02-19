@@ -1,14 +1,14 @@
 lib_LTLIBRARIES = libopenslide.la
 
-libopenslide_la_LIBADD = $(GLIB2_LIBS) ../libopenjpeg/libopenjpeg.la
+libopenslide_la_LIBADD = $(GLIB2_LIBS)
 
 libopenslide_la_SOURCES = openslide.c \
 	openslide-cache.c openslide-tilehelper.c \
 	openslide-vendor-trestle.c openslide-vendor-hamamatsu.c \
-	openslide-vendor-aperio.c openslide-vendor-generic-jp2k.c \
-	openslide-ops-tiff.c openslide-ops-jpeg.c openslide-ops-jp2k.c
+	openslide-vendor-aperio.c \
+	openslide-ops-tiff.c openslide-ops-jpeg.c
 
-libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I$(srcdir)/../libopenjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
+libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I/usr/include/openjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
 
 libopenslide_la_LDFLAGS = -version-info 0:1:0
 
