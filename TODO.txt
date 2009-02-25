@@ -2,8 +2,8 @@ Magnification and other metadata ?
 
 Error handling
 
-JP2
-
 Bacus
+
+Zeiss/MIRAX
 
 Ship docs
