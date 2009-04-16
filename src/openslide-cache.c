@@ -163,6 +163,12 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 			  int32_t layer,
 			  void *data,
 			  int size_in_bytes) {
+  // don't try to put anything in the cache that cannot possibly fit
+  if (size_in_bytes > cache->capacity) {
+    g_slice_free1(size_in_bytes, data);
+    return;
+  }
+
   possibly_evict(cache, size_in_bytes); // already checks for size >= 0
 
   // create key
@@ -188,10 +194,6 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 
   // increase size
   cache->total_size += size_in_bytes;
-
-  // possibly evict once more, this will auto-delete anything too big for
-  // the entire cache
-  possibly_evict(cache, 0);
 }
 
 void *_openslide_cache_get(struct _openslide_cache *cache,
