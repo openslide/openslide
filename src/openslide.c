@@ -35,6 +35,7 @@
 
 static bool try_all_formats(openslide_t *osr, const char *filename) {
   return
+    _openslide_try_mirax(osr, filename) ||
     _openslide_try_hamamatsu(osr, filename) ||
     _openslide_try_trestle(osr, filename) ||
     _openslide_try_aperio(osr, filename);
