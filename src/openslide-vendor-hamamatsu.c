@@ -427,15 +427,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   success = false;
 
  DONE:
-  if (all_keys) {
-    g_strfreev(all_keys);
-  }
-
+  g_strfreev(all_keys);
   g_free(dirname);
-
-  if (optimisation_filename) {
-    g_free(optimisation_filename);
-  }
+  g_free(optimisation_filename);
 
   if (optimisation_file) {
     fclose(optimisation_file);
