@@ -11,7 +11,7 @@ f.seek(HEADER_OFFSET)
 filesize = os.stat(sys.argv[1]).st_size
 num_items = (filesize - HEADER_OFFSET) / 4
 
-skipped = False
+num_skipped = 0
 i = 0
 
 try:
@@ -19,7 +19,7 @@ try:
         n = struct.unpack("<i", f.read(4))[0]
         possible_lineno = (n - HEADER_OFFSET) / 4.0
 
-        if possible_lineno < 0 or possible_lineno > num_items \
+        if possible_lineno < 0 or possible_lineno >= num_items \
                 or int(possible_lineno) != possible_lineno:
             s = "%7d %11d" % (i, n)
         else:
@@ -29,12 +29,12 @@ try:
         i = i+1
 
         if n == 0:
-            skipped = True
+            num_skipped = num_skipped + 1
             continue
 
-        if skipped:
-            skipped = False
-            print '%7s %11s %10s' % ('.','.','.')
+        if num_skipped > 0:
+            print '%7s %11s %10s %30d' % ('.','.','.', num_skipped)
+            num_skipped = 0
 
         print s
 except:
