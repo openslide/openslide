@@ -42,8 +42,6 @@ static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 
-#define INPUT_BUF_SIZE  4096
-
 // returns w and h and tw and th as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th) {
