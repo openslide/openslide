@@ -59,10 +59,24 @@ static const char KEY_IMAGE_FILL_COLOR_BGR[] = "IMAGE_FILL_COLOR_BGR";
 static const char KEY_DIGITIZER_WIDTH[] = "DIGITIZER_WIDTH";
 static const char KEY_DIGITIZER_HEIGHT[] = "DIGITIZER_HEIGHT";
 
-#define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE, FAIL_MSG) \
-  TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, NULL);	      \
-  if (!TARGET) { g_warning(FAIL_MSG); goto FAIL; }
+#define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE, FAIL_MSG)	\
+  do {									\
+    GError *err = NULL;							\
+    TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, &err);	\
+    if (err != NULL) {							\
+      g_warning(FAIL_MSG); g_error_free(err); goto FAIL;		\
+    }									\
+  } while(0)
 
+struct hier_section {
+  double overlap_x;
+  double overlap_y;
+
+  uint32_t fill_argb;
+
+  int tile_w;
+  int tile_h;
+};
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   struct _openslide_jpeg_fragment **jpegs = NULL;
@@ -84,6 +98,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   char *index_filename = NULL;
   int zoom_levels = 0;
   char **hier_0_section_names = NULL;
+  struct hier_section *hier_sections = NULL;
 
   int datafile_count = 0;
   char **datafile_names = NULL;
@@ -166,6 +181,46 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   // load data from all hier_0_section_names sections
+  hier_sections = g_new0(struct hier_section, zoom_levels);
+  for (int i = 0; i < zoom_levels; i++) {
+    struct hier_section *hs = hier_sections + i;
+
+    int bgr;
+
+    char *group = hier_0_section_names[i];
+    if (!g_key_file_has_group(slidedat, group)) {
+      g_warning("Can't find %s group", group);
+      goto FAIL;
+    }
+
+    READ_KEY_OR_FAIL(hs->overlap_x, slidedat, group, KEY_OVERLAP_X,
+		     double, "Can't read overlap X");
+    READ_KEY_OR_FAIL(hs->overlap_y, slidedat, group, KEY_OVERLAP_Y,
+		     double, "Can't read overlap Y");
+    READ_KEY_OR_FAIL(bgr, slidedat, group, KEY_IMAGE_FILL_COLOR_BGR,
+		     integer, "Can't read image fill color");
+    READ_KEY_OR_FAIL(hs->tile_w, slidedat, group, KEY_DIGITIZER_WIDTH,
+		     integer, "Can't read tile width");
+    READ_KEY_OR_FAIL(hs->tile_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
+		     integer, "Can't read tile height");
+
+    // convert fill color bgr into argb
+    hs->fill_argb =
+      0xFF000000 |
+      ((bgr << 16) & 0x00FF0000) |
+      (bgr & 0x0000FF00) |
+      ((bgr >> 16) & 0x000000FF);
+
+    // verify we are JPEG
+    READ_KEY_OR_FAIL(tmp, slidedat, group, KEY_IMAGE_FORMAT,
+		     value, "Can't read image format");
+    if (strcmp(tmp, "JPEG") != 0) {
+      g_warning("Level %d not JPEG", i);
+      goto FAIL;
+    }
+    g_free(tmp);
+    tmp = NULL;
+  }
 
 
   g_debug("dirname: %s", dirname);
@@ -176,6 +231,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   g_debug("zoom_levels: %d", zoom_levels);
   for (int i = 0; i < zoom_levels; i++) {
     g_debug(" section name %d: %s", i, hier_0_section_names[i]);
+    struct hier_section *hs = hier_sections + i;
+    g_debug("  overlap_x: %g", hs->overlap_x);
+    g_debug("  overlap_y: %g", hs->overlap_y);
+    g_debug("  fill_argb: %" PRIu32, hs->fill_argb);
+    g_debug("  tile_w: %d", hs->tile_w);
+    g_debug("  tile_h: %d", hs->tile_h);
   }
   g_debug("datafile_count: %d", datafile_count);
   for (int i = 0; i < datafile_count; i++) {
@@ -202,6 +263,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   g_free(index_filename);
   g_strfreev(datafile_names);
   g_strfreev(hier_0_section_names);
+  g_free(hier_sections);
 
   if (slidedat) {
     g_key_file_free(slidedat);
