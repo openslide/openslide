@@ -68,8 +68,6 @@ struct one_jpeg {
 
   int32_t width;
   int32_t height;
-
-  char *comment;
 };
 
 struct layer {
@@ -94,6 +92,8 @@ struct layer {
 struct jpegops_data {
   int32_t jpeg_count;
   struct one_jpeg *all_jpegs;
+
+  char *comment;
 
   // layer_count is in the osr struct
   struct layer *layers;
@@ -756,7 +756,6 @@ static void destroy(openslide_t *osr) {
     fclose(jpeg->f);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->unreliable_mcu_starts);
-    g_free(jpeg->comment);
   }
 
   // each layer in turn
@@ -782,6 +781,9 @@ static void destroy(openslide_t *osr) {
   g_cond_free(data->restart_marker_cond);
   g_mutex_free(data->restart_marker_cond_mutex);
 
+  // the comment
+  g_free(data->comment);
+
   // the structure
   g_slice_free(struct jpegops_data, data);
 }
@@ -806,7 +808,7 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 
 static const char* get_comment(openslide_t *osr) {
   struct jpegops_data *data = osr->data;
-  return data->all_jpegs[0].comment;
+  return data->comment;
 }
 
 static struct _openslide_ops jpeg_ops = {
@@ -818,7 +820,8 @@ static struct _openslide_ops jpeg_ops = {
 
 
 static void init_one_jpeg(struct one_jpeg *onej,
-			  struct _openslide_jpeg_fragment *fragment) {
+			  struct _openslide_jpeg_fragment *fragment,
+			  char **comment) {
   FILE *f = onej->f = fragment->f;
   int64_t start_in_file = onej->start_in_file = fragment->start_in_file;
   onej->end_in_file = fragment->end_in_file;
@@ -843,7 +846,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
       char *com = g_strndup((const gchar *) cinfo.marker_list->data,
 			    cinfo.marker_list->data_length);
       // but only really save everything up to the first '\0'
-      onej->comment = g_strdup(com);
+      *comment = g_strdup(com);
       g_free(com);
     }
     jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
@@ -1061,8 +1064,16 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   data->jpeg_count = count;
   data->all_jpegs = g_new0(struct one_jpeg, count);
   for (int32_t i = 0; i < data->jpeg_count; i++) {
+    char *comment;
+
     //    g_debug("init JPEG %d", i);
-    init_one_jpeg(&data->all_jpegs[i], fragments[i]);
+    init_one_jpeg(&data->all_jpegs[i], fragments[i], &comment);
+
+    if (i == 0) {
+      data->comment = comment;
+    } else {
+      g_free(comment);
+    }
   }
 
   // create map from width to layers, using the fragments
