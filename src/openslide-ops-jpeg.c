@@ -242,6 +242,25 @@ static bool is_zxy_successor(int64_t pz, int64_t px, int64_t py,
   return x == px + 1;
 }
 
+static void filehandle_free(gpointer data) {
+  //g_debug("fclose(%p)", data);
+  fclose(data);
+}
+
+static GHashTable *filehandle_hashtable_new(void) {
+  return g_hash_table_new_full(g_direct_hash,
+			       g_direct_equal,
+			       filehandle_free,
+			       NULL);
+}
+
+static void filehandle_hashtable_conditional_insert(GHashTable *h,
+						    FILE *f) {
+  if (!g_hash_table_lookup_extended(h, f, NULL, NULL)) {
+    g_hash_table_insert(h, f, NULL);
+  }
+}
+
 static guint int64_hash(gconstpointer v) {
   int64_t i = *((const int64_t *) v);
   return i ^ (i >> 32);
@@ -779,14 +798,15 @@ static void destroy(openslide_t *osr) {
   g_mutex_unlock(data->restart_marker_cond_mutex);
   g_thread_join(data->restart_marker_thread);
 
-  // each jpeg in turn
+  // each jpeg in turn, don't close a file handle more than once
+  GHashTable *fclose_hashtable = filehandle_hashtable_new();
   for (int32_t i = 0; i < data->jpeg_count; i++) {
     struct one_jpeg *jpeg = data->all_jpegs + i;
-
-    fclose(jpeg->f);
+    filehandle_hashtable_conditional_insert(fclose_hashtable, jpeg->f);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->unreliable_mcu_starts);
   }
+  g_hash_table_unref(fclose_hashtable);
 
   // each layer in turn
   for (int32_t i = 0; i < osr->layer_count; i++) {
@@ -1074,11 +1094,14 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   if (osr == NULL) {
     // free now and return
+    GHashTable *fclose_hashtable = filehandle_hashtable_new();
     for (int32_t i = 0; i < count; i++) {
-      fclose(fragments[i]->f);
+      filehandle_hashtable_conditional_insert(fclose_hashtable,
+					      fragments[i]->f);
       g_free(fragments[i]->mcu_starts);
       g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
     }
+    g_hash_table_unref(fclose_hashtable);
     g_free(fragments);
     return;
   }
