@@ -71,7 +71,7 @@ struct one_jpeg {
 };
 
 struct layer {
-  struct one_jpeg **layer_jpegs; // count given by jpeg_w * jpeg_h
+  GHashTable *layer_jpegs; // count given by jpeg_w * jpeg_h
 
   // total size (not premultiplied by scale_denom)
   int64_t pixel_w;
@@ -79,6 +79,9 @@ struct layer {
 
   int32_t jpegs_across;       // how many distinct jpeg files across?
   int32_t jpegs_down;         // how many distinct jpeg files down?
+
+  int32_t tile_width;
+  int32_t tile_height;
 
   // the size of image (0,0), which is used to find the jpeg we want
   // from a given (x,y) (not premultiplied)
@@ -94,6 +97,9 @@ struct jpegops_data {
   struct one_jpeg *all_jpegs;
 
   char *comment;
+
+  // when we don't have a jpeg, what to fill with
+  uint32_t fill_color_argb;
 
   // layer_count is in the osr struct
   struct layer *layers;
@@ -249,13 +255,17 @@ static void int64_free(gpointer data) {
   g_slice_free(int64_t, data);
 }
 
+static void int_free(gpointer data) {
+  g_slice_free(int, data);
+}
+
 static void layer_free(gpointer data) {
   //  g_debug("layer_free: %p", data);
 
   struct layer *l = data;
 
   //  g_debug("g_free(%p)", (void *) l->layer_jpegs);
-  g_free(l->layer_jpegs);
+  g_hash_table_unref(l->layer_jpegs);
   g_slice_free(struct layer, l);
 }
 
@@ -270,12 +280,13 @@ static void print_wlmap_entry(gpointer key, gpointer value,
 	  k, v->pixel_w, v->pixel_h, v->jpegs_across, v->jpegs_down, v->scale_denom, v->image00_w, v->image00_h, v->no_scale_denom_downsample);
 }
 
-static void generate_layers_into_map(GSList *jpegs,
-				     int32_t jpegs_across, int32_t jpegs_down,
-				     int64_t pixel_w, int64_t pixel_h,
-				     int32_t image00_w, int32_t image00_h,
-				     int64_t layer0_w,
-				     GHashTable *width_to_layer_map) {
+static void generate_layer_into_map(GSList *jpegs,
+				    int32_t jpegs_across, int32_t jpegs_down,
+				    int64_t pixel_w, int64_t pixel_h,
+				    int32_t image00_w, int32_t image00_h,
+				    int32_t tile_width, int32_t tile_height,
+				    int64_t layer0_w,
+				    GHashTable *width_to_layer_map) {
   // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
   // need to create 4 layers per set of JPEGs
 
@@ -292,15 +303,23 @@ static void generate_layers_into_map(GSList *jpegs,
     l->scale_denom = scale_denom;
     l->image00_w = image00_w;
     l->image00_h = image00_h;
+    l->tile_width = tile_width;
+    l->tile_height = tile_height;
     l->no_scale_denom_downsample = (double) layer0_w / (double) pixel_w;
 
     // create array and copy
-    l->layer_jpegs = g_new(struct one_jpeg *, num_jpegs);
+    l->layer_jpegs = g_hash_table_new_full(g_int_hash, g_int_equal,
+					   int_free, NULL);
     //    g_debug("g_new(struct one_jpeg *) -> %p", (void *) l->layer_jpegs);
     GSList *jj = jpegs;
     for (int32_t i = 0; i < num_jpegs; i++) {
       g_assert(jj);
-      l->layer_jpegs[i] = (struct one_jpeg *) jj->data;
+      if (jj->data) {
+	int *key = g_slice_new(int);
+	*key = i;
+	g_hash_table_insert(l->layer_jpegs, key, jj->data);
+	//	g_debug("insert (%p): %d, %p, scale_denom: %d", l->layer_jpegs, i, jj->data, scale_denom);
+      }
       jj = jj->next;
     }
 
@@ -328,6 +347,9 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 
   int32_t img00_w = 0;
   int32_t img00_h = 0;
+
+  int32_t img00_tw = 0;
+  int32_t img00_th = 0;
 
   int64_t layer0_w = 0;
 
@@ -357,7 +379,13 @@ static GHashTable *create_width_to_layer_map(int32_t count,
     if (fr->x == 0 && fr->y == 0) {
       img00_w = oj->width;
       img00_h = oj->height;
+      img00_tw = oj->tile_width;
+      img00_th = oj->tile_height;
     }
+
+    // assert all tile sizes are the same in a layer
+    g_assert(img00_tw == oj->tile_width);
+    g_assert(img00_th == oj->tile_height);
 
     // accumulate size
     if (fr->y == 0) {
@@ -381,11 +409,12 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 	layer0_w = l_pw;
       }
 
-      generate_layers_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
-			       l_pw, l_ph,
-			       img00_w, img00_h,
-			       layer0_w,
-			       width_to_layer_map);
+      generate_layer_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
+			      l_pw, l_ph,
+			      img00_w, img00_h,
+			      img00_tw, img00_th,
+			      layer0_w,
+			      width_to_layer_map);
 
       // clear for next round
       l_pw = 0;
@@ -670,9 +699,10 @@ static void tilereader_read(void *tilereader_data,
   int64_t origin_src_segment_x = file_x * (int64_t) l->image00_w;
   int32_t start_in_src_segment_x = src_x - origin_src_segment_x;
 
-  int file_number = file_y * l->jpegs_across + file_x;
-  g_assert(file_number < l->jpegs_across * l->jpegs_down);
-  struct one_jpeg *jpeg = l->layer_jpegs[file_y * l->jpegs_across + file_x];
+  int jpeg_number = file_y * l->jpegs_across + file_x;
+  g_assert(jpeg_number < l->jpegs_across * l->jpegs_down);
+  struct one_jpeg *jpeg = g_hash_table_lookup(l->layer_jpegs, &jpeg_number);
+  //  g_debug("lookup (%p): %d -> %p", l->layer_jpegs, jpeg_number, jpeg);
 
   read_from_one_jpeg(jpeg, dest,
 		     start_in_src_segment_x, start_in_src_segment_y,
@@ -696,8 +726,8 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   //	  layer, rel_downsample, scale_denom);
 
   // figure out tile dimensions
-  int64_t tw = l->layer_jpegs[0]->tile_width / scale_denom;
-  int64_t th = l->layer_jpegs[0]->tile_height / scale_denom;
+  int64_t tw = l->tile_width / scale_denom;
+  int64_t th = l->tile_height / scale_denom;
 
   int64_t ds_x = x / rel_downsample / scale_denom;
   int64_t ds_y = y / rel_downsample / scale_denom;
@@ -763,7 +793,7 @@ static void destroy(openslide_t *osr) {
     struct layer *l = data->layers + i;
 
     //    g_debug("g_free(%p)", (void *) l->layer_jpegs);
-    g_free(l->layer_jpegs);
+    g_hash_table_unref(l->layer_jpegs);
   }
 
   // the JPEG array
