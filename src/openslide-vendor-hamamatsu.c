@@ -337,7 +337,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     struct _openslide_jpeg_fragment *jp = jpegs[i];
 
     // these jpeg files always start at 0
-    jp->start_in_file = 0;
+    jp->u.file_info.start_in_file = 0;
 
     if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
@@ -349,8 +349,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
 
     fseeko(jp->f, 0, SEEK_END);
-    jp->end_in_file = ftello(jp->f);
-    if (jp->end_in_file == -1) {
+    jp->u.file_info.end_in_file = ftello(jp->f);
+    if (jp->u.file_info.end_in_file == -1) {
       g_warning("Can't read file size for JPEG %d", i);
       goto FAIL;
     }
@@ -400,14 +400,20 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 					    mcu_starts_count);
     }
     if (mcu_starts) {
-      jp->mcu_starts_count = mcu_starts_count;
-      jp->mcu_starts = mcu_starts;
+      jp->u.file_info.mcu_starts_count = mcu_starts_count;
+      jp->u.file_info.mcu_starts = mcu_starts;
     } else if (optimisation_file != NULL) {
       // the optimisation file is useless, close it
       fclose(optimisation_file);
       optimisation_file = NULL;
     }
   }
+
+  /*
+  jpegs[1]->f = NULL;
+  jpegs[1]->u.blank_info.w = 6144;
+  jpegs[1]->u.blank_info.h = 5088;
+  */
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
   success = true;

@@ -86,8 +86,25 @@ void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereade
 /* JPEG support */
 struct _openslide_jpeg_fragment {
   FILE *f;
-  int64_t start_in_file;
-  int64_t end_in_file;
+
+  union {
+    // fill this in if f != NULL, this is the file info
+    struct {
+      int64_t start_in_file;
+      int64_t end_in_file;
+
+      // if known, put mcu starts here, set unknowns to -1
+      int64_t *mcu_starts;
+      int32_t mcu_starts_count;
+    } file_info;
+
+    // fill this in if f == NULL, this is the blank info
+    struct {
+      int32_t w;
+      int32_t h;
+      uint32_t fill_color_argb;
+    } blank_info;
+  } u;
 
   // all fragments together should form a dense space,
   // with no gaps in x,y,z
@@ -110,10 +127,6 @@ struct _openslide_jpeg_fragment {
 
   // this value starts from 0 at the largest layer
   int32_t z;
-
-  // if known, put mcu starts here, set unknowns to -1
-  int64_t *mcu_starts;
-  int32_t mcu_starts_count;
 };
 
 // note: fragments MUST be sorted by z, then x, then y
