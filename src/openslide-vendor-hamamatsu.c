@@ -331,8 +331,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   int32_t h;
   int32_t tw;
   int32_t th;
-  int32_t layer1_tw = 0;
-  int32_t layer1_th = 0;
+  int32_t jpeg0_tw = 0;
+  int32_t jpeg0_th = 0;
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_fragment *jp = jpegs[i];
 
@@ -359,11 +359,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
     if (i == 0) {
-      layer1_tw = tw;
-      layer1_th = th;
+      jpeg0_tw = tw;
+      jpeg0_th = th;
     } else if (i < num_jpegs - 1) {
-      g_assert(layer1_tw != 0 && layer1_th != 0);
-      if (layer1_tw != tw || layer1_th != th) {
+      g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
+      if (jpeg0_tw != tw || jpeg0_th != th) {
 	g_warning("Tile size not consistent");
 	goto FAIL;
       }
