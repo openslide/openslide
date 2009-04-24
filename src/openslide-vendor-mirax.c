@@ -78,6 +78,90 @@ struct hier_section {
   int tile_h;
 };
 
+static bool verify_string_from_file(FILE *f, const char *str) {
+  bool result;
+  int len = strlen(str);
+
+  char *possible_str = g_malloc(len + 1);
+  possible_str[len] = '\0';
+  size_t size = fread(possible_str, len, 1, f);
+
+  g_debug("\"%s\" == \"%s\" ?", str, possible_str);
+
+  result = (size == 1) && (strcmp(str, possible_str) == 0);
+
+  g_free(possible_str);
+  return result;
+}
+
+static int32_t read_le_int32_from_file(FILE *f) {
+  int32_t i;
+
+  if (fread(&i, 4, 1, f) != 1) {
+    return -1;
+  }
+
+  return GINT32_FROM_LE(i);
+}
+
+static bool read_image_pages_from_indexfile(GList **list, FILE *f) {
+  return false;
+}
+
+static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
+					 const char *slideversion,
+					 const char *uuid,
+					 int zoom_levels,
+					 FILE *indexfile) {
+  int jpeg_count = 0;
+  struct _openslide_jpeg_fragment **jpegs = NULL;
+  *out = NULL;
+
+  GList *fragment_list = NULL;
+
+  rewind(indexfile);
+
+  // verify slideversion and uuid
+  if (!(verify_string_from_file(indexfile, slideversion) &&
+	verify_string_from_file(indexfile, uuid))) {
+    g_warning("Indexfile doesn't start with expected values");
+    return 0;
+  }
+
+  int32_t ptr = read_le_int32_from_file(indexfile);
+  if (ptr == -1) {
+    return 0;
+  }
+
+  // jump to start of interesting data
+  g_debug("seek %d", ptr);
+  if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
+    g_warning("Cannot seek to start of interesting data");
+    return 0;
+  }
+
+  // read all zoom level data
+  for (int i = 0; i < zoom_levels; i++) {
+    off_t old = ftello(indexfile);
+    if (!read_image_pages_from_indexfile(&fragment_list, indexfile)) {
+      g_warning("Cannot read some jpeg pages from indexfile");
+      goto FAIL;
+    }
+    if (fseeko(indexfile, old + 4, SEEK_SET) == -1) {
+      g_warning("Cannot seek to zoom level pointer %d", i + 1);
+      goto FAIL;
+    }
+  }
+
+  *out = jpegs;
+  return jpeg_count;
+
+ FAIL:
+  // TODO: deallocate data
+  return 0;
+}
+
+
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   struct _openslide_jpeg_fragment **jpegs = NULL;
   int num_jpegs = 0;
@@ -102,6 +186,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   int datafile_count = 0;
   char **datafile_names = NULL;
+
+  FILE *indexfile = NULL;
 
   // start reading
 
@@ -243,16 +329,31 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     g_debug(" datafile name %d: %s", i, datafile_names[i]);
   }
 
-  goto FAIL;
 
+  // read indexfile
+  tmp = g_build_filename(dirname, index_filename, NULL);
+  indexfile = fopen(tmp, "rb");
+  g_free(tmp);
+  tmp = NULL;
 
+  if (!indexfile) {
+    g_warning("Cannot open index file");
+    goto FAIL;
+  }
+
+  if (!(num_jpegs = read_fragments_from_indexfile(&jpegs,
+						  slide_version,
+						  slide_id,
+						  zoom_levels,
+						  indexfile))) {
+    goto FAIL;
+  }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
   success = true;
   goto DONE;
 
  FAIL:
-
   success = false;
 
  DONE:
@@ -267,6 +368,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   if (slidedat) {
     g_key_file_free(slidedat);
+  }
+  if (indexfile) {
+    fclose(indexfile);
   }
 
   return success;
