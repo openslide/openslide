@@ -409,12 +409,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
   }
 
-  /*
-  jpegs[1]->f = NULL;
-  jpegs[1]->u.blank_info.w = 6144;
-  jpegs[1]->u.blank_info.h = 5088;
-  */
-
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
   success = true;
   goto DONE;
