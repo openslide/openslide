@@ -169,7 +169,7 @@ void openslide_read_region(openslide_t *osr,
 
   // start cleared
   if (dest != NULL) {
-    for (int i = 0; i < w * h; i++) {
+    for (int64_t i = 0; i < w * h; i++) {
       dest[i] = osr->fill_color_argb;
     }
   }
