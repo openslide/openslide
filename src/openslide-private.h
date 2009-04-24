@@ -39,6 +39,8 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
+  uint32_t fill_color_argb;
+
   double *downsamples;  // filled in automatically
 };
 
@@ -73,7 +75,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
 			     void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
 						     uint32_t *dest,
-						     int64_t x, int64_t y),
+						     int64_t x,
+						     int64_t y),
 			     void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt));
 
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff);
@@ -102,7 +105,6 @@ struct _openslide_jpeg_fragment {
     struct {
       int32_t w;
       int32_t h;
-      uint32_t fill_color_argb;
     } blank_info;
   } u;
 

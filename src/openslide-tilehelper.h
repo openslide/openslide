@@ -28,15 +28,19 @@
 #include "openslide.h"
 #include "openslide-cache.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
-void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t end_y,
+void _openslide_read_tiles(int64_t start_x, int64_t start_y,
+			   int64_t end_x, int64_t end_y,
 			   int32_t ovr_x, int32_t ovr_y,
 			   int64_t dest_w, int64_t dest_h,
 			   int32_t layer,
 			   int64_t tw, int64_t th,
-			   void (*tilereader_read)(void *tilereader_data,
-						   uint32_t *dest, int64_t x, int64_t y),
+			   bool (*tilereader_read)(void *tilereader_data,
+						   uint32_t *dest,
+						   int64_t x,
+						   int64_t y),
 			   void *tilereader_data,
 			   uint32_t *dest,
 			   struct _openslide_cache *cache);

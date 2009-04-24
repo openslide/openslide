@@ -89,10 +89,12 @@ struct tilereader {
 			  uint32_t *dest, int64_t x, int64_t y);
 };
 
-static void tilereader_read(void *tilereader_data,
+static bool tilereader_read(void *tilereader_data,
 			    uint32_t *dest, int64_t x, int64_t y) {
   struct tilereader *tilereader = tilereader_data;
   tilereader->tilereader_read(tilereader->tilereader, dest, x, y);
+
+  return true;
 }
 
 static void read_region(openslide_t *osr, uint32_t *dest,
@@ -159,7 +161,8 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 					.tilereader_read = data->tilereader_read };
 
   _openslide_read_tiles(start_x, start_y, end_x, end_y, ovr_x, ovr_y,
-			w, h, layer, tw, th, tilereader_read, &tilereader_data,
+			w, h, layer, tw, th, tilereader_read,
+			&tilereader_data,
 			dest, data->cache);
 
   data->tilereader_destroy(tilereader);

@@ -72,13 +72,16 @@ static void copy_tile(const uint32_t *tile,
 }
 
 
-void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int64_t end_y,
+void _openslide_read_tiles(int64_t start_x, int64_t start_y,
+			   int64_t end_x, int64_t end_y,
 			   int32_t ovr_x, int32_t ovr_y,
 			   int64_t dest_w, int64_t dest_h,
 			   int32_t layer,
 			   int64_t tw, int64_t th,
-			   void (*tilereader_read)(void *tilereader_data,
-						   uint32_t *dest, int64_t x, int64_t y),
+			   bool (*tilereader_read)(void *tilereader_data,
+						   uint32_t *dest,
+						   int64_t x,
+						   int64_t y),
 			   void *tilereader_data,
 			   uint32_t *dest,
 			   struct _openslide_cache *cache) {
@@ -113,8 +116,10 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int6
       } else {
 	// make new tile
 	new_tile = g_slice_alloc(tile_size);
-	tilereader_read(tilereader_data, new_tile, round_x, round_y);
-	num_tiles_decoded++;
+
+	// tilereader_read will return true only if there is data there
+	if (tilereader_read(tilereader_data, new_tile, round_x, round_y)) {
+	  num_tiles_decoded++;
 
 	/*
 	for (int yy = 0; yy < th; yy++) {
@@ -126,7 +131,11 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y, int64_t end_x, int6
 	}
 	*/
 
-	copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+	  copy_tile(new_tile, dest, tw, th, dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+	} else {
+	  g_slice_free1(tile_size, new_tile);
+	  new_tile = NULL;
+	}
       }
 
       if (new_tile != NULL) {

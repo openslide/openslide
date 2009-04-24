@@ -57,26 +57,18 @@ enum restart_marker_thread_state {
 struct one_jpeg {
   FILE *f;
 
-  union {
-    // if f != NULL
-    struct {
-      int64_t start_in_file;
-      int64_t end_in_file;
-
-      int32_t mcu_starts_count;
-      int64_t *mcu_starts;
-      int64_t *unreliable_mcu_starts;
-    } file_data;
-
-    // if f == NULL, when we don't have a jpeg, what to fill with
-    uint32_t fill_color_argb;
-  } u;
-
   int32_t tile_width;
   int32_t tile_height;
 
   int32_t width;
   int32_t height;
+
+  // all rest only if f != NULL
+  int64_t start_in_file;
+  int64_t end_in_file;
+  int32_t mcu_starts_count;
+  int64_t *mcu_starts;
+  int64_t *unreliable_mcu_starts;
 };
 
 struct layer {
@@ -614,20 +606,20 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   g_assert(jpeg->f);
 
   compute_mcu_start(jpeg->f,
-		    jpeg->u.file_data.mcu_starts,
-		    jpeg->u.file_data.unreliable_mcu_starts,
-		    jpeg->u.file_data.end_in_file,
+		    jpeg->mcu_starts,
+		    jpeg->unreliable_mcu_starts,
+		    jpeg->end_in_file,
 		    mcu_start);
-  if (jpeg->u.file_data.mcu_starts_count == mcu_start + 1) {
+  if (jpeg->mcu_starts_count == mcu_start + 1) {
     // EOF
-    stop_position = jpeg->u.file_data.end_in_file;
+    stop_position = jpeg->end_in_file;
   } else {
     compute_mcu_start(jpeg->f,
-		      jpeg->u.file_data.mcu_starts,
-		      jpeg->u.file_data.unreliable_mcu_starts,
-		      jpeg->u.file_data.end_in_file,
+		      jpeg->mcu_starts,
+		      jpeg->unreliable_mcu_starts,
+		      jpeg->end_in_file,
 		      mcu_start + 1);
-    stop_position = jpeg->u.file_data.mcu_starts[mcu_start + 1];
+    stop_position = jpeg->mcu_starts[mcu_start + 1];
   }
 
   // begin decompress
@@ -646,9 +638,9 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
     jpeg_create_decompress(&cinfo);
 
     jpeg_random_access_src(&cinfo, jpeg->f,
-			   jpeg->u.file_data.start_in_file,
-			   jpeg->u.file_data.mcu_starts[0],
-			   jpeg->u.file_data.mcu_starts[mcu_start],
+			   jpeg->start_in_file,
+			   jpeg->mcu_starts[0],
+			   jpeg->mcu_starts[mcu_start],
 			   stop_position);
 
     cinfo.rec_outbuf_height = 0;
@@ -713,8 +705,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   jpeg_destroy_decompress(&cinfo);
 }
 
-
-static void tilereader_read(void *tilereader_data,
+static bool tilereader_read(void *tilereader_data,
 			    uint32_t *dest, int64_t src_x, int64_t src_y) {
   struct layer *l = tilereader_data;
 
@@ -730,12 +721,19 @@ static void tilereader_read(void *tilereader_data,
 
   int jpeg_number = file_y * l->jpegs_across + file_x;
   g_assert(jpeg_number < l->jpegs_across * l->jpegs_down);
+
   struct one_jpeg *jpeg = g_hash_table_lookup(l->layer_jpegs, &jpeg_number);
   //  g_debug("lookup (%p): %d -> %p", l->layer_jpegs, jpeg_number, jpeg);
+
+  if (!jpeg->f) {
+    return false;
+  }
 
   read_from_one_jpeg(jpeg, dest,
 		     start_in_src_segment_x, start_in_src_segment_y,
 		     l->scale_denom);
+
+  return true;
 }
 
 static void read_region(openslide_t *osr, uint32_t *dest,
@@ -813,8 +811,8 @@ static void destroy(openslide_t *osr) {
   for (int32_t i = 0; i < data->jpeg_count; i++) {
     struct one_jpeg *jpeg = data->all_jpegs + i;
     filehandle_hashtable_conditional_insert(fclose_hashtable, jpeg->f);
-    g_free(jpeg->u.file_data.mcu_starts);
-    g_free(jpeg->u.file_data.unreliable_mcu_starts);
+    g_free(jpeg->mcu_starts);
+    g_free(jpeg->unreliable_mcu_starts);
   }
   g_hash_table_unref(fclose_hashtable);
 
@@ -888,16 +886,15 @@ static void init_one_jpeg(struct one_jpeg *onej,
   if (!fragment->f) {
     onej->tile_width = onej->width = fragment->u.blank_info.w;
     onej->tile_height = onej->height = fragment->u.blank_info.h;
-    onej->u.fill_color_argb = fragment->u.blank_info.fill_color_argb;
 
     // done
     return;
   }
 
   FILE *f = onej->f = fragment->f;
-  int64_t start_in_file = onej->u.file_data.start_in_file =
+  int64_t start_in_file = onej->start_in_file =
     fragment->u.file_info.start_in_file;
-  onej->u.file_data.end_in_file = fragment->u.file_info.end_in_file;
+  onej->end_in_file = fragment->u.file_info.end_in_file;
 
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
@@ -964,26 +961,26 @@ static void init_one_jpeg(struct one_jpeg *onej,
 	    fragment->u.file_info.mcu_starts != NULL));
 
   int32_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
-  onej->u.file_data.mcu_starts_count = MCUs / cinfo.restart_interval;
-  onej->u.file_data.mcu_starts = g_new(int64_t,
-				       onej->u.file_data.mcu_starts_count);
+  onej->mcu_starts_count = MCUs / cinfo.restart_interval;
+  onej->mcu_starts = g_new(int64_t,
+			   onej->mcu_starts_count);
 
   // init all to -1
-  for (int32_t i = 0; i < onej->u.file_data.mcu_starts_count; i++) {
-    (onej->u.file_data.mcu_starts)[i] = -1;
+  for (int32_t i = 0; i < onej->mcu_starts_count; i++) {
+    (onej->mcu_starts)[i] = -1;
   }
 
   // set the first entry
-  (onej->u.file_data.mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
+  (onej->mcu_starts)[0] = ftello(f) - cinfo.src->bytes_in_buffer;
 
   if ((fragment->u.file_info.mcu_starts_count == 0)
       || (fragment->u.file_info.mcu_starts_count ==
-	  onej->u.file_data.mcu_starts_count)) {
-    onej->u.file_data.unreliable_mcu_starts = fragment->u.file_info.mcu_starts;
+	  onej->mcu_starts_count)) {
+    onej->unreliable_mcu_starts = fragment->u.file_info.mcu_starts;
   } else {
     g_critical("JPEG file seems to have changed from a moment ago");
     // TODO _openslide_convert_to_error_ops
-    onej->u.file_data.unreliable_mcu_starts = NULL;
+    onej->unreliable_mcu_starts = NULL;
     g_free(fragment->u.file_info.mcu_starts);
   }
 
@@ -1016,7 +1013,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
   while(current_jpeg < data->jpeg_count) {
     struct one_jpeg *oj = data->all_jpegs + current_jpeg;
 
-    int64_t offset = oj->u.file_data.mcu_starts[current_mcu_start];
+    int64_t offset = oj->mcu_starts[current_mcu_start];
     g_assert(offset != -1);
     fseeko(oj->f, offset - 2, SEEK_SET);
     g_assert(getc(oj->f) == 0xFF);
@@ -1024,7 +1021,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     g_assert(marker >= 0xD0 && marker <= 0xD7);
 
     current_mcu_start++;
-    if (current_mcu_start >= oj->u.file_data.mcu_starts_count) {
+    if (current_mcu_start >= oj->mcu_starts_count) {
       current_mcu_start = 1;
       current_jpeg++;
       g_debug("done verifying jpeg %d", current_jpeg);
@@ -1092,14 +1089,18 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs + current_jpeg;
-    compute_mcu_start(oj->f, oj->u.file_data.mcu_starts,
-		      oj->u.file_data.unreliable_mcu_starts,
-		      oj->u.file_data.end_in_file,
-		      current_mcu_start);
+    if (oj->f) {
+      compute_mcu_start(oj->f, oj->mcu_starts,
+			oj->unreliable_mcu_starts,
+			oj->end_in_file,
+			current_mcu_start);
 
-    current_mcu_start++;
-    if (current_mcu_start >= oj->u.file_data.mcu_starts_count) {
-      current_mcu_start = 0;
+      current_mcu_start++;
+      if (current_mcu_start >= oj->mcu_starts_count) {
+	current_mcu_start = 0;
+	current_jpeg++;
+      }
+    } else {
       current_jpeg++;
     }
 
