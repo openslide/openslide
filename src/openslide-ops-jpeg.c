@@ -331,12 +331,10 @@ static void generate_layer_into_map(GSList *jpegs,
     GSList *jj = jpegs;
     for (int32_t i = 0; i < num_jpegs; i++) {
       g_assert(jj);
-      if (jj->data) {
-	int *key = g_slice_new(int);
-	*key = i;
-	g_hash_table_insert(l->layer_jpegs, key, jj->data);
-	//	g_debug("insert (%p): %d, %p, scale_denom: %d", l->layer_jpegs, i, jj->data, scale_denom);
-      }
+      int *key = g_slice_new(int);
+      *key = i;
+      g_hash_table_insert(l->layer_jpegs, key, jj->data);
+      //	g_debug("insert (%p): %d, %p, scale_denom: %d", l->layer_jpegs, i, jj->data, scale_denom);
       jj = jj->next;
     }
 
@@ -393,6 +391,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
     }
 
     // save first image dimensions
+    // TODO rework for sparse
     if (fr->x == 0 && fr->y == 0) {
       img00_w = oj->width;
       img00_h = oj->height;
@@ -725,7 +724,7 @@ static bool tilereader_read(void *tilereader_data,
   struct one_jpeg *jpeg = g_hash_table_lookup(l->layer_jpegs, &jpeg_number);
   //  g_debug("lookup (%p): %d -> %p", l->layer_jpegs, jpeg_number, jpeg);
 
-  if (!jpeg->f) {
+  if (!jpeg) {
     return false;
   }
 
