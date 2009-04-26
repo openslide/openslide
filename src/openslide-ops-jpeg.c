@@ -400,8 +400,8 @@ static GHashTable *create_width_to_layer_map(int32_t count,
     }
 
     // assert all tile sizes are the same in a layer
-    //    g_assert(img00_tw == oj->tile_width);
-    //    g_assert(img00_th == oj->tile_height);
+    g_assert(img00_tw == oj->tile_width);
+    g_assert(img00_th == oj->tile_height);
 
     // accumulate size
     if (fr->y == 0) {
