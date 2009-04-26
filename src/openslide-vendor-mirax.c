@@ -78,6 +78,25 @@ struct hier_section {
   int tile_h;
 };
 
+struct mirax_page_entry {
+  int32_t tile_index;
+  int32_t offset;
+  int32_t length;
+  int32_t fileno;
+  int zoom_level;
+};
+
+static gint page_entry_compare(gconstpointer a, gconstpointer b) {
+  const struct mirax_page_entry *pa = (const struct mirax_page_entry *) a;
+  const struct mirax_page_entry *pb = (const struct mirax_page_entry *) b;
+
+  return pa->tile_index - pb->tile_index;
+}
+
+static void page_entry_delete(gpointer data, gpointer user_data) {
+  g_slice_free(struct mirax_page_entry, data);
+}
+
 static bool verify_string_from_file(FILE *f, const char *str) {
   bool result;
   int len = strlen(str);
@@ -101,11 +120,95 @@ static int32_t read_le_int32_from_file(FILE *f) {
     return -1;
   }
 
-  return GINT32_FROM_LE(i);
+  i = GINT32_FROM_LE(i);
+  //  g_debug("%d", i);
+
+  return i;
 }
 
-static bool read_image_pages_from_indexfile(GList **list, FILE *f) {
-  return false;
+static bool read_data_pages_from_indexfile(GList **list, FILE *f,
+					   int zoom_level) {
+  // read initial 0
+  if (read_le_int32_from_file(f) != 0) {
+    g_warning("Expected 0 value at beginning of data page");
+    return false;
+  }
+
+  // read pointer
+  int32_t ptr = read_le_int32_from_file(f);
+  if (ptr == -1) {
+    g_warning("Can't read initial data page pointer");
+    return false;
+  }
+
+  // seek to offset
+  if (fseeko(f, ptr, SEEK_SET) == -1) {
+    g_warning("Can't seek to initial data page");
+    return false;
+  }
+
+  int32_t next_ptr;
+  do {
+    // read length
+    int32_t page_len = read_le_int32_from_file(f);
+    if (page_len == -1) {
+      g_warning("Can't read page length");
+      return false;
+    }
+
+    //    g_debug("page_len: %d", page_len);
+
+    // read "next" pointer
+    next_ptr = read_le_int32_from_file(f);
+    if (next_ptr == -1) {
+      g_warning("Cannot read \"next\" pointer");
+      return false;
+    }
+
+    // read all the data into the list
+    for (int i = 0; i < page_len; i++) {
+      int32_t tile_index = read_le_int32_from_file(f);
+      int32_t offset = read_le_int32_from_file(f);
+      int32_t length = read_le_int32_from_file(f);
+      int32_t fileno = read_le_int32_from_file(f);
+
+      if (tile_index < 0) {
+	g_warning("tile_index < 0");
+	return false;
+      }
+      if (offset < 0) {
+	g_warning("offset < 0");
+	return false;
+      }
+      if (length < 0) {
+	g_warning("length < 0");
+	return false;
+      }
+      if (fileno < 0) {
+	g_warning("fileno < 0");
+	return false;
+      }
+
+      struct mirax_page_entry *entry = g_slice_new(struct mirax_page_entry);
+      entry->tile_index = tile_index;
+      entry->offset = offset;
+      entry->length = length;
+      entry->fileno = fileno;
+      entry->zoom_level = zoom_level;
+
+      //      print_page_entry(entry, NULL);
+
+      *list = g_list_prepend(*list, entry);
+    }
+  } while (next_ptr != 0);
+
+  // check for empty list
+  if (*list == NULL) {
+    g_warning("Empty page");
+    return false;
+  }
+
+  return true;
 }
 
 static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
@@ -117,7 +220,7 @@ static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
   struct _openslide_jpeg_fragment **jpegs = NULL;
   *out = NULL;
 
-  GList *fragment_list = NULL;
+  GList *page_entry_list = NULL;
 
   rewind(indexfile);
 
@@ -125,39 +228,78 @@ static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
   if (!(verify_string_from_file(indexfile, slideversion) &&
 	verify_string_from_file(indexfile, uuid))) {
     g_warning("Indexfile doesn't start with expected values");
-    return 0;
+    goto FAIL;
   }
 
   int32_t ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
-    return 0;
+    g_warning("Can't read initial pointer");
+    goto FAIL;
   }
 
   // jump to start of interesting data
-  g_debug("seek %d", ptr);
+  //  g_debug("seek %d", ptr);
   if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
     g_warning("Cannot seek to start of interesting data");
-    return 0;
+    goto FAIL;
   }
 
   // read all zoom level data
+  off_t seek_location = ptr;
   for (int i = 0; i < zoom_levels; i++) {
-    off_t old = ftello(indexfile);
-    if (!read_image_pages_from_indexfile(&fragment_list, indexfile)) {
-      g_warning("Cannot read some jpeg pages from indexfile");
-      goto FAIL;
-    }
-    if (fseeko(indexfile, old + 4, SEEK_SET) == -1) {
+    g_debug("reading zoom_level %d", i);
+
+    if (fseeko(indexfile, seek_location, SEEK_SET) == -1) { // XXX wrong
       g_warning("Cannot seek to zoom level pointer %d", i + 1);
       goto FAIL;
     }
+
+    int32_t ptr = read_le_int32_from_file(indexfile);
+    if (ptr == -1) {
+      g_warning("Can't read zoom level pointer");
+      goto FAIL;
+    }
+    if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
+      g_warning("Cannot seek to start of data pages");
+      goto FAIL;
+    }
+
+    // read these pages in, make sure they are sorted, and add to the master list
+    GList *tmp_list = NULL;
+    bool success = read_data_pages_from_indexfile(&tmp_list, indexfile, i);
+    tmp_list = g_list_sort(tmp_list, page_entry_compare);
+    g_debug(" length: %d", g_list_length(tmp_list));
+    page_entry_list = g_list_concat(page_entry_list, tmp_list);
+
+    if (!success) {
+      g_warning("Cannot read some data pages from indexfile");
+      goto FAIL;
+    }
+
+    // advance for next zoom level
+    seek_location += 4;
+  }
+
+  // build up the jpegs now from the list
+  jpeg_count = g_list_length(page_entry_list);
+  jpegs = g_new0(struct _openslide_jpeg_fragment *, jpeg_count);
+  int i = 0;
+
+  for (GList *iter = page_entry_list; iter != NULL; iter = iter->next) {
+    struct _openslide_jpeg_fragment *frag =
+      g_slice_new(struct _openslide_jpeg_fragment);
+
+    // TODO
   }
 
   *out = jpegs;
   return jpeg_count;
 
  FAIL:
-  // TODO: deallocate data
+  // deallocate
+  g_list_foreach(page_entry_list, page_entry_delete, NULL);
+  g_list_free(page_entry_list);
+
   return 0;
 }
 
@@ -354,6 +496,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   goto DONE;
 
  FAIL:
+  for (int i = 0; i < num_jpegs; i++) {
+    g_slice_free(struct _openslide_jpeg_fragment, jpegs[i]);
+  }
+  g_free(jpegs);
+
   success = false;
 
  DONE:
