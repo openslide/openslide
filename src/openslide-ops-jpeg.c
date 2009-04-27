@@ -331,11 +331,16 @@ static void generate_layer_into_map(GSList *jpegs,
     GSList *jj = jpegs;
     for (int32_t i = 0; i < num_jpegs; i++) {
       g_assert(jj);
-      int *key = g_slice_new(int);
-      *key = i;
-      g_hash_table_insert(l->layer_jpegs, key, jj->data);
-      //	g_debug("insert (%p): %d, %p, scale_denom: %d", l->layer_jpegs, i, jj->data, scale_denom);
-      jj = jj->next;
+
+      // only insert if not blank
+      struct one_jpeg *oj = jj->data;
+      if (oj->f) {
+	int *key = g_slice_new(int);
+	*key = i;
+	g_hash_table_insert(l->layer_jpegs, key, jj->data);
+	//	g_debug("insert (%p): %d, %p, scale_denom: %d", l->layer_jpegs, i, jj->data, scale_denom);
+      }
+	jj = jj->next;
     }
 
     // put into map
