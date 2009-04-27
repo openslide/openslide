@@ -3,7 +3,18 @@ Magnification and other metadata ?
 Error handling
 
 Bacus
+ - Store filenames and use open/close instead of fopen/fclose. It is necessary
+   for handling so many files.
 
 Zeiss/MIRAX
+ - Change _openslide_jpeg_fragment thing into layers of fragments, this
+   will allow specifing the w/h and overlaps for a layer, as well as
+   avoiding generating many blank images temporarily. This is necessary
+   for the MIRAX format.
+ - Make sure downsamples are correctly computed. This should follow from
+   explicitly specifying the w/h per layer.
+ - Avoid reading every single JPEG at startup. This should be possible
+   once per-layer info is used. Bad jpegs will fail later, but we can
+   just avoid drawing those parts as before.
 
 Ship docs
