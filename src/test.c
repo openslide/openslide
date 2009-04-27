@@ -34,6 +34,14 @@
 
 #include <glib.h>
 
+static void print_downsamples(openslide_t *osr) {
+  for (int32_t layer = 0; layer < openslide_get_layer_count(osr); layer++) {
+    printf("layer %d: downsample: %g\n",
+	   layer,
+	   openslide_get_layer_downsample(osr, layer));
+  }
+}
+
 static void test_next_biggest(openslide_t *osr, double downsample) {
   int32_t layer = openslide_get_best_layer_for_downsample(osr, downsample);
   printf("layer for downsample %g: %d (%g)\n",
@@ -207,6 +215,8 @@ int main(int argc, char **argv) {
   int32_t layers = openslide_get_layer_count(osr);
   printf("num layers: %d\n", layers);
 
+  print_downsamples(osr);
+
   test_next_biggest(osr, 0.8);
   test_next_biggest(osr, 1.0);
   test_next_biggest(osr, 1.5);
@@ -229,6 +239,7 @@ int main(int argc, char **argv) {
   // test NULL dest
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
 
+  /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
   printf("test_horizontal_walk start\n");
@@ -250,23 +261,25 @@ int main(int argc, char **argv) {
 
   printf("test_vertical_walk end: %d\n", elapsed);
 
+  */
+
   //  dump_as_tiles(osr, "file1", 512, 512);
 
   //  return 0;
 
   bool skip = true;
 
-  //  test_tile_walk(osr, 16);
+  //test_tile_walk(osr, 16);
   //test_tile_walk(osr, 4096);
   //test_tile_walk(osr, 256);
 
   //test_image_fetch(osr, "test0", 61000, 61000, 1024, 1024, skip);
   //test_image_fetch(osr, "test1", w/2, h/2, 1024, 1024, skip);
-  //  test_image_fetch(osr, "test2", w - 500, h - 300, 900, 800, skip);
-  //  test_image_fetch(osr, "test3", w*2, h*2, 900, 800, skip);
-  //  test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
-  //  test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
-  //  test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
+  //test_image_fetch(osr, "test2", w - 500, h - 300, 900, 800, skip);
+  //test_image_fetch(osr, "test3", w*2, h*2, 900, 800, skip);
+  //test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
+  test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
+  test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
 
   openslide_close(osr);
 
