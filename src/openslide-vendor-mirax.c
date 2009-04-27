@@ -79,7 +79,8 @@ struct hier_section {
 };
 
 struct mirax_page_entry {
-  int32_t tile_index;
+  int32_t x;
+  int32_t y;
   int32_t offset;
   int32_t length;
   int32_t fileno;
@@ -90,7 +91,11 @@ static gint page_entry_compare(gconstpointer a, gconstpointer b) {
   const struct mirax_page_entry *pa = (const struct mirax_page_entry *) a;
   const struct mirax_page_entry *pb = (const struct mirax_page_entry *) b;
 
-  return pa->tile_index - pb->tile_index;
+  if (pa->y != pb->y) {
+    return pa->y - pb->y;
+  }
+
+  return pa->x - pb->x;
 }
 
 static void page_entry_delete(gpointer data, gpointer user_data) {
@@ -127,7 +132,8 @@ static int32_t read_le_int32_from_file(FILE *f) {
 }
 
 static bool read_data_pages_from_indexfile(GList **list, FILE *f,
-					   int zoom_level) {
+					   int zoom_level,
+					   int tiles_across) {
   // read initial 0
   if (read_le_int32_from_file(f) != 0) {
     g_warning("Expected 0 value at beginning of data page");
@@ -189,12 +195,30 @@ static bool read_data_pages_from_indexfile(GList **list, FILE *f,
 	return false;
       }
 
+      // we have only encountered images with exactly power-of-two scale
+      // factors, and there appears to be no clear way to specify otherwise,
+      // so require it
+      int32_t x = tile_index % tiles_across;
+      int32_t y = tile_index / tiles_across;
+
+      if (x % (1 << zoom_level)) {
+	g_warning("x (%d) not correct multiple for zoom level (%d)",
+		  x, zoom_level);
+	return false;
+      }
+      if (y % (1 << zoom_level)) {
+	g_warning("y (%d) not correct multiple for zoom level (%d)",
+		  y, zoom_level);
+	return false;
+      }
+
       struct mirax_page_entry *entry = g_slice_new(struct mirax_page_entry);
-      entry->tile_index = tile_index;
       entry->offset = offset;
       entry->length = length;
       entry->fileno = fileno;
       entry->zoom_level = zoom_level;
+      entry->x = x;
+      entry->y = y;
 
       //      print_page_entry(entry, NULL);
 
@@ -211,11 +235,12 @@ static bool read_data_pages_from_indexfile(GList **list, FILE *f,
   return true;
 }
 
-static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
-					 const char *slideversion,
-					 const char *uuid,
-					 int zoom_levels,
-					 FILE *indexfile) {
+static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
+					  const char *slideversion,
+					  const char *uuid,
+					  int zoom_levels,
+					  int tiles_x,
+					  FILE *indexfile) {
   int jpeg_count = 0;
   struct _openslide_jpeg_fragment **jpegs = NULL;
   *out = NULL;
@@ -266,7 +291,8 @@ static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
 
     // read these pages in, make sure they are sorted, and add to the master list
     GList *tmp_list = NULL;
-    bool success = read_data_pages_from_indexfile(&tmp_list, indexfile, i);
+    bool success = read_data_pages_from_indexfile(&tmp_list, indexfile, i,
+						  tiles_x);
     tmp_list = g_list_sort(tmp_list, page_entry_compare);
     g_debug(" length: %d", g_list_length(tmp_list));
     page_entry_list = g_list_concat(page_entry_list, tmp_list);
@@ -483,11 +509,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
-  if (!(num_jpegs = read_fragments_from_indexfile(&jpegs,
-						  slide_version,
-						  slide_id,
-						  zoom_levels,
-						  indexfile))) {
+  if (!(num_jpegs = build_fragments_from_indexfile(&jpegs,
+						   slide_version,
+						   slide_id,
+						   zoom_levels,
+						   tiles_x,
+						   indexfile))) {
     goto FAIL;
   }
 
