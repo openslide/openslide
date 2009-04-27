@@ -61,6 +61,7 @@ while ptr is not None:
     elif value == 128:
         items = decode4s(values, ptr)
         for z in items:
-            print "%d %d" % (z % 216, z / 216)
+            width = 216
+            print "%d %d" % (z % width, z / width)
         break
     ptr = get_pointer(value)
