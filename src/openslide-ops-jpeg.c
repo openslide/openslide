@@ -940,9 +940,9 @@ static void init_one_jpeg(struct one_jpeg *onej,
   }
 
   // save "tile" dimensions
-  if (!(((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
-	 (cinfo.MCUs_per_row % cinfo.restart_interval == 0)) ||
-	(cinfo.restart_interval == 0))) {
+  if (!((cinfo.restart_interval == 0) ||
+	((cinfo.MCUs_per_row >= cinfo.restart_interval) &&
+	 (cinfo.MCUs_per_row % cinfo.restart_interval == 0)))) {
     g_critical("JPEG file seems to have changed from a moment ago");
     // TODO _openslide_convert_to_error_ops
   }
@@ -965,7 +965,11 @@ static void init_one_jpeg(struct one_jpeg *onej,
 	    fragment->u.file_info.mcu_starts != NULL));
 
   int32_t MCUs = cinfo.MCUs_per_row * cinfo.MCU_rows_in_scan;
-  onej->mcu_starts_count = MCUs / cinfo.restart_interval;
+  if (cinfo.restart_interval == 0) {
+    onej->mcu_starts_count = 1;
+  } else {
+    onej->mcu_starts_count = MCUs / cinfo.restart_interval;
+  }
   onej->mcu_starts = g_new(int64_t,
 			   onej->mcu_starts_count);
 
