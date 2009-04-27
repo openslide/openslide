@@ -249,7 +249,7 @@ static int read_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
   for (int i = 0; i < zoom_levels; i++) {
     g_debug("reading zoom_level %d", i);
 
-    if (fseeko(indexfile, seek_location, SEEK_SET) == -1) { // XXX wrong
+    if (fseeko(indexfile, seek_location, SEEK_SET) == -1) {
       g_warning("Cannot seek to zoom level pointer %d", i + 1);
       goto FAIL;
     }
