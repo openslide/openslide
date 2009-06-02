@@ -245,9 +245,15 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 static const char* get_comment(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
 
+  // select layer
+  TIFFSetDirectory(data->tiff, 0);
+
   char *comment;
-  TIFFGetField(data->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment);
-  return comment;
+  if (TIFFGetField(data->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment)) {
+    return comment;
+  } else {
+    return NULL;
+  }
 }
 
 static struct _openslide_ops _openslide_tiff_ops = {
