@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <tiffio.h>
 
-#include <openjpeg.h>
+#include <openjpeg/openjpeg.h>
 
 static const char APERIO_DESCRIPTION[] = "Aperio Image Library";
 

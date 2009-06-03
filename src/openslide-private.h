@@ -31,7 +31,8 @@
 #include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>
-#include <openjpeg.h>
+
+#include <openjpeg/openjpeg.h>
 
 /* the main structure */
 struct _openslide {

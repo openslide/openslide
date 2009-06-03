@@ -8,7 +8,7 @@ libopenslide_la_SOURCES = openslide.c \
 	openslide-vendor-aperio.c openslide-vendor-mirax.c \
 	openslide-ops-tiff.c openslide-ops-jpeg.c
 
-libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL -I/usr/include/openjpeg $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
+libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL $(GLIB2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
 
 libopenslide_la_LDFLAGS = -version-info 0:2:0
 
