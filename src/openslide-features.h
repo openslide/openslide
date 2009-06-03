@@ -27,7 +27,7 @@
 
 
 // for exporting from shared libraries or DLLs
-#if defined WIN32
+#if defined _WIN32
 #  ifdef BUILDING_DLL
 #    define openslide_public __declspec(dllexport)
 #  else

@@ -100,7 +100,7 @@ static void test_image_fetch(openslide_t *osr,
   printf("test image fetch %s\n", name);
   //  for (int32_t layer = 0; layer < 1; layer++) {
   for (int32_t layer = 0; layer < openslide_get_layer_count(osr); layer++) {
-    asprintf(&filename, "%s-%.2d.ppm", name, layer);
+    filename = g_strdup_printf("%s-%.2d.ppm", name, layer);
     int64_t num_bytes = w * h * 4;
     printf("Going to allocate %" PRId64 " bytes...\n", num_bytes);
     uint32_t *buf = malloc(num_bytes);
@@ -114,7 +114,7 @@ static void test_image_fetch(openslide_t *osr,
     }
 
     free(buf);
-    free(filename);
+    g_free(filename);
   }
 }
 
@@ -170,14 +170,14 @@ static void dump_as_tiles(openslide_t *osr, const char *name,
   for (int64_t y = 0; y < h; y += tile_h) {
     for (int64_t x = 0; x < w; x += tile_w) {
       char *filename;
-      asprintf(&filename, "%s-%.10" PRId64 "-%.10" PRId64 ".ppm",
-	       name, x, y);
+      filename = g_strdup_printf("%s-%.10" PRId64 "-%.10" PRId64 ".ppm",
+				 name, x, y);
 
       printf("%s\n", filename);
 
       openslide_read_region(osr, buf, x, y, 0, tile_w, tile_h);
       write_as_ppm(filename, tile_w, tile_h, buf);
-      free(filename);
+      g_free(filename);
     }
   }
 

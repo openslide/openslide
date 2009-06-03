@@ -25,6 +25,15 @@
 #ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
 #define OPENSLIDE_OPENSLIDE_PRIVATE_H_
 
+#ifdef _WIN32
+#define WIN32 1
+#endif
+
+#if !defined(fseeko) && defined(_WIN32)
+#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
+#define ftello(stream) _ftelli64(stream)
+#endif
+
 #include "openslide.h"
 
 #include <stdbool.h>
