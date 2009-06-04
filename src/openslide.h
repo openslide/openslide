@@ -48,6 +48,7 @@ typedef struct _openslide openslide_t;
 openslide_public
 bool openslide_can_open(const char *filename);
 
+
 /**
  * Open a whole slide image.
  *
@@ -56,6 +57,7 @@ bool openslide_can_open(const char *filename);
  */
 openslide_public
 openslide_t *openslide_open(const char *filename);
+
 
 /**
  * Copy ARGB data from a whole slide image.
@@ -68,7 +70,7 @@ openslide_t *openslide_open(const char *filename);
  * @param osr The whole slide image handle.
  * @param dest The destination buffer for the ARGB data.
  * @param x The top left x-coordinate. Must be non-negative.
- * @param y The top left y-coordinate. Must be non-negative
+ * @param y The top left y-coordinate. Must be non-negative.
  * @param layer The desired layer.
  * @param w The width of the region. Must be greater than 0.
  * @param h The height of the region. Must be greater than 0.
@@ -79,6 +81,7 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h);
+
 
 /**
  * Give a non-blocking hint that a region is likely to be needed soon.
@@ -96,6 +99,7 @@ int openslide_give_prefetch_hint(openslide_t *osr,
 				 int64_t x, int64_t y,
 				 int32_t layer,
 				 int64_t w, int64_t h);
+
 
 /**
  * Cancel an existing prefetch hint.
@@ -115,6 +119,7 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 openslide_public
 void openslide_close(openslide_t *osr);
 
+
 /**
  * Get the number of layers in the whole slide image.
  *
@@ -123,6 +128,7 @@ void openslide_close(openslide_t *osr);
  */
 openslide_public
 int32_t openslide_get_layer_count(openslide_t *osr);
+
 
 /**
  * Get the dimensions of layer 0 (the largest layer).
@@ -133,6 +139,7 @@ int32_t openslide_get_layer_count(openslide_t *osr);
  */
 openslide_public
 void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
+
 
 /**
  * Get the dimensions of a layer.
@@ -145,6 +152,7 @@ void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
 openslide_public
 void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 				    int64_t *w, int64_t *h);
+
 
 /**
  * Get the downsampling factor of a given layer.
