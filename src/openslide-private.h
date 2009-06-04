@@ -36,12 +36,20 @@
 
 #include "openslide.h"
 
+#include <glib.h>
 #include <stdbool.h>
 #include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>
 
 #include <openjpeg/openjpeg.h>
+
+/* the associated image structure */
+struct _openslide_associated_image {
+  int32_t w;
+  int32_t h;
+  uint32_t *argb_data;
+};
 
 /* the main structure */
 struct _openslide {
@@ -52,6 +60,14 @@ struct _openslide {
   uint32_t fill_color_argb;
 
   double *downsamples;  // filled in automatically
+
+  // associated images
+  const char **associated_image_names;
+  struct _openslide_associated_image *associated_images;
+
+  // metadata
+  const char **property_names;
+  GHashTable *properties;
 };
 
 /* the function pointer structure for backends */

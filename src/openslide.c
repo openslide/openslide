@@ -196,3 +196,13 @@ void openslide_read_region(openslide_t *osr,
   // now fully within all bounds, go for it
   (osr->ops->read_region)(osr, dest, x, y, layer, w, h);
 }
+
+
+const char **openslide_get_property_names(openslide_t *osr) {
+  return osr->property_names;
+}
+
+const char *openslide_get_property_value(openslide_t *osr, const char *name) {
+  return g_hash_table_lookup(osr->properties, name);
+}
+

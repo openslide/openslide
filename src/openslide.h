@@ -178,4 +178,64 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 openslide_public
 const char *openslide_get_comment(openslide_t *osr);
 
+
+/**
+ * Get a NULL-terminated array of property names.
+ *
+ * Certain vendor-specific metadata properties may exist
+ * within a whole slide file. They are encoded as key-value
+ * pairs. This call provides a list of names as strings
+ * that can be used to read properties with openslide_get_property_value().
+ *
+ * @param osr The whole slide image handle.
+ * @return A NULL-terminated string array of property names.
+ */
+openslide_public
+const char **openslide_get_property_names(openslide_t *osr);
+
+
+/**
+ * Get the value of a single property.
+ *
+ * Certain vendor-specific metadata properties may exist
+ * within a whole slide file. They are encoded as key-value
+ * pairs. This call provides the value of the property given
+ * by @name.
+ *
+ * @param osr The whole slide image handle.
+ * @return The value of the named property, or NULL if the property
+ *         doesn't exist.
+ */
+openslide_public
+const char *openslide_get_property_value(openslide_t *osr, const char *name);
+
+
+openslide_public
+const char **openslide_get_associated_image_names(openslide_t *osr);
+
+
+openslide_public
+void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
+					       int32_t *w, int32_t *h);
+
+
+/**
+ * Copy ARGB data from an associated image.
+ *
+ * This function reads and decompresses an associated image associated with
+ * a whole slide image. @p dest must be a valid
+ * pointer to enough memory to hold the image. To compute the proper
+ * size for @p dest, use @p w * @p h * 4. Get the dimensions with
+ * openslide_get_associated_image_dimensions().
+ *
+ * @param osr The whole slide image handle.
+ * @param dest The destination buffer for the ARGB data.
+ * @param name The name of the desired associated image. Must be
+ *             a valid name as given by openslide_get_associated_image_names().
+ */
+openslide_public
+void openslide_read_associated_image(openslide_t *osr,
+				     uint32_t *dest,
+				     const char *name);
+
 #endif
