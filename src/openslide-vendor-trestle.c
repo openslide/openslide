@@ -39,12 +39,16 @@ static const char BACKGROUND_COLOR[] = "Background Color=";
 static void add_properties(GHashTable *ht, char **tags) {
   for (char **tag = tags; *tag != NULL; tag++) {
     char **pair = g_strsplit(*tag, "=", 2);
-    char *name = pair[0];
-    char *value = pair[1];
+    if (pair) {
+      char *name = g_strstrip(pair[0]);
+      if (name) {
+	char *value = g_strstrip(pair[1]);
 
-    g_hash_table_insert(ht,
-			g_strdup_printf("trestle.%s", name),
-			g_strdup(value));
+	g_hash_table_insert(ht,
+			    g_strdup_printf("trestle.%s", name),
+			    g_strdup(value));
+      }
+    }
     g_strfreev(pair);
   }
 }
