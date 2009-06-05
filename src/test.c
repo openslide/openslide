@@ -132,7 +132,7 @@ static void test_horizontal_walk(openslide_t *osr,
 
   for (int64_t x = start_x; x < d; x += stride) {
     openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
-    printf("%d\r", x);
+    printf("%" PRId64 "\r", x);
     fflush(stdout);
   }
 
@@ -153,7 +153,7 @@ static void test_vertical_walk(openslide_t *osr,
 
   for (int64_t y = start_y; y < d; y += stride) {
     openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
-    printf("%d\r", y);
+    printf("%" PRId64 "\r", y);
     fflush(stdout);
   }
 
