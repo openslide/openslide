@@ -48,6 +48,61 @@ struct _openslide_tiffopsdata {
 };
 
 
+static void store_string_property(TIFF *tiff, GHashTable *ht,
+				  const char *name, ttag_t tag) {
+  char *value;
+  if (TIFFGetField(tiff, tag, &value)) {
+    g_hash_table_insert(ht, g_strdup(name), g_strdup(value));
+  }
+}
+
+static void store_float_property(TIFF *tiff, GHashTable *ht,
+				  const char *name, ttag_t tag) {
+  float value;
+  if (TIFFGetField(tiff, tag, &value)) {
+    g_hash_table_insert(ht, g_strdup(name), g_strdup_printf("%g", value));
+  }
+}
+
+static void store_properties(TIFF *tiff, GHashTable *ht) {
+  // strings
+  store_string_property(tiff, ht, "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
+  store_string_property(tiff, ht, "tiff.Make", TIFFTAG_MAKE);
+  store_string_property(tiff, ht, "tiff.Model", TIFFTAG_MODEL);
+  store_string_property(tiff, ht, "tiff.Software", TIFFTAG_SOFTWARE);
+  store_string_property(tiff, ht, "tiff.DateTime", TIFFTAG_DATETIME);
+  store_string_property(tiff, ht, "tiff.Artist", TIFFTAG_ARTIST);
+  store_string_property(tiff, ht, "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
+  store_string_property(tiff, ht, "tiff.Copyright", TIFFTAG_COPYRIGHT);
+
+  // floats
+  store_float_property(tiff, ht, "tiff.XResolution", TIFFTAG_XRESOLUTION);
+  store_float_property(tiff, ht, "tiff.YResolution", TIFFTAG_YRESOLUTION);
+
+  // special
+  uint16_t resolution_unit;
+  if (TIFFGetField(tiff, TIFFTAG_RESOLUTIONUNIT, &resolution_unit)) {
+    const char *result;
+
+    switch(resolution_unit) {
+    case 1:
+      result = "none";
+      break;
+    case 2:
+      result = "inch";
+      break;
+    case 3:
+      result = "centimeter";
+      break;
+    default:
+      result = "unknown";
+    }
+
+    g_hash_table_insert(ht, g_strdup("tiff.ResolutionUnit"), g_strdup(result));
+  }
+}
+
+
 static void get_overlaps(openslide_t *osr, int32_t layer,
 			 int32_t *x, int32_t *y) {
   struct _openslide_tiffopsdata *data = osr->data;
@@ -298,6 +353,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // create cache
   data->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
+
+  // load TIFF properties
+  TIFFSetDirectory(data->tiff, 0);
+  store_properties(data->tiff, osr->properties);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);
