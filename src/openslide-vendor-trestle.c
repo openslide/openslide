@@ -101,8 +101,18 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
       }
 
       g_strfreev(second_pass);
+    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
+      // found the other thing
+      errno = 0;
+      uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
+      if (bg || !errno) {
+	if (osr) {
+	  osr->fill_color_argb = 0xFF000000 & bg;
+	}
+      }
     }
   }
+  g_strfreev(first_pass);
 
   // count layers
   int32_t layer_count = 0;
@@ -124,7 +134,6 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
 			  _openslide_generic_tiff_tilereader_read,
 			  _openslide_generic_tiff_tilereader_destroy);
 
-  g_strfreev(first_pass);
 
   return true;
 }
