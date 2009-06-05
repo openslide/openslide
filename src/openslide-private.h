@@ -63,11 +63,11 @@ struct _openslide {
 
   // associated images
   GHashTable *associated_images;  // created automatically
-  char **associated_image_names; // filled in automatically from hashtable
+  const char **associated_image_names; // filled in automatically from hashtable
 
   // metadata
   GHashTable *properties; // created automatically
-  char **property_names; // filled in automatically from hashtable
+  const char **property_names; // filled in automatically from hashtable
 };
 
 /* the function pointer structure for backends */

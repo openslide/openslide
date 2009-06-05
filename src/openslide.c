@@ -56,7 +56,7 @@ bool openslide_can_open(const char *filename) {
 
 struct add_key_to_strv_data {
   int i;
-  char **strv;
+  const char **strv;
 };
 
 static void add_key_to_strv(gpointer key,
@@ -67,8 +67,8 @@ static void add_key_to_strv(gpointer key,
   d->strv[d->i++] = key;
 }
 
-static char **strv_from_hashtable_keys(GHashTable *h) {
-  char **result = g_new0(char *, g_hash_table_size(h) + 1);
+static const char **strv_from_hashtable_keys(GHashTable *h) {
+  const char **result = g_new0(const char *, g_hash_table_size(h) + 1);
 
   struct add_key_to_strv_data data = { 0, result };
   g_hash_table_foreach(h, add_key_to_strv, &data);
@@ -246,7 +246,7 @@ void openslide_read_region(openslide_t *osr,
 }
 
 
-char **openslide_get_property_names(openslide_t *osr) {
+const char **openslide_get_property_names(openslide_t *osr) {
   return osr->property_names;
 }
 
@@ -254,7 +254,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
   return g_hash_table_lookup(osr->properties, name);
 }
 
-char **openslide_get_associated_image_names(openslide_t *osr) {
+const char **openslide_get_associated_image_names(openslide_t *osr) {
   return osr->associated_image_names;
 }
 
