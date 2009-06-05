@@ -33,6 +33,13 @@
 
 #include "openslide-private.h"
 
+static void destroy_associated_image(gpointer data) {
+  struct _openslide_associated_image *img = data;
+
+  g_free(img->argb_data);
+  g_slice_free(struct _openslide_associated_image, img);
+}
+
 static bool try_all_formats(openslide_t *osr, const char *filename) {
   return
     _openslide_try_mirax(osr, filename) ||
@@ -47,12 +54,38 @@ bool openslide_can_open(const char *filename) {
 }
 
 
+struct add_key_to_strv_data {
+  int i;
+  char **strv;
+};
+
+static void add_key_to_strv(gpointer key,
+			    gpointer value,
+			    gpointer user_data) {
+  struct add_key_to_strv_data *d = user_data;
+
+  d->strv[d->i++] = key;
+}
+
+static char **strv_from_hashtable_keys(GHashTable *h) {
+  char **result = g_new0(char *, g_hash_table_size(h) + 1);
+
+  struct add_key_to_strv_data data = { 0, result };
+  g_hash_table_foreach(h, add_key_to_strv, &data);
+
+  return result;
+}
+
 openslide_t *openslide_open(const char *filename) {
   // we are threading
   if (!g_thread_supported ()) g_thread_init (NULL);
 
   // alloc memory
   openslide_t *osr = g_slice_new0(openslide_t);
+  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
+					  g_free, g_free);
+  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
+						 g_free, destroy_associated_image);
 
   // try to read it
   if (!try_all_formats(osr, filename)) {
@@ -78,6 +111,10 @@ openslide_t *openslide_open(const char *filename) {
     }
   }
 
+  // fill in names
+  osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
+  osr->property_names = strv_from_hashtable_keys(osr->properties);
+
   return osr;
 }
 
@@ -86,6 +123,12 @@ void openslide_close(openslide_t *osr) {
   if (osr->ops) {
     (osr->ops->destroy)(osr);
   }
+
+  g_hash_table_unref(osr->associated_images);
+  g_hash_table_unref(osr->properties);
+
+  g_free(osr->associated_image_names);
+  g_free(osr->property_names);
 
   g_free(osr->downsamples);
   g_slice_free(openslide_t, osr);
@@ -198,7 +241,7 @@ void openslide_read_region(openslide_t *osr,
 }
 
 
-const char **openslide_get_property_names(openslide_t *osr) {
+char **openslide_get_property_names(openslide_t *osr) {
   return osr->property_names;
 }
 
@@ -206,3 +249,32 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
   return g_hash_table_lookup(osr->properties, name);
 }
 
+char **openslide_get_associated_image_names(openslide_t *osr) {
+  return osr->associated_image_names;
+}
+
+void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
+					       int32_t *w, int32_t *h) {
+  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+								name);
+  if (img) {
+    *w = img->w;
+    *h = img->h;
+  } else {
+    *w = 0;
+    *h = 0;
+  }
+}
+
+void openslide_read_associated_image(openslide_t *osr,
+				     uint32_t *dest,
+				     const char *name) {
+  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+								name);
+  if (img && dest) {
+    int32_t w = img->w;
+    int32_t h = img->h;
+
+    memcpy(dest, img->argb_data, w * h * 4);
+  }
+}

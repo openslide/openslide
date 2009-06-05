@@ -59,15 +59,15 @@ struct _openslide {
 
   uint32_t fill_color_argb;
 
-  double *downsamples;  // filled in automatically
+  double *downsamples;  // filled in automatically from dimensions
 
   // associated images
-  const char **associated_image_names;
-  struct _openslide_associated_image *associated_images;
+  GHashTable *associated_images;  // created automatically
+  char **associated_image_names; // filled in automatically from hashtable
 
   // metadata
-  const char **property_names;
-  GHashTable *properties;
+  GHashTable *properties; // created automatically
+  char **property_names; // filled in automatically from hashtable
 };
 
 /* the function pointer structure for backends */
