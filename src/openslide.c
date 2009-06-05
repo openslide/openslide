@@ -97,17 +97,22 @@ openslide_t *openslide_open(const char *filename) {
   // compute downsamples
   int64_t blw, blh;
   osr->downsamples = g_new(double, osr->layer_count);
+  osr->downsamples[0] = 1.0;
   openslide_get_layer0_dimensions(osr, &blw, &blh);
   for (int32_t i = 0; i < osr->layer_count; i++) {
     int64_t w, h;
     openslide_get_layer_dimensions(osr, i, &w, &h);
 
-    osr->downsamples[i] =
-      (((double) blh / (double) h) +
-       ((double) blw / (double) w)) / 2.0;
-    g_assert(osr->downsamples[i] >= 1.0);
     if (i > 0) {
-      g_assert(osr->downsamples[i] >= osr->downsamples[i - 1]);
+      osr->downsamples[i] =
+	(((double) blh / (double) h) +
+	 ((double) blw / (double) w)) / 2.0;
+
+      if (osr->downsamples[i] < osr->downsamples[i - 1]) {
+	g_warning("Downsampled images not correctly ordered");
+	openslide_close(osr);
+	return NULL;
+      }
     }
   }
 
