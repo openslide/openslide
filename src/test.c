@@ -239,6 +239,16 @@ int main(int argc, char **argv) {
   // test NULL dest
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
 
+  // read properties
+  const char * const *property_names = openslide_get_property_names(osr);
+  while (*property_names) {
+    const char *name = *property_names;
+    const char *value = openslide_get_property_value(osr, name);
+    printf("property: %s -> %s\n", name, value);
+
+    property_names++;
+  }
+
   /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
