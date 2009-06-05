@@ -160,6 +160,25 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
   return NULL;
 }
 
+static void add_properties(GHashTable *ht, GKeyFile *kf) {
+  char **keys = g_key_file_get_keys(kf, GROUP_VMS, NULL, NULL);
+  if (keys == NULL) {
+    return;
+  }
+
+  for (char **key = keys; *key != NULL; key++) {
+    char *value = g_key_file_get_value(kf, GROUP_VMS, *key, NULL);
+    if (value) {
+      g_hash_table_insert(ht,
+			  g_strdup_printf("hamamatsu.%s", *key),
+			  g_strdup(value));
+      g_free(value);
+    }
+  }
+
+  g_strfreev(keys);
+}
+
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
@@ -216,6 +235,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   jpegs = g_new0(struct _openslide_jpeg_fragment *, num_jpegs);
 
   //  g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
+
+  // add properties
+  if (osr) {
+    add_properties(osr->properties, vms_file);
+  }
+
 
   // extract MapFile
   tmp = g_key_file_get_string(vms_file,
