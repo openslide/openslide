@@ -33,6 +33,16 @@
 
 #include "openslide-private.h"
 
+typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
+
+static const vendor_fn all_formats[] = {
+  _openslide_try_mirax,
+  _openslide_try_hamamatsu,
+  _openslide_try_trestle,
+  _openslide_try_aperio,
+  NULL
+};
+
 static void destroy_associated_image(gpointer data) {
   struct _openslide_associated_image *img = data;
 
@@ -41,11 +51,19 @@ static void destroy_associated_image(gpointer data) {
 }
 
 static bool try_all_formats(openslide_t *osr, const char *filename) {
-  return
-    _openslide_try_mirax(osr, filename) ||
-    _openslide_try_hamamatsu(osr, filename) ||
-    _openslide_try_trestle(osr, filename) ||
-    _openslide_try_aperio(osr, filename);
+  const vendor_fn *fn = all_formats;
+  while (*fn) {
+    if (osr) {
+      g_hash_table_remove_all(osr->properties);
+      g_hash_table_remove_all(osr->associated_images);
+    }
+
+    if ((*fn)(osr, filename)) {
+      return true;
+    }
+    fn++;
+  }
+  return false;
 }
 
 bool openslide_can_open(const char *filename) {
