@@ -33,7 +33,7 @@
 
 #include <openjpeg/openjpeg.h>
 
-static const char APERIO_DESCRIPTION[] = "Aperio Image Library";
+static const char APERIO_DESCRIPTION[] = "Aperio";
 
 struct _openslide_tiff_tilereader {
   TIFF *tiff;
