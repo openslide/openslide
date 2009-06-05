@@ -199,7 +199,7 @@ const char *openslide_get_comment(openslide_t *osr);
  * @return A NULL-terminated string array of property names.
  */
 openslide_public
-const char **openslide_get_property_names(openslide_t *osr);
+const char * const *openslide_get_property_names(openslide_t *osr);
 
 
 /**
@@ -219,7 +219,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name);
 
 
 openslide_public
-const char **openslide_get_associated_image_names(openslide_t *osr);
+const char * const *openslide_get_associated_image_names(openslide_t *osr);
 
 
 openslide_public

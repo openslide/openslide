@@ -246,7 +246,7 @@ void openslide_read_region(openslide_t *osr,
 }
 
 
-const char **openslide_get_property_names(openslide_t *osr) {
+const char * const *openslide_get_property_names(openslide_t *osr) {
   return osr->property_names;
 }
 
@@ -254,7 +254,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
   return g_hash_table_lookup(osr->properties, name);
 }
 
-const char **openslide_get_associated_image_names(openslide_t *osr) {
+const char * const *openslide_get_associated_image_names(openslide_t *osr) {
   return osr->associated_image_names;
 }
 
