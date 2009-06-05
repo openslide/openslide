@@ -203,9 +203,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   }
 
   int num_jpeg_rows = g_key_file_get_integer(vms_file,
-					  GROUP_VMS,
-					  KEY_NUM_JPEG_ROWS,
-					  NULL);
+					     GROUP_VMS,
+					     KEY_NUM_JPEG_ROWS,
+					     NULL);
   if (num_jpeg_rows < 1) {
     goto FAIL;
   }
