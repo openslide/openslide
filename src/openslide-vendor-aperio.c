@@ -148,6 +148,29 @@ static void _openslide_aperio_tiff_tilereader_destroy(struct _openslide_tiff_til
 }
 
 
+static void add_properties(GHashTable *ht, char **props) {
+  if (*props == NULL) {
+    return;
+  }
+
+  // ignore first property in Aperio
+  for(char **p = props + 1; *p != NULL; p++) {
+    char **pair = g_strsplit(*p, "=", 2);
+
+    if (pair) {
+      char *name = g_strstrip(pair[0]);
+      if (name) {
+	char *value = g_strstrip(pair[1]);
+
+	g_hash_table_insert(ht,
+			    g_strdup_printf("aperio.%s", name),
+			    g_strdup(value));
+      }
+    }
+    g_strfreev(pair);
+  }
+}
+
 
 bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   char *tagval;
@@ -165,6 +188,13 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
     // not aperio
     TIFFClose(tiff);
     return false;
+  }
+
+  // read properties
+  if (osr) {
+    char **props = g_strsplit(tagval, "|", -1);
+    add_properties(osr->properties, props);
+    g_strfreev(props);
   }
 
   // for aperio, the tiled layers are the ones we want
