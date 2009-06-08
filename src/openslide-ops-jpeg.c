@@ -653,6 +653,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
     cinfo.scale_denom = scale_denom;
     cinfo.image_width = jpeg->tile_width;  // cunning
     cinfo.image_height = jpeg->tile_height;
+    cinfo.out_color_space = JCS_RGB;
 
     jpeg_start_decompress(&cinfo);
 
