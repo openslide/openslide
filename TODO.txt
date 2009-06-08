@@ -1,9 +1,3 @@
-Metadata
- - Properties for JPEG
- - Aperio associated images
- - Hamamatsu associated images
- - Java support
-
 Error handling
 
 Bacus
