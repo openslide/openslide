@@ -171,6 +171,87 @@ static void add_properties(GHashTable *ht, char **props) {
   }
 }
 
+// add the image from the current TIFF directory
+static void add_associated_image(GHashTable *ht, const char *name_if_available,
+				 TIFF *tiff) {
+  char *name = NULL;
+  if (name_if_available) {
+    name = g_strdup(name_if_available);
+  } else {
+    char *val;
+
+    // get name
+    if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &val)) {
+      return;
+    }
+
+    // parse ImageDescription, after newline up to first whitespace -> gives name
+    char **lines = g_strsplit_set(val, "\r\n", -1);
+    if (!lines) {
+      return;
+    }
+
+    if (lines[0] && lines[1]) {
+      char *line = lines[1];
+
+      char **names = g_strsplit(line, " ", -1);
+      if (names && names[0]) {
+	name = g_strdup(names[0]);
+      }
+      g_strfreev(names);
+    }
+
+    g_strfreev(lines);
+  }
+
+
+  // if we have a name, this is probably valid
+  if (name) {
+    uint32_t tmp;
+
+    // get the dimensions
+    if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
+      g_free(name);
+      return;
+    }
+    int64_t w = tmp;
+
+    if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
+      g_free(name);
+      return;
+    }
+    int64_t h = tmp;
+
+    // get the image
+    uint32_t *img_data = g_malloc(w * h * 4);
+    if (!TIFFReadRGBAImageOriented(tiff, w, h, img_data, ORIENTATION_TOPLEFT, 0)) {
+      g_free(name);
+      g_free(img_data);
+      return;
+    }
+
+    // permute
+    uint32_t *p = img_data;
+    uint32_t *end = img_data + (w * h);
+    while (p < end) {
+      uint32_t val = p;
+      *p++ = (val & 0xFF00FF00)
+	| ((val << 16) & 0xFF0000)
+	| ((val >> 16) & 0xFF);
+    }
+
+    // load into struct
+    struct _openslide_associated_image *aimg =
+      g_slice_new(struct _openslide_associated_image);
+    aimg->w = w;
+    aimg->h = h;
+    aimg->argb_data = img_data;
+
+    // save
+    g_hash_table_insert(ht, name, aimg);
+  }
+}
+
 
 bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   char *tagval;
@@ -190,12 +271,26 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
     return false;
   }
 
-  // read properties
-  if (osr) {
-    char **props = g_strsplit(tagval, "|", -1);
-    add_properties(osr->properties, props);
-    g_strfreev(props);
-  }
+  /*
+   * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
+   * page 14:
+   *
+   * The first image in an SVS file is always the baseline image (full
+   * resolution). This image is always tiled, usually with a tile size
+   * of 240 x 240 pixels. The second image is always a thumbnail,
+   * typically with dimensions of about 1024 x 768 pixels. Unlike the
+   * other slide images, the thumbnail image is always
+   * stripped. Following the thumbnail there may be one or more
+   * intermediate "pyramid" images. These are always compressed with
+   * the same type of compression as the baseline image, and have a
+   * tiled organization with the same tile size.
+   *
+   * Optionally at the end of an SVS file there may be a slide label
+   * image, which is a low resolution picture taken of the slide’s
+   * label, and/or a macro camera image, which is a low resolution
+   * picture taken of the entire slide. The label and macro images are
+   * always stripped.
+   */
 
   // for aperio, the tiled layers are the ones we want
   int32_t layer_count = 0;
@@ -212,10 +307,25 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   do {
     if (TIFFIsTiled(tiff)) {
       layers[i++] = TIFFCurrentDirectory(tiff);
-      //      g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
+      //g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
+    } else {
+      // associated image
+      if (osr) {
+	char *name = (i == 1) ? "thumbnail" : NULL;
+	add_associated_image(osr->associated_images, name, tiff);
+      }
+      //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
     }
-    TIFFReadDirectory(tiff);
-  } while (i < layer_count);
+  } while (TIFFReadDirectory(tiff));
+
+  // read properties
+  if (osr) {
+    TIFFSetDirectory(tiff, 0);
+    TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+    char **props = g_strsplit(tagval, "|", -1);
+    add_properties(osr->properties, props);
+    g_strfreev(props);
+  }
 
   // all set, load up the TIFF-specific ops
   TIFFSetDirectory(tiff, 0);
