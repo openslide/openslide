@@ -243,7 +243,7 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
  */
 openslide_public
 void openslide_read_associated_image(openslide_t *osr,
-				     uint32_t *dest,
-				     const char *name);
+				     const char *name,
+				     uint32_t *dest);
 
 #endif
