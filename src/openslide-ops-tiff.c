@@ -166,20 +166,20 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   int64_t ds_y = y / downsample;
 
   // select layer
-  TIFFSetDirectory(tiff, data->layers[layer]);
+  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
 
   // determine space for 1 tile
   int64_t tw, th;
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
   tw = tmp;
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
   th = tmp;
 
   // determine full size
   int64_t raw_w, raw_h;
-  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
   raw_w = tmp;
-  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
   raw_h = tmp;
 
   // figure out range of tiles
@@ -253,20 +253,20 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   }
 
   // get the layer
-  TIFFSetDirectory(tiff, data->layers[layer]);
+  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
 
   // figure out tile size
   int64_t tw, th;
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
   tw = tmp;
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
   th = tmp;
 
   // get image size
   int64_t iw, ih;
-  TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
   iw = tmp;
-  TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp);
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
   ih = tmp;
 
   // get num tiles
@@ -302,7 +302,7 @@ static const char* get_comment(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
 
   // select layer
-  TIFFSetDirectory(data->tiff, 0);
+  g_return_val_if_fail(TIFFSetDirectory(data->tiff, 0), NULL);
 
   char *comment;
   if (TIFFGetField(data->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment)) {
@@ -356,7 +356,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   data->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
 
   // load TIFF properties
-  TIFFSetDirectory(data->tiff, 0);
+  TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
   store_properties(data->tiff, osr->properties);
 
   // store tiff-specific data into osr
@@ -375,19 +375,25 @@ struct _openslide_tiff_tilereader {
 };
 
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff) {
+  // dimensions
+  uint32_t tmp;
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), NULL);
+  int64_t w = tmp;
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), NULL);
+  int64_t h = tmp;
+
+  // image
+  TIFFRGBAImage img;
+  char emsg[1024] = "";
+  g_return_val_if_fail(TIFFRGBAImageBegin(&img, tiff, 0, emsg), NULL);
+  img.req_orientation = ORIENTATION_TOPLEFT;
+
+  // success! allocate and return
   struct _openslide_tiff_tilereader *wtt =
     g_slice_new(struct _openslide_tiff_tilereader);
-  uint32_t tmp;
-
-  char emsg[1024] = "";
-  TIFFRGBAImageBegin(&wtt->img, tiff, 0, emsg);
-  wtt->img.req_orientation = ORIENTATION_TOPLEFT;
-
-
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
-  wtt->tile_width = tmp;
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
-  wtt->tile_height = tmp;
+  wtt->img = img;
+  wtt->tile_width = w;
+  wtt->tile_height = h;
 
   return wtt;
 }
@@ -397,7 +403,7 @@ void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *
 					     int64_t x, int64_t y) {
   wtt->img.col_offset = x;
   wtt->img.row_offset = y;
-  TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height);
+  g_return_if_fail(TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height));
 
   // permute
   uint32_t *p = dest;
