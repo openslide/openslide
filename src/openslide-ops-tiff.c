@@ -175,6 +175,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
   th = tmp;
 
+  // determine full size
   int64_t raw_w, raw_h;
   TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp);
   raw_w = tmp;
