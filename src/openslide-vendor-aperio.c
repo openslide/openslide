@@ -53,15 +53,19 @@ static void error_callback(const char *msg, void *data) {
 
 // XXX revisit assumptions that color is always downsampled in x by 2
 static struct _openslide_tiff_tilereader *_openslide_aperio_tiff_tilereader_create(TIFF *tiff) {
-  struct _openslide_tiff_tilereader *wtt = g_slice_new(struct _openslide_tiff_tilereader);
+  // dimensions
   uint32_t tmp;
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), NULL);
+  int64_t w = tmp;
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), NULL);
+  int64_t h = tmp;
 
+  // success! allocate and return
+  struct _openslide_tiff_tilereader *wtt =
+    g_slice_new(struct _openslide_tiff_tilereader);
   wtt->tiff = tiff;
-
-  TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp);
-  wtt->tile_width = tmp;
-  TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp);
-  wtt->tile_height = tmp;
+  wtt->tile_width = w;
+  wtt->tile_height = h;
 
   return wtt;
 }
@@ -321,7 +325,7 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   // read properties
   if (osr) {
     TIFFSetDirectory(tiff, 0);
-    TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+    TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval); // XXX? should be safe, we just did it
     char **props = g_strsplit(tagval, "|", -1);
     add_properties(osr->properties, props);
     g_strfreev(props);
