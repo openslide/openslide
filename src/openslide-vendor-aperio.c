@@ -234,7 +234,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     uint32_t *p = img_data;
     uint32_t *end = img_data + (w * h);
     while (p < end) {
-      uint32_t val = p;
+      uint32_t val = *p;
       *p++ = (val & 0xFF00FF00)
 	| ((val << 16) & 0xFF0000)
 	| ((val >> 16) & 0xFF);
