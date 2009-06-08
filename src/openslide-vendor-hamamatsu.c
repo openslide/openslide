@@ -41,6 +41,7 @@ static const char KEY_NUM_LAYERS[] = "NoLayers";
 static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
+static const char KEY_MACRO_IMAGE[] = "MacroImage";
 
 // returns w and h and tw and th as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
@@ -177,6 +178,93 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   }
 
   g_strfreev(keys);
+}
+
+static void add_macro_associated_image(GHashTable *ht,
+				       FILE *f) {
+  struct jpeg_decompress_struct cinfo;
+  struct _openslide_jpeg_error_mgr jerr;
+  jmp_buf env;
+
+  uint32_t *argb_data = NULL;
+  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+
+  if (setjmp(env) == 0) {
+    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+    jpeg_create_decompress(&cinfo);
+
+    int header_result;
+
+    jpeg_stdio_src(&cinfo, f);
+    header_result = jpeg_read_header(&cinfo, TRUE);
+    if ((header_result != JPEG_HEADER_OK
+	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+      jpeg_destroy_decompress(&cinfo);
+      return;
+    }
+
+    cinfo.out_color_space = JCS_RGB;
+
+    jpeg_start_decompress(&cinfo);
+
+    // allocate scanline buffers
+    for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+      buffer[i] = g_malloc(sizeof(JSAMPLE)
+			   * cinfo.output_width
+			   * cinfo.output_components);
+    }
+
+    JDIMENSION w = cinfo.output_width;
+    JDIMENSION h = cinfo.output_height;
+
+    // allocate dest
+    argb_data = g_malloc(w * h * 4);
+    uint32_t *dest = argb_data;
+
+    // decompress
+    while (cinfo.output_scanline < cinfo.output_height) {
+      JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+						 buffer,
+						 cinfo.rec_outbuf_height);
+      int cur_buffer = 0;
+      while (rows_read > 0) {
+	// copy a row
+	int32_t i;
+	for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+	  dest[i] = 0xFF000000 |                  // A
+	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
+	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+	    buffer[cur_buffer][i * 3 + 2];        // B
+	}
+
+	// advance everything 1 row
+	rows_read--;
+	cur_buffer++;
+	dest += cinfo.output_width;
+      }
+    }
+
+    // success!
+    struct _openslide_associated_image *aimg =
+      g_slice_new(struct _openslide_associated_image);
+    aimg->w = w;
+    aimg->h = h;
+    aimg->argb_data = argb_data;
+
+    g_hash_table_insert(ht, g_strdup("macro"), aimg);
+  } else {
+    // setjmp has returned again
+    g_warning("Error in decoding macro image");
+    g_free(argb_data);
+  }
+
+  // free buffers
+  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+    g_free(buffer[i]);
+  }
+  g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
+
+  jpeg_destroy_decompress(&cinfo);
 }
 
 
@@ -431,6 +519,24 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       // the optimisation file is useless, close it
       fclose(optimisation_file);
       optimisation_file = NULL;
+    }
+  }
+
+  // add macro image if present
+  if (osr) {
+    tmp = g_key_file_get_string(vms_file,
+				GROUP_VMS,
+				KEY_MACRO_IMAGE,
+				NULL);
+    if (tmp) {
+      char *macro_filename = g_build_filename(dirname, tmp, NULL);
+      FILE *macro_f = fopen(macro_filename, "rb");
+      if (macro_f) {
+	add_macro_associated_image(osr->associated_images, macro_f);
+      }
+      fclose(macro_f);
+      g_free(macro_filename);
+      g_free(tmp);
     }
   }
 
