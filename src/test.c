@@ -249,6 +249,19 @@ int main(int argc, char **argv) {
     property_names++;
   }
 
+  // read associated images
+  const char * const *associated_image_names = openslide_get_associated_image_names(osr);
+  while (*associated_image_names) {
+    int64_t w;
+    int64_t h;
+    const char *name = *associated_image_names;
+    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+
+    printf("associated image: %s -> (%" PRId64 "x%" PRId64 ")\n", name, w, h);
+
+    associated_image_names++;
+  }
+
   /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);

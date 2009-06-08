@@ -46,8 +46,8 @@
 
 /* the associated image structure */
 struct _openslide_associated_image {
-  int32_t w;
-  int32_t h;
+  int64_t w;
+  int64_t h;
   uint32_t *argb_data;
 };
 

@@ -224,7 +224,7 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr);
 
 openslide_public
 void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
-					       int32_t *w, int32_t *h);
+					       int64_t *w, int64_t *h);
 
 
 /**

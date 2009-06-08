@@ -277,7 +277,7 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr) {
 }
 
 void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
-					       int32_t *w, int32_t *h) {
+					       int64_t *w, int64_t *h) {
   struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
 								name);
   if (img) {
