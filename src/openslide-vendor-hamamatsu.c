@@ -440,30 +440,26 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 
   int32_t img00_w = 0;
   int32_t img00_h = 0;
-  int32_t w;
-  int32_t h;
-  int32_t tw;
-  int32_t th;
   int32_t jpeg0_tw = 0;
   int32_t jpeg0_th = 0;
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_fragment *jp = jpegs[i];
 
     // these jpeg files always start at 0
-    jp->u.file_info.start_in_file = 0;
+    jp->start_in_file = 0;
 
     if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
-    if (!verify_jpeg(jp->f, &w, &h, &tw, &th)) {
+    if (!verify_jpeg(jp->f, &jp->w, &jp->h, &jp->tw, &jp->th)) {
       g_warning("Can't verify JPEG %d", i);
       goto FAIL;
     }
 
     fseeko(jp->f, 0, SEEK_END);
-    jp->u.file_info.end_in_file = ftello(jp->f);
-    if (jp->u.file_info.end_in_file == -1) {
+    jp->end_in_file = ftello(jp->f);
+    if (jp->end_in_file == -1) {
       g_warning("Can't read file size for JPEG %d", i);
       goto FAIL;
     }
@@ -472,11 +468,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
     if (i == 0) {
-      jpeg0_tw = tw;
-      jpeg0_th = th;
+      jpeg0_tw = jp->tw;
+      jpeg0_th = jp->th;
     } else if (i < num_jpegs - 1) {
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
-      if (jpeg0_tw != tw || jpeg0_th != th) {
+      if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
 	g_warning("Tile size not consistent");
 	goto FAIL;
       }
@@ -487,14 +483,14 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     g_assert(jp->z != 2);
     if (jp->z == 0) { // revisit if we support NoLayers != 1
       if (jp->x == 0 && jp->y == 0) {
-	img00_w = w;
-	img00_h = h;
+	img00_w = jp->w;
+	img00_h = jp->h;
       } else {
-	if ((jp->x != num_jpeg_cols - 1) && (w != img00_w)) {
+	if ((jp->x != num_jpeg_cols - 1) && (jp->w != img00_w)) {
 	  g_warning("Incorrect width at non-right edge");
 	  goto FAIL;
 	}
-	if ((jp->y != num_jpeg_rows - 1) && (h != img00_h)) {
+	if ((jp->y != num_jpeg_rows - 1) && (jp->h != img00_h)) {
 	  g_warning("Incorrect height at non-bottom edge");
 	  goto FAIL;
 	}
@@ -502,9 +498,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
 
     // leverage the optimisation file, if present
-    int32_t num_tiles_down = h / th;
-    int32_t num_tiles_across = w / tw;
-    int32_t mcu_starts_count = (w / tw) * (h / th); // number of tiles
+    int32_t num_tiles_down = jp->h / jp->th;
+    int32_t num_tiles_across = jp->w / jp->tw;
+    int32_t mcu_starts_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
     int64_t *mcu_starts = NULL;
     if (optimisation_file) {
       mcu_starts = extract_one_optimisation(optimisation_file,
@@ -513,8 +509,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 					    mcu_starts_count);
     }
     if (mcu_starts) {
-      jp->u.file_info.mcu_starts_count = mcu_starts_count;
-      jp->u.file_info.mcu_starts = mcu_starts;
+      jp->mcu_starts = mcu_starts;
     } else if (optimisation_file != NULL) {
       // the optimisation file is useless, close it
       fclose(optimisation_file);

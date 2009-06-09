@@ -116,23 +116,16 @@ void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereade
 struct _openslide_jpeg_fragment {
   FILE *f;
 
-  union {
-    // fill this in if f != NULL, this is the file info
-    struct {
-      int64_t start_in_file;
-      int64_t end_in_file;
+  int64_t start_in_file;
+  int64_t end_in_file;
 
-      // if known, put mcu starts here, set unknowns to -1
-      int64_t *mcu_starts;
-      int32_t mcu_starts_count;
-    } file_info;
-
-    // fill this in if f == NULL, this is the blank info
-    struct {
-      int32_t w;
-      int32_t h;
-    } blank_info;
-  } u;
+  // if known, put mcu starts here, set unknowns to -1,
+  // and give dimensions and tile dimensions
+  int64_t *mcu_starts;
+  int32_t w;
+  int32_t h;
+  int32_t tw;
+  int32_t th;
 
   // all fragments together should form a dense space,
   // with no gaps in x,y,z

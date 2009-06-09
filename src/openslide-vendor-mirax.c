@@ -388,17 +388,17 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
 	  // file is open
 	  frag->f = f;
-	  frag->u.file_info.start_in_file = entry->offset;
-	  frag->u.file_info.end_in_file =
-	    frag->u.file_info.start_in_file + entry->length;
+	  frag->start_in_file = entry->offset;
+	  frag->end_in_file =
+	    frag->start_in_file + entry->length;
 
 	  // next
 	  iter = iter->next;
 	} else {
 	  // add a blank entry
 	  //g_debug("adding fake entry for (%d,%d,%d)", x, y, z);
-	  frag->u.blank_info.w = hs[z].tile_w;
-	  frag->u.blank_info.h = hs[z].tile_h;
+	  frag->tw = frag->w = hs[z].tile_w;
+	  frag->th = frag->h = hs[z].tile_h;
 	}
 
 	jpegs[cur_frag++] = frag;
