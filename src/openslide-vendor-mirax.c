@@ -394,12 +394,11 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
 	  // next
 	  iter = iter->next;
-	} else {
-	  // add a blank entry
-	  //g_debug("adding fake entry for (%d,%d,%d)", x, y, z);
-	  frag->tw = frag->w = hs[z].tile_w;
-	  frag->th = frag->h = hs[z].tile_h;
 	}
+
+	// save sizes
+	frag->tw = frag->w = hs[z].tile_w;
+	frag->th = frag->h = hs[z].tile_h;
 
 	jpegs[cur_frag++] = frag;
       }
