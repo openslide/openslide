@@ -95,7 +95,7 @@ struct layer {
 
 struct jpegops_data {
   int32_t jpeg_count;
-  struct one_jpeg *all_jpegs;
+  struct one_jpeg **all_jpegs;
 
   char *comment;
 
@@ -361,7 +361,7 @@ static void generate_layer_into_map(GSList *jpegs,
 
 static GHashTable *create_width_to_layer_map(int32_t count,
 					     struct _openslide_jpeg_fragment **fragments,
-					     struct one_jpeg *jpegs) {
+					     struct one_jpeg **jpegs) {
   int64_t prev_z = -1;
   int64_t prev_x = -1;
   int64_t prev_y = -1;
@@ -387,7 +387,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
   // go through the fragments, accumulating to layers
   for (int32_t i = 0; i < count; i++) {
     struct _openslide_jpeg_fragment *fr = fragments[i];
-    struct one_jpeg *oj = jpegs + i;
+    struct one_jpeg *oj = jpegs[i];
 
     // the fragments MUST be in sorted order by z,x,y
     g_assert(is_zxy_successor(prev_z, prev_x, prev_y,
@@ -843,10 +843,11 @@ static void destroy(openslide_t *osr) {
   // each jpeg in turn, don't close a file handle more than once
   GHashTable *fclose_hashtable = filehandle_hashtable_new();
   for (int32_t i = 0; i < data->jpeg_count; i++) {
-    struct one_jpeg *jpeg = data->all_jpegs + i;
+    struct one_jpeg *jpeg = data->all_jpegs[i];
     filehandle_hashtable_conditional_insert(fclose_hashtable, jpeg->f);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->unreliable_mcu_starts);
+    g_slice_free(struct one_jpeg, jpeg);
   }
   g_hash_table_unref(fclose_hashtable);
 
@@ -967,7 +968,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
   int32_t current_mcu_start = 1;
 
   while(current_jpeg < data->jpeg_count) {
-    struct one_jpeg *oj = data->all_jpegs + current_jpeg;
+    struct one_jpeg *oj = data->all_jpegs[current_jpeg];
 
     int64_t offset = oj->mcu_starts[current_mcu_start];
     g_assert(offset != -1);
@@ -1044,7 +1045,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //g_debug("current_jpeg: %d, current_mcu_start: %d",
     //        current_jpeg, current_mcu_start);
 
-    struct one_jpeg *oj = data->all_jpegs + current_jpeg;
+    struct one_jpeg *oj = data->all_jpegs[current_jpeg];
     if (oj->f) {
       compute_mcu_start(oj->f, oj->mcu_starts,
 			oj->unreliable_mcu_starts,
@@ -1066,6 +1067,31 @@ static gpointer restart_marker_thread_func(gpointer d) {
 
   //  g_debug("restart_marker_thread_func done!");
   return NULL;
+}
+
+static int one_jpeg_compare(const void *a, const void *b) {
+  const struct one_jpeg *aa = *(struct one_jpeg * const *) a;
+  const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
+
+  // compare files
+  if (aa->f < bb->f) {
+    return -1;
+  } else if (aa->f > bb->f) {
+    return 1;
+  }
+
+  // compare offsets
+  if (aa->f && bb->f) {
+    if (aa->start_in_file < bb->start_in_file) {
+      return -1;
+    } else if (aa->start_in_file > bb->start_in_file) {
+      return 1;
+    } else {
+      return 0;
+    }
+  } else {
+    return 0;
+  }
 }
 
 void _openslide_add_jpeg_ops(openslide_t *osr,
@@ -1103,16 +1129,21 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // load all jpegs (assume all are useful)
   data->jpeg_count = count;
-  data->all_jpegs = g_new0(struct one_jpeg, count);
+  data->all_jpegs = g_new0(struct one_jpeg *, count);
   for (int32_t i = 0; i < data->jpeg_count; i++) {
     //    g_debug("init JPEG %d", i);
-    init_one_jpeg(&data->all_jpegs[i], fragments[i]);
+    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
+    init_one_jpeg(data->all_jpegs[i], fragments[i]);
   }
 
   // create map from width to layers, using the fragments
   GHashTable *width_to_layer_map = create_width_to_layer_map(count,
 							     fragments,
 							     data->all_jpegs);
+
+  // sort all_jpegs by file and start position, so we can avoid seeks
+  // when background finding mcus
+  qsort(data->all_jpegs, count, sizeof(struct one_jpeg *), one_jpeg_compare);
 
   //  g_hash_table_foreach(width_to_layer_map, print_wlmap_entry, NULL);
 
