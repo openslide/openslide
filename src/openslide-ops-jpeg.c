@@ -543,7 +543,7 @@ static void compute_mcu_start(FILE *f,
       cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
       jpeg_create_decompress(&cinfo);
       jpeg_stdio_src(&cinfo, f);
-      jpeg_read_header(&cinfo, FALSE);
+      jpeg_read_header(&cinfo, TRUE);
       jpeg_start_decompress(&cinfo);
     } else {
       // setjmp returns again
@@ -681,9 +681,9 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 			   jpeg->mcu_starts[mcu_start],
 			   stop_position);
 
+    jpeg_read_header(&cinfo, TRUE);
     cinfo.rec_outbuf_height = 0;
 
-    jpeg_read_header(&cinfo, FALSE);
     cinfo.scale_denom = scale_denom;
     cinfo.image_width = jpeg->tile_width;  // cunning
     cinfo.image_height = jpeg->tile_height;
