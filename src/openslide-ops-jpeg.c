@@ -963,21 +963,27 @@ static void verify_mcu_starts(struct jpegops_data *data) {
   g_debug("verifying mcu starts");
 
   int32_t current_jpeg = 0;
-  int32_t current_mcu_start = 1;
+  int32_t current_mcu_start = 0;
 
   while(current_jpeg < data->jpeg_count) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
+    if (!oj->f) {
+      current_jpeg++;
+      continue;
+    }
 
-    int64_t offset = oj->mcu_starts[current_mcu_start];
-    g_assert(offset != -1);
-    fseeko(oj->f, offset - 2, SEEK_SET);
-    g_assert(getc(oj->f) == 0xFF);
-    int marker = getc(oj->f);
-    g_assert(marker >= 0xD0 && marker <= 0xD7);
+    if (current_mcu_start > 0) {
+      int64_t offset = oj->mcu_starts[current_mcu_start];
+      g_assert(offset != -1);
+      fseeko(oj->f, offset - 2, SEEK_SET);
+      g_assert(getc(oj->f) == 0xFF);
+      int marker = getc(oj->f);
+      g_assert(marker >= 0xD0 && marker <= 0xD7);
+    }
 
     current_mcu_start++;
     if (current_mcu_start >= oj->mcu_starts_count) {
-      current_mcu_start = 1;
+      current_mcu_start = 0;
       current_jpeg++;
       g_debug("done verifying jpeg %d", current_jpeg);
     }
