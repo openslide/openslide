@@ -11,8 +11,8 @@ Zeiss/MIRAX
    for the MIRAX format.
  - Make sure downsamples are correctly computed. This should follow from
    explicitly specifying the w/h per layer.
- - Avoid reading every single JPEG at startup. This should be possible
-   once per-layer info is used. Bad jpegs will fail later, but we can
-   just avoid drawing those parts as before.
+ - Properties/associated images/comment.
+
+Add back get_comment for Hamamatsu
 
 Ship docs
