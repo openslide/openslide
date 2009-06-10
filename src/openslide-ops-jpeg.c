@@ -311,10 +311,8 @@ static void generate_layer_into_map(GSList *jpegs,
 
   for (int scale_denom = 1; scale_denom <= 8; scale_denom <<= 1) {
     // check to make sure we get an even division
-    div_t qw = div(pixel_w, scale_denom);
-    div_t qh = div(pixel_h, scale_denom);
-    if (qw.rem || qh.rem) {
-      //g_debug("scale_denom: %d, qw.rem: %d, qh.rem: %d", scale_denom, qw.rem, qh.rem);
+    if ((pixel_w % scale_denom) || (pixel_h % scale_denom)) {
+      //g_debug("scale_denom: %d");
       continue;
     }
 
