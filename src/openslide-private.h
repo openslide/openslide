@@ -78,6 +78,13 @@ struct _openslide {
 /* overlaps support */
 void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
 			     int32_t *x, int32_t *y);
+void _openslide_add_in_overlaps(openslide_t *osr,
+				int32_t layer,
+				int64_t tw, int64_t th,
+				int64_t total_tiles_across,
+				int64_t total_tiles_down,
+				int64_t x, int64_t y,
+				int64_t *out_x, int64_t *out_y);
 
 /* the function pointer structure for backends */
 struct _openslide_ops {

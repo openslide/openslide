@@ -101,28 +101,6 @@ static void store_properties(TIFF *tiff, GHashTable *ht) {
   }
 }
 
-static void add_in_overlaps(openslide_t *osr,
-			    int32_t layer,
-			    int64_t tw, int64_t th,
-			    int64_t total_tiles_across,
-			    int64_t total_tiles_down,
-			    int64_t x, int64_t y,
-			    int64_t *out_x, int64_t *out_y) {
-  int32_t ox, oy;
-  _openslide_get_overlaps(osr, layer, &ox, &oy);
-
-  // the last tile doesn't have an overlap to skip
-  int64_t max_skip_x = (total_tiles_across - 1) * ox;
-  int64_t max_skip_y = (total_tiles_down - 1) * oy;
-
-  int64_t skip_x = (x / (tw - ox)) * ox;
-  int64_t skip_y = (y / (th - oy)) * oy;
-
-  *out_x = x + MIN(max_skip_x, skip_x);
-  *out_y = y + MIN(max_skip_y, skip_y);
-}
-
-
 struct tilereader {
   struct _openslide_tiff_tilereader *tilereader;
   void (*tilereader_read)(struct _openslide_tiff_tilereader *tilereader,
@@ -173,13 +151,13 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   // add in overlaps
   int64_t total_tiles_across = raw_w / tw;
   int64_t total_tiles_down = raw_h / th;
-  add_in_overlaps(osr, layer, tw, th,
-		  total_tiles_across, total_tiles_down,
-		  ds_x, ds_y, &start_x, &start_y);
-  add_in_overlaps(osr, layer, tw, th,
-		  total_tiles_across, total_tiles_down,
-		  ds_x + w, ds_y + h,
-		  &end_x, &end_y);
+  _openslide_add_in_overlaps(osr, layer, tw, th,
+			     total_tiles_across, total_tiles_down,
+			     ds_x, ds_y, &start_x, &start_y);
+  _openslide_add_in_overlaps(osr, layer, tw, th,
+			     total_tiles_across, total_tiles_down,
+			     ds_x + w, ds_y + h,
+			     &end_x, &end_y);
 
   // check bounds
   if (end_x >= raw_w) {

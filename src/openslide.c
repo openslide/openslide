@@ -312,3 +312,24 @@ void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
     *y = 0;
   }
 }
+
+void _openslide_add_in_overlaps(openslide_t *osr,
+				int32_t layer,
+				int64_t tw, int64_t th,
+				int64_t total_tiles_across,
+				int64_t total_tiles_down,
+				int64_t x, int64_t y,
+				int64_t *out_x, int64_t *out_y) {
+  int32_t ox, oy;
+  _openslide_get_overlaps(osr, layer, &ox, &oy);
+
+  // the last tile doesn't have an overlap to skip
+  int64_t max_skip_x = (total_tiles_across - 1) * ox;
+  int64_t max_skip_y = (total_tiles_down - 1) * oy;
+
+  int64_t skip_x = (x / (tw - ox)) * ox;
+  int64_t skip_y = (y / (th - oy)) * oy;
+
+  *out_x = x + MIN(max_skip_x, skip_x);
+  *out_y = y + MIN(max_skip_y, skip_y);
+}
