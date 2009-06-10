@@ -127,7 +127,8 @@ openslide_t *openslide_open(const char *filename) {
 	 ((double) blw / (double) w)) / 2.0;
 
       if (osr->downsamples[i] < osr->downsamples[i - 1]) {
-	g_warning("Downsampled images not correctly ordered");
+	g_warning("Downsampled images not correctly ordered: %g < %g",
+		  osr->downsamples[i], osr->downsamples[i - 1]);
 	openslide_close(osr);
 	return NULL;
       }
