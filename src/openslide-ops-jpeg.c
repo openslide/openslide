@@ -722,8 +722,6 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 	dest += cinfo.output_width;
       }
     }
-
-    //  g_debug("pixels wasted: %llu", pixels_wasted);
   } else {
     // setjmp returns again
     g_critical("JPEG decompression failed");
