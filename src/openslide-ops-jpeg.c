@@ -401,7 +401,6 @@ static GHashTable *create_width_to_layer_map(int32_t count,
     }
 
     // save first image dimensions
-    // TODO rework for sparse
     if (fr->x == 0 && fr->y == 0) {
       img00_w = oj->width;
       img00_h = oj->height;
