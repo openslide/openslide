@@ -34,8 +34,6 @@
 struct _openslide_tiffopsdata {
   TIFF *tiff;
 
-  int32_t overlap_count;
-  int32_t *overlaps;
   int32_t *layers;
 
   struct _openslide_cache *cache;
@@ -102,20 +100,6 @@ static void store_properties(TIFF *tiff, GHashTable *ht) {
   }
 }
 
-
-static void get_overlaps(openslide_t *osr, int32_t layer,
-			 int32_t *x, int32_t *y) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
-  if (data->overlap_count >= 2 * (layer + 1)) {
-    *x = data->overlaps[2 * layer + 0];
-    *y = data->overlaps[2 * layer + 1];
-  } else {
-    *x = 0;
-    *y = 0;
-  }
-}
-
 static void add_in_overlaps(openslide_t *osr,
 			    int32_t layer,
 			    int64_t tw, int64_t th,
@@ -124,7 +108,7 @@ static void add_in_overlaps(openslide_t *osr,
 			    int64_t x, int64_t y,
 			    int64_t *out_x, int64_t *out_y) {
   int32_t ox, oy;
-  get_overlaps(osr, layer, &ox, &oy);
+  _openslide_get_overlaps(osr, layer, &ox, &oy);
 
   // the last tile doesn't have an overlap to skip
   int64_t max_skip_x = (total_tiles_across - 1) * ox;
@@ -209,7 +193,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
   // for each tile, draw it where it should go
   int32_t ovr_x, ovr_y;
-  get_overlaps(osr, layer, &ovr_x, &ovr_y);
+  _openslide_get_overlaps(osr, layer, &ovr_x, &ovr_y);
 
   struct _openslide_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
@@ -227,7 +211,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
 static void destroy_data(struct _openslide_tiffopsdata *data) {
   TIFFClose(data->tiff);
-  g_free(data->overlaps);
   g_free(data->layers);
 }
 
@@ -279,7 +262,7 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 
   // subtract overlaps and compute
   int32_t overlap_x, overlap_y;
-  get_overlaps(osr, layer, &overlap_x, &overlap_y);
+  _openslide_get_overlaps(osr, layer, &overlap_x, &overlap_y);
 
   if (overlap_x) {
     *w = (tx * tw) - overlap_x * (tx - 1);
@@ -321,8 +304,6 @@ static struct _openslide_ops _openslide_tiff_ops = {
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
-			     int32_t overlap_count,
-			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
@@ -339,8 +320,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // populate private data
   data->tiff = tiff;
-  data->overlap_count = overlap_count;
-  data->overlaps = overlaps;
 
   data->tilereader_create = tilereader_create;
   data->tilereader_read = tilereader_read;

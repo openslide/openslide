@@ -153,6 +153,8 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->associated_image_names);
   g_free(osr->property_names);
 
+  g_free(osr->overlaps);
+
   g_free(osr->downsamples);
   g_slice_free(openslide_t, osr);
 }
@@ -296,5 +298,17 @@ void openslide_read_associated_image(openslide_t *osr,
 								name);
   if (img && dest) {
     memcpy(dest, img->argb_data, img->w * img->h * 4);
+  }
+}
+
+
+void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
+			     int32_t *x, int32_t *y) {
+  if (osr->overlap_count >= 2 * (layer + 1)) {
+    *x = osr->overlaps[2 * layer + 0];
+    *y = osr->overlaps[2 * layer + 1];
+  } else {
+    *x = 0;
+    *y = 0;
   }
 }

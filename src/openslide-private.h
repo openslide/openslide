@@ -57,6 +57,9 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
+  int32_t overlap_count;
+  int32_t *overlaps;
+
   uint32_t fill_color_argb;
 
   double *downsamples;  // filled in automatically from dimensions
@@ -69,6 +72,10 @@ struct _openslide {
   GHashTable *properties; // created automatically
   const char **property_names; // filled in automatically from hashtable
 };
+
+/* overlaps support */
+void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
+			     int32_t *x, int32_t *y);
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
@@ -94,8 +101,6 @@ struct _openslide_tiff_tilereader;
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
-			     int32_t overlap_count,
-			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
