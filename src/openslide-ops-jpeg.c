@@ -1106,7 +1106,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 						fragments[i]->f);
 	g_free(fragments[i]->mcu_starts);
       }
-	g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
+      g_slice_free(struct _openslide_jpeg_fragment, fragments[i]);
     }
     g_hash_table_unref(fclose_hashtable);
     g_free(fragments);
