@@ -39,8 +39,8 @@
 #include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
-#include <jerror.h>
 #include <inttypes.h>
+#include <math.h>
 
 #include <sys/types.h>   // for off_t ?
 
@@ -1093,7 +1093,9 @@ static int one_jpeg_compare(const void *a, const void *b) {
 
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
-			     struct _openslide_jpeg_fragment **fragments) {
+			     struct _openslide_jpeg_fragment **fragments,
+			     int32_t overlap_count,
+			     double *overlaps) {
   //  g_debug("count: %d", count);
   //  for (int32_t i = 0; i < count; i++) {
     //    struct _openslide_jpeg_fragment *frag = fragments[i];
@@ -1114,6 +1116,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     }
     g_hash_table_unref(fclose_hashtable);
     g_free(fragments);
+    g_free(overlaps);
     return;
   }
 
@@ -1186,6 +1189,39 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     // consume the head and continue
     tmp_list = g_list_delete_link(tmp_list, tmp_list);
     i++;
+  }
+
+  // from the layers, generate the overlaps
+  if (overlap_count) {
+    int32_t *real_overlaps = g_new0(int32_t, osr->layer_count * 2);
+    for (int32_t i = 0; i < osr->layer_count; i++) {
+      int32_t scale_denom = (data->layers + i)->scale_denom;
+      g_assert(scale_denom);
+
+      int32_t lg2_scale_denom = g_bit_nth_lsf(scale_denom, -1) + 1;
+      int32_t overlaps_i = i - (lg2_scale_denom - 1);
+      g_debug("scale_denom: %d, lg2: %d", scale_denom, lg2_scale_denom);
+
+      if (overlaps_i >= overlap_count) {
+	// we have more layers than overlaps, stop
+	break;
+      }
+
+      double orig_ox = overlaps[overlaps_i * 2];
+      double orig_oy = overlaps[(overlaps_i * 2) + 1];
+
+      g_debug("orig overlaps: %g %g", orig_ox, orig_oy);
+
+      int32_t ox = nearbyint(overlaps[overlaps_i * 2] / (double) scale_denom);
+      int32_t oy = nearbyint(overlaps[(overlaps_i * 2) + 1] / (double) scale_denom);
+
+      g_debug("overlaps: %d %d", ox, oy);
+
+      real_overlaps[i * 2] = ox;
+      real_overlaps[(i * 2) + 1] = oy;
+    }
+    osr->overlaps = real_overlaps;
+    osr->overlap_count = osr->layer_count;
   }
 
   // init cache

@@ -629,7 +629,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     osr->fill_color_argb = hier_sections[0].fill_argb;
   }
 
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
+  // generate overlaps
+  double *overlaps = g_new(double, zoom_levels * 2);
+  for (int i = 0; i < zoom_levels; i++) {
+    struct hier_section *hs = hier_sections + i;
+    overlaps[i * 2] = hs->overlap_x;
+    overlaps[(i * 2) + 1] = hs->overlap_y;
+  }
+
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, overlaps);
   success = true;
   goto DONE;
 

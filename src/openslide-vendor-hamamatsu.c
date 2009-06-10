@@ -535,7 +535,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
   }
 
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, 0, NULL);
   success = true;
   goto DONE;
 

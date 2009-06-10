@@ -167,7 +167,9 @@ struct _openslide_jpeg_fragment {
 // note: fragments MUST be sorted by z, then x, then y
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
-			     struct _openslide_jpeg_fragment **fragments);
+			     struct _openslide_jpeg_fragment **fragments,
+			     int32_t overlap_count,
+			     double *overlaps);
 
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {
