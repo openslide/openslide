@@ -309,8 +309,15 @@ static void generate_layer_into_map(GSList *jpegs,
 
   int32_t num_jpegs = jpegs_across * jpegs_down;
 
-  int scale_denom = 1;
-  while (scale_denom <= 8) {
+  for (int scale_denom = 1; scale_denom <= 8; scale_denom <<= 1) {
+    // check to make sure we get an even division
+    div_t qw = div(pixel_w, scale_denom);
+    div_t qh = div(pixel_h, scale_denom);
+    if (qw.rem || qh.rem) {
+      //g_debug("scale_denom: %d, qw.rem: %d, qh.rem: %d", scale_denom, qw.rem, qh.rem);
+      continue;
+    }
+
     // create layer
     struct layer *l = g_slice_new0(struct layer);
     l->jpegs_across = jpegs_across;
@@ -349,8 +356,6 @@ static void generate_layer_into_map(GSList *jpegs,
 
     //    g_debug("insert %" PRId64 ", scale_denom: %d", *key, scale_denom);
     g_hash_table_insert(width_to_layer_map, key, l);
-
-    scale_denom <<= 1;
   }
 }
 
