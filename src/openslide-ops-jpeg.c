@@ -665,13 +665,12 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
 
-  gsize row_size = sizeof(JSAMPLE) *
-    (jpeg->tile_width / scale_denom) *
-    3;  // output components
+  gsize row_size = 0;
 
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
+    //cinfo.err = jpeg_std_error(&jerr);
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
 
@@ -682,8 +681,6 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 			   stop_position);
 
     jpeg_read_header(&cinfo, TRUE);
-    cinfo.rec_outbuf_height = 0;
-
     cinfo.scale_denom = scale_denom;
     cinfo.image_width = jpeg->tile_width;  // cunning
     cinfo.image_height = jpeg->tile_height;
@@ -695,6 +692,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
     //g_debug("output_height: %d", cinfo.output_height);
 
     // allocate scanline buffers
+    row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
       buffer[i] = g_slice_alloc(row_size);
       //g_debug("buffer[%d]: %p", i, buffer[i]);
