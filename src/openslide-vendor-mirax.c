@@ -625,6 +625,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
+  if (osr) {
+    osr->fill_color_argb = hier_sections[0].fill_argb;
+  }
+
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs);
   success = true;
   goto DONE;
