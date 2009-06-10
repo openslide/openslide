@@ -64,6 +64,7 @@ static void store_float_property(TIFF *tiff, GHashTable *ht,
 
 static void store_properties(TIFF *tiff, GHashTable *ht) {
   // strings
+  store_string_property(tiff, ht, _OPENSLIDE_COMMENT_NAME, TIFFTAG_IMAGEDESCRIPTION);
   store_string_property(tiff, ht, "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
   store_string_property(tiff, ht, "tiff.Make", TIFFTAG_MAKE);
   store_string_property(tiff, ht, "tiff.Model", TIFFTAG_MODEL);
@@ -281,25 +282,10 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   //	 tw, th, iw, ih, tx, ty);
 }
 
-static const char* get_comment(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
-  // select layer
-  g_return_val_if_fail(TIFFSetDirectory(data->tiff, 0), NULL);
-
-  char *comment;
-  if (TIFFGetField(data->tiff, TIFFTAG_IMAGEDESCRIPTION, &comment)) {
-    return comment;
-  } else {
-    return NULL;
-  }
-}
-
 static struct _openslide_ops _openslide_tiff_ops = {
   .read_region = read_region,
   .destroy = destroy,
   .get_dimensions = get_dimensions,
-  .get_comment = get_comment,
 };
 
 void _openslide_add_tiff_ops(openslide_t *osr,

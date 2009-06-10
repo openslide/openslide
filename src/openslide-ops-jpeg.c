@@ -97,8 +97,6 @@ struct jpegops_data {
   int32_t jpeg_count;
   struct one_jpeg **all_jpegs;
 
-  char *comment;
-
   // layer_count is in the osr struct
   struct layer *layers;
 
@@ -872,9 +870,6 @@ static void destroy(openslide_t *osr) {
   g_cond_free(data->restart_marker_cond);
   g_mutex_free(data->restart_marker_cond_mutex);
 
-  // the comment
-  g_free(data->comment);
-
   // the structure
   g_slice_free(struct jpegops_data, data);
 }
@@ -897,16 +892,10 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   //  g_debug("dimensions of layer %" PRId32 ": (%" PRId32 ",%" PRId32 ")", layer, *w, *h);
 }
 
-static const char* get_comment(openslide_t *osr) {
-  struct jpegops_data *data = osr->data;
-  return data->comment;
-}
-
 static struct _openslide_ops jpeg_ops = {
   .read_region = read_region,
   .destroy = destroy,
   .get_dimensions = get_dimensions,
-  .get_comment = get_comment,
 };
 
 

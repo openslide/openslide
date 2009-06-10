@@ -44,6 +44,8 @@
 
 #include <openjpeg/openjpeg.h>
 
+#define _OPENSLIDE_COMMENT_NAME "comment"
+
 /* the associated image structure */
 struct _openslide_associated_image {
   int64_t w;
@@ -86,7 +88,6 @@ struct _openslide_ops {
   void (*destroy)(openslide_t *osr);
   void (*get_dimensions)(openslide_t *osr, int32_t layer,
 			 int64_t *w, int64_t *h);
-  const char* (*get_comment)(openslide_t *osr);
 };
 
 

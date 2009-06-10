@@ -176,7 +176,7 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 }
 
 const char *openslide_get_comment(openslide_t *osr) {
-  return (osr->ops->get_comment)(osr);
+  return openslide_get_property_value(osr, _OPENSLIDE_COMMENT_NAME);
 }
 
 
