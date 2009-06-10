@@ -171,7 +171,45 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
     *w = 0;
     *h = 0;
   } else {
-    (osr->ops->get_dimensions)(osr, layer, w, h);
+    int64_t image_w, image_h, tile_w, tile_h;
+    (osr->ops->get_dimensions)(osr, layer,
+			       &image_w, &image_h,
+			       &tile_w, &tile_h);
+    g_assert(image_w >= tile_w);
+    g_assert(image_h >= tile_h);
+
+    if (image_w == 0 || image_h == 0) {
+      // done
+      *w = 0;
+      *h = 0;
+      return;
+    }
+
+    g_assert(tile_w > 0 && tile_h > 0);
+
+    // get num tiles
+    int64_t tiles_across = image_w / tile_w;
+    int64_t tiles_down = image_h / tile_h;
+
+    // overlaps information seems to only make sense when dealing
+    // with images that are divided perfectly by tiles ?
+    // thus, we have these if-else below
+
+    // subtract overlaps and compute
+    int32_t overlap_x, overlap_y;
+    _openslide_get_overlaps(osr, layer, &overlap_x, &overlap_y);
+
+    if (overlap_x) {
+      *w = (tiles_across * tile_w) - overlap_x * (tiles_across - 1);
+    } else {
+      *w = image_w;
+    }
+
+    if (overlap_y) {
+      *h = (tiles_down * tile_h) - overlap_y * (tiles_down - 1);
+    } else {
+      *h = image_h;
+    }
   }
 }
 

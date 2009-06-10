@@ -201,16 +201,20 @@ static void destroy(openslide_t *osr) {
 }
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *w, int64_t *h) {
+			   int64_t *image_w, int64_t *image_h,
+			   int64_t *tile_w, int64_t *tile_h) {
   uint32_t tmp;
 
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
 
+  *image_w = 0;
+  *image_h = 0;
+  *tile_w = 0;
+  *tile_h = 0;
+
   // check bounds
   if (layer >= osr->layer_count) {
-    *w = 0;
-    *h = 0;
     return;
   }
 
@@ -231,33 +235,11 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
   ih = tmp;
 
-  // get num tiles
-  int64_t tx = iw / tw;
-  int64_t ty = ih / th;
-
-  // overlaps information seems to only make sense when dealing
-  // with images that are divided perfectly by tiles ?
-  // thus, we have these if-else below
-
-  // subtract overlaps and compute
-  int32_t overlap_x, overlap_y;
-  _openslide_get_overlaps(osr, layer, &overlap_x, &overlap_y);
-
-  if (overlap_x) {
-    *w = (tx * tw) - overlap_x * (tx - 1);
-  } else {
-    *w = iw;
-  }
-
-  if (overlap_y) {
-    *h = (ty * th) - overlap_y * (ty - 1);
-  } else {
-    *h = ih;
-  }
-
-  //  g_debug("layer %d: tile(%dx%d), image(%dx%d), tilecount(%dx%d)\n",
-  //	 layer,
-  //	 tw, th, iw, ih, tx, ty);
+  // success
+  *image_w = iw;
+  *image_h = ih;
+  *tile_w = tw;
+  *tile_h = th;
 }
 
 static struct _openslide_ops _openslide_tiff_ops = {

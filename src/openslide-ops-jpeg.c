@@ -875,21 +875,25 @@ static void destroy(openslide_t *osr) {
 }
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *w, int64_t *h) {
+			   int64_t *image_w, int64_t *image_h,
+			   int64_t *tile_w, int64_t *tile_h) {
   struct jpegops_data *data = osr->data;
 
   // check bounds
   if (layer >= osr->layer_count) {
-    *w = 0;
-    *h = 0;
+    *image_w = 0;
+    *image_h = 0;
+    *tile_w = 0;
+    *tile_h = 0;
     return;
   }
 
+  // get dimensions
   struct layer *l = data->layers + layer;
-  *w = l->pixel_w / l->scale_denom;
-  *h = l->pixel_h / l->scale_denom;
-
-  //  g_debug("dimensions of layer %" PRId32 ": (%" PRId32 ",%" PRId32 ")", layer, *w, *h);
+  *image_w = l->pixel_w / l->scale_denom;
+  *image_h = l->pixel_h / l->scale_denom;
+  *tile_w = l->tile_width / l->scale_denom;
+  *tile_h = l->tile_height / l->scale_denom;
 }
 
 static struct _openslide_ops jpeg_ops = {

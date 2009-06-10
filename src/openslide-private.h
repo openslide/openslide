@@ -94,7 +94,8 @@ struct _openslide_ops {
 		      int64_t w, int64_t h);
   void (*destroy)(openslide_t *osr);
   void (*get_dimensions)(openslide_t *osr, int32_t layer,
-			 int64_t *w, int64_t *h);
+			 int64_t *image_w, int64_t *image_h,
+			 int64_t *tile_w, int64_t *tile_h);
 };
 
 
