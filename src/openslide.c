@@ -126,6 +126,8 @@ openslide_t *openslide_open(const char *filename) {
 	(((double) blh / (double) h) +
 	 ((double) blw / (double) w)) / 2.0;
 
+      g_debug("downsample: %g", osr->downsamples[i]);
+
       if (osr->downsamples[i] < osr->downsamples[i - 1]) {
 	g_warning("Downsampled images not correctly ordered: %g < %g",
 		  osr->downsamples[i], osr->downsamples[i - 1]);
@@ -138,6 +140,14 @@ openslide_t *openslide_open(const char *filename) {
   // fill in names
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
   osr->property_names = strv_from_hashtable_keys(osr->properties);
+
+  g_debug("overlaps");
+  for (int32_t i = 0; i < osr->layer_count; i++) {
+    int32_t ox;
+    int32_t oy;
+    _openslide_get_overlaps(osr, i, &ox, &oy);
+    g_debug(" %d %d (layer %d)", ox, oy, i);
+  }
 
   return osr;
 }
@@ -172,13 +182,10 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
     *w = 0;
     *h = 0;
   } else {
-    int64_t image_w, image_h, tile_w, tile_h;
+    int64_t image_w, image_h, overlap_spacing_x, overlap_spacing_y;
     (osr->ops->get_dimensions)(osr, layer,
 			       &image_w, &image_h,
-			       &tile_w, &tile_h);
-    g_assert(image_w >= tile_w);
-    g_assert(image_h >= tile_h);
-
+			       &overlap_spacing_x, &overlap_spacing_y);
     if (image_w == 0 || image_h == 0) {
       // done
       *w = 0;
@@ -186,32 +193,27 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
       return;
     }
 
-    g_assert(tile_w > 0 && tile_h > 0);
-
-    // get num tiles
-    int64_t tiles_across = image_w / tile_w;
-    int64_t tiles_down = image_h / tile_h;
-
-    // overlaps information seems to only make sense when dealing
-    // with images that are divided perfectly by tiles ?
-    // thus, we have these if-else below
-
     // subtract overlaps and compute
     int32_t overlap_x, overlap_y;
     _openslide_get_overlaps(osr, layer, &overlap_x, &overlap_y);
 
-    if (overlap_x) {
-      *w = (tiles_across * tile_w) - overlap_x * (tiles_across - 1);
+    if (overlap_x && (overlap_spacing_x <= image_w)) {
+      int64_t overlaps_across = image_w / overlap_spacing_x;
+      *w = (overlaps_across * overlap_spacing_x) - overlap_x * (overlaps_across - 1);
     } else {
       *w = image_w;
     }
 
-    if (overlap_y) {
-      *h = (tiles_down * tile_h) - overlap_y * (tiles_down - 1);
+    if (overlap_y && (overlap_spacing_y <= image_h)) {
+      int64_t overlaps_down = image_h / overlap_spacing_y;
+      *h = (overlaps_down * overlap_spacing_y) - overlap_y * (overlaps_down - 1);
     } else {
       *h = image_h;
     }
+    g_debug("layer %d overlap spacing: %d %d", layer, overlap_spacing_x, overlap_spacing_y);
   }
+
+  g_debug("layer %d dimensions: %" PRId64 " %" PRId64, layer, *w, *h);
 }
 
 const char *openslide_get_comment(openslide_t *osr) {
@@ -343,31 +345,32 @@ void openslide_read_associated_image(openslide_t *osr,
 
 void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
 			     int32_t *x, int32_t *y) {
-  if (osr->overlap_count >= 2 * (layer + 1)) {
-    *x = osr->overlaps[2 * layer + 0];
-    *y = osr->overlaps[2 * layer + 1];
-  } else {
+  if (layer >= osr->overlap_count) {
     *x = 0;
     *y = 0;
+  } else {
+    *x = osr->overlaps[layer * 2];
+    *y = osr->overlaps[(layer * 2) + 1];
   }
 }
 
 void _openslide_add_in_overlaps(openslide_t *osr,
 				int32_t layer,
-				int64_t tw, int64_t th,
-				int64_t total_tiles_across,
-				int64_t total_tiles_down,
+				int64_t overlap_spacing_x,
+				int64_t overlap_spacing_y,
+				int64_t total_overlaps_across,
+				int64_t total_overlaps_down,
 				int64_t x, int64_t y,
 				int64_t *out_x, int64_t *out_y) {
   int32_t ox, oy;
   _openslide_get_overlaps(osr, layer, &ox, &oy);
 
   // the last tile doesn't have an overlap to skip
-  int64_t max_skip_x = (total_tiles_across - 1) * ox;
-  int64_t max_skip_y = (total_tiles_down - 1) * oy;
+  int64_t max_skip_x = (total_overlaps_across - 1) * ox;
+  int64_t max_skip_y = (total_overlaps_down - 1) * oy;
 
-  int64_t skip_x = (x / (tw - ox)) * ox;
-  int64_t skip_y = (y / (th - oy)) * oy;
+  int64_t skip_x = (x / (overlap_spacing_x - ox)) * ox;
+  int64_t skip_y = (y / (overlap_spacing_y - oy)) * oy;
 
   *out_x = x + MIN(max_skip_x, skip_x);
   *out_y = y + MIN(max_skip_y, skip_y);

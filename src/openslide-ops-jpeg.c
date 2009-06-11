@@ -84,6 +84,9 @@ struct layer {
   int32_t tile_width;
   int32_t tile_height;
 
+  int32_t overlap_spacing_x;
+  int32_t overlap_spacing_y;
+
   // the size of image (0,0), which is used to find the jpeg we want
   // from a given (x,y) (not premultiplied)
   int32_t image00_w;
@@ -357,7 +360,8 @@ static void generate_layer_into_map(GSList *jpegs,
 
 static GHashTable *create_width_to_layer_map(int32_t count,
 					     struct _openslide_jpeg_fragment **fragments,
-					     struct one_jpeg **jpegs) {
+					     struct one_jpeg **jpegs,
+					     double downsample_override) {
   int64_t prev_z = -1;
   int64_t prev_x = -1;
   int64_t prev_y = -1;
@@ -373,6 +377,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
   int32_t img00_th = 0;
 
   int64_t layer0_w = 0;
+  int64_t layer0_h = 0;
 
   // int* -> struct layer*
   GHashTable *width_to_layer_map = g_hash_table_new_full(int64_hash,
@@ -425,9 +430,17 @@ static GHashTable *create_width_to_layer_map(int32_t count,
     if (i == count - 1 || fragments[i + 1]->z != fr->z) {
       layer_jpegs_tmp = g_slist_reverse(layer_jpegs_tmp);
 
-      // save layer0 width
+      // first layer?
       if (fr->z == 0) {
+	// save layer0 width
 	layer0_w = l_pw;
+	layer0_h = l_ph;
+      } else if (downsample_override) {
+	// otherwise, maybe override
+	g_debug("overriding from %d %d", l_pw, l_ph);
+	l_pw = nearbyint(layer0_w / pow(downsample_override, fr->z));
+	l_ph = nearbyint(layer0_h / pow(downsample_override, fr->z));
+	g_debug(" to %d %d", l_pw, l_ph);
       }
 
       generate_layer_into_map(layer_jpegs_tmp, fr->x + 1, fr->y + 1,
@@ -802,6 +815,14 @@ static void read_region(openslide_t *osr, uint32_t *dest,
     end_y = ph - 1;
   }
 
+  int32_t ovr_x, ovr_y;
+  _openslide_get_overlaps(osr, layer, &ovr_x, &ovr_y);
+
+  int32_t ovr_spacing_x = nearbyint((double) l->overlap_spacing_x /
+				    (double) l->scale_denom);
+  int32_t ovr_spacing_y = nearbyint((double) l->overlap_spacing_y /
+				    (double) l->scale_denom);
+
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
   data->restart_marker_thread_state = R_M_THREAD_STATE_PAUSE;
@@ -811,7 +832,8 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   // wait until thread is paused
   g_mutex_lock(data->restart_marker_mutex);
   _openslide_read_tiles(ds_x, ds_y,
-			end_x, end_y, 0, 0, w, h, layer, tw, th,
+			end_x, end_y, ovr_x, ovr_y, w, h, layer,
+			tw, th, ovr_spacing_x, ovr_spacing_y,
 			tilereader_read, l,
 			dest, data->cache);
   g_mutex_unlock(data->restart_marker_mutex);
@@ -876,15 +898,16 @@ static void destroy(openslide_t *osr) {
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *image_w, int64_t *image_h,
-			   int64_t *tile_w, int64_t *tile_h) {
+			   int64_t *overlap_spacing_x,
+			   int64_t *overlap_spacing_y) {
   struct jpegops_data *data = osr->data;
 
   // check bounds
   if (layer >= osr->layer_count) {
     *image_w = 0;
     *image_h = 0;
-    *tile_w = 0;
-    *tile_h = 0;
+    *overlap_spacing_x = 0;
+    *overlap_spacing_y = 0;
     return;
   }
 
@@ -892,8 +915,10 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   struct layer *l = data->layers + layer;
   *image_w = l->pixel_w / l->scale_denom;
   *image_h = l->pixel_h / l->scale_denom;
-  *tile_w = l->tile_width / l->scale_denom;
-  *tile_h = l->tile_height / l->scale_denom;
+  *overlap_spacing_x = nearbyint((double) l->overlap_spacing_x /
+				 (double) l->scale_denom);
+  *overlap_spacing_y = nearbyint((double) l->overlap_spacing_y /
+				 (double) l->scale_denom);
 }
 
 static struct _openslide_ops jpeg_ops = {
@@ -1095,7 +1120,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t count,
 			     struct _openslide_jpeg_fragment **fragments,
 			     int32_t overlap_count,
-			     double *overlaps) {
+			     double *overlaps,
+			     double downsample_override,
+			     enum _openslide_overlap_mode overlap_mode) {
   //  g_debug("count: %d", count);
   //  for (int32_t i = 0; i < count; i++) {
     //    struct _openslide_jpeg_fragment *frag = fragments[i];
@@ -1139,7 +1166,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   // create map from width to layers, using the fragments
   GHashTable *width_to_layer_map = create_width_to_layer_map(count,
 							     fragments,
-							     data->all_jpegs);
+							     data->all_jpegs,
+							     downsample_override);
 
   // sort all_jpegs by file and start position, so we can avoid seeks
   // when background finding mcus
@@ -1193,9 +1221,11 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // from the layers, generate the overlaps
   if (overlap_count) {
-    int32_t *real_overlaps = g_new0(int32_t, osr->layer_count * 2);
+    int32_t *final_overlaps = g_new0(int32_t, osr->layer_count * 2);
     for (int32_t i = 0; i < osr->layer_count; i++) {
-      int32_t scale_denom = (data->layers + i)->scale_denom;
+      struct layer *l = data->layers + i;
+
+      int32_t scale_denom = l->scale_denom;
       g_assert(scale_denom);
 
       int32_t lg2_scale_denom = g_bit_nth_lsf(scale_denom, -1) + 1;
@@ -1217,10 +1247,28 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       g_debug("overlaps: %d %d", ox, oy);
 
-      real_overlaps[i * 2] = ox;
-      real_overlaps[(i * 2) + 1] = oy;
+      final_overlaps[i * 2] = ox;
+      final_overlaps[(i * 2) + 1] = oy;
+
+      // set the spacing
+      switch(overlap_mode) {
+      case OPENSLIDE_OVERLAP_MODE_SANE:
+	l->overlap_spacing_x = l->tile_width;
+	l->overlap_spacing_y = l->tile_height;
+	break;
+
+      case OPENSLIDE_OVERLAP_MODE_INTERNAL:
+	l->overlap_spacing_x =
+	  nearbyint(((double) l->tile_width) / l->no_scale_denom_downsample);
+	l->overlap_spacing_y =
+	  nearbyint(((double) l->tile_height) / l->no_scale_denom_downsample);
+	break;
+
+      default:
+	g_assert_not_reached();
+      }
     }
-    osr->overlaps = real_overlaps;
+    osr->overlaps = final_overlaps;
     osr->overlap_count = osr->layer_count;
   }
 

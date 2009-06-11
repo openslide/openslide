@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2008 Carnegie Mellon University
+ *  Copyright (c) 2007-2009 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -37,6 +37,8 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y,
 			   int64_t dest_w, int64_t dest_h,
 			   int32_t layer,
 			   int64_t tw, int64_t th,
+			   int64_t overlap_spacing_x,
+			   int64_t overlap_spacing_y,
 			   bool (*tilereader_read)(void *tilereader_data,
 						   uint32_t *dest,
 						   int64_t x,

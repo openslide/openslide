@@ -651,7 +651,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     overlaps[(i * 2) + 1] = hs->overlap_y;
   }
 
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, overlaps);
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, overlaps, 2.0,
+			  OPENSLIDE_OVERLAP_MODE_INTERNAL);
   success = true;
   goto DONE;
 

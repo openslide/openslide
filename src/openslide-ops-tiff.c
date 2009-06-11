@@ -180,7 +180,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 					.tilereader_read = data->tilereader_read };
 
   _openslide_read_tiles(start_x, start_y, end_x, end_y, ovr_x, ovr_y,
-			w, h, layer, tw, th, tilereader_read,
+			w, h, layer, tw, th, tw, th, tilereader_read,
 			&tilereader_data,
 			dest, data->cache);
 
@@ -202,7 +202,7 @@ static void destroy(openslide_t *osr) {
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *image_w, int64_t *image_h,
-			   int64_t *tile_w, int64_t *tile_h) {
+			   int64_t *overlap_spacing_x, int64_t *overlap_spacing_y) {
   uint32_t tmp;
 
   struct _openslide_tiffopsdata *data = osr->data;
@@ -210,8 +210,8 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 
   *image_w = 0;
   *image_h = 0;
-  *tile_w = 0;
-  *tile_h = 0;
+  *overlap_spacing_x = 0;
+  *overlap_spacing_y = 0;
 
   // check bounds
   if (layer >= osr->layer_count) {
@@ -238,8 +238,8 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   // success
   *image_w = iw;
   *image_h = ih;
-  *tile_w = tw;
-  *tile_h = th;
+  *overlap_spacing_x = tw;
+  *overlap_spacing_y = th;
 }
 
 static struct _openslide_ops _openslide_tiff_ops = {
@@ -256,7 +256,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
 						     uint32_t *dest,
 						     int64_t x, int64_t y),
-			     void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt)) {
+			     void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt),
+			     enum _openslide_overlap_mode overlap_mode) {
+  g_assert(overlap_mode == OPENSLIDE_OVERLAP_MODE_SANE);
+
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);

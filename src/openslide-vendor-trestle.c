@@ -120,7 +120,7 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
 
   // add overlaps
   if (osr) {
-    osr->overlap_count = overlap_count;
+    osr->overlap_count = overlap_count / 2;
     osr->overlaps = overlaps;
   } else {
     g_free(overlaps);
@@ -144,7 +144,8 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
 			  layer_count, layers,
 			  _openslide_generic_tiff_tilereader_create,
 			  _openslide_generic_tiff_tilereader_read,
-			  _openslide_generic_tiff_tilereader_destroy);
+			  _openslide_generic_tiff_tilereader_destroy,
+			  OPENSLIDE_OVERLAP_MODE_SANE);
 
 
   return true;

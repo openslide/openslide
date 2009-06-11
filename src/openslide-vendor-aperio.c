@@ -343,13 +343,15 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
     _openslide_add_tiff_ops(osr, tiff, layer_count, layers,
 			    _openslide_aperio_tiff_tilereader_create,
 			    _openslide_aperio_tiff_tilereader_read,
-			    _openslide_aperio_tiff_tilereader_destroy);
+			    _openslide_aperio_tiff_tilereader_destroy,
+			    OPENSLIDE_OVERLAP_MODE_SANE);
   } else {
     // let libtiff handle it
     _openslide_add_tiff_ops(osr, tiff, layer_count, layers,
 			    _openslide_generic_tiff_tilereader_create,
 			    _openslide_generic_tiff_tilereader_read,
-			    _openslide_generic_tiff_tilereader_destroy);
+			    _openslide_generic_tiff_tilereader_destroy,
+			    OPENSLIDE_OVERLAP_MODE_SANE);
   }
 
   return true;
