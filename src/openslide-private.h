@@ -64,9 +64,6 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
-  int32_t overlap_count;
-  int32_t *overlaps;
-
   uint32_t fill_color_argb;
 
   double *downsamples;  // filled in automatically from dimensions
@@ -80,18 +77,6 @@ struct _openslide {
   const char **property_names; // filled in automatically from hashtable
 };
 
-/* overlaps support */
-void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
-			     int32_t *x, int32_t *y);
-void _openslide_add_in_overlaps(openslide_t *osr,
-				int32_t layer,
-				int64_t tile_w,
-				int64_t tile_h,
-				int64_t total_overlaps_across,
-				int64_t total_overlaps_down,
-				int64_t x, int64_t y,
-				int64_t *out_x, int64_t *out_y);
-
 /* the function pointer structure for backends */
 struct _openslide_ops {
   void (*read_region)(openslide_t *osr, uint32_t *dest,
@@ -100,9 +85,7 @@ struct _openslide_ops {
 		      int64_t w, int64_t h);
   void (*destroy)(openslide_t *osr);
   void (*get_dimensions)(openslide_t *osr, int32_t layer,
-			 int64_t *image_w, int64_t *image_h,
-			 int64_t *tile_w,
-			 int64_t *tile_h);
+			 int64_t *x, int64_t *y);
 };
 
 
@@ -115,16 +98,22 @@ bool _openslide_try_mirax(openslide_t *osr, const char* filename);
 /* TIFF support */
 struct _openslide_tiff_tilereader;
 
+typedef struct _openslide_tiff_tilereader *(*_openslide_tiff_tilereader_create_fn)(TIFF *tiff);
+typedef void (*_openslide_tiff_tilereader_read_fn)(struct _openslide_tiff_tilereader *wtt,
+						   uint32_t *dest,
+						   int64_t x,
+						   int64_t y);
+typedef void (*_openslide_tiff_tilereader_destroy_fn)(struct _openslide_tiff_tilereader *wtt);
+
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
+			     int32_t overlap_count,
+			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
-			     void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
-						     uint32_t *dest,
-						     int64_t x,
-						     int64_t y),
-			     void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt),
+			     _openslide_tiff_tilereader_create_fn creator,
+			     _openslide_tiff_tilereader_read_fn reader,
+			     _openslide_tiff_tilereader_destroy_fn destroyer,
 			     enum _openslide_overlap_mode overlap_mode);
 
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff);

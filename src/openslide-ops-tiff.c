@@ -34,6 +34,8 @@
 struct _openslide_tiffopsdata {
   TIFF *tiff;
 
+  int32_t overlap_count;
+  int32_t *overlaps;
   int32_t *layers;
 
   struct _openslide_cache *cache;
@@ -250,13 +252,13 @@ static struct _openslide_ops _openslide_tiff_ops = {
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
+			     int32_t overlap_count,
+			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff),
-			     void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
-						     uint32_t *dest,
-						     int64_t x, int64_t y),
-			     void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt),
+			     _openslide_tiff_tilereader_create_fn creator,
+			     _openslide_tiff_tilereader_read_fn reader,
+			     _openslide_tiff_tilereader_destroy_fn destroyer,
 			     enum _openslide_overlap_mode overlap_mode) {
   g_assert(overlap_mode == OPENSLIDE_OVERLAP_MODE_SANE);
 
@@ -270,9 +272,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   // populate private data
   data->tiff = tiff;
 
-  data->tilereader_create = tilereader_create;
-  data->tilereader_read = tilereader_read;
-  data->tilereader_destroy = tilereader_destroy;
+  data->tilereader_create = creator;
+  data->tilereader_read = reader;
+  data->tilereader_destroy = destroyer;
 
   if (osr == NULL) {
     // free now and return

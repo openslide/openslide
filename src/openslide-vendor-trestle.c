@@ -118,14 +118,6 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
   }
   g_strfreev(first_pass);
 
-  // add overlaps
-  if (osr) {
-    osr->overlap_count = overlap_count / 2;
-    osr->overlaps = overlaps;
-  } else {
-    g_free(overlaps);
-  }
-
   // count layers
   int32_t layer_count = 0;
   int32_t *layers = NULL;
@@ -141,6 +133,7 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
 
   // all set, load up the TIFF-specific ops
   _openslide_add_tiff_ops(osr, tiff,
+			  overlap_count / 2, overlaps,
 			  layer_count, layers,
 			  _openslide_generic_tiff_tilereader_create,
 			  _openslide_generic_tiff_tilereader_read,

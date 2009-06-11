@@ -87,6 +87,9 @@ struct layer {
   int32_t overlap_spacing_x;
   int32_t overlap_spacing_y;
 
+  int32_t overlap_x;
+  int32_t overlap_y;
+
   // the size of image (0,0), which is used to find the jpeg we want
   // from a given (x,y) (not premultiplied)
   int32_t image00_w;
@@ -116,6 +119,28 @@ struct jpegops_data {
   enum restart_marker_thread_state restart_marker_thread_state;
 };
 
+
+static int64_t compute_tile_dimension(int32_t overlap_spacing,
+				      int32_t overlap,
+				      int32_t tile_size,
+				      int32_t scale_denom) {
+  g_debug("overlap_spacing: %d, overlap: %d, tile_size: %d, scale_denom: %d",
+	  overlap_spacing, overlap, tile_size, scale_denom);
+
+  int32_t overlap_spacing_scaled = nearbyint((double) overlap_spacing / (double) scale_denom);
+  int32_t overlap_scaled = nearbyint((double) overlap / (double) scale_denom);
+  int32_t tile_size_scaled = tile_size / scale_denom;
+
+  g_debug("overlap_spacing_scaled: %d, overlap_scaled: %d, tile_size_scaled: %d",
+	  overlap_spacing_scaled, overlap_scaled, tile_size_scaled);
+
+  int num_overlaps = nearbyint(((double) tile_size_scaled / overlap_spacing_scaled) - 1.0);
+  int64_t dimension = tile_size_scaled - (num_overlaps * overlap_scaled);
+
+  g_debug("num_overlaps: %d, dimension: %" PRId64, num_overlaps, dimension);
+
+  return dimension;
+}
 
 
 /*
@@ -634,14 +659,27 @@ static void compute_mcu_start(FILE *f,
 static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t *dest,
 				int32_t x, int32_t y,
+				int32_t ovr_spacing_x, int32_t ovr_spacing_y,
+				int32_t overlap_x, int32_t overlap_y,
 				int32_t scale_denom) {
   //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d", (void *) jpeg, (void *) dest, x, y, scale_denom);
 
-  // figure out where to start the data stream
-  int32_t tile_y = y / jpeg->tile_height;
-  int32_t tile_x = x / jpeg->tile_width;
+  // take into account overlaps
+  int32_t tw = compute_tile_dimension(ovr_spacing_x,
+				      overlap_x,
+				      jpeg->tile_width,
+				      1);
+  int32_t th = compute_tile_dimension(ovr_spacing_y,
+				      overlap_y,
+				      jpeg->tile_height,
+				      1);
+  th = jpeg->tile_height;
 
-  int32_t stride_in_tiles = jpeg->width / jpeg->tile_width;
+  // figure out where to start the data stream
+  int32_t tile_x = x / tw;
+  int32_t tile_y = y / th;
+
+  int32_t stride_in_tiles = jpeg->width / th;
 
   int64_t mcu_start = tile_y * stride_in_tiles + tile_x;
 
@@ -716,9 +754,14 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
       int cur_buffer = 0;
       while (rows_read > 0) {
 	// copy a row
-	int32_t i;
-	for (i = 0; i < (int32_t) cinfo.output_width; i++) {
-	  dest[i] = 0xFF000000 |                          // A
+	int32_t dest_i = 0;
+	for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
+	  if (i && (i % ovr_spacing_x == 0)) {
+	    // skip
+	    i += overlap_x;
+	  }
+
+	  dest[dest_i++] = 0xFF000000 |           // A
 	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
 	    buffer[cur_buffer][i * 3 + 2];        // B
@@ -774,6 +817,8 @@ static bool tilereader_read(void *tilereader_data,
 
   read_from_one_jpeg(jpeg, dest,
 		     start_in_src_segment_x, start_in_src_segment_y,
+		     l->overlap_spacing_x, l->overlap_spacing_y,
+		     ox, oy,
 		     l->scale_denom);
 
   return true;
@@ -796,8 +841,11 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   //	  layer, rel_downsample, scale_denom);
 
   // figure out tile dimensions
-  int64_t tw = l->tile_width / scale_denom;
-  int64_t th = l->tile_height / scale_denom;
+  int32_t ox, oy;
+  _openslide_get_overlaps(osr, layer, &ox, &oy);
+
+  int64_t tw = compute_tile_dimension(l->overlap_spacing_x, ox, l->tile_width, l->scale_denom);
+  int64_t th = compute_tile_dimension(l->overlap_spacing_y, oy, l->tile_height, l->scale_denom);
 
   int64_t ds_x = x / rel_downsample / scale_denom;
   int64_t ds_y = y / rel_downsample / scale_denom;
@@ -817,11 +865,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
   int32_t ovr_x, ovr_y;
   _openslide_get_overlaps(osr, layer, &ovr_x, &ovr_y);
-
-  int32_t ovr_spacing_x = nearbyint((double) l->overlap_spacing_x /
-				    (double) l->scale_denom);
-  int32_t ovr_spacing_y = nearbyint((double) l->overlap_spacing_y /
-				    (double) l->scale_denom);
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -898,27 +941,28 @@ static void destroy(openslide_t *osr) {
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *image_w, int64_t *image_h,
-			   int64_t *overlap_spacing_x,
-			   int64_t *overlap_spacing_y) {
+			   int64_t *tile_w,
+			   int64_t *tile_h) {
   struct jpegops_data *data = osr->data;
 
   // check bounds
   if (layer >= osr->layer_count) {
     *image_w = 0;
     *image_h = 0;
-    *overlap_spacing_x = 0;
-    *overlap_spacing_y = 0;
+    *tile_w = 0;
+    *tile_h = 0;
     return;
   }
 
   // get dimensions
+  int32_t ox, oy;
+  _openslide_get_overlaps(osr, layer, &ox, &oy);
+
   struct layer *l = data->layers + layer;
   *image_w = l->pixel_w / l->scale_denom;
   *image_h = l->pixel_h / l->scale_denom;
-  *overlap_spacing_x = nearbyint((double) l->overlap_spacing_x /
-				 (double) l->scale_denom);
-  *overlap_spacing_y = nearbyint((double) l->overlap_spacing_y /
-				 (double) l->scale_denom);
+  *tile_w = compute_tile_dimension(l->overlap_spacing_x, ox, l->tile_width, l->scale_denom);
+  *tile_h = compute_tile_dimension(l->overlap_spacing_y, oy, l->tile_height, l->scale_denom);
 }
 
 static struct _openslide_ops jpeg_ops = {
