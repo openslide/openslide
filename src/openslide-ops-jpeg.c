@@ -818,7 +818,7 @@ static bool tilereader_read(void *tilereader_data,
   read_from_one_jpeg(jpeg, dest,
 		     start_in_src_segment_x, start_in_src_segment_y,
 		     l->overlap_spacing_x, l->overlap_spacing_y,
-		     ox, oy,
+		     0, 0,
 		     l->scale_denom);
 
   return true;
@@ -841,11 +841,8 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   //	  layer, rel_downsample, scale_denom);
 
   // figure out tile dimensions
-  int32_t ox, oy;
-  _openslide_get_overlaps(osr, layer, &ox, &oy);
-
-  int64_t tw = compute_tile_dimension(l->overlap_spacing_x, ox, l->tile_width, l->scale_denom);
-  int64_t th = compute_tile_dimension(l->overlap_spacing_y, oy, l->tile_height, l->scale_denom);
+  int64_t tw = compute_tile_dimension(l->overlap_spacing_x, l->overlap_x, l->tile_width, l->scale_denom);
+  int64_t th = compute_tile_dimension(l->overlap_spacing_y, l->overlap_y, l->tile_height, l->scale_denom);
 
   int64_t ds_x = x / rel_downsample / scale_denom;
   int64_t ds_y = y / rel_downsample / scale_denom;
@@ -863,9 +860,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
     end_y = ph - 1;
   }
 
-  int32_t ovr_x, ovr_y;
-  _openslide_get_overlaps(osr, layer, &ovr_x, &ovr_y);
-
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
   data->restart_marker_thread_state = R_M_THREAD_STATE_PAUSE;
@@ -875,7 +869,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   // wait until thread is paused
   g_mutex_lock(data->restart_marker_mutex);
   _openslide_read_tiles(ds_x, ds_y,
-			end_x, end_y, ovr_x, ovr_y, w, h, layer,
+			end_x, end_y, w, h, layer,
 			tw, th,
 			tilereader_read, l,
 			dest, data->cache);
@@ -955,9 +949,6 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   }
 
   // get dimensions
-  int32_t ox, oy;
-  _openslide_get_overlaps(osr, layer, &ox, &oy);
-
   struct layer *l = data->layers + layer;
   *image_w = l->pixel_w / l->scale_denom;
   *image_h = l->pixel_h / l->scale_denom;
@@ -1286,13 +1277,10 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       g_debug("orig overlaps: %g %g", orig_ox, orig_oy);
 
-      int32_t ox = nearbyint(overlaps[overlaps_i * 2] / (double) scale_denom);
-      int32_t oy = nearbyint(overlaps[(overlaps_i * 2) + 1] / (double) scale_denom);
+      l->overlap_x = nearbyint(overlaps[overlaps_i * 2] / (double) scale_denom);
+      l->overlap_y = nearbyint(overlaps[(overlaps_i * 2) + 1] / (double) scale_denom);
 
-      g_debug("overlaps: %d %d", ox, oy);
-
-      final_overlaps[i * 2] = ox;
-      final_overlaps[(i * 2) + 1] = oy;
+      g_debug("overlaps: %d %d", l->overlap_x, l->overlap_y);
 
       // set the spacing
       switch(overlap_mode) {
@@ -1312,8 +1300,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 	g_assert_not_reached();
       }
     }
-    osr->overlaps = final_overlaps;
-    osr->overlap_count = osr->layer_count;
   }
 
   // init cache

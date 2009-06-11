@@ -102,7 +102,9 @@ typedef struct _openslide_tiff_tilereader *(*_openslide_tiff_tilereader_create_f
 typedef void (*_openslide_tiff_tilereader_read_fn)(struct _openslide_tiff_tilereader *wtt,
 						   uint32_t *dest,
 						   int64_t x,
-						   int64_t y);
+						   int64_t y,
+						   int32_t w,
+						   int32_t h);
 typedef void (*_openslide_tiff_tilereader_destroy_fn)(struct _openslide_tiff_tilereader *wtt);
 
 void _openslide_add_tiff_ops(openslide_t *osr,
@@ -119,7 +121,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff);
 void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
 					     uint32_t *dest,
-					     int64_t x, int64_t y);
+					     int64_t x, int64_t y,
+					     int32_t w, int32_t h);
 void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereader *wtt);
 
 

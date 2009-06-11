@@ -40,12 +40,40 @@ struct _openslide_tiffopsdata {
 
   struct _openslide_cache *cache;
 
-  struct _openslide_tiff_tilereader *(*tilereader_create)(TIFF *tiff);
-  void (*tilereader_read)(struct _openslide_tiff_tilereader *wtt,
-			  uint32_t *dest,
-			  int64_t x, int64_t y);
-  void (*tilereader_destroy)(struct _openslide_tiff_tilereader *wtt);
+  _openslide_tiff_tilereader_create_fn tilereader_create;
+  _openslide_tiff_tilereader_read_fn tilereader_read;
+  _openslide_tiff_tilereader_destroy_fn tilereader_destroy;
 };
+
+
+static void add_in_overlaps(openslide_t *osr,
+			    int32_t layer,
+			    int64_t tw, int64_t th,
+			    int64_t total_tiles_across,
+			    int64_t total_tiles_down,
+			    int64_t x, int64_t y,
+			    int64_t *out_x, int64_t *out_y) {
+  struct _openslide_tiffopsdata *data = osr->data;
+
+  if (layer >= data->overlap_count) {
+    *out_x = x;
+    *out_y = y;
+    return;
+  }
+
+  int32_t ox = data->overlaps[layer * 2];
+  int32_t oy = data->overlaps[(layer * 2) + 1];
+
+  // the last tile doesn't have an overlap to skip
+  int64_t max_skip_x = (total_tiles_across - 1) * ox;
+  int64_t max_skip_y = (total_tiles_down - 1) * oy;
+
+  int64_t skip_x = (x / (tw - ox)) * ox;
+  int64_t skip_y = (y / (th - oy)) * oy;
+
+  *out_x = x + MIN(max_skip_x, skip_x);
+  *out_y = y + MIN(max_skip_y, skip_y);
+}
 
 
 static void store_string_property(TIFF *tiff, GHashTable *ht,
@@ -105,14 +133,14 @@ static void store_properties(TIFF *tiff, GHashTable *ht) {
 
 struct tilereader {
   struct _openslide_tiff_tilereader *tilereader;
-  void (*tilereader_read)(struct _openslide_tiff_tilereader *tilereader,
-			  uint32_t *dest, int64_t x, int64_t y);
+  _openslide_tiff_tilereader_read_fn tilereader_read;
 };
 
 static bool tilereader_read(void *tilereader_data,
-			    uint32_t *dest, int64_t x, int64_t y) {
+			    uint32_t *dest, int64_t x, int64_t y,
+			    int32_t w, int32_t h) {
   struct tilereader *tilereader = tilereader_data;
-  tilereader->tilereader_read(tilereader->tilereader, dest, x, y);
+  tilereader->tilereader_read(tilereader->tilereader, dest, x, y, w, h);
 
   return true;
 }
@@ -147,19 +175,26 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
   raw_h = tmp;
 
-  // figure out range of tiles
+  // figure out range
   int64_t start_x, start_y, end_x, end_y;
 
-  // add in overlaps
+  // adjust for overlaps
+  int32_t ovr_x = 0;
+  int32_t ovr_y = 0;
+  if (layer < data->overlap_count) {
+    ovr_x = data->overlaps[layer * 2];
+    ovr_y = data->overlaps[(layer * 2) + 1];
+  }
+
   int64_t total_tiles_across = raw_w / tw;
   int64_t total_tiles_down = raw_h / th;
-  _openslide_add_in_overlaps(osr, layer, tw, th,
-			     total_tiles_across, total_tiles_down,
-			     ds_x, ds_y, &start_x, &start_y);
-  _openslide_add_in_overlaps(osr, layer, tw, th,
-			     total_tiles_across, total_tiles_down,
-			     ds_x + w, ds_y + h,
-			     &end_x, &end_y);
+  add_in_overlaps(osr, layer, tw, th,
+		  total_tiles_across, total_tiles_down,
+		  ds_x, ds_y, &start_x, &start_y);
+  add_in_overlaps(osr, layer, tw, th,
+		  total_tiles_across, total_tiles_down,
+		  ds_x + w, ds_y + h,
+		  &end_x, &end_y);
 
   // check bounds
   if (end_x >= raw_w) {
@@ -173,9 +208,6 @@ static void read_region(openslide_t *osr, uint32_t *dest,
 
 
   // for each tile, draw it where it should go
-  int32_t ovr_x, ovr_y;
-  _openslide_get_overlaps(osr, layer, &ovr_x, &ovr_y);
-
   struct _openslide_tiff_tilereader *tilereader = data->tilereader_create(tiff);
 
   struct tilereader tilereader_data = { .tilereader = tilereader,
@@ -203,21 +235,25 @@ static void destroy(openslide_t *osr) {
 }
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *image_w, int64_t *image_h,
-			   int64_t *tile_w, int64_t *tile_h) {
+			   int64_t *w, int64_t *h) {
   uint32_t tmp;
 
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
 
-  *image_w = 0;
-  *image_h = 0;
-  *tile_w = 0;
-  *tile_h = 0;
+  *w = 0;
+  *h = 0;
 
   // check bounds
   if (layer >= osr->layer_count) {
     return;
+  }
+
+  int32_t ox = 0;
+  int32_t oy = 0;
+  if (layer < data->overlap_count) {
+    ox = data->overlaps[layer * 2];
+    oy = data->overlaps[(layer * 2) + 1];
   }
 
   // get the layer
@@ -237,11 +273,15 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
   ih = tmp;
 
-  // success
-  *image_w = iw;
-  *image_h = ih;
-  *tile_w = tw;
-  *tile_h = th;
+  // subtract out the overlaps
+  *w = iw;
+  *h = ih;
+  if (iw >= tw) {
+    *w -= ((iw / tw) - 1) * ox;
+  }
+  if (ih >= th) {
+    *h -= ((ih / th) - 1) * oy;
+  }
 }
 
 static struct _openslide_ops _openslide_tiff_ops = {
@@ -300,18 +340,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
 struct _openslide_tiff_tilereader {
   TIFFRGBAImage img;
-  int64_t tile_width;
-  int64_t tile_height;
 };
 
 struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff) {
-  // dimensions
-  uint32_t tmp;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), NULL);
-  int64_t w = tmp;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), NULL);
-  int64_t h = tmp;
-
   // image
   TIFFRGBAImage img;
   char emsg[1024] = "";
@@ -322,22 +353,21 @@ struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIF
   struct _openslide_tiff_tilereader *wtt =
     g_slice_new(struct _openslide_tiff_tilereader);
   wtt->img = img;
-  wtt->tile_width = w;
-  wtt->tile_height = h;
 
   return wtt;
 }
 
 void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
 					     uint32_t *dest,
-					     int64_t x, int64_t y) {
+					     int64_t x, int64_t y,
+					     int32_t w, int32_t h) {
   wtt->img.col_offset = x;
   wtt->img.row_offset = y;
-  g_return_if_fail(TIFFRGBAImageGet(&wtt->img, dest, wtt->tile_width, wtt->tile_height));
+  g_return_if_fail(TIFFRGBAImageGet(&wtt->img, dest, w, h));
 
   // permute
   uint32_t *p = dest;
-  uint32_t *end = dest + wtt->tile_width * wtt->tile_height;
+  uint32_t *end = dest + w * h;
   while (p < end) {
     uint32_t val = *p;
     *p++ = (val & 0xFF00FF00)

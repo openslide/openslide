@@ -37,8 +37,6 @@ static const char APERIO_DESCRIPTION[] = "Aperio";
 
 struct _openslide_tiff_tilereader {
   TIFF *tiff;
-  int64_t tile_width;
-  int64_t tile_height;
 };
 
 static void info_callback(const char *msg, void *data) {
@@ -53,26 +51,18 @@ static void error_callback(const char *msg, void *data) {
 
 // XXX revisit assumptions that color is always downsampled in x by 2
 static struct _openslide_tiff_tilereader *_openslide_aperio_tiff_tilereader_create(TIFF *tiff) {
-  // dimensions
-  uint32_t tmp;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), NULL);
-  int64_t w = tmp;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), NULL);
-  int64_t h = tmp;
-
   // success! allocate and return
   struct _openslide_tiff_tilereader *wtt =
     g_slice_new(struct _openslide_tiff_tilereader);
   wtt->tiff = tiff;
-  wtt->tile_width = w;
-  wtt->tile_height = h;
 
   return wtt;
 }
 
 static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
 						   uint32_t *dest,
-						   int64_t x, int64_t y) {
+						   int64_t x, int64_t y,
+						   int32_t w, int32_t h) {
   // get tile number
   ttile_t tile_no = TIFFComputeTile(wtt->tiff, x, y, 0, 0);
 
@@ -107,8 +97,12 @@ static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilere
 
   opj_image_comp_t *comps = image->comps;
 
+  // no overlaps support for now
+  g_assert(w == (image->x1 - image->x0));
+  g_assert(h == (image->y1 - image->y0));
+
   // copy
-  for (int i = 0; i < wtt->tile_height * wtt->tile_width; i++) {
+  for (int i = 0; i < h * w; i++) {
     uint8_t Y = comps[0].data[i];
     uint8_t Cb = comps[1].data[i/2];
     uint8_t Cr = comps[2].data[i/2];
