@@ -85,8 +85,8 @@ void _openslide_get_overlaps(openslide_t *osr, int32_t layer,
 			     int32_t *x, int32_t *y);
 void _openslide_add_in_overlaps(openslide_t *osr,
 				int32_t layer,
-				int64_t overlap_spacing_x,
-				int64_t overlap_spacing_y,
+				int64_t tile_w,
+				int64_t tile_h,
 				int64_t total_overlaps_across,
 				int64_t total_overlaps_down,
 				int64_t x, int64_t y,
@@ -101,8 +101,8 @@ struct _openslide_ops {
   void (*destroy)(openslide_t *osr);
   void (*get_dimensions)(openslide_t *osr, int32_t layer,
 			 int64_t *image_w, int64_t *image_h,
-			 int64_t *overlap_spacing_x,
-			 int64_t *overlap_spacing_y);
+			 int64_t *tile_w,
+			 int64_t *tile_h);
 };
 
 

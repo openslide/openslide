@@ -833,7 +833,7 @@ static void read_region(openslide_t *osr, uint32_t *dest,
   g_mutex_lock(data->restart_marker_mutex);
   _openslide_read_tiles(ds_x, ds_y,
 			end_x, end_y, ovr_x, ovr_y, w, h, layer,
-			tw, th, ovr_spacing_x, ovr_spacing_y,
+			tw, th,
 			tilereader_read, l,
 			dest, data->cache);
   g_mutex_unlock(data->restart_marker_mutex);
