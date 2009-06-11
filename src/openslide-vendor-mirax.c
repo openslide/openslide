@@ -58,6 +58,7 @@ static const char KEY_IMAGE_FORMAT[] = "IMAGE_FORMAT";
 static const char KEY_IMAGE_FILL_COLOR_BGR[] = "IMAGE_FILL_COLOR_BGR";
 static const char KEY_DIGITIZER_WIDTH[] = "DIGITIZER_WIDTH";
 static const char KEY_DIGITIZER_HEIGHT[] = "DIGITIZER_HEIGHT";
+static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
 
 #define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE, FAIL_MSG)	\
   do {									\
@@ -576,6 +577,19 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     }
     g_free(tmp);
     tmp = NULL;
+
+    // verify IMAGE_CONCAT_FACTOR == 1 for all but the first layer
+    int ic_factor;
+    READ_KEY_OR_FAIL(ic_factor, slidedat, group, KEY_IMAGE_CONCAT_FACTOR,
+		     integer, "Can't read image concat factor");
+    if ((i == 0) && (ic_factor != 0)) {
+      g_warning("Level 0 has non-zero image concat factor: %d", ic_factor);
+      goto FAIL;
+    }
+    if ((i != 0) && (ic_factor != 1)) {
+      g_warning("Level %d has non-unity image concat factor: %d", i, ic_factor);
+      goto FAIL;
+    }
   }
 
 
