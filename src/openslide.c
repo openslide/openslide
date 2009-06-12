@@ -39,7 +39,7 @@ static const vendor_fn all_formats[] = {
   //_openslide_try_mirax,
   //  _openslide_try_hamamatsu,
     _openslide_try_trestle,
-  _openslide_try_aperio,
+    //  _openslide_try_aperio,
   NULL
 };
 
@@ -141,6 +141,9 @@ openslide_t *openslide_open(const char *filename) {
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
+  // start cache
+  osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
+
   return osr;
 }
 
@@ -157,6 +160,9 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->property_names);
 
   g_free(osr->downsamples);
+
+  _openslide_cache_destroy(osr->cache);
+
   g_slice_free(openslide_t, osr);
 }
 
@@ -172,7 +178,19 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
     *w = 0;
     *h = 0;
   } else {
-    (osr->ops->get_dimensions)(osr, layer, w, h);
+    int64_t tiles_across;
+    int64_t tiles_down;
+    int32_t tile_width;
+    int32_t tile_height;
+    int32_t last_tile_width;
+    int32_t last_tile_height;
+
+    (osr->ops->get_dimensions)(osr, layer, &tiles_across, &tiles_down,
+			       &tile_width, &tile_height,
+			       &last_tile_width, &last_tile_height);
+
+    *w = (tiles_across - 1) * tile_width + last_tile_width;
+    *h = (tiles_down - 1) * tile_height + last_tile_height;
   }
 }
 
@@ -263,7 +281,29 @@ void openslide_read_region(openslide_t *osr,
 
 
   // now fully within all bounds, go for it
-  (osr->ops->read_region)(osr, dest, x, y, layer, w, h);
+
+
+  // convert into start coordinate
+  int64_t tile_x;
+  int64_t tile_y;
+  int32_t offset_x_in_tile;
+  int32_t offset_y_in_tile;
+  (osr->ops->convert_coordinate)(osr, layer, x, y,
+				 &tile_x, &tile_y,
+				 &offset_x_in_tile,
+				 &offset_y_in_tile);
+
+  // get the dimensions
+  int64_t tiles_across;
+  int64_t tiles_down;
+  int32_t tile_width;
+  int32_t tile_height;
+  int32_t last_tile_width;
+  int32_t last_tile_height;
+  (osr->ops->get_dimensions)(osr, layer, &tiles_across, &tiles_down,
+			     &tile_width, &tile_height,
+			     &last_tile_width, &last_tile_height);
+
 }
 
 

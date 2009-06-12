@@ -75,17 +75,27 @@ struct _openslide {
   // metadata
   GHashTable *properties; // created automatically
   const char **property_names; // filled in automatically from hashtable
+
+  // cache
+  struct _openslide_cache *cache;
 };
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
-  void (*read_region)(openslide_t *osr, uint32_t *dest,
-		      int64_t x, int64_t y,
-		      int32_t layer,
-		      int64_t w, int64_t h);
   void (*destroy)(openslide_t *osr);
-  void (*get_dimensions)(openslide_t *osr, int32_t layer,
-			 int64_t *x, int64_t *y);
+  bool (*read_tile)(openslide_t *osr, uint32_t *dest,
+		    int32_t layer,
+		    int64_t tile_x, int64_t tile_y);
+  void (*get_dimensions)(openslide_t *osr,
+			 int32_t layer,
+			 int64_t *tiles_across, int64_t *tiles_down,
+			 int32_t *tile_width, int32_t *tile_height,
+			 int32_t *last_tile_width, int32_t *last_tile_height);
+  void (*convert_coordinate)(openslide_t *osr,
+			     int32_t layer,
+			     int64_t x, int64_t y,
+			     int64_t *tile_x, int64_t *tile_y,
+			     int32_t *offset_x_in_tile, int32_t *offset_y_in_tile);
 };
 
 
@@ -96,16 +106,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename);
 
 /* TIFF support */
-struct _openslide_tiff_tilereader;
-
-typedef struct _openslide_tiff_tilereader *(*_openslide_tiff_tilereader_create_fn)(TIFF *tiff);
-typedef void (*_openslide_tiff_tilereader_read_fn)(struct _openslide_tiff_tilereader *wtt,
+typedef void (*_openslide_tiff_tilereader_read_fn)(TIFF *tiff,
 						   uint32_t *dest,
 						   int64_t x,
 						   int64_t y,
 						   int32_t w,
 						   int32_t h);
-typedef void (*_openslide_tiff_tilereader_destroy_fn)(struct _openslide_tiff_tilereader *wtt);
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
@@ -113,17 +119,13 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_create_fn creator,
-			     _openslide_tiff_tilereader_read_fn reader,
-			     _openslide_tiff_tilereader_destroy_fn destroyer,
+			     _openslide_tiff_tilereader_read_fn tileread,
 			     enum _openslide_overlap_mode overlap_mode);
 
-struct _openslide_tiff_tilereader *_openslide_generic_tiff_tilereader_create(TIFF *tiff);
-void _openslide_generic_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
+void _openslide_generic_tiff_tilereader_read(TIFF *tiff,
 					     uint32_t *dest,
 					     int64_t x, int64_t y,
 					     int32_t w, int32_t h);
-void _openslide_generic_tiff_tilereader_destroy(struct _openslide_tiff_tilereader *wtt);
 
 
 /* JPEG support */
