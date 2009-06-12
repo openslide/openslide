@@ -72,68 +72,58 @@ static void copy_tile(const uint32_t *tile,
 }
 
 
-void _openslide_read_tiles(int64_t start_x, int64_t start_y,
-			   int64_t end_x, int64_t end_y,
-			   int32_t ovr_x, int32_t ovr_y,
+void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
+			   int32_t offset_x, int32_t offset_y,
 			   int64_t dest_w, int64_t dest_h,
 			   int32_t layer,
-			   int64_t tw, int64_t th,
-			   bool (*tilereader_read)(void *tilereader_data,
-						   uint32_t *dest,
-						   int64_t x, int64_t y,
-						   int32_t w, int32_t h),
-			   void *tilereader_data,
+			   int32_t tile_width, int32_t tile_height,
+			   int32_t last_tile_width, int32_t last_tile_height,
+			   int64_t tiles_across, int64_t tiles_down,
+			   bool (*read_tile)(openslide_t *osr,
+					     uint32_t *dest,
+					     int64_t tile_x, int64_t tile_y),
+			   openslide_t *osr,
 			   uint32_t *dest,
 			   struct _openslide_cache *cache) {
-  //  g_debug("read_tiles: %d %d %d %d %d %d %d %d %d %d %d",
-  //	  start_x, start_y, end_x, end_y, ovr_x, ovr_y,
-  //	  dest_w, dest_h, layer, tw, th);
-
-  int tile_size = (tw - ovr_x) * (th - ovr_y) * 4;
-
-  int num_tiles_decoded = 0;
-
-  int64_t src_y = start_y;
+  int64_t tile_y = start_tile_y;
   int64_t dst_y = 0;
 
-  while (src_y < ((end_y / th) + 1) * th) {
-    int64_t src_x = start_x;
+  while (dst_y < dest_h) {
+    int64_t tile_x = start_tile_x;
     int64_t dst_x = 0;
 
-    while (src_x < ((end_x / tw) + 1) * tw) {
-      int round_x = (src_x / tw) * tw;
-      int round_y = (src_y / th) * th;
-      int off_x = src_x - round_x;
-      int off_y = src_y - round_y;
+    int32_t th = (tile_y == tiles_down - 1) ? last_tile_height : tile_height;
 
-      //      g_debug("going to readRGBA @ %d,%d", round_x, round_y);
-      //      g_debug(" offset: %d,%d", off_x, off_y);
-      uint32_t *cache_tile = _openslide_cache_get(cache, round_x, round_y, layer);
+    while (dst_x < dest_w) {
+      int32_t tw = (tile_x == tiles_across - 1) ? last_tile_width : tile_width;
+
+      int tile_size = th * tw * 4;
+      uint32_t *cache_tile = _openslide_cache_get(cache, tile_x, tile_y, layer);
       uint32_t *new_tile = NULL;
+
       if (cache_tile != NULL) {
 	// use cached tile
-	copy_tile(cache_tile, dest, tw - ovr_x, th - ovr_y,
-		  dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+	copy_tile(cache_tile, dest, tw, th,
+		  dst_x - offset_x, dst_y - offset_y,
+		  dest_w, dest_h);
       } else {
 	// make new tile
 	new_tile = g_slice_alloc(tile_size);
 
-	// tilereader_read will return true only if there is data there
-	if (tilereader_read(tilereader_data, new_tile, round_x, round_y, tw - ovr_x, th - ovr_y)) {
-	  num_tiles_decoded++;
-
-	/*
-	for (int yy = 0; yy < th; yy++) {
-	  for (int xx = 0; xx < tw; xx++) {
-	    if (xx == 0 || yy == 0 || xx == (tw - 1) || yy == (th - 1)) {
-	      new_tile[yy * tw + xx] = 0xFF0000FF; // blue bounding box
+	// read_tile will return true only if there is data there
+	if (read_tile(osr, new_tile, tile_x, tile_y)) {
+	  /*
+	  for (int yy = 0; yy < th; yy++) {
+	    for (int xx = 0; xx < tw; xx++) {
+	      if (xx == 0 || yy == 0 || xx == (tw - 1) || yy == (th - 1)) {
+		new_tile[yy * tw + xx] = 0xFF0000FF; // blue bounding box
+	      }
 	    }
 	  }
-	}
-	*/
-
-	  copy_tile(new_tile, dest, tw - ovr_x, th - ovr_y,
-		    dst_x - off_x, dst_y - off_y, dest_w, dest_h);
+	  */
+	  copy_tile(new_tile, dest, tw, th,
+		    dst_x - offset_x, dst_y - offset_y,
+		    dest_w, dest_h);
 	} else {
 	  g_slice_free1(tile_size, new_tile);
 	  new_tile = NULL;
@@ -142,16 +132,14 @@ void _openslide_read_tiles(int64_t start_x, int64_t start_y,
 
       if (new_tile != NULL) {
 	// if not cached already, store into the cache
-	_openslide_cache_put(cache, round_x, round_y, layer, new_tile, tile_size);
+	_openslide_cache_put(cache, tile_x, tile_y, layer, new_tile, tile_size);
       }
 
-      src_x += tw;
-      dst_x += tw - ovr_x;
+      tile_x++;
+      dst_x += tw;
     }
 
-    src_y += th;
-    dst_y += th - ovr_y;
+    tile_y++;
+    dst_y += th;
   }
-
-  //g_debug("tiles decoded: %d", num_tiles_decoded);
 }

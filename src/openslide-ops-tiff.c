@@ -213,6 +213,7 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
 		      int64_t tile_x, int64_t tile_y) {
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
+  uint32_t tmp;
 
   int64_t tiles_across;
   int64_t tiles_down;
@@ -228,9 +229,9 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
 
   // figure out raw tile size
   int64_t tw, th;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), false);
   tw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
+  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), false);
   th = tmp;
 
   // get tile dimensions
@@ -247,21 +248,16 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
     h = tile_height;
   }
 
-  data->tilereader_read(tiff, dest,
-			tile_x * tw, tile_y * th,
-			w, h);
+  data->tileread(tiff, dest, tile_x * tw, tile_y * th, w, h);
 
   return true;
 }
 
-void convert_coordinate(openslide_t *osr,
-			int32_t layer,
-			int64_t x, int64_t y,
-			int64_t *tile_x, int64_t *tile_y,
-			int32_t *offset_x_in_tile, int32_t *offset_y_in_tile) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff = data->tiff;
-
+static void convert_coordinate(openslide_t *osr,
+			       int32_t layer,
+			       int64_t x, int64_t y,
+			       int64_t *tile_x, int64_t *tile_y,
+			       int32_t *offset_x_in_tile, int32_t *offset_y_in_tile) {
   int64_t tiles_across;
   int64_t tiles_down;
   int32_t tile_width;
@@ -292,7 +288,7 @@ void convert_coordinate(openslide_t *osr,
   if (*tile_y >= tiles_down - 1) {
     // this is the last tile
     *tile_y = tiles_down - 1;
-    *offset_y_in_tile = ds_y - ((tiles_down - 1) * tile_down);
+    *offset_y_in_tile = ds_y - ((tiles_down - 1) * tile_height);
   }
 }
 
@@ -322,7 +318,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // populate private data
   data->tiff = tiff;
-  data->tileread = reader;
+  data->tileread = tileread;
+  data->overlap_count = overlap_count;
+  data->overlaps = overlaps;
 
   if (osr == NULL) {
     // free now and return
@@ -358,7 +356,7 @@ void _openslide_generic_tiff_tilereader_read(TIFF *tiff,
   img.row_offset = y;
 
   // draw it
-  g_return_if_fail(TIFFRGBAImageGet(img, dest, w, h));
+  g_return_if_fail(TIFFRGBAImageGet(&img, dest, w, h));
 
   // permute
   uint32_t *p = dest;

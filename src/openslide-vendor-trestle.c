@@ -135,9 +135,7 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
   _openslide_add_tiff_ops(osr, tiff,
 			  overlap_count / 2, overlaps,
 			  layer_count, layers,
-			  _openslide_generic_tiff_tilereader_create,
 			  _openslide_generic_tiff_tilereader_read,
-			  _openslide_generic_tiff_tilereader_destroy,
 			  OPENSLIDE_OVERLAP_MODE_SANE);
 
 

@@ -32,6 +32,8 @@
 #include <glib.h>
 
 #include "openslide-private.h"
+#include "openslide-cache.h"
+#include "openslide-tilehelper.h"
 
 typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
 
@@ -304,6 +306,12 @@ void openslide_read_region(openslide_t *osr,
 			     &tile_width, &tile_height,
 			     &last_tile_width, &last_tile_height);
 
+  _openslide_read_tiles(tile_x, tile_y, offset_x_in_tile, offset_y_in_tile,
+			w, h, layer, tile_width, tile_height,
+			last_tile_width, last_tile_height,
+			tiles_across, tiles_down,
+			osr->ops->read_tile, osr,
+			dest, osr->cache);
 }
 
 
