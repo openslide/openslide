@@ -26,48 +26,31 @@
 
 #include <glib.h>
 #include <string.h>
+#include <inttypes.h>
 
 static void copy_tile(const uint32_t *tile,
 		      uint32_t *dest,
+		      int64_t src_x, int64_t src_y,
 		      int64_t src_w, int64_t src_h,
-		      int64_t dest_origin_x, int64_t dest_origin_y,
-		      int64_t dest_w, int64_t dest_h) {
+		      int64_t dest_x, int64_t dest_y,
+		      int64_t dest_w, int64_t dest_h,
+		      int64_t *pixels_copied_across,
+		      int64_t *pixels_copied_down) {
   if (dest == NULL) {
     return;
   }
 
-  int64_t src_origin_y;
-  if (dest_origin_y < 0) {  // off the top
-    src_origin_y = -dest_origin_y;
-  } else {
-    src_origin_y = 0;
-  }
-
-  //  g_debug("src_origin_y: %d, dest_origin_y: %d", src_origin_y, dest_origin_y);
-
-  int64_t src_origin_x;
-  if (dest_origin_x < 0) {  // off the left
-    src_origin_x = -dest_origin_x;
-  } else {
-    src_origin_x = 0;
-  }
-
-  //  g_debug("src_origin_x: %d, dest_origin_x: %d", src_origin_x, dest_origin_x);
-
-  //  g_debug("");
-
-  int64_t src_y = src_origin_y;
-  int64_t dest_y = dest_origin_y + src_y;
+  *pixels_copied_across = MIN(src_w - src_x, dest_w - dest_x);
+  *pixels_copied_down = 0;
 
   while ((src_y < src_h) && (dest_y < dest_h)) {
-    int64_t dest_x = dest_origin_x + src_origin_x;
-
     memcpy(dest + (dest_y * dest_w + dest_x),
-	   tile + (src_y * src_w + src_origin_x),
-	   4 * MIN(src_w - src_origin_x, dest_w - dest_x));
+	   tile + (src_y * src_w + src_x),
+	   4 * *pixels_copied_across);
 
     src_y++;
     dest_y++;
+    (*pixels_copied_down)++;
   }
 }
 
@@ -86,17 +69,27 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 			   openslide_t *osr,
 			   uint32_t *dest,
 			   struct _openslide_cache *cache) {
+  //  g_debug("dest_w: %" PRId64 ", dest_h: %" PRId64, dest_w, dest_h);
+
   int64_t tile_y = start_tile_y;
   int64_t dst_y = 0;
 
-  while ((dst_y < dest_h) && (tile_y < tiles_across)) {
+  int64_t src_y = offset_y;
+
+  while ((dst_y < dest_h) && (tile_y < tiles_down)) {
     int64_t tile_x = start_tile_x;
     int64_t dst_x = 0;
 
     int32_t th = (tile_y == tiles_down - 1) ? last_tile_height : tile_height;
+    int64_t pixels_copied_down = 0;
 
-    while (dst_x < dest_w && (tile_x < tiles_down)) {
+    int64_t src_x = offset_x;
+
+    while ((dst_x < dest_w) && (tile_x < tiles_across)) {
       int32_t tw = (tile_x == tiles_across - 1) ? last_tile_width : tile_width;
+      int64_t pixels_copied_across = 0;
+
+      //      g_debug("%" PRId64 " %" PRId64 ", %dx%d", tile_x, tile_y, tw, th);
 
       int tile_size = th * tw * 4;
       uint32_t *cache_tile = _openslide_cache_get(cache, tile_x, tile_y, layer);
@@ -104,9 +97,13 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 
       if (cache_tile != NULL) {
 	// use cached tile
-	copy_tile(cache_tile, dest, tw, th,
-		  dst_x - offset_x, dst_y - offset_y,
-		  dest_w, dest_h);
+	copy_tile(cache_tile, dest,
+		  src_x, src_y,
+		  tw, th,
+		  dst_x, dst_y,
+		  dest_w, dest_h,
+		  &pixels_copied_across,
+		  &pixels_copied_down);
       } else {
 	// make new tile
 	new_tile = g_slice_alloc(tile_size);
@@ -116,15 +113,20 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 	  /*
 	  for (int yy = 0; yy < th; yy++) {
 	    for (int xx = 0; xx < tw; xx++) {
-	      if (xx == 0 || yy == 0 || xx == (tw - 1) || yy == (th - 1)) {
+	      if (xx == 0 || yy == 0) {
 		new_tile[yy * tw + xx] = 0xFF0000FF; // blue bounding box
 	      }
 	    }
 	  }
 	  */
-	  copy_tile(new_tile, dest, tw, th,
-		    dst_x - offset_x, dst_y - offset_y,
-		    dest_w, dest_h);
+
+	  copy_tile(new_tile, dest,
+		    src_x, src_y,
+		    tw, th,
+		    dst_x, dst_y,
+		    dest_w, dest_h,
+		    &pixels_copied_across,
+		    &pixels_copied_down);
 	} else {
 	  g_slice_free1(tile_size, new_tile);
 	  new_tile = NULL;
@@ -134,13 +136,27 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
       if (new_tile != NULL) {
 	// if not cached already, store into the cache
 	_openslide_cache_put(cache, tile_x, tile_y, layer, new_tile, tile_size);
+
+	/*
+	for (int yy = 0; yy < th; yy++) {
+	  for (int xx = 0; xx < tw; xx++) {
+	    if (xx == 0 || yy == 0) {
+	      new_tile[yy * tw + xx] = 0xFFFF0000; // red bounding box
+	    }
+	  }
+	}
+	*/
       }
 
+      //      g_debug("pixels_copied_across: %" PRId64, pixels_copied_across);
       tile_x++;
-      dst_x += tw;
+      dst_x += pixels_copied_across;
+      src_x = 0;
     }
 
+    //    g_debug("pixels_copied_down: %" PRId64, pixels_copied_down);
     tile_y++;
-    dst_y += th;
+    dst_y += pixels_copied_down;
+    src_y = 0;
   }
 }
