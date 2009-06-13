@@ -89,13 +89,13 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
   int64_t tile_y = start_tile_y;
   int64_t dst_y = 0;
 
-  while (dst_y < dest_h) {
+  while ((dst_y < dest_h) && (tile_y < tiles_across)) {
     int64_t tile_x = start_tile_x;
     int64_t dst_x = 0;
 
     int32_t th = (tile_y == tiles_down - 1) ? last_tile_height : tile_height;
 
-    while (dst_x < dest_w) {
+    while (dst_x < dest_w && (tile_x < tiles_down)) {
       int32_t tw = (tile_x == tiles_across - 1) ? last_tile_width : tile_width;
 
       int tile_size = th * tw * 4;
