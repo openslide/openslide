@@ -42,36 +42,6 @@ struct _openslide_tiffopsdata {
 };
 
 
-static void add_in_overlaps(openslide_t *osr,
-			    int32_t layer,
-			    int64_t tw, int64_t th,
-			    int64_t total_tiles_across,
-			    int64_t total_tiles_down,
-			    int64_t x, int64_t y,
-			    int64_t *out_x, int64_t *out_y) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
-  if (layer >= data->overlap_count) {
-    *out_x = x;
-    *out_y = y;
-    return;
-  }
-
-  int32_t ox = data->overlaps[layer * 2];
-  int32_t oy = data->overlaps[(layer * 2) + 1];
-
-  // the last tile doesn't have an overlap to skip
-  int64_t max_skip_x = (total_tiles_across - 1) * ox;
-  int64_t max_skip_y = (total_tiles_down - 1) * oy;
-
-  int64_t skip_x = (x / (tw - ox)) * ox;
-  int64_t skip_y = (y / (th - oy)) * oy;
-
-  *out_x = x + MIN(max_skip_x, skip_x);
-  *out_y = y + MIN(max_skip_y, skip_y);
-}
-
-
 static void store_string_property(TIFF *tiff, GHashTable *ht,
 				  const char *name, ttag_t tag) {
   char *value;
