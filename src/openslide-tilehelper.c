@@ -81,6 +81,7 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 			   int64_t tiles_across, int64_t tiles_down,
 			   bool (*read_tile)(openslide_t *osr,
 					     uint32_t *dest,
+					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y),
 			   openslide_t *osr,
 			   uint32_t *dest,
@@ -111,7 +112,7 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 	new_tile = g_slice_alloc(tile_size);
 
 	// read_tile will return true only if there is data there
-	if (read_tile(osr, new_tile, tile_x, tile_y)) {
+	if (read_tile(osr, new_tile, layer, tile_x, tile_y)) {
 	  /*
 	  for (int yy = 0; yy < th; yy++) {
 	    for (int xx = 0; xx < tw; xx++) {
