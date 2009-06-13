@@ -235,56 +235,10 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
   return true;
 }
 
-static void convert_coordinate(openslide_t *osr,
-			       int32_t layer,
-			       int64_t x, int64_t y,
-			       int64_t *tile_x, int64_t *tile_y,
-			       int32_t *offset_x_in_tile, int32_t *offset_y_in_tile) {
-  int64_t tiles_across;
-  int64_t tiles_down;
-  int32_t tile_width;
-  int32_t tile_height;
-  int32_t last_tile_width;
-  int32_t last_tile_height;
-
-  get_dimensions(osr, layer, &tiles_across, &tiles_down,
-		 &tile_width, &tile_height,
-		 &last_tile_width, &last_tile_height);
-
-  double downsample = openslide_get_layer_downsample(osr, layer);
-  int64_t ds_x = x / downsample;
-  int64_t ds_y = y / downsample;
-
-  // x
-  *tile_x = ds_x / tile_width;
-  *offset_x_in_tile = ds_x % tile_width;
-  if (*tile_x >= tiles_across - 1) {
-    // this is the last tile
-    *tile_x = tiles_across - 1;
-    *offset_x_in_tile = ds_x - ((tiles_across - 1) * tile_width);
-  }
-
-  // y
-  *tile_y = ds_y / tile_height;
-  *offset_y_in_tile = ds_y % tile_height;
-  if (*tile_y >= tiles_down - 1) {
-    // this is the last tile
-    *tile_y = tiles_down - 1;
-    *offset_y_in_tile = ds_y - ((tiles_down - 1) * tile_height);
-  }
-
-  /*
-  g_debug("convert_coordinate: (%" PRId64 ",%" PRId64") ->"
-	  " t(%" PRId64 ",%" PRId64 ") + (%d,%d)",
-	  x, y, *tile_x, *tile_y, *offset_x_in_tile, *offset_y_in_tile);
-  */
-}
-
 static struct _openslide_ops _openslide_tiff_ops = {
   .destroy = destroy,
   .read_tile = read_tile,
-  .get_dimensions = get_dimensions,
-  .convert_coordinate = convert_coordinate
+  .get_dimensions = get_dimensions
 };
 
 void _openslide_add_tiff_ops(openslide_t *osr,

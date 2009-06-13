@@ -91,11 +91,6 @@ struct _openslide_ops {
 			 int64_t *tiles_across, int64_t *tiles_down,
 			 int32_t *tile_width, int32_t *tile_height,
 			 int32_t *last_tile_width, int32_t *last_tile_height);
-  void (*convert_coordinate)(openslide_t *osr,
-			     int32_t layer,
-			     int64_t x, int64_t y,
-			     int64_t *tile_x, int64_t *tile_y,
-			     int32_t *offset_x_in_tile, int32_t *offset_y_in_tile);
 };
 
 
