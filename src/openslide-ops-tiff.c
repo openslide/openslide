@@ -26,6 +26,7 @@
 
 #include <glib.h>
 #include <tiffio.h>
+#include <inttypes.h>
 
 #include "openslide-private.h"
 #include "openslide-tilehelper.h"
@@ -205,12 +206,23 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   //           be smaller, and the tile has padding (allowed by TIFF)
   *last_tile_width = iw_minus_o - (*tiles_across - 1) * *tile_width;
   *last_tile_height = ih_minus_o - (*tiles_down - 1) * *tile_height;
+
+  /*
+  g_debug("TIFF dimensions: ta %" PRId64 ", td %" PRId64 ", tw %d, th %d, ltw %d, ltd %d",
+	  *tiles_across, *tiles_down, *tile_width, *tile_height,
+	  *last_tile_width, *last_tile_height);
+  g_debug(" raw: tw %" PRId64 ", th %" PRId64 ", iw %" PRId64 ", ih %" PRId64,
+	  tw, th, iw, ih);
+  */
 }
 
 
 static bool read_tile(openslide_t *osr, uint32_t *dest,
 		      int32_t layer,
 		      int64_t tile_x, int64_t tile_y) {
+
+  //  g_debug("read_tile %" PRId64 " %" PRId64 " %d", tile_x, tile_y, layer);
+
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
@@ -290,6 +302,12 @@ static void convert_coordinate(openslide_t *osr,
     *tile_y = tiles_down - 1;
     *offset_y_in_tile = ds_y - ((tiles_down - 1) * tile_height);
   }
+
+  /*
+  g_debug("convert_coordinate: (%" PRId64 ",%" PRId64") ->"
+	  " t(%" PRId64 ",%" PRId64 ") + (%d,%d)",
+	  x, y, *tile_x, *tile_y, *offset_x_in_tile, *offset_y_in_tile);
+  */
 }
 
 static struct _openslide_ops _openslide_tiff_ops = {
