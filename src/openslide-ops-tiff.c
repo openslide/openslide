@@ -38,7 +38,7 @@ struct _openslide_tiffopsdata {
   int32_t *overlaps;
   int32_t *layers;
 
-  _openslide_tiff_tilereader_read_fn tileread;
+  _openslide_tiff_tilereader_fn tileread;
 };
 
 
@@ -293,7 +293,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_read_fn tileread,
+			     _openslide_tiff_tilereader_fn tileread,
 			     enum _openslide_overlap_mode overlap_mode) {
   g_assert(overlap_mode == OPENSLIDE_OVERLAP_MODE_SANE);
 
@@ -329,10 +329,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   osr->ops = &_openslide_tiff_ops;
 }
 
-void _openslide_generic_tiff_tilereader_read(TIFF *tiff,
-					     uint32_t *dest,
-					     int64_t x, int64_t y,
-					     int32_t w, int32_t h) {
+void _openslide_generic_tiff_tilereader(TIFF *tiff,
+					uint32_t *dest,
+					int64_t x, int64_t y,
+					int32_t w, int32_t h) {
   TIFFRGBAImage img;
   char emsg[1024] = "";
 

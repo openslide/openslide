@@ -106,7 +106,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename);
 
 /* TIFF support */
-typedef void (*_openslide_tiff_tilereader_read_fn)(TIFF *tiff,
+typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
 						   uint32_t *dest,
 						   int64_t x,
 						   int64_t y,
@@ -119,13 +119,13 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_read_fn tileread,
+			     _openslide_tiff_tilereader_fn tileread,
 			     enum _openslide_overlap_mode overlap_mode);
 
-void _openslide_generic_tiff_tilereader_read(TIFF *tiff,
-					     uint32_t *dest,
-					     int64_t x, int64_t y,
-					     int32_t w, int32_t h);
+void _openslide_generic_tiff_tilereader(TIFF *tiff,
+					uint32_t *dest,
+					int64_t x, int64_t y,
+					int32_t w, int32_t h);
 
 
 /* JPEG support */
