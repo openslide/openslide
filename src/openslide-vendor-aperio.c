@@ -35,10 +35,6 @@
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
-struct _openslide_tiff_tilereader {
-  TIFF *tiff;
-};
-
 static void info_callback(const char *msg, void *data) {
   g_message("%s", msg);
 }
@@ -50,30 +46,21 @@ static void error_callback(const char *msg, void *data) {
 }
 
 // XXX revisit assumptions that color is always downsampled in x by 2
-static struct _openslide_tiff_tilereader *_openslide_aperio_tiff_tilereader_create(TIFF *tiff) {
-  // success! allocate and return
-  struct _openslide_tiff_tilereader *wtt =
-    g_slice_new(struct _openslide_tiff_tilereader);
-  wtt->tiff = tiff;
-
-  return wtt;
-}
-
-static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilereader *wtt,
-						   uint32_t *dest,
-						   int64_t x, int64_t y,
-						   int32_t w, int32_t h) {
+static void aperio_tiff_tilereader(TIFF *tiff,
+				   uint32_t *dest,
+				   int64_t x, int64_t y,
+				   int32_t w, int32_t h) {
   // get tile number
-  ttile_t tile_no = TIFFComputeTile(wtt->tiff, x, y, 0, 0);
+  ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);
 
   //  g_debug("aperio reading tile_no: %d", tile_no);
 
   // get tile size
-  tsize_t max_tile_size = TIFFTileSize(wtt->tiff);
+  tsize_t max_tile_size = TIFFTileSize(tiff);
 
   // get raw tile
   tdata_t buf = g_slice_alloc(max_tile_size);
-  tsize_t size = TIFFReadRawTile(wtt->tiff, tile_no, buf, max_tile_size); // XXX?
+  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, max_tile_size); // XXX?
 
   // init decompressor
   opj_dparameters_t parameters;
@@ -96,10 +83,6 @@ static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilere
   opj_image_t *image = opj_decode(dinfo, stream);
 
   opj_image_comp_t *comps = image->comps;
-
-  // no overlaps support for now
-  g_assert(w == (image->x1 - image->x0));
-  g_assert(h == (image->y1 - image->y0));
 
   // copy
   for (int i = 0; i < h * w; i++) {
@@ -140,11 +123,6 @@ static void _openslide_aperio_tiff_tilereader_read(struct _openslide_tiff_tilere
   opj_cio_close(stream);
   opj_destroy_decompress(dinfo);
 }
-
-static void _openslide_aperio_tiff_tilereader_destroy(struct _openslide_tiff_tilereader *wtt) {
-  g_slice_free(struct _openslide_tiff_tilereader, wtt);
-}
-
 
 static void add_properties(GHashTable *ht, char **props) {
   if (*props == NULL) {
@@ -335,16 +313,12 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    _openslide_aperio_tiff_tilereader_create,
-			    _openslide_aperio_tiff_tilereader_read,
-			    _openslide_aperio_tiff_tilereader_destroy,
+			    aperio_tiff_tilereader,
 			    OPENSLIDE_OVERLAP_MODE_SANE);
   } else {
     // let libtiff handle it
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    _openslide_generic_tiff_tilereader_create,
-			    _openslide_generic_tiff_tilereader_read,
-			    _openslide_generic_tiff_tilereader_destroy,
+			    _openslide_generic_tiff_tilereader,
 			    OPENSLIDE_OVERLAP_MODE_SANE);
   }
 
