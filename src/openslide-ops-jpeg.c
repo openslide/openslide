@@ -824,21 +824,15 @@ static bool tilereader_read(void *tilereader_data,
   return true;
 }
 
-static void read_region(openslide_t *osr, uint32_t *dest,
-			int64_t x, int64_t y,
-			int32_t layer,
-			int64_t w, int64_t h) {
-  //  g_debug("jpeg ops read_region: x: %" PRId64 ", y: %" PRId64 ", layer: %d, w: %" PRId64 ", h: %" PRId64 "",
-  //	  x, y, layer, w, h);
-
+static void read_tile(openslide_t *osr, uint32_t *dest,
+		      int32_t layer,
+		      int64_t tile_x, int64_t tile_y) {
   struct jpegops_data *data = osr->data;
 
   // get the layer
   struct layer *l = data->layers + layer;
   int32_t scale_denom = l->scale_denom;
   double rel_downsample = l->no_scale_denom_downsample;
-  //  g_debug("layer: %d, rel_downsample: %g, scale_denom: %d",
-  //	  layer, rel_downsample, scale_denom);
 
   // figure out tile dimensions
   int64_t tw = compute_tile_dimension(l->overlap_spacing_x, l->overlap_x, l->tile_width, l->scale_denom);
@@ -933,32 +927,43 @@ static void destroy(openslide_t *osr) {
   g_slice_free(struct jpegops_data, data);
 }
 
-static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *image_w, int64_t *image_h,
-			   int64_t *tile_w,
-			   int64_t *tile_h) {
+static void get_dimensions(openslide_t *osr,
+			   int32_t layer,
+			   int64_t *tiles_across, int64_t *tiles_down,
+			   int32_t *tile_width, int32_t *tile_height,
+			   int32_t *last_tile_width, int32_t *last_tile_height) {
   struct jpegops_data *data = osr->data;
+  struct layer *l = data->layers + layer;
 
-  // check bounds
-  if (layer >= osr->layer_count) {
-    *image_w = 0;
-    *image_h = 0;
-    *tile_w = 0;
-    *tile_h = 0;
-    return;
+  // overlaps
+  int64_t overlaps_across = 0;
+  if (l->overlap_spacing_x) {
+    overlaps_across = (l->pixel_w / l->overlap_spacing_x) - 1;
+  }
+  int64_t overlaps_down = 0;
+  if (l->overlap_spacing_y) {
+    overlaps_down = (l->pixel_h / l->overlap_spacing_y) - 1;
   }
 
-  // get dimensions
-  struct layer *l = data->layers + layer;
-  *image_w = l->pixel_w / l->scale_denom;
-  *image_h = l->pixel_h / l->scale_denom;
-  *tile_w = compute_tile_dimension(l->overlap_spacing_x, ox, l->tile_width, l->scale_denom);
-  *tile_h = compute_tile_dimension(l->overlap_spacing_y, oy, l->tile_height, l->scale_denom);
+  *tiles_across = (l->pixel_w + l->tile_width) + !!(l->pixel_w % l->tile_width);
+  *tiles_down = (l->pixel_h + l->tile_height) + !!(l->pixel_h % l->tile_height);
+
+  int32_t overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
+  int32_t overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
+
+  *tile_width = (l->tile_width - overlaps_per_tile_across * l->overlap_x) / l->scale_denom;
+  *tile_height = (l->tile_height - overlaps_per_tile_down * l->overlap_y) / l->scale_denom;
+
+  int64_t w_minus_overlaps = (l->pixel_w - (overlaps_across * l->overlap_x)) / l->scale_denom;
+  int64_t h_minus_overlaps = (l->pixel_h - (overlaps_down * l->overlap_y)) / l->scale_denom;
+
+  *last_tile_width = w_minus_overlaps - (*tile_width * (*tiles_across - 1));
+  *last_tile_height = h_minus_overlaps - (*tile_height * (*tiles_down - 1));
 }
 
 static struct _openslide_ops jpeg_ops = {
-  .read_region = read_region,
   .destroy = destroy,
+  .read_tile = read_tile,
   .get_dimensions = get_dimensions,
 };
 
