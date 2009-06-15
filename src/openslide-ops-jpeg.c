@@ -120,29 +120,6 @@ struct jpegops_data {
 };
 
 
-static int64_t compute_tile_dimension(int32_t overlap_spacing,
-				      int32_t overlap,
-				      int32_t tile_size,
-				      int32_t scale_denom) {
-  g_debug("overlap_spacing: %d, overlap: %d, tile_size: %d, scale_denom: %d",
-	  overlap_spacing, overlap, tile_size, scale_denom);
-
-  int32_t overlap_spacing_scaled = nearbyint((double) overlap_spacing / (double) scale_denom);
-  int32_t overlap_scaled = nearbyint((double) overlap / (double) scale_denom);
-  int32_t tile_size_scaled = tile_size / scale_denom;
-
-  g_debug("overlap_spacing_scaled: %d, overlap_scaled: %d, tile_size_scaled: %d",
-	  overlap_spacing_scaled, overlap_scaled, tile_size_scaled);
-
-  int num_overlaps = nearbyint(((double) tile_size_scaled / overlap_spacing_scaled) - 1.0);
-  int64_t dimension = tile_size_scaled - (num_overlaps * overlap_scaled);
-
-  g_debug("num_overlaps: %d, dimension: %" PRId64, num_overlaps, dimension);
-
-  return dimension;
-}
-
-
 /*
  * Source manager for doing fancy things with libjpeg and restart markers,
  * initially copied from jdatasrc.c from IJG libjpeg.
