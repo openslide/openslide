@@ -633,7 +633,7 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				int32_t ovr_spacing_x, int32_t ovr_spacing_y,
 				int32_t overlap_x, int32_t overlap_y,
 				int32_t scale_denom) {
-  //  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d", (void *) jpeg, (void *) dest, x, y, scale_denom);
+  g_debug("read_from_one_jpeg: %p, dest: %p, x: %d, y: %d, scale_denom: %d", (void *) jpeg, (void *) dest, tile_x, tile_y, scale_denom);
 
   // figure out where to start the data stream
   int64_t mcu_start = tile_y * (jpeg->width / jpeg->tile_width) + tile_x;
@@ -719,19 +719,21 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 	} else {
 	  // copy a row
 	  int32_t dest_i = 0;
+	  int32_t pixels_skipped = 0;
 	  for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
-	    if (i && ovr_spacing_x && (i % ovr_spacing_x == 0)) {
-	      // skip
-	      i += overlap_x;
-	    }
-
 	    dest[dest_i++] = 0xFF000000 |           // A
 	      buffer[cur_buffer][i * 3 + 0] << 16 | // R
 	      buffer[cur_buffer][i * 3 + 1] << 8 |  // G
 	      buffer[cur_buffer][i * 3 + 2];        // B
+
+	    // skip overlap?
+	    if (ovr_spacing_x && ((i + 1) % ovr_spacing_x == 0)) {
+	      i += overlap_x;
+	      pixels_skipped += overlap_x;
+	    }
 	  }
 
-	  dest += cinfo.output_width;
+	  dest += cinfo.output_width - pixels_skipped;
 	}
 	// advance everything 1 row
 	cur_buffer++;
@@ -865,28 +867,35 @@ static void get_layer_dimensions(struct layer *l,
 				 int64_t *tiles_across, int64_t *tiles_down,
 				 int32_t *tile_width, int32_t *tile_height,
 				 int32_t *last_tile_width, int32_t *last_tile_height) {
-  // overlaps
-  int64_t overlaps_across = 0;
-  int32_t overlaps_per_tile_across = 0;
-  if (l->overlap_spacing_x) {
-    overlaps_across = (l->pixel_w / l->overlap_spacing_x) - 1;
-    overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
-  }
-  int64_t overlaps_down = 0;
-  int32_t overlaps_per_tile_down = 0;
-  if (l->overlap_spacing_y) {
-    overlaps_down = (l->pixel_h / l->overlap_spacing_y) - 1;
-    overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
-  }
-
   *tiles_across = (l->pixel_w / l->tile_width) + !!(l->pixel_w % l->tile_width);
   *tiles_down = (l->pixel_h / l->tile_height) + !!(l->pixel_h % l->tile_height);
+
+  // overlaps
+  int32_t overlaps_per_tile_across = 0;
+  int64_t overlaps_across = 0;
+  if (l->overlap_spacing_x) {
+    overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
+    overlaps_across = (*tiles_across * overlaps_per_tile_across) - 1;
+  }
+  int32_t overlaps_per_tile_down = 0;
+  int64_t overlaps_down = 0;
+  if (l->overlap_spacing_y) {
+    overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
+    overlaps_down = (*tiles_down * overlaps_per_tile_down) - 1;
+  }
+
+  g_debug("o_p_t_a: %d, o_p_t_d: %d, o_a: %" PRId64 ", o_d: %" PRId64,
+	  overlaps_per_tile_across, overlaps_per_tile_down, overlaps_across, overlaps_down);
+  g_debug(" overlap_x: %d, overlap_y: %d", l->overlap_x, l->overlap_y);
 
   *tile_width = l->tile_width - overlaps_per_tile_across * l->overlap_x;
   *tile_height = l->tile_height - overlaps_per_tile_down * l->overlap_y;
 
+
   int64_t w_minus_overlaps = l->pixel_w - (overlaps_across * l->overlap_x);
   int64_t h_minus_overlaps = l->pixel_h - (overlaps_down * l->overlap_y);
+
+  g_debug(" w-o: %" PRId64 ", h-o: %" PRId64, w_minus_overlaps, h_minus_overlaps);
 
   *last_tile_width = w_minus_overlaps - (*tile_width * (*tiles_across - 1));
   *last_tile_height = h_minus_overlaps - (*tile_height * (*tiles_down - 1));
@@ -1201,7 +1210,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // from the layers, generate the overlaps
   if (overlap_count) {
-    int32_t *final_overlaps = g_new0(int32_t, osr->layer_count * 2);
     for (int32_t i = 0; i < osr->layer_count; i++) {
       struct layer *l = data->layers + i;
 
@@ -1222,8 +1230,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       g_debug("orig overlaps: %g %g", orig_ox, orig_oy);
 
-      l->overlap_x = nearbyint(overlaps[overlaps_i * 2] / (double) scale_denom);
-      l->overlap_y = nearbyint(overlaps[(overlaps_i * 2) + 1] / (double) scale_denom);
+      l->overlap_x = overlaps[overlaps_i * 2] / scale_denom;
+      l->overlap_y = overlaps[(overlaps_i * 2) + 1] / scale_denom;
 
       g_debug("overlaps: %d %d", l->overlap_x, l->overlap_y);
 
@@ -1237,8 +1245,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 	break;
 
       case OPENSLIDE_OVERLAP_MODE_INTERNAL:
-	l->overlap_spacing_x = nearbyint(o_space_x / l->no_scale_denom_downsample);
-	l->overlap_spacing_y = nearbyint(o_space_y / l->no_scale_denom_downsample);
+	l->overlap_spacing_x = o_space_x / l->no_scale_denom_downsample;
+	l->overlap_spacing_y = o_space_y / l->no_scale_denom_downsample;
 	break;
 
       default:

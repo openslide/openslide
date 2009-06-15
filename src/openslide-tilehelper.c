@@ -36,18 +36,15 @@ static void copy_tile(const uint32_t *tile,
 		      int64_t dest_w, int64_t dest_h,
 		      int64_t *pixels_copied_across,
 		      int64_t *pixels_copied_down) {
-  if (dest == NULL) {
-    return;
-  }
-
   *pixels_copied_across = MIN(src_w - src_x, dest_w - dest_x);
   *pixels_copied_down = 0;
 
   while ((src_y < src_h) && (dest_y < dest_h)) {
-    memcpy(dest + (dest_y * dest_w + dest_x),
-	   tile + (src_y * src_w + src_x),
-	   4 * *pixels_copied_across);
-
+    if (dest != NULL) {
+      memcpy(dest + (dest_y * dest_w + dest_x),
+	     tile + (src_y * src_w + src_x),
+	     4 * *pixels_copied_across);
+    }
     src_y++;
     dest_y++;
     (*pixels_copied_down)++;
@@ -89,7 +86,7 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
       int32_t tw = (tile_x == tiles_across - 1) ? last_tile_width : tile_width;
       int64_t pixels_copied_across = 0;
 
-      //      g_debug("%" PRId64 " %" PRId64 ", %dx%d", tile_x, tile_y, tw, th);
+      //g_debug("%" PRId64 " %" PRId64 ", %dx%d", tile_x, tile_y, tw, th);
 
       int tile_size = th * tw * 4;
       uint32_t *cache_tile = _openslide_cache_get(cache, tile_x, tile_y, layer);

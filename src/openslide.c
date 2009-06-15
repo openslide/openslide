@@ -38,7 +38,7 @@
 typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
 
 static const vendor_fn all_formats[] = {
-  //_openslide_try_mirax,
+  _openslide_try_mirax,
   _openslide_try_hamamatsu,
   _openslide_try_trestle,
   _openslide_try_aperio,
@@ -329,6 +329,16 @@ void openslide_read_region(openslide_t *osr,
   (osr->ops->get_dimensions)(osr, layer, &tiles_across, &tiles_down,
 			     &tile_width, &tile_height,
 			     &last_tile_width, &last_tile_height);
+
+  g_debug("tiles: %" PRId64 ",%" PRId64 " [%dx%d] + [%dx%d]",
+	  tiles_across, tiles_down, tile_width, tile_height, last_tile_width, last_tile_height);
+
+  g_assert(tiles_across > 0);
+  g_assert(tiles_down > 0);
+  g_assert(tile_width > 0);
+  g_assert(tile_height > 0);
+  g_assert(last_tile_width > 0);
+  g_assert(last_tile_height > 0);
 
   // convert into start coordinate
   int64_t tile_x;
