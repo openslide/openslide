@@ -83,6 +83,10 @@ PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
 AC_SUBST(GLIB2_CFLAGS)
 AC_SUBST(GLIB2_LIBS)
 
+PKG_CHECK_MODULES(CAIRO, [cairo >= 1.4])
+AC_SUBST(CAIRO_CFLAGS)
+AC_SUBST(CAIRO_LIBS)
+
 
 AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -fvisibility=hidden -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -D__MSVCRT_VERSION__=0x0800 -fno-common'])
 
