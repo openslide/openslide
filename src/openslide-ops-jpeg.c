@@ -640,36 +640,30 @@ static void get_layer_dimensions(struct layer *l,
   int64_t overlaps_across = 0;
   if (l->overlap_spacing_x) {
     overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
-    overlaps_across = (*tiles_across * overlaps_per_tile_across) - 1;
+    if (l->pixel_w >= l->overlap_spacing_x) {
+      overlaps_across = (l->pixel_w / l->overlap_spacing_x) - 1;
+    }
   }
   int32_t overlaps_per_tile_down = 0;
   int64_t overlaps_down = 0;
   if (l->overlap_spacing_y) {
     overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
-    overlaps_down = (*tiles_down * overlaps_per_tile_down) - 1;
+    if (l->pixel_h >= l->overlap_spacing_y) {
+      overlaps_down = (l->pixel_h / l->overlap_spacing_y) - 1;
+    }
   }
 
   //  g_debug("o_p_t_a: %d, o_p_t_d: %d, o_a: %" PRId64 ", o_d: %" PRId64,
   //	  overlaps_per_tile_across, overlaps_per_tile_down, overlaps_across, overlaps_down);
   //  g_debug(" overlap_x: %g, overlap_y: %g", l->overlap_x, l->overlap_y);
 
-  double overlap_in_tile_x = overlaps_per_tile_across * l->overlap_x;
-  double overlap_in_tile_y = overlaps_per_tile_down * l->overlap_y;
-  //  g_debug(" overlap in tile: %g %g", overlap_in_tile_x, overlap_in_tile_y);
-
   *tile_width = l->tile_width - overlaps_per_tile_across * l->overlap_x;
   *tile_height = l->tile_height - overlaps_per_tile_down * l->overlap_y;
 
   //  g_debug(" tile size: %d %d", *tile_width, *tile_height);
 
-  int64_t w_minus_overlaps = l->pixel_w;
-  if (l->pixel_w >= l->tile_width) {
-    w_minus_overlaps -= (int64_t) (overlaps_across * l->overlap_x);
-  }
-  int64_t h_minus_overlaps = l->pixel_h;
-  if (l->pixel_h >= l->tile_height) {
-    h_minus_overlaps -= (int64_t) (overlaps_down * l->overlap_y);
-  }
+  int64_t w_minus_overlaps = l->pixel_w - (int64_t) (overlaps_across * l->overlap_x);
+  int64_t h_minus_overlaps = l->pixel_h - (int64_t) (overlaps_down * l->overlap_y);
 
   //  g_debug(" w-o: %" PRId64 ", h-o: %" PRId64, w_minus_overlaps, h_minus_overlaps);
 
@@ -805,8 +799,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
       cairo_t *cr = cairo_create(out_surface);
       cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
       cairo_paint(cr);
-      cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
       cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BILINEAR);
+      cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
       g_debug("cairo: %d %d", w, h);
 
@@ -821,9 +815,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
       int oy = 0;
       while ((oy * clip_h) < h) {
 	int ox = 0;
+	//	g_debug(" drawing to %g %g", ox * clip_w, oy * clip_h);
 	while ((ox * clip_w) < w) {
-	  cairo_save(cr);
-
 	  cairo_set_source_surface(cr, in_surface,
 				   -(ox * overlap_x),
 				   -(oy * overlap_y));
@@ -832,8 +825,6 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 			  oy * clip_h,
 			  clip_w, clip_h);
 	  cairo_fill(cr);
-
-	  cairo_restore(cr);
 	  ox++;
 	}
 	oy++;
@@ -923,7 +914,7 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
     h = tile_height;
   }
 
-  g_debug("read_tile %" PRId64 " %" PRId64 " [%d x %d]", tile_x, tile_y, w, h);
+  //  g_debug("read_tile %" PRId64 " %" PRId64 " [%d x %d]", tile_x, tile_y, w, h);
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
