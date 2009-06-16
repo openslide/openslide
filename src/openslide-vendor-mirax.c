@@ -253,7 +253,6 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 					  int datafile_count,
 					  char **datafile_names,
 					  FILE *indexfile) {
-  int jpeg_count = 0;
   struct _openslide_jpeg_fragment **jpegs = NULL;
   *out = NULL;
   bool success = true;
@@ -338,9 +337,12 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
   }
 
   // build up the jpegs now from the list
+  int jpeg_count = 0;
   for (int z = 0; z < zoom_levels; z++) {
     int x = max_x_at_each_zoom[z];
     int y = max_y_at_each_zoom[z];
+
+    g_debug("zoom level %d tiles: %d %d", z, x+1, y+1);
 
     if ((x == -1) || (y == -1)) {
       g_warning("Zoom level %d is empty", z);
@@ -373,9 +375,6 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 	if (entry &&
 	    (entry->x == x) && (entry->y == y) && (entry->zoom_level == z)) {
 	  // add this entry and advance list
-	  if (z > 3) {
-	    //	    g_debug("adding real entry for (%d,%d,%d)", x, y, z);
-	  }
 
 	  // open file if necessary
 	  FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
@@ -407,10 +406,6 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
 	  // next
 	  iter = iter->next;
-	} else {
-	  if (z > 3) {
-	    //	    g_debug("adding fake entry for (%d,%d,%d)", x, y, z);
-	  }
 	}
 
 	// save sizes
@@ -421,6 +416,8 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
       }
     }
   }
+
+  g_assert(cur_frag == jpeg_count);
 
   g_hash_table_unref(file_table);
   file_table = NULL;
