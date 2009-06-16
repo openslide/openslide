@@ -261,6 +261,9 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
   GList *page_entry_list = NULL;
   GHashTable *file_table = NULL;
 
+  int *max_x_at_each_zoom = NULL;
+  int *max_y_at_each_zoom = NULL;
+
   rewind(indexfile);
 
   // verify slideversion and uuid
@@ -320,22 +323,33 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
     seek_location += 4;
   }
 
-  // build up the jpegs now from the list
-  jpeg_count = tiles_x * tiles_y;
-  int prev_tiles_x = tiles_x;
-  int prev_tiles_y = tiles_y;
-  for (int i = 1; i < zoom_levels; i++) {
-    // round up
-    div_t dx = div(prev_tiles_x, 2);
-    div_t dy = div(prev_tiles_y, 2);
-
-    int s_tiles_x = dx.quot + !!dx.rem;
-    int s_tiles_y = dy.quot + !!dy.rem;
-
-    jpeg_count += s_tiles_x * s_tiles_y;
-    prev_tiles_x = s_tiles_x;
-    prev_tiles_y = s_tiles_y;
+  // determine the maximum bounds of real data at each level
+  max_x_at_each_zoom = g_new0(int, zoom_levels);
+  max_y_at_each_zoom = g_new0(int, zoom_levels);
+  for (int z = 0; z < zoom_levels; z++) {
+    max_x_at_each_zoom[z] = max_y_at_each_zoom[z] = -1;
   }
+  for (GList *iter = page_entry_list; iter != NULL; iter = iter->next) {
+    struct mirax_page_entry *entry = iter->data;
+
+    int z = entry->zoom_level;
+    max_x_at_each_zoom[z] = MAX(max_x_at_each_zoom[z], entry->x);
+    max_y_at_each_zoom[z] = MAX(max_y_at_each_zoom[z], entry->y);
+  }
+
+  // build up the jpegs now from the list
+  for (int z = 0; z < zoom_levels; z++) {
+    int x = max_x_at_each_zoom[z];
+    int y = max_y_at_each_zoom[z];
+
+    if ((x == -1) || (y == -1)) {
+      g_warning("Zoom level %d is empty", z);
+      goto OUT;
+    }
+
+    jpeg_count += (x + 1) * (y + 1);
+  }
+
   jpegs = g_new(struct _openslide_jpeg_fragment *, jpeg_count);
 
   file_table = g_hash_table_new_full(g_int_hash, g_int_equal,
@@ -345,13 +359,9 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
   // build up the entire fragment list
   GList *iter = page_entry_list;
-
-  int s_tiles_x = tiles_x;
-  int s_tiles_y = tiles_y;
   for (int z = 0; z < zoom_levels; z++) {
-    g_debug("s_tiles_x: %d, s_tiles_y: %d", s_tiles_x, s_tiles_y);
-    for (int y = 0; y < s_tiles_y; y++) {
-      for (int x = 0; x < s_tiles_x; x++) {
+    for (int y = 0; y <= max_y_at_each_zoom[z]; y++) {
+      for (int x = 0; x <= max_x_at_each_zoom[z]; x++) {
 	struct mirax_page_entry *entry = iter->data;
 	struct _openslide_jpeg_fragment *frag =
 	  g_slice_new0(struct _openslide_jpeg_fragment);
@@ -363,7 +373,9 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 	if (entry &&
 	    (entry->x == x) && (entry->y == y) && (entry->zoom_level == z)) {
 	  // add this entry and advance list
-	  //	  g_debug("adding real entry for (%d,%d,%d)", x, y, z);
+	  if (z > 3) {
+	    //	    g_debug("adding real entry for (%d,%d,%d)", x, y, z);
+	  }
 
 	  // open file if necessary
 	  FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
@@ -395,6 +407,10 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
 	  // next
 	  iter = iter->next;
+	} else {
+	  if (z > 3) {
+	    //	    g_debug("adding fake entry for (%d,%d,%d)", x, y, z);
+	  }
 	}
 
 	// save sizes
@@ -404,10 +420,6 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 	jpegs[cur_frag++] = frag;
       }
     }
-    div_t dx = div(s_tiles_x, 2);
-    s_tiles_x = dx.quot + !!dx.rem;
-    div_t dy = div(s_tiles_y, 2);
-    s_tiles_y = dy.quot + !!dy.rem;
   }
 
   g_hash_table_unref(file_table);
@@ -418,6 +430,8 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
   // deallocate
   g_list_foreach(page_entry_list, page_entry_delete, NULL);
   g_list_free(page_entry_list);
+  g_free(max_x_at_each_zoom);
+  g_free(max_y_at_each_zoom);
 
   if (file_table) {
     g_hash_table_foreach(file_table, file_table_fclose, NULL);
