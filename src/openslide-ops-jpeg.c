@@ -803,6 +803,10 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 									 h,
 									 w * 4);
       cairo_t *cr = cairo_create(out_surface);
+      cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+      cairo_paint(cr);
+      cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+      cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BILINEAR);
 
       g_debug("cairo: %d %d", w, h);
 
@@ -820,11 +824,9 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 	while ((ox * clip_w) < w) {
 	  cairo_save(cr);
 
-	  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 	  cairo_set_source_surface(cr, in_surface,
 				   -(ox * overlap_x),
 				   -(oy * overlap_y));
-	  cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BILINEAR);
 	  cairo_rectangle(cr,
 			  ox * clip_w,
 			  oy * clip_h,

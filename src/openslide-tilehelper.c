@@ -103,7 +103,7 @@ void _openslide_read_tiles(int64_t start_tile_x, int64_t start_tile_y,
 		  &pixels_copied_down);
       } else {
 	// make new tile
-	new_tile = g_slice_alloc0(tile_size);
+	new_tile = g_slice_alloc(tile_size);
 
 	// read_tile will return true only if there is data there
 	if (read_tile(osr, new_tile, layer, tile_x, tile_y)) {
