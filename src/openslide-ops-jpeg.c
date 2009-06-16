@@ -42,6 +42,8 @@
 #include <inttypes.h>
 #include <math.h>
 
+#include <cairo.h>
+
 #include <sys/types.h>   // for off_t ?
 
 #include "openslide-private.h"
@@ -295,8 +297,7 @@ static void generate_layer_into_map(GSList *jpegs,
 				    int32_t image00_w, int32_t image00_h,
 				    int32_t tile_width, int32_t tile_height,
 				    int64_t layer0_w,
-				    GHashTable *width_to_layer_map,
-				    double downsample_override) {
+				    GHashTable *width_to_layer_map) {
   // JPEG files can give us 1/1, 1/2, 1/4, 1/8 downsamples, so we
   // need to create 4 layers per set of JPEGs
 
@@ -312,12 +313,7 @@ static void generate_layer_into_map(GSList *jpegs,
     // create layer
     struct layer *l = g_slice_new0(struct layer);
     l->scale_denom = scale_denom;
-    if (downsample_override) {
-      l->no_scale_denom_downsample = downsample_override;
-    } else {
-      l->no_scale_denom_downsample = (double) layer0_w / (double) pixel_w;
-    }
-
+    l->no_scale_denom_downsample = (double) layer0_w / (double) pixel_w;
     l->tiles_across_per_file = image00_w / tile_width;
     l->tiles_down_per_file = image00_h / tile_height;
     g_assert(image00_w % tile_width == 0);
@@ -449,8 +445,7 @@ static GHashTable *create_width_to_layer_map(int32_t count,
 			      img00_w, img00_h,
 			      img00_tw, img00_th,
 			      layer0_w,
-			      width_to_layer_map,
-			      pow(downsample_override, fr->z));
+			      width_to_layer_map);
 
       // clear for next round
       l_pw = 0;
@@ -633,9 +628,62 @@ static void compute_mcu_start(FILE *f,
 }
 
 
+static void get_layer_dimensions(struct layer *l,
+				 int64_t *tiles_across, int64_t *tiles_down,
+				 int32_t *tile_width, int32_t *tile_height,
+				 int32_t *last_tile_width, int32_t *last_tile_height) {
+  *tiles_across = (l->pixel_w / l->tile_width) + !!(l->pixel_w % l->tile_width);
+  *tiles_down = (l->pixel_h / l->tile_height) + !!(l->pixel_h % l->tile_height);
+
+  // overlaps
+  int32_t overlaps_per_tile_across = 0;
+  int64_t overlaps_across = 0;
+  if (l->overlap_spacing_x) {
+    overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
+    overlaps_across = (*tiles_across * overlaps_per_tile_across) - 1;
+  }
+  int32_t overlaps_per_tile_down = 0;
+  int64_t overlaps_down = 0;
+  if (l->overlap_spacing_y) {
+    overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
+    overlaps_down = (*tiles_down * overlaps_per_tile_down) - 1;
+  }
+
+  //  g_debug("o_p_t_a: %d, o_p_t_d: %d, o_a: %" PRId64 ", o_d: %" PRId64,
+  //	  overlaps_per_tile_across, overlaps_per_tile_down, overlaps_across, overlaps_down);
+  //  g_debug(" overlap_x: %g, overlap_y: %g", l->overlap_x, l->overlap_y);
+
+  double overlap_in_tile_x = overlaps_per_tile_across * l->overlap_x;
+  double overlap_in_tile_y = overlaps_per_tile_down * l->overlap_y;
+  //  g_debug(" overlap in tile: %g %g", overlap_in_tile_x, overlap_in_tile_y);
+
+  *tile_width = l->tile_width - overlaps_per_tile_across * l->overlap_x;
+  *tile_height = l->tile_height - overlaps_per_tile_down * l->overlap_y;
+
+  //  g_debug(" tile size: %d %d", *tile_width, *tile_height);
+
+  int64_t w_minus_overlaps = l->pixel_w;
+  if (l->pixel_w >= l->tile_width) {
+    w_minus_overlaps -= (int64_t) (overlaps_across * l->overlap_x);
+  }
+  int64_t h_minus_overlaps = l->pixel_h;
+  if (l->pixel_h >= l->tile_height) {
+    h_minus_overlaps -= (int64_t) (overlaps_down * l->overlap_y);
+  }
+
+  //  g_debug(" w-o: %" PRId64 ", h-o: %" PRId64, w_minus_overlaps, h_minus_overlaps);
+
+  *last_tile_width = w_minus_overlaps - (*tile_width * (*tiles_across - 1));
+  *last_tile_height = h_minus_overlaps - (*tile_height * (*tiles_down - 1));
+
+  //  g_debug(" last tile size: %d %d", *last_tile_width, *last_tile_height);
+}
+
+
 static void read_from_one_jpeg (struct one_jpeg *jpeg,
 				uint32_t *dest,
 				int32_t tile_x, int32_t tile_y,
+				int32_t w, int32_t h,
 				double ovr_spacing_x, double ovr_spacing_y,
 				double overlap_x, double overlap_y,
 				int32_t scale_denom) {
@@ -673,8 +721,12 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   jmp_buf env;
 
   gsize row_size = 0;
+  gsize allocated_dest_size = 0;
 
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+
+  uint32_t *allocated_dest = NULL;
+  uint32_t *jpeg_dest = NULL;
 
   if (setjmp(env) == 0) {
     //cinfo.err = jpeg_std_error(&jerr);
@@ -695,8 +747,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
     jpeg_start_decompress(&cinfo);
 
-    //g_debug("output_width: %d", cinfo.output_width);
-    //g_debug("output_height: %d", cinfo.output_height);
+    g_debug("output_width: %d", cinfo.output_width);
+    g_debug("output_height: %d", cinfo.output_height);
 
     // allocate scanline buffers
     row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
@@ -705,9 +757,15 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
       //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
 
+    // set up special handling for overlap?
+    if (overlap_x || overlap_y) {
+      allocated_dest_size = cinfo.output_width * cinfo.output_height * 4;
+      jpeg_dest = allocated_dest = g_slice_alloc(allocated_dest_size);
+    } else {
+      jpeg_dest = dest;
+    }
+
     // decompress
-    int current_row = 0;
-    int rows_to_skip = 0;
     while (cinfo.output_scanline < cinfo.output_height) {
       JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
 						 buffer,
@@ -719,18 +777,69 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 	// copy a row
 	int32_t dest_i = 0;
 	for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
-	  dest[dest_i++] = 0xFF000000 |           // A
+	  jpeg_dest[dest_i++] = 0xFF000000 |      // A
 	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
 	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
 	    buffer[cur_buffer][i * 3 + 2];        // B
 	}
 
 	// advance everything 1 row
-	dest += cinfo.output_width;
 	cur_buffer++;
-	current_row++;
+	jpeg_dest += cinfo.output_width;
 	rows_read--;
       }
+    }
+
+    // copy for overlaps
+    if (overlap_x || overlap_y) {
+      cairo_surface_t *in_surface = cairo_image_surface_create_for_data((unsigned char *) allocated_dest,
+									CAIRO_FORMAT_ARGB32,
+									cinfo.output_width,
+									cinfo.output_height,
+									cinfo.output_width * 4);
+      cairo_surface_t *out_surface = cairo_image_surface_create_for_data((unsigned char *) dest,
+									 CAIRO_FORMAT_ARGB32,
+									 w,
+									 h,
+									 w * 4);
+      cairo_t *cr = cairo_create(out_surface);
+
+      g_debug("cairo: %d %d", w, h);
+
+      // draw
+      double clip_w = ovr_spacing_x - overlap_x;
+      double clip_h = ovr_spacing_y - overlap_y;
+
+      g_debug("clip: %g %g", clip_w, clip_h);
+      g_debug(" spacing: %g %g", ovr_spacing_x, ovr_spacing_y);
+      g_debug(" overlap: %g %g", overlap_x, overlap_y);
+
+      int oy = 0;
+      while ((oy * clip_h) < h) {
+	int ox = 0;
+	while ((ox * clip_w) < w) {
+	  cairo_save(cr);
+
+	  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+	  cairo_set_source_surface(cr, in_surface,
+				   -(ox * overlap_x),
+				   -(oy * overlap_y));
+	  cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BILINEAR);
+	  cairo_rectangle(cr,
+			  ox * clip_w,
+			  oy * clip_h,
+			  clip_w, clip_h);
+	  cairo_fill(cr);
+
+	  cairo_restore(cr);
+	  ox++;
+	}
+	oy++;
+      }
+
+      cairo_destroy(cr);
+      cairo_surface_destroy(out_surface);
+      cairo_surface_destroy(in_surface);
     }
   } else {
     // setjmp returns again
@@ -744,6 +853,10 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
   }
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
+  if (allocated_dest) {
+    g_slice_free1(allocated_dest_size, allocated_dest);
+  }
+
   // last thing, stop jpeg
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
   g_slice_free1(src->buffer_size, src->buffer);
@@ -752,7 +865,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
 static bool read_tile_unlocked(struct layer *l,
 			       uint32_t *dest,
-			       int64_t tile_x, int64_t tile_y) {
+			       int64_t tile_x, int64_t tile_y,
+			       int32_t w, int32_t h) {
   int32_t file_x = tile_x / l->tiles_across_per_file;
   int32_t file_y = tile_y / l->tiles_down_per_file;
 
@@ -768,6 +882,7 @@ static bool read_tile_unlocked(struct layer *l,
     read_from_one_jpeg(jpeg, dest,
 		       tile_x % l->tiles_across_per_file,
 		       tile_y % l->tiles_down_per_file,
+		       w, h,
 		       l->overlap_spacing_x, l->overlap_spacing_y,
 		       l->overlap_x, l->overlap_y,
 		       l->scale_denom);
@@ -783,6 +898,31 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
   // get the layer
   struct layer *l = data->layers + layer;
 
+  int64_t tiles_across;
+  int64_t tiles_down;
+  int32_t tile_width;
+  int32_t tile_height;
+  int32_t last_tile_width;
+  int32_t last_tile_height;
+  get_layer_dimensions(l, &tiles_across, &tiles_down,
+		       &tile_width, &tile_height,
+		       &last_tile_width, &last_tile_height);
+
+  int32_t w, h;
+  if (tile_x == tiles_across - 1) {
+    w = last_tile_width;
+  } else {
+    w = tile_width;
+  }
+
+  if (tile_y == tiles_down - 1) {
+    h = last_tile_height;
+  } else {
+    h = tile_height;
+  }
+
+  g_debug("read_tile %" PRId64 " %" PRId64 " [%d x %d]", tile_x, tile_y, w, h);
+
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
   data->restart_marker_thread_state = R_M_THREAD_STATE_PAUSE;
@@ -791,7 +931,7 @@ static bool read_tile(openslide_t *osr, uint32_t *dest,
 
   // wait until thread is paused
   g_mutex_lock(data->restart_marker_mutex);
-  bool result = read_tile_unlocked(l, dest, tile_x, tile_y);
+  bool result = read_tile_unlocked(l, dest, tile_x, tile_y, w, h);
   g_mutex_unlock(data->restart_marker_mutex);
 
   // tell the background thread to resume
@@ -853,52 +993,6 @@ static void destroy(openslide_t *osr) {
   // the structure
   g_slice_free(struct jpegops_data, data);
 }
-
-static void get_layer_dimensions(struct layer *l,
-				 int64_t *tiles_across, int64_t *tiles_down,
-				 int32_t *tile_width, int32_t *tile_height,
-				 int32_t *last_tile_width, int32_t *last_tile_height) {
-  *tiles_across = (l->pixel_w / l->tile_width) + !!(l->pixel_w % l->tile_width);
-  *tiles_down = (l->pixel_h / l->tile_height) + !!(l->pixel_h % l->tile_height);
-
-  // overlaps
-  int32_t overlaps_per_tile_across = 0;
-  int64_t overlaps_across = 0;
-  if (l->overlap_spacing_x) {
-    overlaps_per_tile_across = l->tile_width / l->overlap_spacing_x;
-    overlaps_across = (*tiles_across * overlaps_per_tile_across) - 1;
-  }
-  int32_t overlaps_per_tile_down = 0;
-  int64_t overlaps_down = 0;
-  if (l->overlap_spacing_y) {
-    overlaps_per_tile_down = l->tile_height / l->overlap_spacing_y;
-    overlaps_down = (*tiles_down * overlaps_per_tile_down) - 1;
-  }
-
-  g_debug("o_p_t_a: %d, o_p_t_d: %d, o_a: %" PRId64 ", o_d: %" PRId64,
-	  overlaps_per_tile_across, overlaps_per_tile_down, overlaps_across, overlaps_down);
-  g_debug(" overlap_x: %g, overlap_y: %g", l->overlap_x, l->overlap_y);
-
-  double overlap_in_tile_x = overlaps_per_tile_across * l->overlap_x;
-  double overlap_in_tile_y = overlaps_per_tile_down * l->overlap_y;
-  g_debug(" overlap in tile: %g %g", overlap_in_tile_x, overlap_in_tile_y);
-
-  *tile_width = l->tile_width - overlaps_per_tile_across * l->overlap_x;
-  *tile_height = l->tile_height - overlaps_per_tile_down * l->overlap_y;
-
-  g_debug(" tile size: %d %d", *tile_width, *tile_height);
-
-  int64_t w_minus_overlaps = l->pixel_w - (int64_t) (overlaps_across * l->overlap_x);
-  int64_t h_minus_overlaps = l->pixel_h - (int64_t) (overlaps_down * l->overlap_y);
-
-  g_debug(" w-o: %" PRId64 ", h-o: %" PRId64, w_minus_overlaps, h_minus_overlaps);
-
-  *last_tile_width = w_minus_overlaps - (*tile_width * (*tiles_across - 1));
-  *last_tile_height = h_minus_overlaps - (*tile_height * (*tiles_down - 1));
-
-  g_debug(" last tile size: %d %d", *last_tile_width, *last_tile_height);
-}
-
 
 static void get_dimensions(openslide_t *osr,
 			   int32_t layer,
@@ -1225,6 +1319,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       double orig_ox = overlaps[overlaps_i * 2];
       double orig_oy = overlaps[(overlaps_i * 2) + 1];
+
+      g_debug("no_scale_denom_downsample: %g", l->no_scale_denom_downsample);
 
       g_debug("orig overlaps: %g %g", orig_ox, orig_oy);
 
