@@ -297,12 +297,9 @@ void openslide_read_region(openslide_t *osr,
   if (dest != NULL) {
     for (int64_t i = 0; i < w * h; i++) {
       dest[i] = osr->fill_color_argb;
+      //dest[i] = 0xFFFF0000; // red
     }
   }
-
-  //  for (int64_t i = 0; i < w * h; i++) {
-  //    dest[i] = 0xFFFF0000; // red
-  //  }
 
   // check constraints
   if (layer > osr->layer_count || layer < 0 || x < 0 || y < 0) {
