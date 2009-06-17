@@ -145,6 +145,7 @@ openslide_t *openslide_open(const char *filename) {
 
   // start cache
   osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
+  //osr->cache = _openslide_cache_create(0);
 
   return osr;
 }
