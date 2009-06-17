@@ -866,6 +866,9 @@ static bool read_tile_unlocked(struct layer *l,
   int32_t file_x = tile_x / l->tiles_across_per_file;
   int32_t file_y = tile_y / l->tiles_down_per_file;
 
+  g_debug("tile: %" PRId64 " %" PRId64 ", file: %d %d",
+	  tile_x, tile_y, file_x, file_y);
+
   int jpeg_number = file_y * l->jpegs_across + file_x;
   g_assert(jpeg_number < l->jpegs_across * l->jpegs_down);
 
