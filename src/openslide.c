@@ -163,7 +163,9 @@ void openslide_close(openslide_t *osr) {
 
   g_free(osr->downsamples);
 
-  _openslide_cache_destroy(osr->cache);
+  if (osr->cache) {
+    _openslide_cache_destroy(osr->cache);
+  }
 
   g_slice_free(openslide_t, osr);
 }

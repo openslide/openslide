@@ -255,7 +255,7 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 					  FILE *indexfile) {
   struct _openslide_jpeg_fragment **jpegs = NULL;
   *out = NULL;
-  bool success = true;
+  bool success = false;
 
   GList *page_entry_list = NULL;
   GHashTable *file_table = NULL;
