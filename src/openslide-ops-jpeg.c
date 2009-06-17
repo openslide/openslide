@@ -741,8 +741,8 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 
     jpeg_start_decompress(&cinfo);
 
-    g_debug("output_width: %d", cinfo.output_width);
-    g_debug("output_height: %d", cinfo.output_height);
+    //    g_debug("output_width: %d", cinfo.output_width);
+    //    g_debug("output_height: %d", cinfo.output_height);
 
     // allocate scanline buffers
     row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
@@ -797,20 +797,23 @@ static void read_from_one_jpeg (struct one_jpeg *jpeg,
 									 h,
 									 w * 4);
       cairo_t *cr = cairo_create(out_surface);
+
+      // clear
       cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
       cairo_paint(cr);
-      cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BILINEAR);
+
+      // going to SATURATE those seams away!
       cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-      g_debug("cairo: %d %d", w, h);
+      //g_debug("cairo: %d %d", w, h);
 
       // draw
       double clip_w = ovr_spacing_x - overlap_x;
       double clip_h = ovr_spacing_y - overlap_y;
 
-      g_debug("clip: %g %g", clip_w, clip_h);
-      g_debug(" spacing: %g %g", ovr_spacing_x, ovr_spacing_y);
-      g_debug(" overlap: %g %g", overlap_x, overlap_y);
+      //g_debug("clip: %g %g", clip_w, clip_h);
+      //g_debug(" spacing: %g %g", ovr_spacing_x, ovr_spacing_y);
+      //g_debug(" overlap: %g %g", overlap_x, overlap_y);
 
       int oy = 0;
       while ((oy * clip_h) < h) {
