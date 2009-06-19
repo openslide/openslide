@@ -91,16 +91,16 @@ struct _openslide_ops {
 			     int64_t *tile_x, int64_t *tile_y,
 			     int32_t *offset_x_in_tile,
 			     int32_t *offset_y_in_tile);
-  int64_t (*get_tile_width)(openslide_t *osr,
+  int32_t (*get_tile_width)(openslide_t *osr,
 			    int32_t layer,
 			    int64_t tile_x);
-  int64_t (*get_tile_height)(openslide_t *osr,
+  int32_t (*get_tile_height)(openslide_t *osr,
 			     int32_t layer,
 			     int64_t tile_y);
   bool (*read_tile)(openslide_t *osr, uint32_t *dest,
 		    int32_t layer,
 		    int64_t tile_x, int64_t tile_y,
-		    int64_t tile_w, int64_t tile_h);
+		    int32_t tile_w, int32_t tile_h);
   void (*destroy)(openslide_t *osr);
 };
 

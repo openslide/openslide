@@ -60,6 +60,6 @@ void _openslide_read_tiles(uint32_t *dest,
 					     uint32_t *dest,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
-					     int64_t tile_w, int64_t tile_h),
+					     int32_t tile_w, int32_t tile_h),
 			   struct _openslide_cache *cache);
 #endif

@@ -164,7 +164,7 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   *h = ih_minus_o;
 }
 
-static int64_t compute_tile_dimension(TIFF *tiff,
+static int32_t compute_tile_dimension(TIFF *tiff,
 				      ttag_t tile_tag,
 				      ttag_t image_tag,
 				      int64_t tile,
@@ -198,7 +198,7 @@ static int64_t compute_tile_dimension(TIFF *tiff,
   return image_size - (tile_count - 1) * tile_size;
 }
 
-static int64_t get_tile_width(openslide_t *osr,
+static int32_t get_tile_width(openslide_t *osr,
 			      int32_t layer,
 			      int64_t tile_x) {
   struct _openslide_tiffopsdata *data = osr->data;
@@ -217,7 +217,7 @@ static int64_t get_tile_width(openslide_t *osr,
 				tile_x, overlap);
 }
 
-static int64_t get_tile_height(openslide_t *osr,
+static int32_t get_tile_height(openslide_t *osr,
 			       int32_t layer,
 			       int64_t tile_y) {
   struct _openslide_tiffopsdata *data = osr->data;
@@ -239,9 +239,10 @@ static int64_t get_tile_height(openslide_t *osr,
 static bool read_tile(openslide_t *osr, uint32_t *dest,
 		      int32_t layer,
 		      int64_t tile_x, int64_t tile_y,
-		      int64_t tile_w, int64_t tile_h) {
+		      int32_t tile_w, int32_t tile_h) {
 
-  //  g_debug("read_tile %" PRId64 " %" PRId64 " %d", tile_x, tile_y, layer);
+  //g_debug("read_tile %" PRId64 " %" PRId64 " %d %d %d", tile_x, tile_y, layer,
+  //  tile_w, tile_h);
 
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
