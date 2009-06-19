@@ -1005,10 +1005,13 @@ static void get_dimensions(openslide_t *osr,
 		       last_tile_width, last_tile_height);
 }
 
-static struct _openslide_ops jpeg_ops = {
-  .destroy = destroy,
-  .read_tile = read_tile,
+static const struct _openslide_ops jpeg_ops = {
   .get_dimensions = get_dimensions,
+  //  .convert_coordinate = convert_coordinate,
+  //  .get_tile_width = get_tile_width,
+  //  .get_tile_height = get_tile_height,
+  .read_tile = read_tile,
+  .destroy = destroy
 };
 
 

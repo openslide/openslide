@@ -60,7 +60,7 @@ struct _openslide_associated_image {
 
 /* the main structure */
 struct _openslide {
-  struct _openslide_ops *ops;
+  const struct _openslide_ops *ops;
   void *data;
   int32_t layer_count;
 
@@ -82,15 +82,26 @@ struct _openslide {
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
-  void (*destroy)(openslide_t *osr);
-  bool (*read_tile)(openslide_t *osr, uint32_t *dest,
-		    int32_t layer,
-		    int64_t tile_x, int64_t tile_y);
   void (*get_dimensions)(openslide_t *osr,
 			 int32_t layer,
-			 int64_t *tiles_across, int64_t *tiles_down,
-			 int32_t *tile_width, int32_t *tile_height,
-			 int32_t *last_tile_width, int32_t *last_tile_height);
+			 int64_t *w, int64_t *h);
+  void (*convert_coordinate)(openslide_t *osr,
+			     int32_t layer,
+			     int64_t x, int64_t y,
+			     int64_t *tile_x, int64_t *tile_y,
+			     int32_t *offset_x_in_tile,
+			     int32_t *offset_y_in_tile);
+  int64_t (*get_tile_width)(openslide_t *osr,
+			    int32_t layer,
+			    int64_t tile_x);
+  int64_t (*get_tile_height)(openslide_t *osr,
+			     int32_t layer,
+			     int64_t tile_y);
+  bool (*read_tile)(openslide_t *osr, uint32_t *dest,
+		    int32_t layer,
+		    int64_t tile_x, int64_t tile_y,
+		    int64_t tile_w, int64_t tile_h);
+  void (*destroy)(openslide_t *osr);
 };
 
 
@@ -102,11 +113,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char* filename);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
-						   uint32_t *dest,
-						   int64_t x,
-						   int64_t y,
-						   int32_t w,
-						   int32_t h);
+					      uint32_t *dest,
+					      int64_t x,
+					      int64_t y,
+					      int32_t w,
+					      int32_t h);
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,

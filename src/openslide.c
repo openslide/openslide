@@ -183,19 +183,7 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
     *w = 0;
     *h = 0;
   } else {
-    int64_t tiles_across;
-    int64_t tiles_down;
-    int32_t tile_width;
-    int32_t tile_height;
-    int32_t last_tile_width;
-    int32_t last_tile_height;
-
-    (osr->ops->get_dimensions)(osr, layer, &tiles_across, &tiles_down,
-			       &tile_width, &tile_height,
-			       &last_tile_width, &last_tile_height);
-
-    *w = (tiles_across - 1) * tile_width + last_tile_width;
-    *h = (tiles_down - 1) * tile_height + last_tile_height;
+    (osr->ops->get_dimensions)(osr, layer, w, h);
   }
 }
 
@@ -306,60 +294,35 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // we could also check to make sure that (x / ds) + w and (y / ds) + h
-  // doesn't exceed the bounds of the image, but this situation is
-  // less harmful and can be cleanly handled by the ops backends anyway,
-  // so we allow it
-  //
-  // also, we don't want to introduce rounding errors here with our
-  // double representation of downsampling -- backends have more precise
-  // ways of representing this
+  // don't bother checking to see if (x/ds) and (y/ds) are within
+  // the bounds of the layer, we will just draw nothing below
 
+  // now fully within all important bounds, go for it
 
-  // now fully within all bounds, go for it
-
-
-  // get the dimensions
-  int64_t tiles_across;
-  int64_t tiles_down;
-  int32_t tile_width;
-  int32_t tile_height;
-  int32_t last_tile_width;
-  int32_t last_tile_height;
-  (osr->ops->get_dimensions)(osr, layer, &tiles_across, &tiles_down,
-			     &tile_width, &tile_height,
-			     &last_tile_width, &last_tile_height);
-
-  g_debug("tiles: %" PRId64 ",%" PRId64 " [%dx%d] + [%dx%d]",
-	  tiles_across, tiles_down, tile_width, tile_height, last_tile_width, last_tile_height);
-
-  g_assert(tiles_across > 0);
-  g_assert(tiles_down > 0);
-  g_assert(tile_width > 0);
-  g_assert(tile_height > 0);
-  g_assert(last_tile_width > 0);
-  g_assert(last_tile_height > 0);
 
   // convert into start coordinate
   int64_t tile_x;
   int64_t tile_y;
   int32_t offset_x_in_tile;
   int32_t offset_y_in_tile;
-  convert_coordinate(openslide_get_layer_downsample(osr, layer),
-		     x, y,
-		     tiles_across, tiles_down,
-		     tile_width, tile_height,
-		     &tile_x, &tile_y,
-		     &offset_x_in_tile,
-		     &offset_y_in_tile);
+  (osr->ops->convert_coordinate)(osr,
+				 layer,
+				 x, y,
+				 &tile_x, &tile_y,
+				 &offset_x_in_tile,
+				 &offset_y_in_tile);
 
-
-  _openslide_read_tiles(tile_x, tile_y, offset_x_in_tile, offset_y_in_tile,
-			w, h, layer, tile_width, tile_height,
-			last_tile_width, last_tile_height,
-			tiles_across, tiles_down,
-			osr->ops->read_tile, osr,
-			dest, osr->cache);
+  // go
+  _openslide_read_tiles(dest,
+			w, h,
+			layer,
+			tile_x, tile_y,
+			offset_x_in_tile, offset_y_in_tile,
+			osr,
+			osr->ops->get_tile_width,
+			osr->ops->get_tile_height,
+			osr->ops->read_tile,
+			osr->cache);
 }
 
 
