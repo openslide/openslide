@@ -99,6 +99,9 @@ struct layer {
 
   double overlap_x;
   double overlap_y;
+
+  int32_t tiles_per_megatile_x;
+  int32_t tiles_per_megatile_y;
 };
 
 struct jpegops_data {
@@ -627,6 +630,41 @@ static void compute_mcu_start(FILE *f,
   }
 }
 
+static void convert_coordinate(openslide_t *osr,
+			       int32_t layer,
+			       int64_t x, int64_t y,
+			       int64_t *tile_x, int64_t *tile_y,
+			       int32_t *offset_x_in_tile,
+			       int32_t *offset_y_in_tile) {
+  /*
+  // init
+  *tile_x = 0;
+  *tile_y = 0;
+  *offset_x_in_tile = 0;
+  *offset_y_in_tile = 0;
+
+  // figure out tile size
+
+
+  // get image size
+
+
+  // num tiles in each dimension
+  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
+  int64_t tiles_down = (ih / th) + !!(ih % th);
+
+  // overlaps
+
+  _openslide_convert_coordinate(openslide_get_layer_downsample(osr, layer),
+				x, y,
+				tiles_across, tiles_down,
+				tw, th,
+				ox, oy,
+				1, 1,
+				tile_x, tile_y,
+				offset_x_in_tile, offset_y_in_tile);
+  */
+}
 
 static void get_layer_dimensions(struct layer *l,
 				 int64_t *tiles_across, int64_t *tiles_down,
@@ -995,9 +1033,7 @@ static void destroy(openslide_t *osr) {
 
 static void get_dimensions(openslide_t *osr,
 			   int32_t layer,
-			   int64_t *tiles_across, int64_t *tiles_down,
-			   int32_t *tile_width, int32_t *tile_height,
-			   int32_t *last_tile_width, int32_t *last_tile_height) {
+			   int64_t *w, int64_t *h) {
   struct jpegops_data *data = osr->data;
   get_layer_dimensions(data->layers + layer,
 		       tiles_across, tiles_down,
@@ -1007,9 +1043,9 @@ static void get_dimensions(openslide_t *osr,
 
 static const struct _openslide_ops jpeg_ops = {
   .get_dimensions = get_dimensions,
-  //  .convert_coordinate = convert_coordinate,
-  //  .get_tile_width = get_tile_width,
-  //  .get_tile_height = get_tile_height,
+  .convert_coordinate = convert_coordinate,
+  .get_tile_width = get_tile_width,
+  .get_tile_height = get_tile_height,
   .read_tile = read_tile,
   .destroy = destroy
 };
@@ -1209,6 +1245,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t overlap_count,
 			     double *overlaps,
 			     double downsample_override,
+			     int32_t tiles_per_overlap_x,
+			     int32_t tiles_per_overlap_y,
 			     enum _openslide_overlap_mode overlap_mode) {
   //  g_debug("count: %d", count);
   //  for (int32_t i = 0; i < count; i++) {
@@ -1303,20 +1341,27 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
 
   // from the layers, generate the overlaps
-  if (overlap_count) {
-    for (int32_t i = 0; i < osr->layer_count; i++) {
-      struct layer *l = data->layers + i;
+  for (int32_t i = 0; i < osr->layer_count; i++) {
+    struct layer *l = data->layers + i;
 
-      int32_t scale_denom = l->scale_denom;
-      g_assert(scale_denom);
+    int32_t scale_denom = l->scale_denom;
+    g_assert(scale_denom);
 
-      int32_t lg2_scale_denom = g_bit_nth_lsf(scale_denom, -1) + 1;
-      int32_t overlaps_i = i - (lg2_scale_denom - 1);
-      g_debug("scale_denom: %d, lg2: %d", scale_denom, lg2_scale_denom);
+    int32_t lg2_scale_denom = g_bit_nth_lsf(scale_denom, -1) + 1;
 
+    int32_t overlaps_i = i - (lg2_scale_denom - 1);
+
+    // set the megatile stuff
+    l->tiles_per_megatile_x = MAX(1, tiles_per_overlap_x >> overlaps_i);
+    l->tiles_per_megatile_y = MAX(1, tiles_per_overlap_y >> overlaps_i);
+
+    g_debug("layer %d, scale_denom: %d, lg2: %d, tiles_per_megatile_x: %d, tiles_per_megatile_y: %d",
+	    i, scale_denom, lg2_scale_denom, l->tiles_per_megatile_x, l->tiles_per_megatile_y);
+
+    if (overlap_count) {
       if (overlaps_i >= overlap_count) {
-	// we have more layers than overlaps, stop
-	break;
+	// we have more layers than overlaps, next
+	continue;
       }
 
       double orig_ox = overlaps[overlaps_i * 2];

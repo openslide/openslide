@@ -179,6 +179,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t overlap_count,
 			     double *overlaps,
 			     double downsample_override,
+			     int32_t tiles_per_overlap_x,
+			     int32_t tiles_per_overlap_y,
 			     enum _openslide_overlap_mode overlap_mode);
 
 // error function for libjpeg

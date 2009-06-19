@@ -536,6 +536,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, 0, NULL, 0,
+			  1, 1,
 			  OPENSLIDE_OVERLAP_MODE_SANE);
   success = true;
   goto DONE;

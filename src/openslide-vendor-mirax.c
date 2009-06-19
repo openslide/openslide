@@ -642,6 +642,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, overlaps, 2.0,
+			  2, 2,
 			  OPENSLIDE_OVERLAP_MODE_INTERNAL);
   success = true;
   goto DONE;
