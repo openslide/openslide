@@ -11,3 +11,5 @@ Zeiss/MIRAX
 Add back get_comment for Hamamatsu
 
 Ship docs
+
+More cairo??
