@@ -50,6 +50,7 @@ static const char KEY_INDEXFILE[] = "INDEXFILE";
 static const char KEY_HIER_d_NAME[] = "HIER_%d_NAME";
 static const char KEY_HIER_d_COUNT[] = "HIER_%d_COUNT";
 static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
+static const char KEY_NONHIER_d_NAME[] = "NONHIER_%d_NAME";
 static const char KEY_NONHIER_d_COUNT[] = "NONHIER_%d_COUNT";
 static const char VALUE_VIMSLIDE_POSITION_BUFFER[] = "VIMSLIDE_POSITION_BUFFER";
 static const char VALUE_SLIDE_ZOOM_LEVEL[] = "Slide zoom level";
@@ -256,6 +257,7 @@ static void file_table_fclose(gpointer key, gpointer value, gpointer user_data) 
 static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
 					  const char *slideversion,
 					  const char *uuid,
+					  int position_nonhier_offset,
 					  int zoom_levels,
 					  int tiles_x,
 					  int tiles_y,
@@ -455,6 +457,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   int zoom_levels = 0;
   int hier_count = 0;
   int nonhier_count = 0;
+  int position_nonhier_offset = -1;
 
   int slide_zoom_level_value = -1;
   char *key_slide_zoom_level_name = NULL;
@@ -519,6 +522,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL,
 				       key, NULL);
     g_free(key);
+
+    if (!value) {
+      g_warning("Can't read value for hier name");
+      goto FAIL;
+    }
+
     if (strcmp(VALUE_SLIDE_ZOOM_LEVEL, value) == 0) {
       g_free(value);
       slide_zoom_level_value = i;
@@ -531,6 +540,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   if (slide_zoom_level_value == -1) {
     g_warning("Can't find slide zoom level");
+    goto FAIL;
+  }
+
+  // TODO allow slide_zoom_level_value to be at another hierarchy value
+  if (slide_zoom_level_value != 0) {
+    g_warning("Slide zoom level not HIER_0");
     goto FAIL;
   }
 
@@ -570,7 +585,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     tmp = NULL;
   }
 
-  // load data from all hier_0_section_names sections
+  // load data from all slide_zoom_level_section_names sections
   slide_zoom_level_sections = g_new0(struct slide_zoom_level_section, zoom_levels);
   for (int i = 0; i < zoom_levels; i++) {
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
@@ -627,7 +642,42 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
 
   // load position stuff
-  
+  // find key for position
+  int offset_tmp = 0;
+  for (int i = 0; i < nonhier_count; i++) {
+    char *key = g_strdup_printf(KEY_NONHIER_d_NAME, i);
+    char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL,
+				       key, NULL);
+    g_free(key);
+
+    if (!value) {
+      g_warning("Can't read value for nonhier name");
+      goto FAIL;
+    }
+
+    if (strcmp(VALUE_VIMSLIDE_POSITION_BUFFER, value) == 0) {
+      g_free(value);
+      position_nonhier_offset = offset_tmp + i;
+      break;
+    }
+
+    // otherwise, increase offset
+    g_free(value);
+    key = g_strdup_printf(KEY_NONHIER_d_COUNT, i);
+    int count = g_key_file_get_integer(slidedat, GROUP_HIERARCHICAL,
+				       key, NULL);
+    g_free(key);
+    if (!count) {
+      g_warning("Can't read nonhier val count");
+      goto FAIL;
+    }
+    offset_tmp += count;
+  }
+
+  if (position_nonhier_offset == -1) {
+    g_warning("Can't figure out where the position file is");
+    goto FAIL;
+  }
 
   g_debug("dirname: %s", dirname);
   g_debug("slide_version: %s", slide_version);
@@ -664,6 +714,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   if (!(num_jpegs = build_fragments_from_indexfile(&jpegs,
 						   slide_version,
 						   slide_id,
+						   position_nonhier_offset,
 						   zoom_levels,
 						   tiles_x,
 						   tiles_y,
