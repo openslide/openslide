@@ -1402,6 +1402,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   // unref the hash table
   g_hash_table_unref(width_to_layer_map);
 
+  // free overlaps
+  g_free(overlaps);
+
   // init background thread for finding restart markers
   data->restart_marker_thread_state = R_M_THREAD_STATE_RUN;
   data->restart_marker_timer = g_timer_new();
