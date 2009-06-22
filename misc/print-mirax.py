@@ -28,9 +28,9 @@ try:
 
         i = i+1
 
-        if n == 0:
-            num_skipped = num_skipped + 1
-            continue
+#        if n == 0:
+#            num_skipped = num_skipped + 1
+#            continue
 
         if num_skipped > 0:
             print '%7s %11s %10s %30d' % ('.','.','.', num_skipped)
