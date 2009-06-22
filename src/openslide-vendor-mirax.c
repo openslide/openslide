@@ -44,9 +44,20 @@ static const char KEY_IMAGENUMBER_X[] = "IMAGENUMBER_X";
 static const char KEY_IMAGENUMBER_Y[] = "IMAGENUMBER_Y";
 
 static const char GROUP_HIERARCHICAL[] = "HIERARCHICAL";
+static const char KEY_HIER_COUNT[] = "HIER_COUNT";
+static const char KEY_NONHIER_COUNT[] = "NONHIER_COUNT";
 static const char KEY_INDEXFILE[] = "INDEXFILE";
-static const char KEY_HIER_0_COUNT[] = "HIER_0_COUNT";
-static const char KEY_HIER_0_VAL_d_SECTION[] = "HIER_0_VAL_%d_SECTION";
+static const char KEY_HIER_d_NAME[] = "HIER_%d_NAME";
+static const char KEY_HIER_d_COUNT[] = "HIER_%d_COUNT";
+static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
+static const char KEY_NONHIER_d_COUNT[] = "NONHIER_%d_COUNT";
+static const char VALUE_VIMSLIDE_POSITION_BUFFER[] = "VIMSLIDE_POSITION_BUFFER";
+static const char VALUE_SLIDE_ZOOM_LEVEL[] = "Slide zoom level";
+
+static const char GROUP_NONHIERLAYER_d_SECTION[] = "NONHIERLAYER_%d_SECTION";
+static const char KEY_VIMSLIDE_POSITION_DATA_FORMAT_VERSION[] =
+  "VIMSLIDE_POSITION_DATA_FORMAT_VERSION";
+static const int VALUE_VIMSLIDE_POSITION_DATA_FORMAT_VERSION = 257;
 
 static const char GROUP_DATAFILE[] = "DATAFILE";
 static const char KEY_FILE_COUNT[] = "FILE_COUNT";
@@ -69,7 +80,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
     }									\
   } while(0)
 
-struct hier_section {
+struct slide_zoom_level_section {
   double overlap_x;
   double overlap_y;
 
@@ -248,7 +259,7 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 					  int zoom_levels,
 					  int tiles_x,
 					  int tiles_y,
-					  struct hier_section *hs,
+					  struct slide_zoom_level_section *hs,
 					  const char *dirname,
 					  int datafile_count,
 					  char **datafile_names,
@@ -442,8 +453,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   char *index_filename = NULL;
   int zoom_levels = 0;
-  char **hier_0_section_names = NULL;
-  struct hier_section *hier_sections = NULL;
+  int hier_count = 0;
+  int nonhier_count = 0;
+
+  int slide_zoom_level_value = -1;
+  char *key_slide_zoom_level_name = NULL;
+  char *key_slide_zoom_level_count = NULL;
+  char **slide_zoom_level_section_names = NULL;
+  struct slide_zoom_level_section *slide_zoom_level_sections = NULL;
 
   int datafile_count = 0;
   char **datafile_names = NULL;
@@ -491,16 +508,42 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
+  READ_KEY_OR_FAIL(hier_count, slidedat, GROUP_HIERARCHICAL,
+		   KEY_HIER_COUNT, integer, "Can't read hier count");
+  READ_KEY_OR_FAIL(nonhier_count, slidedat, GROUP_HIERARCHICAL,
+		   KEY_NONHIER_COUNT, integer, "Can't read nonhier count");
+
+  // find key for slide zoom level
+  for (int i = 0; i < hier_count; i++) {
+    char *key = g_strdup_printf(KEY_HIER_d_NAME, i);
+    char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL,
+				       key, NULL);
+    g_free(key);
+    if (strcmp(VALUE_SLIDE_ZOOM_LEVEL, value) == 0) {
+      g_free(value);
+      slide_zoom_level_value = i;
+      key_slide_zoom_level_name = g_strdup_printf(KEY_HIER_d_NAME, i);
+      key_slide_zoom_level_count = g_strdup_printf(KEY_HIER_d_COUNT, i);
+      break;
+    }
+    g_free(value);
+  }
+
+  if (slide_zoom_level_value == -1) {
+    g_warning("Can't find slide zoom level");
+    goto FAIL;
+  }
+
   READ_KEY_OR_FAIL(index_filename, slidedat, GROUP_HIERARCHICAL,
 		   KEY_INDEXFILE, value, "Can't read index filename");
   READ_KEY_OR_FAIL(zoom_levels, slidedat, GROUP_HIERARCHICAL,
-		   KEY_HIER_0_COUNT, integer, "Can't read zoom levels");
+		   key_slide_zoom_level_count, integer, "Can't read zoom levels");
 
-  hier_0_section_names = g_new0(char *, zoom_levels + 1);
+  slide_zoom_level_section_names = g_new0(char *, zoom_levels + 1);
   for (int i = 0; i < zoom_levels; i++) {
-    tmp = g_strdup_printf(KEY_HIER_0_VAL_d_SECTION, i);
+    tmp = g_strdup_printf(KEY_HIER_d_VAL_d_SECTION, slide_zoom_level_value, i);
 
-    READ_KEY_OR_FAIL(hier_0_section_names[i], slidedat, GROUP_HIERARCHICAL,
+    READ_KEY_OR_FAIL(slide_zoom_level_section_names[i], slidedat, GROUP_HIERARCHICAL,
 		     tmp, value, "Can't read section name");
 
     g_free(tmp);
@@ -528,13 +571,13 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   // load data from all hier_0_section_names sections
-  hier_sections = g_new0(struct hier_section, zoom_levels);
+  slide_zoom_level_sections = g_new0(struct slide_zoom_level_section, zoom_levels);
   for (int i = 0; i < zoom_levels; i++) {
-    struct hier_section *hs = hier_sections + i;
+    struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
 
     int bgr;
 
-    char *group = hier_0_section_names[i];
+    char *group = slide_zoom_level_section_names[i];
     if (!g_key_file_has_group(slidedat, group)) {
       g_warning("Can't find %s group", group);
       goto FAIL;
@@ -583,6 +626,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
 
+  // load position stuff
+  
+
   g_debug("dirname: %s", dirname);
   g_debug("slide_version: %s", slide_version);
   g_debug("slide_id: %s", slide_id);
@@ -590,8 +636,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   g_debug("index_filename: %s", index_filename);
   g_debug("zoom_levels: %d", zoom_levels);
   for (int i = 0; i < zoom_levels; i++) {
-    g_debug(" section name %d: %s", i, hier_0_section_names[i]);
-    struct hier_section *hs = hier_sections + i;
+    g_debug(" section name %d: %s", i, slide_zoom_level_section_names[i]);
+    struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
     g_debug("  overlap_x: %g", hs->overlap_x);
     g_debug("  overlap_y: %g", hs->overlap_y);
     g_debug("  fill_argb: %" PRIu32, hs->fill_argb);
@@ -621,7 +667,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 						   zoom_levels,
 						   tiles_x,
 						   tiles_y,
-						   hier_sections,
+						   slide_zoom_level_sections,
 						   dirname,
 						   datafile_count,
 						   datafile_names,
@@ -630,13 +676,13 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   if (osr) {
-    osr->fill_color_argb = hier_sections[0].fill_argb;
+    osr->fill_color_argb = slide_zoom_level_sections[0].fill_argb;
   }
 
   // generate overlaps
   double *overlaps = g_new(double, zoom_levels * 2);
   for (int i = 0; i < zoom_levels; i++) {
-    struct hier_section *hs = hier_sections + i;
+    struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
     overlaps[i * 2] = hs->overlap_x;
     overlaps[(i * 2) + 1] = hs->overlap_y;
   }
@@ -662,8 +708,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   g_free(slide_id);
   g_free(index_filename);
   g_strfreev(datafile_names);
-  g_strfreev(hier_0_section_names);
-  g_free(hier_sections);
+  g_strfreev(slide_zoom_level_section_names);
+  g_free(slide_zoom_level_sections);
+  g_free(key_slide_zoom_level_name);
+  g_free(key_slide_zoom_level_count);
 
   if (slidedat) {
     g_key_file_free(slidedat);
