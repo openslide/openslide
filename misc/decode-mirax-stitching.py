@@ -8,9 +8,12 @@ HEADER_OFFSET = 296
 
 f.seek(HEADER_OFFSET)
 
-while True:
-    x = struct.unpack("<i", f.read(4))[0]
-    y = struct.unpack("<i", f.read(4))[0]
-    zz = f.read(1)
+try:
+    while True:
+        x = int(struct.unpack("<i", f.read(4))[0]) / 256.0
+        y = int(struct.unpack("<i", f.read(4))[0]) / 256.0
+        zz = f.read(1)
 
-    print '%10s %10s' % (x, y)
+        print '%10g %10g' % (x, y)
+except:
+    pass
