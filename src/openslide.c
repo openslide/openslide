@@ -40,8 +40,8 @@ typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
 static const vendor_fn all_formats[] = {
   //  _openslide_try_mirax,
   _openslide_try_hamamatsu,
-  //  _openslide_try_trestle,
-  //  _openslide_try_aperio,
+  _openslide_try_trestle,
+  _openslide_try_aperio,
   NULL
 };
 

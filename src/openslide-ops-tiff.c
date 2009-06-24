@@ -27,6 +27,7 @@
 #include <glib.h>
 #include <tiffio.h>
 #include <inttypes.h>
+#include <cairo.h>
 
 #include "openslide-private.h"
 #include "openslide-tilehelper.h"
@@ -164,125 +165,82 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   *h = ih_minus_o;
 }
 
-static int32_t compute_tile_dimension(TIFF *tiff,
-				      ttag_t tile_tag,
-				      ttag_t image_tag,
-				      int64_t tile,
-				      int32_t overlap) {
-  uint32_t tmp;
-
-  // figure out tile size
-  int64_t tile_size;
-  g_return_val_if_fail(TIFFGetField(tiff, tile_tag, &tmp), 0);
-  tile_size = tmp;
-
-  // get image size
-  int64_t image_size;
-  g_return_val_if_fail(TIFFGetField(tiff, image_tag, &tmp), 0);
-  image_size = tmp;
-
-  // num tiles in dimension
-  int64_t tile_count = (image_size / tile_size) + !!(image_size % tile_size);
-
-  // check bounds
-  if ((tile < 0) || (tile >= tile_count)) {
-    return 0;
-  }
-
-  // inner tile? are we done?
-  if (tile < tile_count - 1) {
-    return tile_size - overlap;
-  }
-
-  // otherwise, return last tile size (slack at end of image)
-  return image_size - (tile_count - 1) * tile_size;
-}
-
-static int32_t get_tile_width(openslide_t *osr,
-			      int32_t layer,
-			      int64_t tile_x) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff = data->tiff;
-
-  // get the layer
-  g_return_val_if_fail(TIFFSetDirectory(tiff, data->layers[layer]), 0);
-
-  int32_t overlap = 0;
-  if (layer < data->overlap_count) {
-    overlap = data->overlaps[layer * 2];
-  }
-
-  return compute_tile_dimension(tiff,
-				TIFFTAG_TILEWIDTH, TIFFTAG_IMAGEWIDTH,
-				tile_x, overlap);
-}
-
-static int32_t get_tile_height(openslide_t *osr,
-			       int32_t layer,
-			       int64_t tile_y) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff = data->tiff;
-
-  // get the layer
-  g_return_val_if_fail(TIFFSetDirectory(tiff, data->layers[layer]), 0);
-
-  int32_t overlap = 0;
-  if (layer < data->overlap_count) {
-    overlap = data->overlaps[(layer * 2) + 1];
-  }
-
-  return compute_tile_dimension(tiff,
-				TIFFTAG_TILELENGTH, TIFFTAG_IMAGELENGTH,
-				tile_y, overlap);
-}
-
-static bool read_tile(openslide_t *osr, uint32_t *dest,
+static void read_tile(openslide_t *osr,
+		      cairo_t *cr,
 		      int32_t layer,
 		      int64_t tile_x, int64_t tile_y,
-		      int32_t tile_w, int32_t tile_h) {
+		      struct _openslide_cache *cache) {
+  struct _openslide_tiffopsdata *data = osr->data;
+  TIFF *tiff = data->tiff;
 
-  //g_debug("read_tile %" PRId64 " %" PRId64 " %d %d %d", tile_x, tile_y, layer,
-  //  tile_w, tile_h);
+  uint32_t tmp;
 
+  // set the layer
+  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
+
+  // figure out raw tile size
+  int64_t tw, th;
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
+  tw = tmp;
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
+  th = tmp;
+
+  // get image size
+  int64_t iw, ih;
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
+  iw = tmp;
+  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
+  ih = tmp;
+
+  int64_t x = tile_x * tw;
+  int64_t y = tile_y * th;
+
+  if ((x >= iw) || (y >= ih)) {
+    return;
+  }
+
+  // cache
+  bool cachemiss;
+  uint32_t *tiledata = _openslide_cache_get(cache,
+					    x,
+					    y,
+					    layer);
+  cachemiss = !tiledata;
+  if (!tiledata) {
+    tiledata = g_slice_alloc(tw * th * 4);
+    data->tileread(data->tiff, tiledata, x, y, tw, th);
+  }
+
+  // draw it
+  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+								 CAIRO_FORMAT_ARGB32,
+								 tw, th,
+								 tw * 4);
+  cairo_save(cr);
+  cairo_set_source_surface(cr, surface, 0, 0);
+  cairo_surface_destroy(surface);
+  cairo_paint(cr);
+  cairo_restore(cr);
+
+  // put into cache last, because the cache can free this tile
+  if (cachemiss) {
+    _openslide_cache_put(cache, x, y, layer,
+			 tiledata, tw * th * 4);
+  }
+}
+
+static void paint_region(openslide_t *osr, cairo_t *cr,
+			 int64_t x, int64_t y,
+			 int32_t layer,
+			 int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
 
   // set the layer
-  g_return_val_if_fail(TIFFSetDirectory(tiff, data->layers[layer]), 0);
-
-  // figure out raw tile size
-  int64_t tw, th;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp), false);
-  tw = tmp;
-  g_return_val_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp), false);
-  th = tmp;
-
-  data->tileread(tiff, dest, tile_x * tw, tile_y * th, tile_w, tile_h);
-
-  return true;
-}
-
-static void convert_coordinate(openslide_t *osr,
-			       int32_t layer,
-			       int64_t x, int64_t y,
-			       int64_t *tile_x, int64_t *tile_y,
-			       int32_t *offset_x_in_tile,
-			       int32_t *offset_y_in_tile) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff = data->tiff;
-  uint32_t tmp;
-
-  // init
-  *tile_x = 0;
-  *tile_y = 0;
-  *offset_x_in_tile = 0;
-  *offset_y_in_tile = 0;
-
-  // get the layer
   g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
 
-  // figure out tile size
+  // figure out raw tile size
   int64_t tw, th;
   g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
   tw = tmp;
@@ -300,7 +258,7 @@ static void convert_coordinate(openslide_t *osr,
   int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
   int64_t tiles_down = (ih / th) + !!(ih % th);
 
-  // overlaps
+  // compute coordinates
   int32_t ox = 0;
   int32_t oy = 0;
   if (layer < data->overlap_count) {
@@ -308,22 +266,43 @@ static void convert_coordinate(openslide_t *osr,
     oy = data->overlaps[(layer * 2) + 1];
   }
 
-  _openslide_convert_coordinate(openslide_get_layer_downsample(osr, layer),
-				x, y,
-				tiles_across, tiles_down,
-				tw, th,
-				ox, oy,
-				1, 1,
-				tile_x, tile_y,
-				offset_x_in_tile, offset_y_in_tile);
+  double ds = openslide_get_layer_downsample(osr, layer);
+  int64_t ds_x = x / ds;
+  int64_t ds_y = y / ds;
+  int64_t start_tile_x = ds_x / (tw - ox);
+  int64_t end_tile_x = ((ds_x + w) / (tw - ox)) + 1;
+  int64_t start_tile_y = ds_y / (th - oy);
+  int64_t end_tile_y = ((ds_y + h) / (th - oy)) + 1;
+
+  int32_t offset_x;
+  int32_t offset_y;
+
+  // special cases for last tile
+  if (start_tile_x == tiles_across - 1) {
+    offset_x = ds_x % tw;
+  } else {
+    offset_x = ds_x % (tw - ox);
+  }
+
+  if (start_tile_y == tiles_down - 1) {
+    offset_y = ds_y % th;
+  } else {
+    offset_y = ds_y % (th - oy);
+  }
+
+
+  _openslide_read_tiles(cr, layer,
+			start_tile_x, start_tile_y,
+			end_tile_x, end_tile_y,
+			offset_x, offset_y,
+			tw - ox, th - oy,
+			osr, osr->cache,
+			read_tile);
 }
 
 static const struct _openslide_ops _openslide_tiff_ops = {
   .get_dimensions = get_dimensions,
-  .convert_coordinate = convert_coordinate,
-  .get_tile_width = get_tile_width,
-  .get_tile_height = get_tile_height,
-  .read_tile = read_tile,
+  .paint_region = paint_region,
   .destroy = destroy
 };
 
@@ -333,10 +312,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_fn tileread,
-			     enum _openslide_overlap_mode overlap_mode) {
-  g_assert(overlap_mode == OPENSLIDE_OVERLAP_MODE_SANE);
-
+			     _openslide_tiff_tilereader_fn tileread) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);

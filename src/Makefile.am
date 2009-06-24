@@ -5,12 +5,12 @@ libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS)
 libopenslide_la_SOURCES = openslide.c \
 	openslide-cache.c openslide-tilehelper.c \
 	openslide-ops-jpeg.c \
-	openslide-vendor-hamamatsu.c
+	openslide-vendor-hamamatsu.c \
+	openslide-ops-tiff.c \
+	openslide-vendor-trestle.c openslide-vendor-aperio.c
 
 # openslide-vendor-mirax.c
 
-#	openslide-ops-tiff.c 
-#	openslide-vendor-trestle.c openslide-vendor-aperio.c 
 
 libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\"
 

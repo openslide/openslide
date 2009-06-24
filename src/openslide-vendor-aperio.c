@@ -313,13 +313,11 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
   if (compression_mode == 33003) {
     // special jpeg 2000 aperio thing
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    aperio_tiff_tilereader,
-			    OPENSLIDE_OVERLAP_MODE_SANE);
+			    aperio_tiff_tilereader);
   } else {
     // let libtiff handle it
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    _openslide_generic_tiff_tilereader,
-			    OPENSLIDE_OVERLAP_MODE_SANE);
+			    _openslide_generic_tiff_tilereader);
   }
 
   return true;
