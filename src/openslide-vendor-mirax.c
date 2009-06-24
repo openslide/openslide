@@ -91,7 +91,7 @@ struct slide_zoom_level_section {
   int tile_h;
 };
 
-struct mirax_page_entry {
+struct mirax_hier_page_entry {
   int32_t x;
   int32_t y;
   int32_t offset;
@@ -100,9 +100,15 @@ struct mirax_page_entry {
   int zoom_level;
 };
 
-static gint page_entry_compare(gconstpointer a, gconstpointer b) {
-  const struct mirax_page_entry *pa = (const struct mirax_page_entry *) a;
-  const struct mirax_page_entry *pb = (const struct mirax_page_entry *) b;
+struct mirax_nonhier_page_entry {
+  int32_t offset;
+  int32_t length;
+  int32_t fileno;
+}
+
+static gint hier_page_entry_compare(gconstpointer a, gconstpointer b) {
+  const struct mirax_hier_page_entry *pa = (const struct mirax_hier_page_entry *) a;
+  const struct mirax_hier_page_entry *pb = (const struct mirax_hier_page_entry *) b;
 
   if (pa->y != pb->y) {
     return pa->y - pb->y;
@@ -111,8 +117,8 @@ static gint page_entry_compare(gconstpointer a, gconstpointer b) {
   return pa->x - pb->x;
 }
 
-static void page_entry_delete(gpointer data, gpointer user_data) {
-  g_slice_free(struct mirax_page_entry, data);
+static void hier_page_entry_delete(gpointer data, gpointer user_data) {
+  g_slice_free(struct mirax_hier_page_entry, data);
 }
 
 static bool verify_string_from_file(FILE *f, const char *str) {
@@ -144,9 +150,9 @@ static int32_t read_le_int32_from_file(FILE *f) {
   return i;
 }
 
-static bool read_data_pages_from_indexfile(GList **list, FILE *f,
-					   int zoom_level,
-					   int tiles_across) {
+static bool read_hier_data_pages_from_indexfile(GList **list, FILE *f,
+						int zoom_level,
+						int tiles_across) {
   // read initial 0
   if (read_le_int32_from_file(f) != 0) {
     g_warning("Expected 0 value at beginning of data page");
@@ -225,7 +231,7 @@ static bool read_data_pages_from_indexfile(GList **list, FILE *f,
 	return false;
       }
 
-      struct mirax_page_entry *entry = g_slice_new(struct mirax_page_entry);
+      struct mirax_hier_page_entry *entry = g_slice_new(struct mirax_hier_page_entry);
       entry->offset = offset;
       entry->length = length;
       entry->fileno = fileno;
@@ -254,23 +260,32 @@ static void file_table_fclose(gpointer key, gpointer value, gpointer user_data) 
   fclose(value);
 }
 
-static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out,
-					  const char *slideversion,
-					  const char *uuid,
-					  int position_nonhier_offset,
-					  int zoom_levels,
-					  int tiles_x,
-					  int tiles_y,
-					  struct slide_zoom_level_section *hs,
-					  const char *dirname,
-					  int datafile_count,
-					  char **datafile_names,
-					  FILE *indexfile) {
-  struct _openslide_jpeg_fragment **jpegs = NULL;
-  *out = NULL;
+
+static void process_indexfile(const char *slideversion,
+			      const char *uuid,
+			      const char *dirname,
+			      int datafile_count,
+			      char **datafile_names,
+			      int slideposition_offset,
+			      int zoom_levels,
+			      int tiles_x,
+			      int tiles_y,
+			      struct slide_zoom_level_section *slide_zoom_level_sections,
+			      FILE *indexfile,
+			      struct _openslide_jpeg_layer **layers,
+			      int *file_count_out,
+			      struct _openslide_jpeg_file ***files_out) {
+  // init out parameters
+  *file_count_out = 0;
+  *files_out = NULL;
+
+  struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
 
-  GList *page_entry_list = NULL;
+  int64_t hier_root;
+  int64_t nonhier_root;
+
+  GList *hier_page_entry_list = NULL;
   GHashTable *file_table = NULL;
 
   rewind(indexfile);
@@ -281,6 +296,10 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
     g_warning("Indexfile doesn't start with expected values");
     goto OUT;
   }
+
+  // save root positions
+  hier_root = ftello(indexfile);
+  nonhier_root = hier_root + 4;
 
   int32_t ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
@@ -317,11 +336,11 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
     // read these pages in, make sure they are sorted, and add to the master list
     GList *tmp_list = NULL;
-    bool success = read_data_pages_from_indexfile(&tmp_list, indexfile, i,
-						  tiles_x);
-    tmp_list = g_list_sort(tmp_list, page_entry_compare);
+    bool success = read_hier_data_pages_from_indexfile(&tmp_list, indexfile, i,
+						       tiles_x);
+    tmp_list = g_list_sort(tmp_list, hier_page_entry_compare);
     g_debug(" length: %d", g_list_length(tmp_list));
-    page_entry_list = g_list_concat(page_entry_list, tmp_list);
+    hier_page_entry_list = g_list_concat(hier_page_entry_list, tmp_list);
 
     if (!success) {
       g_warning("Cannot read some data pages from indexfile");
@@ -336,82 +355,58 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 				     g_free, NULL);
 
 
-  // build up the entire fragment list
-  int jpeg_count = 0;
-  int cur_frag = 0;
+  // build up the file/tile/layer structs
+  int jpeg_count = g_list_length(hier_page_entry_list);
 
-  for (int z = 0; z < zoom_levels; z++) {
-    int divisor = 1 << z;
-    int x_count = (tiles_x / divisor) + !!(tiles_x % divisor);
-    int y_count = (tiles_y / divisor) + !!(tiles_y % divisor);
-
-    jpeg_count += x_count * y_count;
+  for (int i = 0; i < zoom_levels; i++) {
+    
   }
 
-  jpegs = g_new(struct _openslide_jpeg_fragment *, jpeg_count);
+  jpegs = g_new(struct _openslide_jpeg_file *, jpeg_count);
 
-  GList *iter = page_entry_list;
-  for (int z = 0; z < zoom_levels; z++) {
-    int divisor = 1 << z;
-    int x_count = (tiles_x / divisor) + !!(tiles_x % divisor);
-    int y_count = (tiles_y / divisor) + !!(tiles_y % divisor);
-
-    for (int y = 0; y < y_count; y++) {
-      for (int x = 0; x < x_count; x++) {
-	struct mirax_page_entry *entry = iter->data;
-	struct _openslide_jpeg_fragment *frag =
-	  g_slice_new0(struct _openslide_jpeg_fragment);
-
-	frag->x = x;
-	frag->y = y;
-	frag->z = z;
-
-	if (entry &&
-	    (entry->x == x) && (entry->y == y) && (entry->zoom_level == z)) {
-	  // add this entry and advance list
-
-	  // open file if necessary
-	  FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
-	  if (!f) {
-	    if (entry->fileno >= datafile_count) {
-	      g_warning("Invalid fileno");
-	      goto OUT;
-	    }
-	    const char *name = datafile_names[entry->fileno];
-	    char *tmp = g_build_filename(dirname, name, NULL);
-	    f = fopen(tmp, "rb");
-	    g_free(tmp);
-
-	    if (!f) {
-	      g_warning("Can't open file for fileno %d", entry->fileno);
-	      goto OUT;
-	    }
-
-	    int *key = g_new(int, 1);
-	    *key = entry->fileno;
-	    g_hash_table_insert(file_table, key, f);
-	  }
-
-	  // file is open
-	  frag->f = f;
-	  frag->start_in_file = entry->offset;
-	  frag->end_in_file =
-	    frag->start_in_file + entry->length;
-
-	  // next
-	  iter = iter->next;
-	}
-
-	// save sizes
-	frag->tw = frag->w = hs[z].tile_w;
-	frag->th = frag->h = hs[z].tile_h;
-
-	jpegs[cur_frag++] = frag;
+  int cur_file = 0;
+  for (GList *iter = hier_page_entry_list; iter != NULL; iter = iter->next) {
+    struct mirax_hier_page_entry *entry = iter->data;
+    // open file if necessary
+    FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
+    if (!f) {
+      if (entry->fileno >= datafile_count) {
+	g_warning("Invalid fileno");
+	goto OUT;
       }
+      const char *name = datafile_names[entry->fileno];
+      char *tmp = g_build_filename(dirname, name, NULL);
+      f = fopen(tmp, "rb");
+      g_free(tmp);
+
+      if (!f) {
+	g_warning("Can't open file for fileno %d", entry->fileno);
+	goto OUT;
+      }
+
+      int *key = g_new(int, 1);
+      *key = entry->fileno;
+      g_hash_table_insert(file_table, key, f);
     }
+
+    // file is open
+
+    struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
+    struct slide_zoom_level_section *section = slide_zoom_level_sections + entry->zoom_level;
+
+    // populate the file structure
+    jpeg->f = f;
+    jpeg->start_in_file = entry->offset;
+    jpeg->end_in_file = frag->start_in_file + entry->length;
+    jpeg->tw = section->tile_w;
+    jpeg->th = section->tile_h;
+    jpeg->w = section->tile_w;
+    jpeg->h = section->tile_h;
+
+    cur_file++;
   }
 
-  g_assert(cur_frag == jpeg_count);
+  g_assert(cur_file == jpeg_count);
 
   g_hash_table_unref(file_table);
   file_table = NULL;
@@ -419,8 +414,8 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
 
  OUT:
   // deallocate
-  g_list_foreach(page_entry_list, page_entry_delete, NULL);
-  g_list_free(page_entry_list);
+  g_list_foreach(hier_page_entry_list, hier_page_entry_delete, NULL);
+  g_list_free(hier_page_entry_list);
 
   if (file_table) {
     g_hash_table_foreach(file_table, file_table_fclose, NULL);
@@ -428,17 +423,17 @@ static int build_fragments_from_indexfile(struct _openslide_jpeg_fragment ***out
   }
 
   if (success) {
-    *out = jpegs;
-    return jpeg_count;
-  } else {
-    return 0;
+    *file_count_out = file_count;
+    *files_out = files;
   }
+  // XXX leaking memory
 }
 
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
-  struct _openslide_jpeg_fragment **jpegs = NULL;
+  struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
+  struct _openslide_jpeg_layer **layers = NULL;
 
   char *dirname = NULL;
 
@@ -657,7 +652,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
     if (strcmp(VALUE_VIMSLIDE_POSITION_BUFFER, value) == 0) {
       g_free(value);
-      position_nonhier_offset = offset_tmp + i;
+      position_nonhier_offset = offset_tmp;
       break;
     }
 
@@ -698,6 +693,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   for (int i = 0; i < datafile_count; i++) {
     g_debug(" datafile name %d: %s", i, datafile_names[i]);
   }
+  g_debug("position_nonheir_offset: %d", position_nonhier_offset);
 
 
   // read indexfile
@@ -711,7 +707,62 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
-  if (!(num_jpegs = build_fragments_from_indexfile(&jpegs,
+  // compute dimensions in stupid but clear way
+  int64_t base_w = 0;
+  int64_t base_h = 0;
+
+  for (int i = 0; i < tiles_x; i++) {
+    if (((i % 2) == 0) || (i == tiles_x - 1)) {
+      // full size
+      base_w += slide_zoom_level_sections[0].tile_w;
+    } else {
+      // size minus overlap
+      base_w += slide_zoom_level_sections[0].tile_w - slide_zoom_level_sections[0].overlap_x;
+    }
+  }
+  for (int i = 0; i < tiles_y; i++) {
+    if (((i % 2) == 0) || (i == tiles_y - 1)) {
+      // full size
+      base_h += slide_zoom_level_sections[0].tile_h;
+    } else {
+      // size minus overlap
+      base_h += slide_zoom_level_sections[0].tile_h - slide_zoom_level_sections[0].overlap_y;
+    }
+  }
+
+
+  // set up layers
+  layers = g_new(struct _openslide_jpeg_layer *, zoom_levels);
+  for (int i = 0; i < zoom_levels; i++) {
+    struct _openslide_jpeg_layer *l = g_slice_new0(struct _openslide_jpeg_layer);
+    layers[i] = l;
+    struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
+
+    int divisor = 1 << i;
+    int x_count = (tiles_x / divisor) + !!(tiles_x % divisor);
+    int y_count = (tiles_y / divisor) + !!(tiles_y % divisor);
+
+    l->tiles = _openslide_jpeg_create_tiles_table();
+    l->layer_w = base_w / divisor;
+    l->layer_h = base_h / divisor;
+    l->tiles_across = x_count;
+    l->tiles_down = y_count;
+    l->raw_tile_width = hs->tile_w;
+    l->raw_tile_height = hs->tile_h;
+
+    // half the overlap, so that our tile correction will flip between
+    // positive and negative values typically
+    // this is because only every other tile overlaps
+
+    // XXX wrong except for i=0
+    l->tile_advance_x = (double) hs->tile_w - ((double) hs->overlap_x / 2.0);
+    l->tile_advance_y = (double) hs->tile_h - ((double) hs->overlap_y / 2.0);
+  }
+
+  // TODO load the position map and build up the tiles, using subtiles
+
+  /*
+  if (!(num_jpegs = process_indexfile(&jpegs,
 						   slide_version,
 						   slide_id,
 						   position_nonhier_offset,
@@ -725,28 +776,19 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 						   indexfile))) {
     goto FAIL;
   }
+  */
 
   if (osr) {
     osr->fill_color_argb = slide_zoom_level_sections[0].fill_argb;
   }
 
-  // generate overlaps
-  double *overlaps = g_new(double, zoom_levels * 2);
-  for (int i = 0; i < zoom_levels; i++) {
-    struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
-    overlaps[i * 2] = hs->overlap_x;
-    overlaps[(i * 2) + 1] = hs->overlap_y;
-  }
-
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, overlaps, 2.0,
-			  2, 2,
-			  OPENSLIDE_OVERLAP_MODE_INTERNAL);
+  // _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
   success = true;
   goto DONE;
 
  FAIL:
   for (int i = 0; i < num_jpegs; i++) {
-    g_slice_free(struct _openslide_jpeg_fragment, jpegs[i]);
+    //    g_slice_free(struct _openslide_jpeg_fragment, jpegs[i]);
   }
   g_free(jpegs);
 
