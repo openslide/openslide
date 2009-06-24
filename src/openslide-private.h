@@ -159,6 +159,7 @@ struct _openslide_jpeg_layer {
   int32_t tiles_across;
   int32_t tiles_down;
 
+  // ONLY for convenience in checking even scale_denom division
   int32_t raw_tile_width;
   int32_t raw_tile_height;
 

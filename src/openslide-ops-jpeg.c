@@ -110,9 +110,6 @@ struct layer {
   int64_t pixel_w;
   int64_t pixel_h;
 
-  int32_t tile_w;
-  int32_t tile_h;
-
   float tile_advance_x;
   float tile_advance_y;
 };
@@ -656,10 +653,12 @@ static void read_tile(openslide_t *osr,
   }
 
   // draw it
+  int tw = tile->jpeg->tile_width / l->scale_denom;
+  int th = tile->jpeg->tile_height / l->scale_denom;
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
 								 CAIRO_FORMAT_RGB24,
-								 l->tile_w, l->tile_h,
-								 l->tile_w * 4);
+								 tw, th,
+								 tw * 4);
   cairo_save(cr);
   cairo_set_source_surface(cr, surface, -tile->src_x, -tile->src_y);
   cairo_surface_destroy(surface);
@@ -672,7 +671,8 @@ static void read_tile(openslide_t *osr,
   // put into cache last, because the cache can free this tile
   if (cachemiss) {
     _openslide_cache_put(cache, tile->jpegno, tile->tileno, layer,
-			 tiledata, l->tile_w * l->tile_h * 4);
+			 tiledata,
+			 tw * th * 4);
   }
 }
 
@@ -697,12 +697,14 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double ds = openslide_get_layer_downsample(osr, layer);
   int64_t ds_x = x / ds;
   int64_t ds_y = y / ds;
-  int64_t start_tile_x = (ds_x / l->tile_w) - l->extra_tiles_left;
-  int32_t offset_x = (ds_x % l->tile_w) + (l->extra_tiles_left * l->tile_w);
-  int64_t end_tile_x = ((ds_x + w) / l->tile_w) + 1 + l->extra_tiles_right;
-  int64_t start_tile_y = (ds_y / l->tile_h) - l->extra_tiles_top;
-  int32_t offset_y = (ds_y % l->tile_h) + (l->extra_tiles_top * l->tile_h);
-  int64_t end_tile_y = ((ds_y + h) / l->tile_h) + 1 + l->extra_tiles_bottom;
+  int64_t start_tile_x = (ds_x / l->tile_advance_x) - l->extra_tiles_left;
+  double offset_x = (ds_x - (start_tile_x * l->tile_advance_x))
+    + (l->extra_tiles_left * l->tile_advance_x);
+  int64_t end_tile_x = ((ds_x + w) / l->tile_advance_x) + 1 + l->extra_tiles_right;
+  int64_t start_tile_y = (ds_y / l->tile_advance_y) - l->extra_tiles_top;
+  double offset_y = (ds_y - (start_tile_y * l->tile_advance_y))
+    + (l->extra_tiles_top * l->tile_advance_y);
+  int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1 + l->extra_tiles_bottom;
 
   _openslide_read_tiles(cr,
 			layer,
@@ -1038,8 +1040,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     new_l->scale_denom = 1;
     new_l->pixel_w = old_l->layer_w;
     new_l->pixel_h = old_l->layer_h;
-    new_l->tile_w = old_l->raw_tile_width;
-    new_l->tile_h = old_l->raw_tile_height;
     new_l->tile_advance_x = old_l->tile_advance_x;
     new_l->tile_advance_y = old_l->tile_advance_y;
 
@@ -1077,8 +1077,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       sd_l->pixel_w = new_l->pixel_w / scale_denom;
       sd_l->pixel_h = new_l->pixel_h / scale_denom;
-      sd_l->tile_w = new_l->tile_w / scale_denom;
-      sd_l->tile_h = new_l->tile_h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
 
