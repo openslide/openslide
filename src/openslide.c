@@ -297,7 +297,7 @@ void openslide_read_region(openslide_t *osr,
   double b = ((double) (bg & 0xFF)) / 255.0;
   double a = ((double) ((bg >> 24) & 0xFF)) / 255.0;
   cairo_set_source_rgba(cr, r, g, b, a);
-  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
+  //  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
   cairo_paint(cr);
 
   //g_debug("%s", cairo_status_to_string(cairo_status(cr)));
