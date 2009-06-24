@@ -38,10 +38,10 @@
 typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
 
 static const vendor_fn all_formats[] = {
-  _openslide_try_mirax,
+  //  _openslide_try_mirax,
   _openslide_try_hamamatsu,
-  _openslide_try_trestle,
-  _openslide_try_aperio,
+  //  _openslide_try_trestle,
+  //  _openslide_try_aperio,
   NULL
 };
 
@@ -243,20 +243,38 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h) {
+  g_debug("openslide_read_region: %" PRId64 " %" PRId64 " %d %" PRId64 " %" PRId64,
+	  x, y, layer, w, h);
+
   if (w <= 0 || h <= 0) {
+    //g_debug("%" PRId64 " %" PRId64, w, h);
     return;
   }
 
-  // start cleared
-  if (dest != NULL) {
-    for (int64_t i = 0; i < w * h; i++) {
-      dest[i] = osr->fill_color_argb;
-      //dest[i] = 0xFFFF0000; // red
-    }
+  // create the cairo surface
+  cairo_surface_t *surface;
+  if (dest) {
+    surface = cairo_image_surface_create_for_data((unsigned char *) dest,
+						  CAIRO_FORMAT_ARGB32,
+						  w, h, w * 4);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   }
+
+
+  // create the cairo context
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+
+  // clear it
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  cairo_paint(cr);
 
   // check constraints
   if (layer > osr->layer_count || layer < 0 || x < 0 || y < 0) {
+    //    g_debug("%d %" PRId64 " %" PRId64, layer, w, h);
+    cairo_destroy(cr);
     return;
   }
 
@@ -266,29 +284,26 @@ void openslide_read_region(openslide_t *osr,
   // now fully within all important bounds, go for it
 
 
-  // convert into start coordinate
-  int64_t tile_x;
-  int64_t tile_y;
-  int32_t offset_x_in_tile;
-  int32_t offset_y_in_tile;
-  (osr->ops->convert_coordinate)(osr,
-				 layer,
-				 x, y,
-				 &tile_x, &tile_y,
-				 &offset_x_in_tile,
-				 &offset_y_in_tile);
+  // going to SATURATE those seams away!
+  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-  // go
-  _openslide_read_tiles(dest,
-			w, h,
-			layer,
-			tile_x, tile_y,
-			offset_x_in_tile, offset_y_in_tile,
-			osr,
-			osr->ops->get_tile_width,
-			osr->ops->get_tile_height,
-			osr->ops->read_tile,
-			osr->cache);
+  // paint
+  (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+
+  // finally fill with background
+  uint32_t bg = osr->fill_color_argb;
+  double r = ((double) ((bg >> 16) & 0xFF)) / 255.0;
+  double g = ((double) ((bg >> 8) & 0xFF)) / 255.0;
+  double b = ((double) (bg & 0xFF)) / 255.0;
+  double a = ((double) ((bg >> 24) & 0xFF)) / 255.0;
+  cairo_set_source_rgba(cr, r, g, b, a);
+  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
+  cairo_paint(cr);
+
+  //g_debug("%s", cairo_status_to_string(cairo_status(cr)));
+
+  // done
+  cairo_destroy(cr);
 }
 
 

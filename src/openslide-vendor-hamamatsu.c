@@ -267,11 +267,27 @@ static void add_macro_associated_image(GHashTable *ht,
   jpeg_destroy_decompress(&cinfo);
 }
 
+static void tile_free(gpointer data) {
+  g_slice_free(struct _openslide_jpeg_tile, data);
+}
+
+static guint int64_hash(gconstpointer v) {
+  int64_t i = *((const int64_t *) v);
+  return i ^ (i >> 32);
+}
+
+static gboolean int64_equal(gconstpointer v1, gconstpointer v2) {
+  return *((int64_t *) v1) == *((int64_t *) v2);
+}
+
+static void int64_free(gpointer data) {
+  g_slice_free(int64_t, data);
+}
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
-  struct _openslide_jpeg_fragment **jpegs = NULL;
+  struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
 
   char *optimisation_filename = NULL;
@@ -281,6 +297,16 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 
   bool success = false;
   char *tmp;
+
+  // init layers: base image + map
+  int32_t layer_count = 2;
+  struct _openslide_jpeg_layer **layers =
+    g_new0(struct _openslide_jpeg_layer *, layer_count);
+  for (int32_t i = 0; i < layer_count; i++) {
+    layers[i] = g_slice_new0(struct _openslide_jpeg_layer);
+    layers[i]->tiles = g_hash_table_new_full(int64_hash, int64_equal,
+					     int64_free, tile_free);
+  }
 
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
@@ -320,7 +346,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   // this format has cols*rows jpeg files, plus the map
   num_jpegs = (num_jpeg_cols * num_jpeg_rows) + 1;
   image_filenames = g_new0(char *, num_jpegs);
-  jpegs = g_new0(struct _openslide_jpeg_fragment *, num_jpegs);
+  jpegs = g_new0(struct _openslide_jpeg_file *, num_jpegs);
 
   //  g_debug("vms rows: %d, vms cols: %d, num_jpegs: %d", num_jpeg_rows, num_jpeg_cols, num_jpegs);
 
@@ -337,14 +363,14 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 			      NULL);
   if (tmp) {
     image_filenames[num_jpegs - 1] = g_build_filename(dirname, tmp, NULL);
-    struct _openslide_jpeg_fragment *frag =
-      g_slice_new0(struct _openslide_jpeg_fragment);
-    frag->x = 0;
-    frag->y = 0;
-    frag->z = 1;  // map is smaller
-    jpegs[num_jpegs - 1] = frag;
+    struct _openslide_jpeg_file *file =
+      g_slice_new0(struct _openslide_jpeg_file);
+    jpegs[num_jpegs - 1] = file;
 
     g_free(tmp);
+  } else {
+    g_warning("Can't read map file");
+    goto FAIL;
   }
 
 
@@ -406,16 +432,13 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       // compute index from x,y
       int i = row * num_jpeg_cols + col;
 
-      // init the fragment
+      // init the file
       if (jpegs[i]) {
 	g_warning("Ignoring duplicate image for (%d,%d)", col, row);
       } else {
 	image_filenames[i] = g_build_filename(dirname, value, NULL);
 
-	jpegs[i] = g_slice_new0(struct _openslide_jpeg_fragment);
-	jpegs[i]->x = col;
-	jpegs[i]->y = row;
-	jpegs[i]->z = 0;
+	jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
       }
     }
     g_free(value);
@@ -438,12 +461,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     g_warning("Can't use optimisation file");
   }
 
-  int32_t img00_w = 0;
-  int32_t img00_h = 0;
   int32_t jpeg0_tw = 0;
   int32_t jpeg0_th = 0;
+  int32_t jpeg0_ta = 0;
+  int32_t jpeg0_td = 0;
   for (int i = 0; i < num_jpegs; i++) {
-    struct _openslide_jpeg_fragment *jp = jpegs[i];
+    struct _openslide_jpeg_file *jp = jpegs[i];
 
     // these jpeg files always start at 0
     jp->start_in_file = 0;
@@ -464,13 +487,18 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       goto FAIL;
     }
 
+    int32_t num_tiles_across = jp->w / jp->tw;
+    int32_t num_tiles_down = jp->h / jp->th;
+
     // because map file is last, ensure that all tw and th are the
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
-    if (i == 0) {
+    if ((i == 0) || (i == num_jpegs -1)) {
       jpeg0_tw = jp->tw;
       jpeg0_th = jp->th;
-    } else if (i < num_jpegs - 1) {
+      jpeg0_ta = num_tiles_across;
+      jpeg0_td = num_tiles_down;
+    } else {
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
 	g_warning("Tile size not consistent");
@@ -478,28 +506,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       }
     }
 
-    // verify that all files except the right and bottom edges are
-    // the same size as image 0,0
-    g_assert(jp->z != 2);
-    if (jp->z == 0) { // revisit if we support NoLayers != 1
-      if (jp->x == 0 && jp->y == 0) {
-	img00_w = jp->w;
-	img00_h = jp->h;
-      } else {
-	if ((jp->x != num_jpeg_cols - 1) && (jp->w != img00_w)) {
-	  g_warning("Incorrect width at non-right edge");
-	  goto FAIL;
-	}
-	if ((jp->y != num_jpeg_rows - 1) && (jp->h != img00_h)) {
-	  g_warning("Incorrect height at non-bottom edge");
-	  goto FAIL;
-	}
-      }
-    }
-
-    // leverage the optimisation file, if present
-    int32_t num_tiles_down = jp->h / jp->th;
-    int32_t num_tiles_across = jp->w / jp->tw;
+    // use the optimisation file, if present
     int32_t mcu_starts_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
     int64_t *mcu_starts = NULL;
     if (optimisation_file) {
@@ -515,7 +522,77 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       fclose(optimisation_file);
       optimisation_file = NULL;
     }
+
+    // accumulate into some of the fields of the layers
+    int32_t layer;
+    if (i != num_jpegs - 1) {
+      // base (layer 0)
+      layer = 0;
+    } else {
+      // map (layer 1)
+      layer = 1;
+    }
+
+    struct _openslide_jpeg_layer *l = layers[layer];
+    l->layer_w += jp->w;
+    l->layer_h += jp->h;
+    l->tiles_across += num_tiles_across;
+    l->tiles_down += num_tiles_down;
+
+    // set some values (don't accumulate)
+    l->raw_tile_width = jp->tw;
+    l->raw_tile_height = jp->th;
+    l->tile_advance_x = jp->tw;   // no overlaps or funny business
+    l->tile_advance_y = jp->th;
   }
+
+  for (int i = 0; i < num_jpegs; i++) {
+    struct _openslide_jpeg_file *jp = jpegs[i];
+
+    int32_t layer;
+    if (i != num_jpegs - 1) {
+      // base (layer 0)
+      layer = 0;
+    } else {
+      // map (layer 1)
+      layer = 1;
+    }
+
+    struct _openslide_jpeg_layer *l = layers[layer];
+
+    int32_t tile_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
+
+    // add all the tiles
+    for (int local_tileno = 0; local_tileno < tile_count; local_tileno++) {
+      struct _openslide_jpeg_tile *t = g_slice_new0(struct _openslide_jpeg_tile);
+
+      int32_t file_x = 0;
+      int32_t file_y = 0;
+      if (layer == 0) {
+	file_x = i % num_jpeg_cols;
+	file_y = i / num_jpeg_cols;
+      }
+
+      int32_t num_tiles_across = jp->w / jp->tw;
+      int32_t local_tile_x = local_tileno % num_tiles_across;
+      int32_t local_tile_y = local_tileno / num_tiles_across;
+
+      t->fileno = i;
+      t->tileno = local_tileno;
+      t->w = jp->tw;
+      t->h = jp->th;
+      // no dest or src offsets
+
+      // compute key for hashtable (y * w + x)
+      int64_t x = file_x * jpeg0_ta + local_tile_x;
+      int64_t y = file_y * jpeg0_td + local_tile_y;
+
+      int64_t *key = g_slice_new(int64_t);
+      *key = (y * l->tiles_across) + x;
+      g_hash_table_insert(l->tiles, key, t);
+    }
+  }
+
 
   // add macro image if present
   if (osr) {
@@ -535,9 +612,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
   }
 
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, 0, NULL, 0,
-			  1, 1,
-			  OPENSLIDE_OVERLAP_MODE_SANE);
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, layer_count, layers);
   success = true;
   goto DONE;
 

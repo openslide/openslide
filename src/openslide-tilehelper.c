@@ -27,136 +27,49 @@
 #include <glib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <cairo.h>
 
-static void copy_tile(const uint32_t *tile,
-		      uint32_t *dest,
-		      int32_t w, int32_t h,
-		      int64_t src_x, int64_t src_y, int32_t src_w,
-		      int64_t dest_x, int64_t dest_y, int32_t dest_w) {
-  if (dest != NULL) {
-    dest += (dest_y * dest_w) + dest_x;
-    tile += (src_y * src_w) + src_x;
-    while (h) {
-      // copy 1 row
-      memcpy(dest, tile, 4 * w);
-      tile += src_w;
-      dest += dest_w;
-      h--;
-    }
-  }
-}
-
-
-void _openslide_read_tiles(uint32_t *dest,
-			   int64_t dest_w, int64_t dest_h,
+void _openslide_read_tiles(cairo_t *cr,
 			   int32_t layer,
 			   int64_t start_tile_x, int64_t start_tile_y,
+			   int64_t end_tile_x, int64_t end_tile_y,
 			   int32_t offset_x, int32_t offset_y,
+			   float advance_x, float advance_y,
 			   openslide_t *osr,
-			   int32_t (*get_tile_width)(openslide_t *osr,
-						     int32_t layer,
-						     int64_t tile_x),
-			   int32_t (*get_tile_height)(openslide_t *osr,
-						      int32_t layer,
-						      int64_t tile_y),
-			   bool (*read_tile)(openslide_t *osr,
-					     uint32_t *dest,
+			   struct _openslide_cache *cache,
+			   void (*read_tile)(openslide_t *osr,
+					     cairo_t *cr,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
-					     int32_t tile_w, int32_t tile_h),
-			   struct _openslide_cache *cache) {
-  //  g_debug("dest_w: %" PRId64 ", dest_h: %" PRId64, dest_w, dest_h);
+					     struct _openslide_cache *cache)) {
+  cairo_save(cr);
+  //  cairo_set_source_rgb(cr, 0, 1, 0);
+  //  cairo_paint(cr);
+  g_debug("offset: %d %d", offset_x, offset_y);
+  cairo_translate(cr, -offset_x, -offset_y);
+
+  g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
+  g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
 
   int64_t tile_y = start_tile_y;
-  int64_t dest_y = 0;
-  int64_t src_y = offset_y;
 
-  while (dest_y < dest_h) {
-    int32_t src_h = get_tile_height(osr, layer, tile_y);
-    int32_t copy_h = MIN(src_h - src_y, dest_h - dest_y);
-
-    // are we at the end?
-    if (!src_h) {
-      break;
-    }
-
-    g_assert(copy_h > 0);
+  while (tile_y < end_tile_y) {
+    cairo_save(cr);
 
     int64_t tile_x = start_tile_x;
-    int64_t dest_x = 0;
-    int64_t src_x = offset_x;
-
-    while (dest_x < dest_w) {
-      int32_t src_w = get_tile_width(osr, layer, tile_x);
-      int32_t copy_w = MIN(src_w - src_x, dest_w - dest_x);
-
-      // are we at the end of the row?
-      if (!src_w) {
-	break;
-      }
-
-      g_assert(copy_w > 0);
-
-      int tile_size = src_h * src_w * 4;
-      uint32_t *cache_tile = _openslide_cache_get(cache, tile_x, tile_y, layer);
-      uint32_t *new_tile = NULL;
-
-      if (cache_tile != NULL) {
-	// use cached tile
-	copy_tile(cache_tile, dest,
-		  copy_w, copy_h,
-		  src_x, src_y, src_w,
-		  dest_x, dest_y, dest_w);
-      } else {
-	// make new tile
-	new_tile = g_slice_alloc(tile_size);
-
-	// read_tile will return true only if there is data there
-	if (read_tile(osr, new_tile, layer, tile_x, tile_y, src_w, src_h)) {
-	  /*
-	  for (int yy = 0; yy < src_h; yy++) {
-	    for (int xx = 0; xx < src_w; xx++) {
-	      if (xx == 0 || yy == 0) {
-		new_tile[yy * src_w + xx] = 0xFF0000FF; // blue bounding box
-	      }
-	    }
-	  }
-	  */
-
-	  copy_tile(new_tile, dest,
-		    copy_w, copy_h,
-		    src_x, src_y, src_w,
-		    dest_x, dest_y, dest_w);
-	} else {
-	  g_slice_free1(tile_size, new_tile);
-	  new_tile = NULL;
-	}
-      }
-
-      if (new_tile != NULL) {
-	// if not cached already, store into the cache
-	_openslide_cache_put(cache, tile_x, tile_y, layer, new_tile, tile_size);
-
-	/*
-	for (int yy = 0; yy < src_h; yy++) {
-	  for (int xx = 0; xx < src_w; xx++) {
-	    if (xx == 0 || yy == 0) {
-	      new_tile[yy * src_w + xx] = 0xFFFF0000; // red bounding box
-	    }
-	  }
-	}
-	*/
-      }
+    while (tile_x < end_tile_x) {
+      //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
+      read_tile(osr, cr, layer, tile_x, tile_y, cache);
 
       tile_x++;
-      dest_x += copy_w;
-      src_x = 0;
+      cairo_translate(cr, advance_x, 0);
     }
 
+    cairo_restore(cr);
     tile_y++;
-    dest_y += copy_h;
-    src_y = 0;
+    cairo_translate(cr, 0, advance_y);
   }
+  cairo_restore(cr);
 }
 
 

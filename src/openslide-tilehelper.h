@@ -30,6 +30,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <cairo.h>
 
 void _openslide_convert_coordinate(double downsample,
 				   int64_t x, int64_t y,
@@ -44,22 +45,17 @@ void _openslide_convert_coordinate(double downsample,
 				   int32_t *offset_x_in_tile,
 				   int32_t *offset_y_in_tile);
 
-void _openslide_read_tiles(uint32_t *dest,
-			   int64_t dest_w, int64_t dest_h,
+void _openslide_read_tiles(cairo_t *cr,
 			   int32_t layer,
 			   int64_t start_tile_x, int64_t start_tile_y,
+			   int64_t end_tile_x, int64_t end_tile_y,
 			   int32_t offset_x, int32_t offset_y,
+			   float advance_x, float advance_y,
 			   openslide_t *osr,
-			   int32_t (*get_tile_width)(openslide_t *osr,
-						     int32_t layer,
-						     int64_t tile_x),
-			   int32_t (*get_tile_height)(openslide_t *osr,
-						      int32_t layer,
-						      int64_t tile_y),
-			   bool (*read_tile)(openslide_t *osr,
-					     uint32_t *dest,
+			   struct _openslide_cache *cache,
+			   void (*read_tile)(openslide_t *osr,
+					     cairo_t *cr,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
-					     int32_t tile_w, int32_t tile_h),
-			   struct _openslide_cache *cache);
+					     struct _openslide_cache *cache));
 #endif

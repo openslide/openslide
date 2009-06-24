@@ -41,15 +41,11 @@
 #include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>
+#include <cairo.h>
 
 #include <openjpeg/openjpeg.h>
 
 #define _OPENSLIDE_COMMENT_NAME "comment"
-
-enum _openslide_overlap_mode {
-  OPENSLIDE_OVERLAP_MODE_SANE,
-  OPENSLIDE_OVERLAP_MODE_INTERNAL
-};
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -85,22 +81,10 @@ struct _openslide_ops {
   void (*get_dimensions)(openslide_t *osr,
 			 int32_t layer,
 			 int64_t *w, int64_t *h);
-  void (*convert_coordinate)(openslide_t *osr,
-			     int32_t layer,
-			     int64_t x, int64_t y,
-			     int64_t *tile_x, int64_t *tile_y,
-			     int32_t *offset_x_in_tile,
-			     int32_t *offset_y_in_tile);
-  int32_t (*get_tile_width)(openslide_t *osr,
-			    int32_t layer,
-			    int64_t tile_x);
-  int32_t (*get_tile_height)(openslide_t *osr,
-			     int32_t layer,
-			     int64_t tile_y);
-  bool (*read_tile)(openslide_t *osr, uint32_t *dest,
-		    int32_t layer,
-		    int64_t tile_x, int64_t tile_y,
-		    int32_t tile_w, int32_t tile_h);
+  void (*paint_region)(openslide_t *osr, cairo_t *cr,
+		       int64_t x, int64_t y,
+		       int32_t layer,
+		       int32_t w, int32_t h);
   void (*destroy)(openslide_t *osr);
 };
 
@@ -125,8 +109,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_fn tileread,
-			     enum _openslide_overlap_mode overlap_mode);
+			     _openslide_tiff_tilereader_fn tileread);
 
 void _openslide_generic_tiff_tilereader(TIFF *tiff,
 					uint32_t *dest,
@@ -135,7 +118,7 @@ void _openslide_generic_tiff_tilereader(TIFF *tiff,
 
 
 /* JPEG support */
-struct _openslide_jpeg_fragment {
+struct _openslide_jpeg_file {
   FILE *f;
 
   int64_t start_in_file;
@@ -148,40 +131,47 @@ struct _openslide_jpeg_fragment {
   int32_t h;
   int32_t tw;
   int32_t th;
-
-  // all fragments together should form a dense space,
-  // with no gaps in x,y,z
-
-  // these coordinates start from 0 and look like this:
-  //
-  // ----------------
-  // |       |      |
-  // |       |      |
-  // | (0,0) | (1,0)|
-  // |       |      |
-  // |       |      |
-  // ----------------
-  // |       |      |
-  // | (0,1) | (1,1)|
-  // |       |      |
-  // ----------------
-  int32_t x;
-  int32_t y;
-
-  // this value starts from 0 at the largest layer
-  int32_t z;
 };
 
-// note: fragments MUST be sorted by z, then x, then y
+struct _openslide_jpeg_tile {
+  // which tile and file?
+  int32_t fileno;
+  int32_t tileno;
+
+  // bounds in the physical tile?
+  float src_x;
+  float src_y;
+  float w;
+  float h;
+
+  // delta for this tile from the standard advance
+  float dest_offset_x;
+  float dest_offset_y;
+};
+
+struct _openslide_jpeg_layer {
+  GHashTable *tiles;
+
+  // size of canvas
+  int64_t layer_w;
+  int64_t layer_h;
+
+  int32_t tiles_across;
+  int32_t tiles_down;
+
+  int32_t raw_tile_width;
+  int32_t raw_tile_height;
+
+  // standard advance
+  float tile_advance_x;
+  float tile_advance_y;
+};
+
 void _openslide_add_jpeg_ops(openslide_t *osr,
-			     int32_t count,
-			     struct _openslide_jpeg_fragment **fragments,
-			     int32_t overlap_count,
-			     double *overlaps,
-			     double downsample_override,
-			     int32_t tiles_per_overlap_x,
-			     int32_t tiles_per_overlap_y,
-			     enum _openslide_overlap_mode overlap_mode);
+			     int32_t file_count,
+			     struct _openslide_jpeg_file **files,
+			     int32_t layer_count,
+			     struct _openslide_jpeg_layer **layers);
 
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {
