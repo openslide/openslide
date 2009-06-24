@@ -272,7 +272,7 @@ static void int_free(gpointer data) {
 }
 
 static void layer_free(gpointer data) {
-  g_debug("layer_free: %p", data);
+  //g_debug("layer_free: %p", data);
 
   struct layer *l = data;
 
