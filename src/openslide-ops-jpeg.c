@@ -282,6 +282,10 @@ static void tile_free(gpointer data) {
   g_slice_free(struct tile, data);
 }
 
+static void struct_openslide_jpeg_tile_free(gpointer data) {
+  g_slice_free(struct _openslide_jpeg_tile, data);
+}
+
 struct convert_tiles_args {
   struct layer *new_l;
   struct one_jpeg **all_jpegs;
@@ -1186,4 +1190,9 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
   err->env = env;
 
   return (struct jpeg_error_mgr *) err;
+}
+
+GHashTable *_openslide_jpeg_create_tiles_table(void) {
+  return g_hash_table_new_full(int64_hash, int64_equal,
+			       int64_free, struct_openslide_jpeg_tile_free);
 }

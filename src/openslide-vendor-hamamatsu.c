@@ -267,23 +267,6 @@ static void add_macro_associated_image(GHashTable *ht,
   jpeg_destroy_decompress(&cinfo);
 }
 
-static void tile_free(gpointer data) {
-  g_slice_free(struct _openslide_jpeg_tile, data);
-}
-
-static guint int64_hash(gconstpointer v) {
-  int64_t i = *((const int64_t *) v);
-  return i ^ (i >> 32);
-}
-
-static gboolean int64_equal(gconstpointer v1, gconstpointer v2) {
-  return *((int64_t *) v1) == *((int64_t *) v2);
-}
-
-static void int64_free(gpointer data) {
-  g_slice_free(int64_t, data);
-}
-
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
@@ -304,8 +287,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     g_new0(struct _openslide_jpeg_layer *, layer_count);
   for (int32_t i = 0; i < layer_count; i++) {
     layers[i] = g_slice_new0(struct _openslide_jpeg_layer);
-    layers[i]->tiles = g_hash_table_new_full(int64_hash, int64_equal,
-					     int64_free, tile_free);
+    layers[i]->tiles = _openslide_jpeg_create_tiles_table();
   }
 
   // first, see if it's a VMS file
