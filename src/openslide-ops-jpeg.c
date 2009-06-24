@@ -639,7 +639,7 @@ static void read_tile(openslide_t *osr,
 
   // draw it
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-								 CAIRO_FORMAT_ARGB32,
+								 CAIRO_FORMAT_RGB24,
 								 l->tile_w, l->tile_h,
 								 l->tile_w * 4);
   cairo_save(cr);
