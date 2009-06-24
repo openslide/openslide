@@ -534,10 +534,20 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     }
 
     struct _openslide_jpeg_layer *l = layers[layer];
-    l->layer_w += jp->w;
-    l->layer_h += jp->h;
-    l->tiles_across += num_tiles_across;
-    l->tiles_down += num_tiles_down;
+    int32_t file_x = 0;
+    int32_t file_y = 0;
+    if (layer == 0) {
+      file_x = i % num_jpeg_cols;
+      file_y = i / num_jpeg_cols;
+    }
+    if (file_y == 0) {
+      l->layer_w += jp->w;
+      l->tiles_across += num_tiles_across;
+    }
+    if (file_x == 0) {
+      l->layer_h += jp->h;
+      l->tiles_down += num_tiles_down;
+    }
 
     // set some values (don't accumulate)
     l->raw_tile_width = jp->tw;
