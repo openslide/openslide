@@ -110,8 +110,8 @@ struct layer {
   int64_t pixel_w;
   int64_t pixel_h;
 
-  float tile_advance_x;
-  float tile_advance_y;
+  double tile_advance_x;
+  double tile_advance_y;
 };
 
 struct jpegops_data {

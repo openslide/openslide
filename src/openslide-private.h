@@ -164,8 +164,8 @@ struct _openslide_jpeg_layer {
   int32_t raw_tile_height;
 
   // standard advance
-  float tile_advance_x;
-  float tile_advance_y;
+  double tile_advance_x;
+  double tile_advance_y;
 };
 
 void _openslide_add_jpeg_ops(openslide_t *osr,
