@@ -627,6 +627,14 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     g_free(jpegs);
   }
 
+  if (layers) {
+    for (int i = 0; i < layer_count; i++) {
+      g_hash_table_unref(layers[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_layer, layers[i]);
+    }
+    g_free(layers);
+  }
+
   success = false;
 
  DONE:

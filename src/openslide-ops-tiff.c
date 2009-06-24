@@ -101,12 +101,12 @@ static void destroy_data(struct _openslide_tiffopsdata *data) {
   TIFFClose(data->tiff);
   g_free(data->layers);
   g_free(data->overlaps);
+  g_slice_free(struct _openslide_tiffopsdata, data);
 }
 
 static void destroy(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
   destroy_data(data);
-  g_slice_free(struct _openslide_tiffopsdata, data);
 }
 
 
