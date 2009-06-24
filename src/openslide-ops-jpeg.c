@@ -96,6 +96,14 @@ struct layer {
 
   int32_t scale_denom;
 
+  // how much extra we might need to read to get all relevant tiles?
+  // computed from dest offsets
+  int32_t extra_tiles_top;
+  int32_t extra_tiles_bottom;
+  int32_t extra_tiles_left;
+  int32_t extra_tiles_right;
+
+
   // note: everything below is pre-divided by scale_denom
 
   // total size
@@ -107,12 +115,6 @@ struct layer {
 
   float tile_advance_x;
   float tile_advance_y;
-
-  // used for computing how much extra we might need to read to get all relevant tiles
-  float max_pos_dest_offset_x;
-  float max_pos_dest_offset_y;
-  float max_neg_dest_offset_x;
-  float max_neg_dest_offset_y;
 };
 
 struct jpegops_data {
@@ -307,21 +309,33 @@ static void convert_tiles(gpointer key,
   new_tile->dest_offset_x = old_tile->dest_offset_x;
   new_tile->dest_offset_y = old_tile->dest_offset_y;
 
-  // update some layer stuff
-  if (new_tile->dest_offset_x > 0) {
-    new_l->max_pos_dest_offset_x = MAX(new_l->max_pos_dest_offset_x,
-				       new_tile->dest_offset_x);
+  // margin stuff
+  float dsx = new_tile->dest_offset_x;
+  float dsy = new_tile->dest_offset_y;
+  if (dsx > 0) {
+    // extra on left
+    int extra_left = ceil(dsx / new_l->tile_advance_x);
+    new_l->extra_tiles_left = MAX(new_l->extra_tiles_left,
+				  extra_left);
   } else {
-    new_l->max_neg_dest_offset_x = MIN(new_l->max_neg_dest_offset_x,
-				       new_tile->dest_offset_x);
+    // extra on right
+    int extra_right = ceil(-dsx / new_l->tile_advance_x);
+    new_l->extra_tiles_right = MAX(new_l->extra_tiles_right,
+				   extra_right);
   }
-  if (new_tile->dest_offset_y > 0) {
-    new_l->max_pos_dest_offset_y = MAX(new_l->max_pos_dest_offset_y,
-				       new_tile->dest_offset_y);
+  if (dsy > 0) {
+    // extra on top
+    int extra_top = ceil(dsy / new_l->tile_advance_y);
+    new_l->extra_tiles_top = MAX(new_l->extra_tiles_top,
+				 extra_top);
   } else {
-    new_l->max_neg_dest_offset_y = MIN(new_l->max_neg_dest_offset_y,
-				       new_tile->dest_offset_y);
+    // extra on bottom
+    int extra_bottom = ceil(-dsy / new_l->tile_advance_y);
+    new_l->extra_tiles_bottom = MAX(new_l->extra_tiles_bottom,
+				    extra_bottom);
   }
+
+
 
   // insert tile into new table
   int64_t *newkey = g_slice_new(int64_t);
@@ -675,17 +689,16 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   // wait until thread is paused
   g_mutex_lock(data->restart_marker_mutex);
 
-  // XXX
+  // compute coordinates
   double ds = openslide_get_layer_downsample(osr, layer);
   int64_t ds_x = x / ds;
   int64_t ds_y = y / ds;
-  int64_t start_tile_x = ds_x / l->tile_w;
-  int32_t offset_x = ds_x % l->tile_w;
-  int64_t end_tile_x = (ds_x + w) / l->tile_w;
-  int64_t start_tile_y = ds_y / l->tile_h;
-  int32_t offset_y = ds_y % l->tile_h;
-  int64_t end_tile_y = (ds_y + h) / l->tile_h;
-  g_debug("ds: %" PRId64 " %" PRId64, ds_x, ds_y);
+  int64_t start_tile_x = (ds_x / l->tile_w) - l->extra_tiles_left;
+  int32_t offset_x = (ds_x % l->tile_w) + (l->extra_tiles_left * l->tile_w);
+  int64_t end_tile_x = ((ds_x + w) / l->tile_w) + 1 + l->extra_tiles_right;
+  int64_t start_tile_y = (ds_y / l->tile_h) - l->extra_tiles_top;
+  int32_t offset_y = (ds_y % l->tile_h) + (l->extra_tiles_top * l->tile_h);
+  int64_t end_tile_y = ((ds_y + h) / l->tile_h) + 1 + l->extra_tiles_bottom;
 
   _openslide_read_tiles(cr,
 			layer,
@@ -1051,6 +1064,11 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->tiles = g_hash_table_ref(new_l->tiles);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
+      sd_l->extra_tiles_top = new_l->extra_tiles_top;
+      sd_l->extra_tiles_bottom = new_l->extra_tiles_bottom;
+      sd_l->extra_tiles_left = new_l->extra_tiles_left;
+      sd_l->extra_tiles_right = new_l->extra_tiles_right;
+
       sd_l->scale_denom = scale_denom;
 
       sd_l->pixel_w = new_l->pixel_w / scale_denom;
@@ -1059,11 +1077,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->tile_h = new_l->tile_h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
-
-      sd_l->max_pos_dest_offset_x = new_l->max_pos_dest_offset_x / scale_denom;
-      sd_l->max_pos_dest_offset_y = new_l->max_pos_dest_offset_y / scale_denom;
-      sd_l->max_neg_dest_offset_x = new_l->max_neg_dest_offset_x / scale_denom;
-      sd_l->max_neg_dest_offset_y = new_l->max_neg_dest_offset_y / scale_denom;
 
       key = g_slice_new(int64_t);
       *key = sd_l->pixel_w;
