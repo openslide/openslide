@@ -628,6 +628,10 @@ static void read_tile(openslide_t *osr,
   struct jpegops_data *data = osr->data;
   struct layer *l = data->layers + layer;
 
+  if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
+    return;
+  }
+
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
   struct tile *tile = g_hash_table_lookup(l->tiles, &tileindex);
 
