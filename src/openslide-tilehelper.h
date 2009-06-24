@@ -32,19 +32,6 @@
 #include <stdint.h>
 #include <cairo.h>
 
-void _openslide_convert_coordinate(double downsample,
-				   int64_t x, int64_t y,
-				   int64_t tiles_across, int64_t tiles_down,
-				   int32_t raw_tile_width,
-				   int32_t raw_tile_height,
-				   int32_t overlap_per_megatile_x,
-				   int32_t overlap_per_megatile_y,
-				   int32_t tiles_per_megatile_x,
-				   int32_t tiles_per_megatile_y,
-				   int64_t *tile_x, int64_t *tile_y,
-				   int32_t *offset_x_in_tile,
-				   int32_t *offset_y_in_tile);
-
 void _openslide_read_tiles(cairo_t *cr,
 			   int32_t layer,
 			   int64_t start_tile_x, int64_t start_tile_y,
