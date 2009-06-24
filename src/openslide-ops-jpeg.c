@@ -638,7 +638,7 @@ static void read_tile(openslide_t *osr,
   bool cachemiss;
 
   if (!tile) {
-    g_debug("no tile at index %" PRId64, tileindex);
+    //    g_debug("no tile at index %" PRId64, tileindex);
     return;
   }
 

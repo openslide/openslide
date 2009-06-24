@@ -45,11 +45,11 @@ void _openslide_read_tiles(cairo_t *cr,
   cairo_save(cr);
   //  cairo_set_source_rgb(cr, 0, 1, 0);
   //  cairo_paint(cr);
-  g_debug("offset: %d %d", offset_x, offset_y);
+  //g_debug("offset: %d %d", offset_x, offset_y);
   cairo_translate(cr, -offset_x, -offset_y);
 
-  g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
-  g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
+  //g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
+  //g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
 
   int64_t tile_y = start_tile_y;
 
