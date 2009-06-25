@@ -642,6 +642,9 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
+  // reverse list
+  jpegs_list = g_list_reverse(jpegs_list);
+
   // copy file structures
   int jpeg_count = g_list_length(jpegs_list);
   jpegs = g_new(struct _openslide_jpeg_file *, jpeg_count);
