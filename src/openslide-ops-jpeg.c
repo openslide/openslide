@@ -264,10 +264,6 @@ static void int64_free(gpointer data) {
   g_slice_free(int64_t, data);
 }
 
-static void int_free(gpointer data) {
-  g_slice_free(int, data);
-}
-
 static void layer_free(gpointer data) {
   //g_debug("layer_free: %p", data);
 
