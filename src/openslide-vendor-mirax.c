@@ -150,6 +150,7 @@ static int32_t read_le_int32_from_file(FILE *f) {
   return i;
 }
 
+
 static bool read_nonhier_record(FILE *f,
 				int64_t nonhier_root_position,
 				int recordno,
@@ -250,9 +251,18 @@ static bool read_nonhier_record(FILE *f,
   return true;
 }
 
-static bool read_hier_data_pages_from_indexfile(GList **list, FILE *f,
-						int zoom_level,
-						int tiles_across) {
+
+static bool process_hier_data_pages_from_indexfile(FILE *f,
+						   int datafile_count,
+						   char **datafile_names,
+						   const char *dirname,
+						   int zoom_level,
+						   struct _openslide_jpeg_layer *l,
+						   int tiles_across,
+						   int tiles_down,
+						   int32_t *tile_positions,
+						   GHashTable *file_table,
+						   GList **jpegs_list) {
   // read initial 0
   if (read_le_int32_from_file(f) != 0) {
     g_warning("Expected 0 value at beginning of data page");
@@ -320,6 +330,12 @@ static bool read_hier_data_pages_from_indexfile(GList **list, FILE *f,
       int32_t x = tile_index % tiles_across;
       int32_t y = tile_index / tiles_across;
 
+      if (y >= tiles_down) {
+	g_warning("y (%d) outside of bounds for zoom level (%d)",
+		  y, zoom_level);
+	return false;
+      }
+
       if (x % (1 << zoom_level)) {
 	g_warning("x (%d) not correct multiple for zoom level (%d)",
 		  x, zoom_level);
@@ -331,27 +347,48 @@ static bool read_hier_data_pages_from_indexfile(GList **list, FILE *f,
 	return false;
       }
 
-      struct mirax_hier_page_entry *entry = g_slice_new(struct mirax_hier_page_entry);
-      entry->offset = offset;
-      entry->length = length;
-      entry->fileno = fileno;
-      entry->zoom_level = zoom_level;
+      // open file if necessary
+      FILE *jf = g_hash_table_lookup(file_table, &fileno);
+      if (!jf) {
+	if (fileno >= datafile_count) {
+	  g_warning("Invalid fileno");
+	  return false;
+	}
+	const char *name = datafile_names[fileno];
+	char *tmp = g_build_filename(dirname, name, NULL);
+	jf = fopen(tmp, "rb");
+	g_free(tmp);
 
-      // store x and y in layer coordinates (not layer0)
-      entry->x = x >> zoom_level;
-      entry->y = y >> zoom_level;
+	if (!jf) {
+	  g_warning("Can't open file for fileno %d", fileno);
+	  return false;
+	}
 
-      //      print_page_entry(entry, NULL);
+	int *key = g_new(int, 1);
+	*key = fileno;
+	g_hash_table_insert(file_table, key, jf);
+      }
 
-      *list = g_list_prepend(*list, entry);
+      // *** file is open
+
+      struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
+
+      // populate the file structure
+      jpeg->f = jf;
+      jpeg->start_in_file = offset;
+      jpeg->end_in_file = jpeg->start_in_file + length;
+      jpeg->tw = l->raw_tile_width;
+      jpeg->th = l->raw_tile_height;
+      jpeg->w = l->raw_tile_width;
+      jpeg->h = l->raw_tile_height;
+
+      *jpegs_list = g_list_prepend(*jpegs_list, jpeg);
+
+
+      // make 2^zoom_level * 2^zoom_level tiles for this jpeg
+      
     }
   } while (next_ptr != 0);
-
-  // check for empty list
-  if (*list == NULL) {
-    g_warning("Empty page");
-    return false;
-  }
 
   return true;
 }
@@ -404,13 +441,6 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
 }
 
 
-static void add_tiles_to_layers(int tiles_x, int tiles_y, int32_t *slide_positions,
-				int layer_count, struct _openslide_jpeg_layer **layers,
-				int jpeg_count, struct _openslide_jpeg_file **jpegs) {
-  // go through each file
-}
-
-
 static bool process_indexfile(const char *slideversion,
 			      const char *uuid,
 			      const char *dirname,
@@ -433,7 +463,7 @@ static bool process_indexfile(const char *slideversion,
   bool success = false;
 
   int32_t *slide_positions = NULL;
-  GList *hier_page_entry_list = NULL;
+  GList *jpegs_list = NULL;
   GHashTable *file_table = NULL;
 
   rewind(indexfile);
@@ -482,6 +512,7 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
+
   // read hierarchical sections
   if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
     g_warning("Cannot seek to hier sections root");
@@ -502,6 +533,8 @@ static bool process_indexfile(const char *slideversion,
   }
 
   // read all zoom level data
+  file_table = g_hash_table_new_full(g_int_hash, g_int_equal,
+				     g_free, NULL);
   off_t seek_location = ptr;
   for (int i = 0; i < zoom_levels; i++) {
     g_debug("reading zoom_level %d", i);
@@ -521,14 +554,18 @@ static bool process_indexfile(const char *slideversion,
       goto OUT;
     }
 
-    // read these pages in, make sure they are sorted, and add to the master list
-    GList *tmp_list = NULL;
-    bool success = read_hier_data_pages_from_indexfile(&tmp_list, indexfile, i,
-						       tiles_x);
-    tmp_list = g_list_sort(tmp_list, hier_page_entry_compare);
-    g_debug(" length: %d", g_list_length(tmp_list));
-    hier_page_entry_list = g_list_concat(hier_page_entry_list, tmp_list);
-
+    // read these pages in
+    bool success = process_hier_data_pages_from_indexfile(indexfile,
+							  datafile_count,
+							  datafile_names,
+							  dirname,
+							  i,
+							  layers[i],
+							  tiles_x,
+							  tiles_y,
+							  slide_positions,
+							  file_table,
+							  &jpegs_list);
     if (!success) {
       g_warning("Cannot read some data pages from indexfile");
       goto OUT;
@@ -538,72 +575,24 @@ static bool process_indexfile(const char *slideversion,
     seek_location += 4;
   }
 
-  file_table = g_hash_table_new_full(g_int_hash, g_int_equal,
-				     g_free, NULL);
-
-
-  // create file structures
-  int jpeg_count = g_list_length(hier_page_entry_list);
+  // copy file structures
+  int jpeg_count = g_list_length(jpegs_list);
   jpegs = g_new(struct _openslide_jpeg_file *, jpeg_count);
 
   int cur_file = 0;
-  for (GList *iter = hier_page_entry_list; iter != NULL; iter = iter->next) {
-    struct mirax_hier_page_entry *entry = iter->data;
-
-    // open file if necessary
-    FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
-    if (!f) {
-      if (entry->fileno >= datafile_count) {
-	g_warning("Invalid fileno");
-	goto OUT;
-      }
-      const char *name = datafile_names[entry->fileno];
-      char *tmp = g_build_filename(dirname, name, NULL);
-      f = fopen(tmp, "rb");
-      g_free(tmp);
-
-      if (!f) {
-	g_warning("Can't open file for fileno %d", entry->fileno);
-	goto OUT;
-      }
-
-      int *key = g_new(int, 1);
-      *key = entry->fileno;
-      g_hash_table_insert(file_table, key, f);
-    }
-
-    // file is open
-
-    struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
-    struct slide_zoom_level_section *section = slide_zoom_level_sections + entry->zoom_level;
-
-    // populate the file structure
-    jpeg->f = f;
-    jpeg->start_in_file = entry->offset;
-    jpeg->end_in_file = jpeg->start_in_file + entry->length;
-    jpeg->tw = section->tile_w;
-    jpeg->th = section->tile_h;
-    jpeg->w = section->tile_w;
-    jpeg->h = section->tile_h;
-
-    jpegs[cur_file++] = jpeg;
+  for (GList *iter = jpegs_list; iter != NULL; iter = iter->next) {
+    jpegs[cur_file++] = iter->data;
   }
   g_assert(cur_file == jpeg_count);
   g_hash_table_unref(file_table);
   file_table = NULL;
-
-  // now build up the lists of tiles using the slide position stuff
-  add_tiles_to_layers(tiles_x, tiles_y, slide_positions,
-		      zoom_levels, layers,
-		      jpeg_count, jpegs);
 
   success = true;
 
  OUT:
   // deallocate
   g_free(slide_positions);
-  g_list_foreach(hier_page_entry_list, hier_page_entry_delete, NULL);
-  g_list_free(hier_page_entry_list);
+  g_list_free(jpegs_list);
 
   if (file_table) {
     g_hash_table_foreach(file_table, file_table_fclose, NULL);
