@@ -150,6 +150,106 @@ static int32_t read_le_int32_from_file(FILE *f) {
   return i;
 }
 
+static bool read_nonhier_record(FILE *f,
+				int64_t nonhier_root_position,
+				int recordno,
+				int *fileno, int64_t *size, int64_t *position) {
+  if (fseeko(f, nonhier_root_position, SEEK_SET) == -1) {
+    g_warning("Cannot seek to nonhier root");
+    return false;
+  }
+
+  int32_t ptr = read_le_int32_from_file(f);
+  if (ptr == -1) {
+    g_warning("Can't read initial nonhier pointer");
+    return false;
+  }
+
+  // jump to start of interesting data
+  //  g_debug("seek %d", ptr);
+  if (fseeko(f, ptr, SEEK_SET) == -1) {
+    g_warning("Cannot seek to start of nonhier data");
+    return false;
+  }
+
+  // seek to record pointer
+  if (fseeko(f, recordno * 4, SEEK_CUR) == -1) {
+    g_warning("Cannot seek to nonhier record pointer %d", recordno);
+    return false;
+  }
+
+  // read pointer
+  ptr = read_le_int32_from_file(f);
+  if (ptr == -1) {
+    g_warning("Can't read nonhier record %d", recordno);
+    return false;
+  }
+
+  // seek
+  if (fseeko(f, ptr, SEEK_SET) == -1) {
+    g_warning("Cannot seek to nonhier record %d", recordno);
+    return false;
+  }
+
+  // read initial 0
+  if (read_le_int32_from_file(f) != 0) {
+    g_warning("Expected 0 value at beginning of data page");
+    return false;
+  }
+
+  // read pointer
+  ptr = read_le_int32_from_file(f);
+  if (ptr == -1) {
+    g_warning("Can't read initial data page pointer");
+    return false;
+  }
+
+  // seek to offset
+  if (fseeko(f, ptr, SEEK_SET) == -1) {
+    g_warning("Can't seek to initial data page");
+    return false;
+  }
+
+  // read pagesize == 1
+  if (read_le_int32_from_file(f) != 1) {
+    g_warning("Expected 1 value");
+    return false;
+  }
+
+  // read 3 zeroes
+  if (read_le_int32_from_file(f) != 0) {
+    g_warning("Expected first 0 value");
+    return false;
+  }
+  if (read_le_int32_from_file(f) != 0) {
+    g_warning("Expected second 0 value");
+    return false;
+  }
+  if (read_le_int32_from_file(f) != 0) {
+    g_warning("Expected third 0 value");
+    return false;
+  }
+
+  // finally read offset, size, fileno
+  *position = read_le_int32_from_file(f);
+  if (*position == -1) {
+    g_warning("Can't read position");
+    return false;
+  }
+  *size = read_le_int32_from_file(f);
+  if (*size == -1) {
+    g_warning("Can't read size");
+    return false;
+  }
+  *fileno = read_le_int32_from_file(f);
+  if (*fileno == -1) {
+    g_warning("Can't read fileno");
+    return false;
+  }
+
+  return true;
+}
+
 static bool read_hier_data_pages_from_indexfile(GList **list, FILE *f,
 						int zoom_level,
 						int tiles_across) {
@@ -260,13 +360,63 @@ static void file_table_fclose(gpointer key, gpointer value, gpointer user_data) 
   fclose(value);
 }
 
+static int32_t *read_slide_position_file(const char *dirname, const char *name,
+					 int64_t size, int64_t offset) {
+  char *tmp = g_build_filename(dirname, name, NULL);
+  FILE *f = fopen(tmp, "rb");
+  g_free(tmp);
+
+  if (!f) {
+    g_warning("Cannot open slide position file");
+    return NULL;
+  }
+
+  if (fseeko(f, offset, SEEK_SET) == -1) {
+    g_warning("Cannot seek to offset");
+    fclose(f);
+    return NULL;
+  }
+
+  int count = size / 9;
+  int32_t *result = g_new(int, count * 2);
+
+  for (int i = 0; i < count; i++) {
+    // read 2 numbers, then a null
+    int32_t x = read_le_int32_from_file(f);
+    int32_t y = read_le_int32_from_file(f);
+
+    uint8_t zz;
+    int fread_result = fread(&zz, 1, 1, f);
+
+    if ((x == -1) || (y == -1) || (zz != 0) || (fread_result != 1)) {
+      g_warning("Error while reading slide position file");
+      fclose(f);
+      g_free(result);
+      return NULL;
+    }
+
+    result[i * 2] = x;
+    result[(i * 2) + 1] = y;
+  }
+
+  fclose(f);
+  return result;
+}
+
+
+static void add_tiles_to_layers(int tiles_x, int tiles_y, int32_t *slide_positions,
+				int layer_count, struct _openslide_jpeg_layer **layers,
+				int jpeg_count, struct _openslide_jpeg_file **jpegs) {
+  // go through each file
+}
+
 
 static bool process_indexfile(const char *slideversion,
 			      const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
 			      char **datafile_names,
-			      int slideposition_offset,
+			      int slide_position_record,
 			      int zoom_levels,
 			      int tiles_x,
 			      int tiles_y,
@@ -282,7 +432,6 @@ static bool process_indexfile(const char *slideversion,
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
 
-  int64_t hier_root;
   int64_t nonhier_root;
 
   GList *hier_page_entry_list = NULL;
@@ -297,9 +446,8 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
-  // save root positions
-  hier_root = ftello(indexfile);
-  nonhier_root = hier_root + 4;
+  // save root position
+  nonhier_root = ftello(indexfile) + 4;
 
   // read hierarchical sections
   int32_t ptr = read_le_int32_from_file(indexfile);
@@ -402,11 +550,50 @@ static bool process_indexfile(const char *slideversion,
 
     jpegs[cur_file++] = jpeg;
   }
-
   g_assert(cur_file == jpeg_count);
-
   g_hash_table_unref(file_table);
   file_table = NULL;
+
+  // now, read in the nonhier stuff
+  int slide_position_fileno;
+  int64_t slide_position_size;
+  int64_t slide_position_offset;
+  if (!read_nonhier_record(indexfile,
+			   nonhier_root,
+			   slide_position_record,
+			   &slide_position_fileno,
+			   &slide_position_size,
+			   &slide_position_offset)) {
+    g_warning("Cannot read slide position info");
+    goto OUT;
+  }
+  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64,
+	  slide_position_fileno,
+	  slide_position_size,
+	  slide_position_offset);
+
+  if (slide_position_size != (9 * (tiles_x / 2) * (tiles_y / 2))) {
+    g_debug("Slide position file not of expected size");
+    goto OUT;
+  }
+
+  // read in the slide position data
+  int32_t *slide_positions = read_slide_position_file(dirname,
+						      datafile_names[slide_position_fileno],
+						      slide_position_size,
+						      slide_position_offset);
+  if (!slide_positions) {
+    g_warning("Cannot read slide positions");
+    goto OUT;
+  }
+  // now build up the lists of tiles using the slide position stuff
+  add_tiles_to_layers(tiles_x, tiles_y, slide_positions,
+		      zoom_levels, layers,
+		      jpeg_count, jpegs);
+  g_free(slide_positions);
+
+
+
   success = true;
 
  OUT:
