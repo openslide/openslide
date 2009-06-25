@@ -990,6 +990,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
   }
 
+  g_debug("file_count: %d", file_count);
+
   g_assert(layer_count);
   g_assert(file_count);
 
