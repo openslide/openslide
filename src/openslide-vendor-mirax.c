@@ -783,7 +783,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     osr->fill_color_argb = slide_zoom_level_sections[0].fill_argb;
   }
 
-  // _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
+  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
   success = true;
   goto DONE;
 

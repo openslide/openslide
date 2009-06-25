@@ -981,6 +981,15 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     struct _openslide_jpeg_file **files,
 			     int32_t layer_count,
 			     struct _openslide_jpeg_layer **layers) {
+  for (int32_t i = 0; i < layer_count; i++) {
+    struct _openslide_jpeg_layer *l = layers[i];
+    g_debug("layer %d", i);
+    g_debug(" size %" PRId64 " %" PRId64, l->layer_w, l->layer_h);
+    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
+    g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
+    g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
+  }
+
   g_assert(layer_count);
   g_assert(file_count);
 
