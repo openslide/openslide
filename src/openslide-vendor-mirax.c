@@ -432,8 +432,7 @@ static bool process_indexfile(const char *slideversion,
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
 
-  int64_t nonhier_root;
-
+  int32_t *slide_positions = NULL;
   GList *hier_page_entry_list = NULL;
   GHashTable *file_table = NULL;
 
@@ -446,10 +445,49 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
-  // save root position
-  nonhier_root = ftello(indexfile) + 4;
+  // save root positions
+  int64_t hier_root = ftello(indexfile);
+  int64_t nonhier_root = hier_root + 4;;
+
+  // read in the nonhierarchical sections
+  int slide_position_fileno;
+  int64_t slide_position_size;
+  int64_t slide_position_offset;
+  if (!read_nonhier_record(indexfile,
+			   nonhier_root,
+			   slide_position_record,
+			   &slide_position_fileno,
+			   &slide_position_size,
+			   &slide_position_offset)) {
+    g_warning("Cannot read slide position info");
+    goto OUT;
+  }
+  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64,
+	  slide_position_fileno,
+	  slide_position_size,
+	  slide_position_offset);
+
+  if (slide_position_size != (9 * (tiles_x / 2) * (tiles_y / 2))) {
+    g_debug("Slide position file not of expected size");
+    goto OUT;
+  }
+
+  // read in the slide position data
+  slide_positions = read_slide_position_file(dirname,
+					     datafile_names[slide_position_fileno],
+					     slide_position_size,
+					     slide_position_offset);
+  if (!slide_positions) {
+    g_warning("Cannot read slide positions");
+    goto OUT;
+  }
 
   // read hierarchical sections
+  if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
+    g_warning("Cannot seek to hier sections root");
+    goto OUT;
+  }
+
   int32_t ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
@@ -554,50 +592,16 @@ static bool process_indexfile(const char *slideversion,
   g_hash_table_unref(file_table);
   file_table = NULL;
 
-  // now, read in the nonhier stuff
-  int slide_position_fileno;
-  int64_t slide_position_size;
-  int64_t slide_position_offset;
-  if (!read_nonhier_record(indexfile,
-			   nonhier_root,
-			   slide_position_record,
-			   &slide_position_fileno,
-			   &slide_position_size,
-			   &slide_position_offset)) {
-    g_warning("Cannot read slide position info");
-    goto OUT;
-  }
-  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64,
-	  slide_position_fileno,
-	  slide_position_size,
-	  slide_position_offset);
-
-  if (slide_position_size != (9 * (tiles_x / 2) * (tiles_y / 2))) {
-    g_debug("Slide position file not of expected size");
-    goto OUT;
-  }
-
-  // read in the slide position data
-  int32_t *slide_positions = read_slide_position_file(dirname,
-						      datafile_names[slide_position_fileno],
-						      slide_position_size,
-						      slide_position_offset);
-  if (!slide_positions) {
-    g_warning("Cannot read slide positions");
-    goto OUT;
-  }
   // now build up the lists of tiles using the slide position stuff
   add_tiles_to_layers(tiles_x, tiles_y, slide_positions,
 		      zoom_levels, layers,
 		      jpeg_count, jpegs);
-  g_free(slide_positions);
-
-
 
   success = true;
 
  OUT:
   // deallocate
+  g_free(slide_positions);
   g_list_foreach(hier_page_entry_list, hier_page_entry_delete, NULL);
   g_list_free(hier_page_entry_list);
 
