@@ -261,7 +261,7 @@ static void file_table_fclose(gpointer key, gpointer value, gpointer user_data) 
 }
 
 
-static void process_indexfile(const char *slideversion,
+static bool process_indexfile(const char *slideversion,
 			      const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
@@ -301,6 +301,7 @@ static void process_indexfile(const char *slideversion,
   hier_root = ftello(indexfile);
   nonhier_root = hier_root + 4;
 
+  // read hierarchical sections
   int32_t ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
@@ -355,18 +356,14 @@ static void process_indexfile(const char *slideversion,
 				     g_free, NULL);
 
 
-  // build up the file/tile/layer structs
+  // create file structures
   int jpeg_count = g_list_length(hier_page_entry_list);
-
-  for (int i = 0; i < zoom_levels; i++) {
-    
-  }
-
   jpegs = g_new(struct _openslide_jpeg_file *, jpeg_count);
 
   int cur_file = 0;
   for (GList *iter = hier_page_entry_list; iter != NULL; iter = iter->next) {
     struct mirax_hier_page_entry *entry = iter->data;
+
     // open file if necessary
     FILE *f = g_hash_table_lookup(file_table, &entry->fileno);
     if (!f) {
@@ -403,7 +400,7 @@ static void process_indexfile(const char *slideversion,
     jpeg->w = section->tile_w;
     jpeg->h = section->tile_h;
 
-    cur_file++;
+    jpegs[cur_file++] = jpeg;
   }
 
   g_assert(cur_file == jpeg_count);
@@ -427,6 +424,8 @@ static void process_indexfile(const char *slideversion,
     *files_out = jpegs;
   }
   // XXX leaking memory
+
+  return success;
 }
 
 
@@ -743,7 +742,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     l->tiles = _openslide_jpeg_create_tiles_table();
     l->layer_w = base_w / divisor;
     l->layer_h = base_h / divisor;
-    l->tiles_across = tiles_x;
+    l->tiles_across = tiles_x;    // number of virtual tiles stay constant, they just shrink
     l->tiles_down = tiles_y;
     l->raw_tile_width = hs->tile_w;
     l->raw_tile_height = hs->tile_h;
@@ -761,23 +760,18 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   // TODO load the position map and build up the tiles, using subtiles
-
-  /*
-  if (!(num_jpegs = process_indexfile(&jpegs,
-						   slide_version,
-						   slide_id,
-						   position_nonhier_offset,
-						   zoom_levels,
-						   tiles_x,
-						   tiles_y,
-						   slide_zoom_level_sections,
-						   dirname,
-						   datafile_count,
-						   datafile_names,
-						   indexfile))) {
+  if (!process_indexfile(slide_version, slide_id,
+			 dirname,
+			 datafile_count, datafile_names,
+			 position_nonhier_offset,
+			 zoom_levels,
+			 tiles_x, tiles_y,
+			 slide_zoom_level_sections,
+			 indexfile,
+			 layers,
+			 &num_jpegs, &jpegs)) {
     goto FAIL;
   }
-  */
 
   if (osr) {
     osr->fill_color_argb = slide_zoom_level_sections[0].fill_argb;
