@@ -253,142 +253,228 @@ static bool read_nonhier_record(FILE *f,
 
 
 static bool process_hier_data_pages_from_indexfile(FILE *f,
+						   off_t seek_location,
 						   int datafile_count,
 						   char **datafile_names,
 						   const char *dirname,
-						   int zoom_level,
-						   struct _openslide_jpeg_layer *l,
+						   int zoom_levels,
+						   struct _openslide_jpeg_layer **layers,
 						   int tiles_across,
 						   int tiles_down,
+						   double base_overlap_x,
+						   double base_overlap_y,
 						   int32_t *tile_positions,
 						   GHashTable *file_table,
 						   GList **jpegs_list) {
-  // read initial 0
-  if (read_le_int32_from_file(f) != 0) {
-    g_warning("Expected 0 value at beginning of data page");
-    return false;
-  }
+  int32_t jpeg_number = 0;
 
-  // read pointer
-  int32_t ptr = read_le_int32_from_file(f);
-  if (ptr == -1) {
-    g_warning("Can't read initial data page pointer");
-    return false;
-  }
+  for (int zoom_level = 0; zoom_level < zoom_levels; zoom_level++) {
+    struct _openslide_jpeg_layer *l = layers[zoom_level];
+    int32_t ptr;
 
-  // seek to offset
-  if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_warning("Can't seek to initial data page");
-    return false;
-  }
+    g_debug("reading zoom_level %d", zoom_level);
 
-  int32_t next_ptr;
-  do {
-    // read length
-    int32_t page_len = read_le_int32_from_file(f);
-    if (page_len == -1) {
-      g_warning("Can't read page length");
+    if (fseeko(f, seek_location, SEEK_SET) == -1) {
+      g_warning("Cannot seek to zoom level pointer %d", zoom_level + 1);
       return false;
     }
 
-    //    g_debug("page_len: %d", page_len);
-
-    // read "next" pointer
-    next_ptr = read_le_int32_from_file(f);
-    if (next_ptr == -1) {
-      g_warning("Cannot read \"next\" pointer");
+    ptr = read_le_int32_from_file(f);
+    if (ptr == -1) {
+      g_warning("Can't read zoom level pointer");
+      return false;
+    }
+    if (fseeko(f, ptr, SEEK_SET) == -1) {
+      g_warning("Cannot seek to start of data pages");
       return false;
     }
 
-    // read all the data into the list
-    for (int i = 0; i < page_len; i++) {
-      int32_t tile_index = read_le_int32_from_file(f);
-      int32_t offset = read_le_int32_from_file(f);
-      int32_t length = read_le_int32_from_file(f);
-      int32_t fileno = read_le_int32_from_file(f);
+    // read initial 0
+    if (read_le_int32_from_file(f) != 0) {
+      g_warning("Expected 0 value at beginning of data page");
+      return false;
+    }
 
-      if (tile_index < 0) {
-	g_warning("tile_index < 0");
-	return false;
-      }
-      if (offset < 0) {
-	g_warning("offset < 0");
-	return false;
-      }
-      if (length < 0) {
-	g_warning("length < 0");
-	return false;
-      }
-      if (fileno < 0) {
-	g_warning("fileno < 0");
-	return false;
-      }
+    // read pointer
+    ptr = read_le_int32_from_file(f);
+    if (ptr == -1) {
+      g_warning("Can't read initial data page pointer");
+      return false;
+    }
 
-      // we have only encountered images with exactly power-of-two scale
-      // factors, and there appears to be no clear way to specify otherwise,
-      // so require it
-      int32_t x = tile_index % tiles_across;
-      int32_t y = tile_index / tiles_across;
+    // seek to offset
+    if (fseeko(f, ptr, SEEK_SET) == -1) {
+      g_warning("Can't seek to initial data page");
+      return false;
+    }
 
-      if (y >= tiles_down) {
-	g_warning("y (%d) outside of bounds for zoom level (%d)",
-		  y, zoom_level);
+    int32_t next_ptr;
+    do {
+      // read length
+      int32_t page_len = read_le_int32_from_file(f);
+      if (page_len == -1) {
+	g_warning("Can't read page length");
 	return false;
       }
 
-      if (x % (1 << zoom_level)) {
-	g_warning("x (%d) not correct multiple for zoom level (%d)",
-		  x, zoom_level);
-	return false;
-      }
-      if (y % (1 << zoom_level)) {
-	g_warning("y (%d) not correct multiple for zoom level (%d)",
-		  y, zoom_level);
+      //    g_debug("page_len: %d", page_len);
+
+      // read "next" pointer
+      next_ptr = read_le_int32_from_file(f);
+      if (next_ptr == -1) {
+	g_warning("Cannot read \"next\" pointer");
 	return false;
       }
 
-      // open file if necessary
-      FILE *jf = g_hash_table_lookup(file_table, &fileno);
-      if (!jf) {
-	if (fileno >= datafile_count) {
-	  g_warning("Invalid fileno");
+      // read all the data into the list
+      for (int i = 0; i < page_len; i++) {
+	int32_t tile_index = read_le_int32_from_file(f);
+	int32_t offset = read_le_int32_from_file(f);
+	int32_t length = read_le_int32_from_file(f);
+	int32_t fileno = read_le_int32_from_file(f);
+
+	if (tile_index < 0) {
+	  g_warning("tile_index < 0");
 	  return false;
 	}
-	const char *name = datafile_names[fileno];
-	char *tmp = g_build_filename(dirname, name, NULL);
-	jf = fopen(tmp, "rb");
-	g_free(tmp);
+	if (offset < 0) {
+	  g_warning("offset < 0");
+	  return false;
+	}
+	if (length < 0) {
+	  g_warning("length < 0");
+	  return false;
+	}
+	if (fileno < 0) {
+	  g_warning("fileno < 0");
+	  return false;
+	}
 
+	// we have only encountered images with exactly power-of-two scale
+	// factors, and there appears to be no clear way to specify otherwise,
+	// so require it
+	int32_t x = tile_index % tiles_across;
+	int32_t y = tile_index / tiles_across;
+
+	if (y >= tiles_down) {
+	  g_warning("y (%d) outside of bounds for zoom level (%d)",
+		    y, zoom_level);
+	  return false;
+	}
+
+	if (x % (1 << zoom_level)) {
+	  g_warning("x (%d) not correct multiple for zoom level (%d)",
+		    x, zoom_level);
+	  return false;
+	}
+	if (y % (1 << zoom_level)) {
+	  g_warning("y (%d) not correct multiple for zoom level (%d)",
+		    y, zoom_level);
+	  return false;
+	}
+
+	// open file if necessary
+	FILE *jf = g_hash_table_lookup(file_table, &fileno);
 	if (!jf) {
-	  g_warning("Can't open file for fileno %d", fileno);
-	  return false;
+	  if (fileno >= datafile_count) {
+	    g_warning("Invalid fileno");
+	    return false;
+	  }
+	  const char *name = datafile_names[fileno];
+	  char *tmp = g_build_filename(dirname, name, NULL);
+	  jf = fopen(tmp, "rb");
+	  g_free(tmp);
+
+	  if (!jf) {
+	    g_warning("Can't open file for fileno %d", fileno);
+	    return false;
+	  }
+
+	  int *key = g_new(int, 1);
+	  *key = fileno;
+	  g_hash_table_insert(file_table, key, jf);
 	}
 
-	int *key = g_new(int, 1);
-	*key = fileno;
-	g_hash_table_insert(file_table, key, jf);
+	// *** file is open
+
+	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
+
+	// populate the file structure
+	jpeg->f = jf;
+	jpeg->start_in_file = offset;
+	jpeg->end_in_file = jpeg->start_in_file + length;
+	jpeg->tw = l->raw_tile_width;
+	jpeg->th = l->raw_tile_height;
+	jpeg->w = l->raw_tile_width;
+	jpeg->h = l->raw_tile_height;
+
+	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
+
+
+	// make 2^zoom_level * 2^zoom_level tiles for this jpeg
+	int tile_count = 1 << zoom_level;
+	for (int yi = 0; yi < tile_count; yi++) {
+	  int yy = y + yi;
+	  if (yy >= tiles_down) {
+	    break;
+	  }
+
+	  for (int xi = 0; xi < tile_count; xi++) {
+	    int xx = x + xi;
+	    if (xx >= tiles_across) {
+	      break;
+	    }
+
+	    // tile_positions stored in 24.8 fixed point, and only every other x and y
+	    // are stored!
+	    int x2 = xx / 2;
+	    int y2 = yy / 2;
+	    int tt = y2 * (tiles_across / 2) + x2;
+	    double pos_x = ((double) tile_positions[tt * 2]) / 256.0;
+	    double pos_y = ((double) tile_positions[(tt * 2) + 1]) / 256.0;
+
+	    // possibly adjust
+	    if (x2 * 2 != xx) {
+	      pos_x += jpeg->w - base_overlap_x;
+	    }
+	    if (y2 * 2 != yy) {
+	      pos_y += jpeg->h - base_overlap_y;
+	    }
+
+	    // scale down
+	    pos_x /= (double) tile_count;
+	    pos_y /= (double) tile_count;
+
+	    // generate tile
+	    struct _openslide_jpeg_tile *tile = g_slice_new0(struct _openslide_jpeg_tile);
+	    tile->fileno = jpeg_number;
+	    tile->tileno = 0;
+
+	    double tw = ((double) jpeg->w) / (double) tile_count;
+	    double th = ((double) jpeg->h) / (double) tile_count;
+
+	    tile->src_x = tw * xi;
+	    tile->src_y = th * yi;
+	    tile->w = tw;
+	    tile->h = th;
+
+	    // compute offset
+	    tile->dest_offset_x = pos_x - (xx * l->tile_advance_x);
+	    tile->dest_offset_y = pos_y - (yy * l->tile_advance_y);
+
+	    // insert
+	    int64_t *key = g_slice_new(int64_t);
+	    *key = (yy * tiles_across) + xx;
+	    g_hash_table_insert(l->tiles, key, tile);
+	  }
+	}
+	jpeg_number++;
       }
+    } while (next_ptr != 0);
 
-      // *** file is open
-
-      struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
-
-      // populate the file structure
-      jpeg->f = jf;
-      jpeg->start_in_file = offset;
-      jpeg->end_in_file = jpeg->start_in_file + length;
-      jpeg->tw = l->raw_tile_width;
-      jpeg->th = l->raw_tile_height;
-      jpeg->w = l->raw_tile_width;
-      jpeg->h = l->raw_tile_height;
-
-      *jpegs_list = g_list_prepend(*jpegs_list, jpeg);
-
-
-      // make 2^zoom_level * 2^zoom_level tiles for this jpeg
-      
-    }
-  } while (next_ptr != 0);
+    // advance for next zoom level
+    seek_location += 4;
+  }
 
   return true;
 }
@@ -416,6 +502,8 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
 
   int count = size / 9;
   int32_t *result = g_new(int, count * 2);
+
+  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
     // read 2 numbers, then a null
@@ -535,44 +623,23 @@ static bool process_indexfile(const char *slideversion,
   // read all zoom level data
   file_table = g_hash_table_new_full(g_int_hash, g_int_equal,
 				     g_free, NULL);
-  off_t seek_location = ptr;
-  for (int i = 0; i < zoom_levels; i++) {
-    g_debug("reading zoom_level %d", i);
-
-    if (fseeko(indexfile, seek_location, SEEK_SET) == -1) {
-      g_warning("Cannot seek to zoom level pointer %d", i + 1);
-      goto OUT;
-    }
-
-    int32_t ptr = read_le_int32_from_file(indexfile);
-    if (ptr == -1) {
-      g_warning("Can't read zoom level pointer");
-      goto OUT;
-    }
-    if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
-      g_warning("Cannot seek to start of data pages");
-      goto OUT;
-    }
-
-    // read these pages in
-    bool success = process_hier_data_pages_from_indexfile(indexfile,
-							  datafile_count,
-							  datafile_names,
-							  dirname,
-							  i,
-							  layers[i],
-							  tiles_x,
-							  tiles_y,
-							  slide_positions,
-							  file_table,
-							  &jpegs_list);
-    if (!success) {
-      g_warning("Cannot read some data pages from indexfile");
-      goto OUT;
-    }
-
-    // advance for next zoom level
-    seek_location += 4;
+  // read these pages in
+  if (!process_hier_data_pages_from_indexfile(indexfile,
+					      ptr,
+					      datafile_count,
+					      datafile_names,
+					      dirname,
+					      zoom_levels,
+					      layers,
+					      tiles_x,
+					      tiles_y,
+					      slide_zoom_level_sections[0].overlap_x,
+					      slide_zoom_level_sections[0].overlap_y,
+					      slide_positions,
+					      file_table,
+					      &jpegs_list)) {
+    g_warning("Cannot read some data pages from indexfile");
+    goto OUT;
   }
 
   // copy file structures
