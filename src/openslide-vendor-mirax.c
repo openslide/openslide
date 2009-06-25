@@ -104,7 +104,7 @@ struct mirax_nonhier_page_entry {
   int32_t offset;
   int32_t length;
   int32_t fileno;
-}
+};
 
 static gint hier_page_entry_compare(gconstpointer a, gconstpointer b) {
   const struct mirax_hier_page_entry *pa = (const struct mirax_hier_page_entry *) a;
@@ -397,7 +397,7 @@ static void process_indexfile(const char *slideversion,
     // populate the file structure
     jpeg->f = f;
     jpeg->start_in_file = entry->offset;
-    jpeg->end_in_file = frag->start_in_file + entry->length;
+    jpeg->end_in_file = jpeg->start_in_file + entry->length;
     jpeg->tw = section->tile_w;
     jpeg->th = section->tile_h;
     jpeg->w = section->tile_w;
@@ -423,8 +423,8 @@ static void process_indexfile(const char *slideversion,
   }
 
   if (success) {
-    *file_count_out = file_count;
-    *files_out = files;
+    *file_count_out = jpeg_count;
+    *files_out = jpegs;
   }
   // XXX leaking memory
 }
@@ -739,24 +739,25 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
 
     int divisor = 1 << i;
-    int x_count = (tiles_x / divisor) + !!(tiles_x % divisor);
-    int y_count = (tiles_y / divisor) + !!(tiles_y % divisor);
 
     l->tiles = _openslide_jpeg_create_tiles_table();
     l->layer_w = base_w / divisor;
     l->layer_h = base_h / divisor;
-    l->tiles_across = x_count;
-    l->tiles_down = y_count;
+    l->tiles_across = tiles_x;
+    l->tiles_down = tiles_y;
     l->raw_tile_width = hs->tile_w;
     l->raw_tile_height = hs->tile_h;
 
-    // half the overlap, so that our tile correction will flip between
+    // use half the overlap, so that our tile correction will flip between
     // positive and negative values typically
     // this is because only every other tile overlaps
 
-    // XXX wrong except for i=0
-    l->tile_advance_x = (double) hs->tile_w - ((double) hs->overlap_x / 2.0);
-    l->tile_advance_y = (double) hs->tile_h - ((double) hs->overlap_y / 2.0);
+    // overlaps are concatenated within physical tiles, so our virtual tile
+    // size must shrink
+    l->tile_advance_x = (((double) hs->tile_w) / ((double) divisor)) -
+      ((double) hs->overlap_x / 2.0);
+    l->tile_advance_y = (((double) hs->tile_h) / ((double) divisor)) -
+      ((double) hs->overlap_y / 2.0);
   }
 
   // TODO load the position map and build up the tiles, using subtiles
