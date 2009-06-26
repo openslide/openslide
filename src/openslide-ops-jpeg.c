@@ -660,9 +660,14 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
   cairo_save(cr);
-  cairo_translate(cr, tile->dest_offset_x, tile->dest_offset_y);
-  cairo_set_source_surface(cr, surface, -tile->src_x, -tile->src_y);
-  cairo_rectangle(cr, 0, 0, tile->w, tile->h);
+  cairo_translate(cr,
+		  tile->dest_offset_x / l->scale_denom,
+		  tile->dest_offset_y / l->scale_denom);
+  cairo_set_source_surface(cr, surface,
+			   -tile->src_x / l->scale_denom,
+			   -tile->src_y / l->scale_denom);
+  cairo_rectangle(cr, 0, 0,
+		  tile->w / l->scale_denom, tile->h / l->scale_denom);
   if (true) {
     cairo_fill(cr);
   } else {
@@ -1077,10 +1082,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     g_hash_table_insert(expanded_layers, key, new_l);
 
     // try adding scale_denom layers
-    g_warning("scale_denom disabled");
     for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
-      continue;
-
       // check to make sure we get an even division
       if ((old_l->raw_tile_width % scale_denom) ||
 	  (old_l->raw_tile_height % scale_denom)) {

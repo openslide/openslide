@@ -11,9 +11,6 @@
   - Fix rendering artifacts with overlaps
   - Memory leaks in setup and error cases
 
-* JPEG
-  - Re-enable scale_denom (needed for Hamamatsu)
-
 * Hamamatsu
   - Add back get_comment
 
