@@ -9,6 +9,7 @@
   - Properties, associated images, comment
   - Fix edge non-drawing condition (something with start_tile end_tile)
   - Fix rendering artifacts with overlaps
+  - Memory leaks in setup and error cases
 
 * JPEG
   - Re-enable scale_denom (needed for Hamamatsu)
