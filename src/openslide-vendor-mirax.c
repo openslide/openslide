@@ -1013,7 +1013,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
       ((double) hs->overlap_y / 2.0);
 
     g_debug("layer %d tile advance %.10g %.10g",
-	    l->tile_advance_x, l->tile_advance_y);
+	    i, l->tile_advance_x, l->tile_advance_y);
   }
 
   // TODO load the position map and build up the tiles, using subtiles
