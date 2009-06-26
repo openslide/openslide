@@ -1,15 +1,23 @@
-Error handling
+* Error handling
 
-Bacus
- - Store filenames and use open/close instead of fopen/fclose. It is necessary
-   for handling so many files.
+* Bacus
+  - Add support?
+  - Store filenames and use open/close instead of fopen/fclose. It is necessary
+    for handling so many files.
 
-Zeiss/MIRAX
- - Add support for the bizarre every-other-tile overlap scheme
- - Properties/associated images/comment.
+* Zeiss/MIRAX
+  - Properties, associated images, comment
+  - Fix edge non-drawing condition (something with start_tile end_tile)
+  - Fix rendering artifacts with overlaps
 
-Add back get_comment for Hamamatsu
+* JPEG
+  - Re-enable scale_denom (needed for Hamamatsu)
 
-Ship docs
+* Hamamatsu
+  - Add back get_comment
 
-More cairo??
+* Ship docs
+
+* XTP format?
+
+* Vendor format cheatsheet document
