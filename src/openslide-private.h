@@ -60,7 +60,10 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
-  uint32_t fill_color_argb;
+  double fill_color_r;
+  double fill_color_g;
+  double fill_color_b;
+  double fill_color_a;
 
   double *downsamples;  // filled in automatically from dimensions
 

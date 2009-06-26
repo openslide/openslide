@@ -1031,7 +1031,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   if (osr) {
-    osr->fill_color_argb = slide_zoom_level_sections[0].fill_argb;
+    uint32_t fill = slide_zoom_level_sections[0].fill_argb;
+    osr->fill_color_r = ((fill >> 16) & 0xFF) / 255.0;
+    osr->fill_color_g = ((fill >> 8) & 0xFF) / 255.0;
+    osr->fill_color_b = (fill & 0xFF) / 255.0;
+    osr->fill_color_a = ((fill >> 24) & 0xFF) / 255.0;
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);

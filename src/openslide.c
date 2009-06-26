@@ -250,7 +250,7 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // create the cairo surface
+  // create the cairo surface for the dest
   cairo_surface_t *surface;
   if (dest) {
     surface = cairo_image_surface_create_for_data((unsigned char *) dest,
@@ -266,8 +266,14 @@ void openslide_read_region(openslide_t *osr,
   cairo_t *cr = cairo_create(surface);
   cairo_surface_destroy(surface);
 
-  // clear it
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  // fill with background
+  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+  cairo_set_source_rgba(cr,
+			osr->fill_color_r,
+			osr->fill_color_g,
+			osr->fill_color_b,
+			osr->fill_color_a);
+  //  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
   cairo_paint(cr);
 
   // check constraints
@@ -282,24 +288,9 @@ void openslide_read_region(openslide_t *osr,
 
   // now fully within all important bounds, go for it
 
-
-  // going to SATURATE those seams away!
-  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
-
   // paint
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
   (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
-
-  // finally fill with background
-  uint32_t bg = osr->fill_color_argb;
-  double r = ((double) ((bg >> 16) & 0xFF)) / 255.0;
-  double g = ((double) ((bg >> 8) & 0xFF)) / 255.0;
-  double b = ((double) (bg & 0xFF)) / 255.0;
-  double a = ((double) ((bg >> 24) & 0xFF)) / 255.0;
-  cairo_set_source_rgba(cr, r, g, b, a);
-  //  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
-  cairo_paint(cr);
-
-  //g_debug("%s", cairo_status_to_string(cairo_status(cr)));
 
   // done
   cairo_destroy(cr);
