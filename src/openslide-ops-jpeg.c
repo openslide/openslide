@@ -662,9 +662,7 @@ static void read_tile(openslide_t *osr,
   cairo_save(cr);
   cairo_translate(cr, tile->dest_offset_x, tile->dest_offset_y);
   cairo_set_source_surface(cr, surface, -tile->src_x, -tile->src_y);
-  //  cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
-  cairo_rectangle(cr, 0, 0, ceil(tile->w), ceil(tile->h));
+  cairo_rectangle(cr, 0, 0, tile->w, tile->h);
   if (true) {
     cairo_fill(cr);
   } else {
@@ -672,6 +670,7 @@ static void read_tile(openslide_t *osr,
     cairo_fill_preserve(cr);
     cairo_stroke(cr);
   }
+  cairo_surface_destroy(surface);
   cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
