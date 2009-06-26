@@ -435,10 +435,10 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    // possibly adjust
 	    if (x2 * 2 != xx) {
-	      pos_x += jpeg->w - base_overlap_x;
+	      pos_x += jpeg->w;
 	    }
 	    if (y2 * 2 != yy) {
-	      pos_y += jpeg->h - base_overlap_y;
+	      pos_y += jpeg->h;
 	    }
 
 	    // scale down
@@ -461,6 +461,14 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    // compute offset
 	    tile->dest_offset_x = pos_x - (xx * l->tile_advance_x);
 	    tile->dest_offset_y = pos_y - (yy * l->tile_advance_y);
+
+	    /*
+	    g_debug("tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
+		    xx, yy, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
+
+	    g_debug(" src %.10g %.10g dim %.10g %.10g",
+		    tile->src_x, tile->src_y, tile->w, tile->h);
+	    */
 
 	    // insert
 	    int64_t *key = g_slice_new(int64_t);
@@ -1007,6 +1015,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
       ((double) hs->overlap_x / 2.0);
     l->tile_advance_y = (((double) hs->tile_h) / ((double) divisor)) -
       ((double) hs->overlap_y / 2.0);
+
+    g_debug("layer %d tile advance %.10g %.10g",
+	    l->tile_advance_x, l->tile_advance_y);
   }
 
   // TODO load the position map and build up the tiles, using subtiles

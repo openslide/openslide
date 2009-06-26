@@ -660,12 +660,18 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
   cairo_save(cr);
-  cairo_set_source_surface(cr, surface, -tile->src_x, -tile->src_y);
-  cairo_surface_destroy(surface);
   cairo_translate(cr, tile->dest_offset_x, tile->dest_offset_y);
-  //  cairo_set_source_rgb(cr, 0, 0, 1);
-  cairo_rectangle(cr, 0, 0, tile->w, tile->h);
-  cairo_fill(cr);
+  cairo_set_source_surface(cr, surface, -tile->src_x, -tile->src_y);
+  //  cairo_set_source_surface(cr, surface, 0, 0);
+  cairo_surface_destroy(surface);
+  cairo_rectangle(cr, 0, 0, ceil(tile->w), ceil(tile->h));
+  if (true) {
+    cairo_fill(cr);
+  } else {
+    cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
+    cairo_fill_preserve(cr);
+    cairo_stroke(cr);
+  }
   cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
@@ -1060,13 +1066,22 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
     g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
+    g_debug("layer margins %d %d %d %d",
+	    new_l->extra_tiles_top,
+	    new_l->extra_tiles_left,
+	    new_l->extra_tiles_bottom,
+	    new_l->extra_tiles_right);
+
     // now, new_l is all initialized, so add it
     int64_t *key = g_slice_new(int64_t);
     *key = new_l->pixel_w;
     g_hash_table_insert(expanded_layers, key, new_l);
 
     // try adding scale_denom layers
+    g_warning("scale_denom disabled");
     for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
+      continue;
+
       // check to make sure we get an even division
       if ((old_l->raw_tile_width % scale_denom) ||
 	  (old_l->raw_tile_height % scale_denom)) {
