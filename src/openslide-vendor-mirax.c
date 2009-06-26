@@ -448,8 +448,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    tile->fileno = jpeg_number;
 	    tile->tileno = 0;
 
-	    double tw = ((double) jpeg->w) / (double) tile_count;
-	    double th = ((double) jpeg->h) / (double) tile_count;
+	    double tw = (double) jpeg->w / (double) tile_count;
+	    double th = (double) jpeg->h / (double) tile_count;
 
 	    tile->src_x = tw * xi;
 	    tile->src_y = th * yi;
