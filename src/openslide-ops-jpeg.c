@@ -674,6 +674,11 @@ static void read_tile(openslide_t *osr,
     cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
     cairo_fill_preserve(cr);
     cairo_stroke(cr);
+    cairo_set_source_rgb(cr, 0, 0, 0);
+    cairo_set_font_size(cr, 8.0);
+    char *tmp = g_strdup_printf("%" PRId64 " %" PRId64, tile_x, tile_y);
+    cairo_show_text(cr, tmp);
+    g_free(tmp);
   }
   cairo_surface_destroy(surface);
   cairo_restore(cr);
