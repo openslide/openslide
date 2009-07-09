@@ -5,7 +5,8 @@ AC_PREREQ(2.61)
 AC_INIT([openslide], [1.1.1], [agoode@andrew.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE([foreign 1.9])
+AM_INIT_AUTOMAKE([foreign 1.11])
+AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
