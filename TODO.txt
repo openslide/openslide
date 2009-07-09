@@ -20,3 +20,5 @@
 * XTP format?
 
 * Vendor format cheatsheet document
+
+* Fix pixel rounding issues in Java viewer
