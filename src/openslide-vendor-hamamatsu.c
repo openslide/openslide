@@ -542,13 +542,23 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     struct _openslide_jpeg_file *jp = jpegs[i];
 
     int32_t layer;
+    int32_t file_x;
+    int32_t file_y;
     if (i != num_jpegs - 1) {
       // base (layer 0)
       layer = 0;
+      file_x = i % num_jpeg_cols;
+      file_y = i / num_jpeg_cols;
     } else {
       // map (layer 1)
       layer = 1;
+      file_x = 0;
+      file_y = 0;
     }
+
+    g_debug("processing file %d %d %d", file_x, file_y, layer);
+
+    int32_t num_tiles_across = jp->w / jp->tw;
 
     struct _openslide_jpeg_layer *l = layers[layer];
 
@@ -558,14 +568,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     for (int local_tileno = 0; local_tileno < tile_count; local_tileno++) {
       struct _openslide_jpeg_tile *t = g_slice_new0(struct _openslide_jpeg_tile);
 
-      int32_t file_x = 0;
-      int32_t file_y = 0;
-      if (layer == 0) {
-	file_x = i % num_jpeg_cols;
-	file_y = i / num_jpeg_cols;
-      }
-
-      int32_t num_tiles_across = jp->w / jp->tw;
       int32_t local_tile_x = local_tileno % num_tiles_across;
       int32_t local_tile_y = local_tileno / num_tiles_across;
 
