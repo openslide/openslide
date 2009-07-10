@@ -243,7 +243,7 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h) {
-  //  g_debug("openslide_read_region: %" PRId64 " %" PRId64 " %d %" PRId64 " %" PRId64, x, y, layer, w, h);
+  g_debug("openslide_read_region: %" PRId64 " %" PRId64 " %d %" PRId64 " %" PRId64, x, y, layer, w, h);
 
   if (w <= 0 || h <= 0) {
     //g_debug("%" PRId64 " %" PRId64, w, h);

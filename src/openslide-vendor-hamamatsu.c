@@ -584,7 +584,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       int64_t *key = g_slice_new(int64_t);
       *key = (y * l->tiles_across) + x;
 
-      g_debug("inserting tile: fileno %d tileno %d, %gx%g, key: %" PRId64, t->fileno, t->tileno, t->w, t->h, *key);
+      g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" PRId64 " %" PRId64 ", l->tiles_across: %d, key: %" PRId64, t->fileno, t->tileno, t->w, t->h, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
       g_assert(!g_hash_table_lookup(l->tiles, key));
       g_hash_table_insert(l->tiles, key, t);
     }
