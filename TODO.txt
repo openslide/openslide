@@ -13,7 +13,6 @@
 
 * Hamamatsu
   - Add back get_comment
-  - Fix zoomed-in rendering of large multi-file images
 
 * Ship docs
 

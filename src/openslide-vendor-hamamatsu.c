@@ -447,6 +447,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
   int32_t jpeg0_th = 0;
   int32_t jpeg0_ta = 0;
   int32_t jpeg0_td = 0;
+
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];
 
@@ -475,12 +476,13 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     // because map file is last, ensure that all tw and th are the
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
-    if ((i == 0) || (i == num_jpegs -1)) {
+    if (i == 0) {
       jpeg0_tw = jp->tw;
       jpeg0_th = jp->th;
       jpeg0_ta = num_tiles_across;
       jpeg0_td = num_tiles_down;
-    } else {
+    } else if (i != (num_jpegs - 1)) {
+      // not map file (still within layer 0
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
 	g_warning("Tile size not consistent");
@@ -538,6 +540,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     l->tile_advance_y = jp->th;
   }
 
+  // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in layer 0
+
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];
 
@@ -584,7 +588,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       int64_t *key = g_slice_new(int64_t);
       *key = (y * l->tiles_across) + x;
 
-      g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" PRId64 " %" PRId64 ", l->tiles_across: %d, key: %" PRId64, t->fileno, t->tileno, t->w, t->h, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
+      //g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" PRId64 " %" PRId64 ", l->tiles_across: %d, key: %" PRId64, t->fileno, t->tileno, t->w, t->h, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
       g_assert(!g_hash_table_lookup(l->tiles, key));
       g_hash_table_insert(l->tiles, key, t);
     }
