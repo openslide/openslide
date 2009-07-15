@@ -1,19 +1,12 @@
-* Error handling
-
-* Bacus
-  - Add support?
-  - Store filenames and use open/close instead of fopen/fclose. It is necessary
-    for handling so many files.
-
 * Zeiss/MIRAX
   - Properties, associated images, comment
   - Fix edge non-drawing condition (something with start_tile end_tile)
   - Fix rendering artifacts with overlaps
   - Memory leaks in setup and error cases
 
-* Ship docs
+* Error handling
 
-* XTP format?
+* Ship docs
 
 * Vendor format cheatsheet document
 
@@ -24,3 +17,10 @@
 * Lockless concurrency (long term)
   - Use pread (or mmap) for everything
   - Figure out what to do about libtiff
+
+* XTP format?
+
+* Bacus
+  - Add support?
+  - Store filenames and use open/close instead of fopen/fclose. It is necessary
+    for handling so many files.
