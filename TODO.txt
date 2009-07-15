@@ -22,3 +22,9 @@
 * Vendor format cheatsheet document
 
 * Fix pixel rounding issues in Java viewer
+
+* Fix redraw/copyArea issues in Java
+
+* Lockless concurrency (long term)
+  - Use pread (or mmap) for everything
+  - Figure out what to do about libtiff
