@@ -43,9 +43,10 @@ static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static const char KEY_MACRO_IMAGE[] = "MacroImage";
 
-// returns w and h and tw and th as a convenience
+// returns w and h and tw and th and comment as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
-			int32_t *tw, int32_t *th) {
+			int32_t *tw, int32_t *th,
+			char **comment) {
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -55,13 +56,22 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   *tw = 0;
   *th = 0;
 
+  if (comment) {
+    *comment = NULL;
+  }
+
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, f);
 
     int header_result;
 
-    jpeg_stdio_src(&cinfo, f);
+    if (comment) {
+      // extract comment
+      jpeg_save_markers(&cinfo, JPEG_COM, 0xFFFF);
+    }
+
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)
@@ -71,6 +81,18 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     }
 
     jpeg_start_decompress(&cinfo);
+
+    if (comment) {
+      if (cinfo.marker_list) {
+	// copy everything out
+	char *com = g_strndup((const gchar *) cinfo.marker_list->data,
+			      cinfo.marker_list->data_length);
+	// but only really save everything up to the first '\0'
+	*comment = g_strdup(com);
+	g_free(com);
+      }
+      jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
+    }
 
     *w = cinfo.output_width;
     *h = cinfo.output_height;
@@ -458,9 +480,23 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
-    if (!verify_jpeg(jp->f, &jp->w, &jp->h, &jp->tw, &jp->th)) {
+
+    // comment?
+    char *comment = NULL;
+    char **comment_ptr = NULL;
+    if (i == 0 && osr) {
+      comment_ptr = &comment;
+    }
+
+    if (!verify_jpeg(jp->f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr)) {
       g_warning("Can't verify JPEG %d", i);
       goto FAIL;
+    }
+
+    if (comment) {
+      g_hash_table_insert(osr->properties,
+			  g_strdup(_OPENSLIDE_COMMENT_NAME),
+			  comment);
     }
 
     fseeko(jp->f, 0, SEEK_END);
@@ -560,7 +596,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       file_y = 0;
     }
 
-    g_debug("processing file %d %d %d", file_x, file_y, layer);
+    //g_debug("processing file %d %d %d", file_x, file_y, layer);
 
     int32_t num_tiles_across = jp->w / jp->tw;
 

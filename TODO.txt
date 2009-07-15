@@ -11,9 +11,6 @@
   - Fix rendering artifacts with overlaps
   - Memory leaks in setup and error cases
 
-* Hamamatsu
-  - Add back get_comment
-
 * Ship docs
 
 * XTP format?
