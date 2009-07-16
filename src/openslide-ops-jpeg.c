@@ -997,6 +997,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     struct _openslide_jpeg_file **files,
 			     int32_t layer_count,
 			     struct _openslide_jpeg_layer **layers) {
+  /*
   for (int32_t i = 0; i < layer_count; i++) {
     struct _openslide_jpeg_layer *l = layers[i];
     g_debug("layer %d", i);
@@ -1007,6 +1008,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
 
   g_debug("file_count: %d", file_count);
+  */
 
   g_assert(layer_count);
   g_assert(file_count);
@@ -1076,11 +1078,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
     g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
-    g_debug("layer margins %d %d %d %d",
-	    new_l->extra_tiles_top,
-	    new_l->extra_tiles_left,
-	    new_l->extra_tiles_bottom,
-	    new_l->extra_tiles_right);
+    //g_debug("layer margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
 
     // now, new_l is all initialized, so add it
     int64_t *key = g_slice_new(int64_t);
