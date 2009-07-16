@@ -36,7 +36,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
+/**
+ * The main OpenSlide structure.
+ */
 typedef struct _openslide openslide_t;
 
 /**
@@ -64,8 +66,8 @@ openslide_t *openslide_open(const char *filename);
  *
  * This function reads and decompresses a region of a whole slide
  * image into the specified memory location. @p dest must be a valid
- * pointer to enough memory to hold the region. To compute the proper
- * size for @p dest, use @p w * @p h * 4.
+ * pointer to enough memory to hold the region, at least (@p w * @p h * 4)
+ * bytes in length.
  *
  * @param osr The whole slide image handle.
  * @param dest The destination buffer for the ARGB data.
@@ -188,7 +190,7 @@ const char *openslide_get_comment(openslide_t *osr);
 
 
 /**
- * Get a NULL-terminated array of property names.
+ * Get the NULL-terminated array of property names.
  *
  * Certain vendor-specific metadata properties may exist
  * within a whole slide file. They are encoded as key-value
@@ -208,9 +210,11 @@ const char * const *openslide_get_property_names(openslide_t *osr);
  * Certain vendor-specific metadata properties may exist
  * within a whole slide file. They are encoded as key-value
  * pairs. This call provides the value of the property given
- * by @name.
+ * by @p name.
  *
  * @param osr The whole slide image handle.
+ * @param name The name of the desired property. Must be
+               a valid name as given by openslide_get_property_names().
  * @return The value of the named property, or NULL if the property
  *         doesn't exist.
  */
@@ -218,12 +222,38 @@ openslide_public
 const char *openslide_get_property_value(openslide_t *osr, const char *name);
 
 
+/**
+ * Get the NULL-terminated array of associated image names.
+ *
+ * Certain vendor-specific associated images may exist
+ * within a whole slide file. They are encoded as key-value
+ * pairs. This call provides a list of names as strings
+ * that can be used to read associated images with
+ * openslide_get_associated_image_dimensions() and
+ * openslide_read_associated_image().
+ *
+ * @param osr The whole slide image handle.
+ * @return A NULL-terminated string array of associated image names.
+ */
 openslide_public
 const char * const *openslide_get_associated_image_names(openslide_t *osr);
 
-
+/**
+ * Get the dimensions of an associated image.
+ *
+ * This function returns the width and height of an associated image
+ * associated with a whole slide image. Once the dimensions are known,
+ * use openslide_read_associated_image() to read the image.
+ *
+ * @param osr The whole slide image handle.
+ * @param name The name of the desired associated image. Must be
+ *            a valid name as given by openslide_get_associated_image_names().
+ * @param[out] w The width of the associated image.
+ * @param[out] h The height of the associated image.
+ */
 openslide_public
-void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
+void openslide_get_associated_image_dimensions(openslide_t *osr,
+					       const char *name,
 					       int64_t *w, int64_t *h);
 
 
@@ -232,8 +262,9 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
  *
  * This function reads and decompresses an associated image associated with
  * a whole slide image. @p dest must be a valid
- * pointer to enough memory to hold the image. To compute the proper
- * size for @p dest, use @p w * @p h * 4. Get the dimensions with
+ * pointer to enough memory to hold the image,
+ * at least (width * height * 4) bytes in length.
+ * Get the width and height with
  * openslide_get_associated_image_dimensions().
  *
  * @param osr The whole slide image handle.
