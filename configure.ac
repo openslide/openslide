@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([openslide], [1.1.1], [agoode@andrew.cmu.edu])
+AC_INIT([openslide], [2.0.0], [agoode@andrew.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign 1.11])
