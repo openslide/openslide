@@ -34,7 +34,7 @@
 #    define openslide_public __declspec(dllimport)
 #  endif
 #elif __GNUC__ > 3
-# define openslide_public __attribute((visibility("default")))
+# define openslide_public __attribute__ ((visibility("default")))
 #else
 # define openslide_public
 #endif
