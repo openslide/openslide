@@ -35,13 +35,10 @@
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
-static void info_callback(const char *msg, void *data) {
-  g_message("%s", msg);
-}
-static void warning_callback(const char *msg, void *data) {
+static void warning_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_warning("%s", msg);
 }
-static void error_callback(const char *msg, void *data) {
+static void error_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_critical("%s", msg);
 }
 
@@ -74,7 +71,6 @@ static void aperio_tiff_tilereader(TIFF *tiff,
     .warning_handler = warning_callback,
 
     /* don't user info_handler, it outputs lots of junk */
-    //.info_handler = info_callback,
   };
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, NULL);
 

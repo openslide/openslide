@@ -146,7 +146,7 @@ struct my_src_mgr {
   int buffer_size;
 };
 
-static void init_source (j_decompress_ptr cinfo) {
+static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to be done */
 }
 
@@ -166,7 +166,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
 }
 
 
-static void term_source (j_decompress_ptr cinfo) {
+static void term_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to do */
 }
 
@@ -845,7 +845,8 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
   return (w1 < w2) - (w1 > w2);
 }
 
-static void get_keys(gpointer key, gpointer value,
+static void get_keys(gpointer key,
+		     gpointer _OPENSLIDE_UNUSED(value),
 		     gpointer user_data) {
   GList *keys = *((GList **) user_data);
   keys = g_list_prepend(keys, key);
@@ -1182,10 +1183,10 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 						NULL);
 
   // for debugging
-  /*
-  g_thread_join(data->restart_marker_thread);
-  verify_mcu_starts(data);
-  */
+  if (false) {
+    g_thread_join(data->restart_marker_thread);
+    verify_mcu_starts(data);
+  }
 
   // set ops
   osr->ops = &jpeg_ops;

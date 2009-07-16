@@ -80,7 +80,7 @@ struct add_key_to_strv_data {
 };
 
 static void add_key_to_strv(gpointer key,
-			    gpointer value,
+			    gpointer _OPENSLIDE_UNUSED(value),
 			    gpointer user_data) {
   struct add_key_to_strv_data *d = user_data;
 
@@ -225,15 +225,18 @@ double openslide_get_layer_downsample(openslide_t *osr, int32_t layer) {
 }
 
 
-int openslide_give_prefetch_hint(openslide_t *osr,
-				 int64_t x, int64_t y,
-				 int32_t layer,
-				 int64_t w, int64_t h) {
+int openslide_give_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
+				 int64_t _OPENSLIDE_UNUSED(x),
+				 int64_t _OPENSLIDE_UNUSED(y),
+				 int32_t _OPENSLIDE_UNUSED(layer),
+				 int64_t _OPENSLIDE_UNUSED(w),
+				 int64_t _OPENSLIDE_UNUSED(h)) {
   // TODO
   return 0;
 }
 
-void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id) {
+void openslide_cancel_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
+				    int _OPENSLIDE_UNUSED(prefetch_id)) {
   // TODO
   return;
 }
