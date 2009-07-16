@@ -503,29 +503,7 @@ static void compute_mcu_start(FILE *f,
 static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 				     int32_t tileno,
 				     int32_t scale_denom) {
-  // figure out where to start the data stream
-  int64_t stop_position;
-
   g_assert(jpeg->f);
-
-  compute_mcu_start(jpeg->f,
-		    jpeg->mcu_starts,
-		    jpeg->unreliable_mcu_starts,
-		    jpeg->start_in_file,
-		    jpeg->end_in_file,
-		    tileno);
-  if (jpeg->mcu_starts_count == tileno + 1) {
-    // EOF
-    stop_position = jpeg->end_in_file;
-  } else {
-    compute_mcu_start(jpeg->f,
-		      jpeg->mcu_starts,
-		      jpeg->unreliable_mcu_starts,
-		      jpeg->start_in_file,
-		      jpeg->end_in_file,
-		      tileno + 1);
-    stop_position = jpeg->mcu_starts[tileno + 1];
-  }
 
   // begin decompress
   struct jpeg_decompress_struct cinfo;
@@ -539,8 +517,31 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
   uint32_t *dest = NULL;
 
   if (setjmp(env) == 0) {
-    //cinfo.err = jpeg_std_error(&jerr);
+    // figure out where to start the data stream
+    int64_t stop_position;
+    compute_mcu_start(jpeg->f,
+		      jpeg->mcu_starts,
+		      jpeg->unreliable_mcu_starts,
+		      jpeg->start_in_file,
+		      jpeg->end_in_file,
+		      tileno);
+    if (jpeg->mcu_starts_count == tileno + 1) {
+      // EOF
+      stop_position = jpeg->end_in_file;
+    } else {
+      compute_mcu_start(jpeg->f,
+			jpeg->mcu_starts,
+			jpeg->unreliable_mcu_starts,
+			jpeg->start_in_file,
+			jpeg->end_in_file,
+			tileno + 1);
+      stop_position = jpeg->mcu_starts[tileno + 1];
+    }
+
+    // set error handler, this will longjmp if necessary
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+
+    // start decompressing
     jpeg_create_decompress(&cinfo);
 
     jpeg_random_access_src(&cinfo, jpeg->f,
