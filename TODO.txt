@@ -1,3 +1,5 @@
+* Large file support on win32
+
 * Zeiss/MIRAX
   - Properties, associated images, comment
   - Fix edge non-drawing condition (something with start_tile end_tile)

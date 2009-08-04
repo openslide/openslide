@@ -30,8 +30,8 @@
 #endif
 
 #if !defined(fseeko) && defined(_WIN32)
-#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
-#define ftello(stream) _ftelli64(stream)
+#define fseeko(stream, offset, origin) fseek(stream, offset, origin)
+#define ftello(stream) ftell(stream)
 #endif
 
 #if defined(__GNUC__)
