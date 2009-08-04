@@ -20,7 +20,8 @@
 
 * XTP format?
 
-* Bacus
-  - Add support?
+* Interscope format?
+
+* Bacus format?
   - Store filenames and use open/close instead of fopen/fclose. It is necessary
     for handling so many files.
