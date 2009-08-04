@@ -184,6 +184,10 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
 }
 
 static void add_properties(GHashTable *ht, GKeyFile *kf) {
+  g_hash_table_insert(ht,
+		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup("hamamatsu"));
+
   char **keys = g_key_file_get_keys(kf, GROUP_VMS, NULL, NULL);
   if (keys == NULL) {
     return;

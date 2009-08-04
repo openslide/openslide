@@ -125,6 +125,10 @@ static void add_properties(GHashTable *ht, char **props) {
     return;
   }
 
+  g_hash_table_insert(ht,
+		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup("aperio"));
+
   // ignore first property in Aperio
   for(char **p = props + 1; *p != NULL; p++) {
     char **pair = g_strsplit(*p, "=", 2);
