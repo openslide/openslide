@@ -51,7 +51,7 @@
 
 #include <openjpeg/openjpeg.h>
 
-#define _OPENSLIDE_COMMENT_NAME "comment"
+#define _OPENSLIDE_COMMENT_NAME "openslide.comment"
 
 /* the associated image structure */
 struct _openslide_associated_image {
