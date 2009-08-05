@@ -70,7 +70,7 @@ for ptr in table:
             ff.close()
 
             # write it
-            outfilename = "Data%0.4d_%0.10d.dat" % (fileno, tileno)
+            outfilename = "Data%0.4d_%0.10d.jpg" % (fileno, tileno)
             of = open(outfilename, "w")
             of.write(data)
             of.close()
