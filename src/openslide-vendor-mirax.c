@@ -1046,6 +1046,18 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
+
+  // override downsamples
+  if (osr) {
+    osr->downsamples = g_new(double, osr->layer_count);
+    double downsample = 1.0;
+
+    for (int32_t i = 0; i < osr->layer_count; i++) {
+      osr->downsamples[i] = downsample;
+      downsample *= 2.0;
+    }
+  }
+
   success = true;
   goto DONE;
 

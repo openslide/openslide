@@ -72,7 +72,7 @@ struct _openslide {
   double fill_color_b;
   double fill_color_a;
 
-  double *downsamples;  // filled in automatically from dimensions
+  double *downsamples;  // if not specified, then filled in automatically from dimensions
 
   // associated images
   GHashTable *associated_images;  // created automatically
