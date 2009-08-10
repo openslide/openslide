@@ -660,28 +660,41 @@ static void read_tile(openslide_t *osr,
 								 CAIRO_FORMAT_RGB24,
 								 tw, th,
 								 tw * 4);
+
+  double src_x = tile->src_x / l->scale_denom;
+  double src_y = tile->src_y / l->scale_denom;
+
+  // if we are drawing a subregion of the tile, we must do an additional copy,
+  // because cairo lacks source clipping
+  if ((tile->jpeg->tile_width > tile->w) ||
+      (tile->jpeg->tile_height > tile->h)) {
+    cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+							   ceil(tile->w / l->scale_denom),
+							   ceil(tile->h / l->scale_denom));
+    cairo_t *cr2 = cairo_create(surface2);
+    cairo_set_source_surface(cr2, surface, -src_x, -src_y);
+    cairo_surface_destroy(surface);
+    surface = surface2;
+    src_x = 0;
+    src_y = 0;
+
+    cairo_rectangle(cr2, 0, 0,
+		    tile->w / l->scale_denom,
+		    tile->h / l->scale_denom);
+    cairo_fill(cr2);
+    cairo_destroy(cr2);
+  }
+
   cairo_save(cr);
   cairo_translate(cr,
 		  tile->dest_offset_x / l->scale_denom,
 		  tile->dest_offset_y / l->scale_denom);
   cairo_set_source_surface(cr, surface,
-			   -tile->src_x / l->scale_denom,
-			   -tile->src_y / l->scale_denom);
+			   -src_x, -src_y);
+  cairo_surface_destroy(surface);
   cairo_rectangle(cr, 0, 0,
 		  tile->w / l->scale_denom, tile->h / l->scale_denom);
-  if (true) {
-    cairo_fill(cr);
-  } else {
-    cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
-    cairo_fill_preserve(cr);
-    cairo_stroke(cr);
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_set_font_size(cr, 8.0);
-    char *tmp = g_strdup_printf("%" PRId64 " %" PRId64, tile_x, tile_y);
-    cairo_show_text(cr, tmp);
-    g_free(tmp);
-  }
-  cairo_surface_destroy(surface);
+  cairo_fill(cr);
   cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
