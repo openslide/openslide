@@ -4,6 +4,9 @@ import cairo
 # for set_source_surface, the subpixel translation is
 # capturing pixel values from adjacent pixels of the source
 
+# as confirmed on IRC #cairo 2009-08-10, cairo is missing
+# source clipping and thus the behavior is a bug
+
 src = cairo.ImageSurface(cairo.FORMAT_RGB24, 60, 40)
 cr = cairo.Context(src)
 
