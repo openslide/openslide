@@ -453,8 +453,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    tile->src_x = tw * xi;
 	    tile->src_y = th * yi;
-	    tile->w = tw + 1;  // +1 is slightly hackish?
-	    tile->h = th + 1;
+	    tile->w = ceil(tw) + 1;  // +1 is slightly hackish?
+	    tile->h = ceil(th) + 1;
 
 	    // compute offset
 	    tile->dest_offset_x = pos_x - (xx * l->tile_advance_x);
