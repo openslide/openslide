@@ -42,6 +42,7 @@ void _openslide_read_tiles(cairo_t *cr,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
 					     struct _openslide_cache *cache)) {
+  //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
   cairo_save(cr);
   //  cairo_set_source_rgb(cr, 0, 1, 0);
   //  cairo_paint(cr);

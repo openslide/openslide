@@ -332,6 +332,7 @@ static void convert_tiles(gpointer key,
 				    extra_bottom);
   }
 
+  //  g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", new_l, new_l->extra_tiles_left, new_l->extra_tiles_right, new_l->extra_tiles_top, new_l->extra_tiles_bottom);
 
 
   // insert tile into new table
@@ -621,12 +622,12 @@ static void read_tile(openslide_t *osr,
 		      int32_t layer,
 		      int64_t tile_x, int64_t tile_y,
 		      struct _openslide_cache *cache) {
-  //  g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64, layer, tile_x, tile_y);
-
+  //g_debug("read_tile");
   struct jpegops_data *data = osr->data;
   struct layer *l = data->layers + layer;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
+    //g_debug("too much");
     return;
   }
 
@@ -640,6 +641,9 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
+  if (layer < 4) {
+    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y);
+  }
 
   // get the jpeg data, possibly from cache
   uint32_t *tiledata = _openslide_cache_get(cache,
@@ -695,6 +699,26 @@ static void read_tile(openslide_t *osr,
   cairo_rectangle(cr, 0, 0,
 		  tile->w / l->scale_denom, tile->h / l->scale_denom);
   cairo_fill(cr);
+
+  /*
+  cairo_fill_preserve(cr);
+  cairo_set_source_rgb(cr, 0, 0, 0);
+  cairo_stroke(cr);
+  char *yt = g_strdup_printf("%d", tile_y);
+  cairo_move_to(cr, 0, tile->h/l->scale_denom);
+  cairo_show_text(cr, yt);
+  cairo_translate(cr,
+		  -tile->dest_offset_x / l->scale_denom,
+		  -tile->dest_offset_y / l->scale_denom);
+  cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
+  cairo_rectangle(cr, 0, 0,
+		  tile->w / l->scale_denom, tile->h / l->scale_denom);
+  cairo_stroke(cr);
+  cairo_move_to(cr, 0, tile->h/l->scale_denom);
+  cairo_show_text(cr, yt);
+  g_free(yt);
+  */
+
   cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
