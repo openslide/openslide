@@ -14,6 +14,6 @@ try:
         y = int(struct.unpack("<i", f.read(4))[0]) / 256.0
         zz = f.read(1)
 
-        print '%10.100g %10.100g' % (x, y)
+        print '%25.8f %25.8f' % (x, y)
 except:
     pass
