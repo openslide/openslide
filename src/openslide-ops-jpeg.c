@@ -726,19 +726,28 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double ds = openslide_get_layer_downsample(osr, layer);
   int64_t ds_x = x / ds;
   int64_t ds_y = y / ds;
-  int64_t start_tile_x = (ds_x / l->tile_advance_x) - l->extra_tiles_left;
-  double offset_x = (ds_x - (start_tile_x * l->tile_advance_x))
-    + (l->extra_tiles_left * l->tile_advance_x);
-  int64_t end_tile_x = ((ds_x + w) / l->tile_advance_x) + 1 + l->extra_tiles_right;
-  int64_t start_tile_y = (ds_y / l->tile_advance_y) - l->extra_tiles_top;
-  double offset_y = (ds_y - (start_tile_y * l->tile_advance_y))
-    + (l->extra_tiles_top * l->tile_advance_y);
-  int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1 + l->extra_tiles_bottom;
+  int64_t start_tile_x = ds_x / l->tile_advance_x;
+  double offset_x = ds_x - (start_tile_x * l->tile_advance_x);
+  int64_t end_tile_x = ((ds_x + w) / l->tile_advance_x) + 1;
+  int64_t start_tile_y = ds_y / l->tile_advance_y;
+  double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
+  int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1;
+
+  //g_debug("ds: % " PRId64 " %" PRId64, ds_x, ds_y);
+  //  g_debug("start tile: %" PRId64 " %" PRId64 ", end tile: %" PRId64 " %" PRId64,
+  //	  start_tile_x, start_tile_y, end_tile_x, end_tile_y);
+
+  // accommodate extra tiles being drawn
+  cairo_translate(cr,
+		  -l->extra_tiles_left * l->tile_advance_x,
+		  -l->extra_tiles_top * l->tile_advance_y);
 
   _openslide_read_tiles(cr,
 			layer,
-			start_tile_x, start_tile_y,
-			end_tile_x, end_tile_y,
+			start_tile_x - l->extra_tiles_left,
+			start_tile_y - l->extra_tiles_top,
+			end_tile_x + l->extra_tiles_right,
+			end_tile_y + l->extra_tiles_bottom,
 			offset_x, offset_y,
 			l->tile_advance_x,
 			l->tile_advance_y,
