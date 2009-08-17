@@ -647,6 +647,9 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
+  success = true;
+
+ OUT:
   // reverse list
   jpegs_list = g_list_reverse(jpegs_list);
 
@@ -662,9 +665,6 @@ static bool process_indexfile(const char *slideversion,
   g_hash_table_unref(file_table);
   file_table = NULL;
 
-  success = true;
-
- OUT:
   // deallocate
   g_free(slide_positions);
   g_list_free(jpegs_list);
@@ -677,8 +677,13 @@ static bool process_indexfile(const char *slideversion,
   if (success) {
     *file_count_out = jpeg_count;
     *files_out = jpegs;
+  } else {
+    for (int i = 0; i < jpeg_count; i++) {
+      struct _openslide_jpeg_file *jpeg = jpegs[i];
+      g_slice_free(struct _openslide_jpeg_file, jpeg);
+    }
+    g_free(jpegs);
   }
-  // XXX leaking memory
 
   return success;
 }
@@ -1090,9 +1095,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   goto DONE;
 
  FAIL:
-  for (int i = 0; i < num_jpegs; i++) {
-    //    g_slice_free(struct _openslide_jpeg_fragment, jpegs[i]);
+  for (int i = 0; i < zoom_levels; i++) {
+    struct _openslide_jpeg_layer *l = layers[i];
+    g_hash_table_unref(l->tiles);
+    g_slice_free(struct _openslide_jpeg_layer, l);
   }
+  g_free(layers);
   g_free(jpegs);
 
   success = false;
