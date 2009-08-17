@@ -130,7 +130,7 @@ static bool verify_string_from_file(FILE *f, const char *str) {
   possible_str[len] = '\0';
   size_t size = fread(possible_str, len, 1, f);
 
-  g_debug("\"%s\" == \"%s\" ?", str, possible_str);
+  //  g_debug("\"%s\" == \"%s\" ?", str, possible_str);
 
   result = (size == 1) && (strcmp(str, possible_str) == 0);
 
@@ -271,7 +271,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     struct _openslide_jpeg_layer *l = layers[zoom_level];
     int32_t ptr;
 
-    g_debug("reading zoom_level %d", zoom_level);
+    //    g_debug("reading zoom_level %d", zoom_level);
 
     if (fseeko(f, seek_location, SEEK_SET) == -1) {
       g_warning("Cannot seek to zoom level pointer %d", zoom_level + 1);
@@ -510,7 +510,7 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   int count = size / 9;
   int32_t *result = g_new(int, count * 2);
 
-  g_debug("tile positions count: %d", count);
+  //  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
     // read 2 numbers, then a null
@@ -587,13 +587,10 @@ static bool process_indexfile(const char *slideversion,
     g_warning("Cannot read slide position info");
     goto OUT;
   }
-  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64,
-	  slide_position_fileno,
-	  slide_position_size,
-	  slide_position_offset);
+  //  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64, slide_position_fileno, slide_position_size, slide_position_offset);
 
   if (slide_position_size != (9 * (tiles_x / 2) * (tiles_y / 2))) {
-    g_debug("Slide position file not of expected size");
+    g_warning("Slide position file not of expected size");
     goto OUT;
   }
 
@@ -967,6 +964,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
+  /*
   g_debug("dirname: %s", dirname);
   g_debug("slide_version: %s", slide_version);
   g_debug("slide_id: %s", slide_id);
@@ -987,7 +985,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     g_debug(" datafile name %d: %s", i, datafile_names[i]);
   }
   g_debug("position_nonheir_offset: %d", position_nonhier_offset);
-
+  */
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
@@ -1052,8 +1050,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     l->tile_advance_y = (((double) hs->tile_h) / ((double) divisor)) -
       ((double) hs->overlap_y / 2.0);
 
-    g_debug("layer %d tile advance %.10g %.10g",
-	    i, l->tile_advance_x, l->tile_advance_y);
+    //    g_debug("layer %d tile advance %.10g %.10g", i, l->tile_advance_x, l->tile_advance_y);
   }
 
   // TODO load the position map and build up the tiles, using subtiles
