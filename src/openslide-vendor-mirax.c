@@ -683,6 +683,35 @@ static bool process_indexfile(const char *slideversion,
   return success;
 }
 
+static void add_properties(GHashTable *ht, GKeyFile *kf) {
+  g_hash_table_insert(ht,
+		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup("mirax"));
+
+  char **groups = g_key_file_get_groups(kf, NULL);
+  if (groups == NULL) {
+    return;
+  }
+
+  for (char **group = groups; *group != NULL; group++) {
+    char **keys = g_key_file_get_keys(kf, *group, NULL, NULL);
+    if (keys == NULL) {
+      break;
+    }
+
+    for (char **key = keys; *key != NULL; key++) {
+      char *value = g_key_file_get_value(kf, *group, *key, NULL);
+      if (value) {
+	g_hash_table_insert(ht,
+			    g_strdup_printf("mirax.%s.%s", *group, *key),
+			    g_strdup(value));
+	g_free(value);
+      }
+    }
+    g_strfreev(keys);
+  }
+  g_strfreev(groups);
+}
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   struct _openslide_jpeg_file **jpegs = NULL;
@@ -719,13 +748,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   FILE *indexfile = NULL;
 
-  // add essential property
-  if (osr) {
-    g_hash_table_insert(osr->properties,
-			g_strdup(_OPENSLIDE_VENDOR_NAME),
-			g_strdup("mirax"));
-  }
-
   // start reading
 
   // verify filename
@@ -745,6 +767,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
   g_free(tmp);
   tmp = NULL;
+
+  // add properties
+  if (osr) {
+    add_properties(osr->properties, slidedat);
+  }
 
   // load general stuff
   if (!g_key_file_has_group(slidedat, GROUP_GENERAL)) {
