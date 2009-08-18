@@ -195,4 +195,9 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 							 jmp_buf *env);
 GHashTable *_openslide_jpeg_create_tiles_table(void);
 
+void _openslide_add_jpeg_associated_image(GHashTable *ht,
+					  const char *name,
+					  FILE *f);
+
+
 #endif
