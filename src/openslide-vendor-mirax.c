@@ -715,6 +715,44 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_strfreev(groups);
 }
 
+static int get_nonhier_name_offset(GKeyFile *keyfile,
+				   int nonhier_count,
+				   const char *group,
+				   const char *target_value) {
+  int offset_tmp = 0;
+  for (int i = 0; i < nonhier_count; i++) {
+    char *key = g_strdup_printf(KEY_NONHIER_d_NAME, i);
+    char *value = g_key_file_get_value(keyfile, group,
+				       key, NULL);
+    g_free(key);
+
+    if (!value) {
+      g_warning("Can't read value for nonhier name");
+      return -1;
+    }
+
+    if (strcmp(target_value, value) == 0) {
+      g_free(value);
+      return offset_tmp;
+    }
+
+    // otherwise, increase offset
+    g_free(value);
+    key = g_strdup_printf(KEY_NONHIER_d_COUNT, i);
+    int count = g_key_file_get_integer(keyfile, group,
+				       key, NULL);
+    g_free(key);
+    if (!count) {
+      g_warning("Can't read nonhier val count");
+      return -1;
+    }
+    offset_tmp += count;
+  }
+
+  return -1;
+}
+
+
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
@@ -928,37 +966,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 
   // load position stuff
   // find key for position
-  int offset_tmp = 0;
-  for (int i = 0; i < nonhier_count; i++) {
-    char *key = g_strdup_printf(KEY_NONHIER_d_NAME, i);
-    char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL,
-				       key, NULL);
-    g_free(key);
-
-    if (!value) {
-      g_warning("Can't read value for nonhier name");
-      goto FAIL;
-    }
-
-    if (strcmp(VALUE_VIMSLIDE_POSITION_BUFFER, value) == 0) {
-      g_free(value);
-      position_nonhier_offset = offset_tmp;
-      break;
-    }
-
-    // otherwise, increase offset
-    g_free(value);
-    key = g_strdup_printf(KEY_NONHIER_d_COUNT, i);
-    int count = g_key_file_get_integer(slidedat, GROUP_HIERARCHICAL,
-				       key, NULL);
-    g_free(key);
-    if (!count) {
-      g_warning("Can't read nonhier val count");
-      goto FAIL;
-    }
-    offset_tmp += count;
-  }
-
+  position_nonhier_offset = get_nonhier_name_offset(slidedat,
+						    nonhier_count,
+						    GROUP_HIERARCHICAL,
+						    VALUE_VIMSLIDE_POSITION_BUFFER);
   if (position_nonhier_offset == -1) {
     g_warning("Can't figure out where the position file is");
     goto FAIL;
