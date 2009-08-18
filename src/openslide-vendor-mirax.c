@@ -53,7 +53,12 @@ static const char KEY_HIER_d_COUNT[] = "HIER_%d_COUNT";
 static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
 static const char KEY_NONHIER_d_NAME[] = "NONHIER_%d_NAME";
 static const char KEY_NONHIER_d_COUNT[] = "NONHIER_%d_COUNT";
+static const char KEY_NONHIER_d_VAL_d[] = "NONHIER_%d_VAL_%d";
 static const char VALUE_VIMSLIDE_POSITION_BUFFER[] = "VIMSLIDE_POSITION_BUFFER";
+static const char VALUE_SCAN_DATA_LAYER[] = "Scan data layer";
+static const char VALUE_SCAN_DATA_LAYER_MACRO[] = "ScanDataLayer_SlideThumbnail";
+static const char VALUE_SCAN_DATA_LAYER_LABEL[] = "ScanDataLayer_SlideBarcode";
+static const char VALUE_SCAN_DATA_LAYER_THUMBNAIL[] = "ScanDataLayer_SlidePreview";
 static const char VALUE_SLIDE_ZOOM_LEVEL[] = "Slide zoom level";
 
 static const char GROUP_NONHIERLAYER_d_SECTION[] = "NONHIERLAYER_%d_SECTION";
@@ -535,6 +540,37 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   return result;
 }
 
+static void add_associated_image(const char *dirname,
+				 const char *filename,
+				 int64_t size,
+				 int64_t offset,
+				 GHashTable *ht,
+				 const char *name) {
+  if (ht == NULL) {
+    return;
+  }
+
+  char *tmp = g_build_filename(dirname, filename, NULL);
+  FILE *f = fopen(tmp, "rb");
+  g_free(tmp);
+
+  if (!f) {
+    g_warning("Cannot open associated image file");
+    return;
+  }
+
+  if (fseeko(f, offset, SEEK_SET) == -1) {
+    g_warning("Cannot seek to offset");
+    fclose(f);
+    return;
+  }
+
+  _openslide_add_jpeg_associated_image(ht, name, f);
+
+  fclose(f);
+}
+
+
 
 static bool process_indexfile(const char *slideversion,
 			      const char *uuid,
@@ -542,6 +578,10 @@ static bool process_indexfile(const char *slideversion,
 			      int datafile_count,
 			      char **datafile_names,
 			      int slide_position_record,
+			      int macro_record,
+			      int label_record,
+			      int thumbnail_record,
+			      GHashTable *associated_images,
 			      int zoom_levels,
 			      int tiles_x,
 			      int tiles_y,
@@ -604,6 +644,51 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
+
+  // read in the associated images
+  int tmp_fileno;
+  int64_t tmp_size;
+  int64_t tmp_offset;
+
+  if (read_nonhier_record(indexfile,
+			  nonhier_root,
+			  macro_record,
+			  &tmp_fileno,
+			  &tmp_size,
+			  &tmp_offset)) {
+    add_associated_image(dirname,
+			 datafile_names[tmp_fileno],
+			 tmp_size,
+			 tmp_offset,
+			 associated_images,
+			 "macro");
+  }
+  if (read_nonhier_record(indexfile,
+			  nonhier_root,
+			  label_record,
+			  &tmp_fileno,
+			  &tmp_size,
+			  &tmp_offset)) {
+    add_associated_image(dirname,
+			 datafile_names[tmp_fileno],
+			 tmp_size,
+			 tmp_offset,
+			 associated_images,
+			 "label");
+  }
+  if (read_nonhier_record(indexfile,
+			  nonhier_root,
+			  thumbnail_record,
+			  &tmp_fileno,
+			  &tmp_size,
+			  &tmp_offset)) {
+    add_associated_image(dirname,
+			 datafile_names[tmp_fileno],
+			 tmp_size,
+			 tmp_offset,
+			 associated_images,
+			 "thumbnail");
+  }
 
   // read hierarchical sections
   if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
@@ -715,12 +800,20 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_strfreev(groups);
 }
 
-static int get_nonhier_name_offset(GKeyFile *keyfile,
-				   int nonhier_count,
-				   const char *group,
-				   const char *target_value) {
-  int offset_tmp = 0;
+static int get_nonhier_name_offset_helper(GKeyFile *keyfile,
+					  int nonhier_count,
+					  const char *group,
+					  const char *target_name,
+					  int *name_count_out,
+					  int *name_index_out) {
+  *name_count_out = 0;
+  *name_index_out = 0;
+
+  int offset = 0;
   for (int i = 0; i < nonhier_count; i++) {
+    *name_index_out = i;
+
+    // look at a key's value
     char *key = g_strdup_printf(KEY_NONHIER_d_NAME, i);
     char *value = g_key_file_get_value(keyfile, group,
 				       key, NULL);
@@ -731,13 +824,7 @@ static int get_nonhier_name_offset(GKeyFile *keyfile,
       return -1;
     }
 
-    if (strcmp(target_value, value) == 0) {
-      g_free(value);
-      return offset_tmp;
-    }
-
-    // otherwise, increase offset
-    g_free(value);
+    // save count for this name
     key = g_strdup_printf(KEY_NONHIER_d_COUNT, i);
     int count = g_key_file_get_integer(keyfile, group,
 				       key, NULL);
@@ -746,12 +833,72 @@ static int get_nonhier_name_offset(GKeyFile *keyfile,
       g_warning("Can't read nonhier val count");
       return -1;
     }
-    offset_tmp += count;
+    *name_count_out = count;
+
+    if (strcmp(target_name, value) == 0) {
+      g_free(value);
+      return offset;
+    }
+    g_free(value);
+
+    // otherwise, increase offset
+    offset += count;
   }
 
   return -1;
 }
 
+
+static int get_nonhier_name_offset(GKeyFile *keyfile,
+				   int nonhier_count,
+				   const char *group,
+				   const char *target_name) {
+  int d1, d2;
+  return get_nonhier_name_offset_helper(keyfile,
+					nonhier_count,
+					group,
+					target_name,
+					&d1, &d2);
+}
+
+static int get_nonhier_val_offset(GKeyFile *keyfile,
+				  int nonhier_count,
+				  const char *group,
+				  const char *target_name,
+				  const char *target_value) {
+  int name_count;
+  int name_index;
+  int offset = get_nonhier_name_offset_helper(keyfile, nonhier_count,
+					      group, target_name,
+					      &name_count,
+					      &name_index);
+  if (offset == -1) {
+    return -1;
+  }
+
+  for (int i = 0; i < name_count; i++) {
+    char *key = g_strdup_printf(KEY_NONHIER_d_VAL_d, name_index, i);
+    char *value = g_key_file_get_value(keyfile, group,
+				       key, NULL);
+    g_free(key);
+
+    if (!value) {
+      g_warning("Can't read value for nonhier key");
+      return -1;
+    }
+
+    if (strcmp(target_value, value) == 0) {
+      g_free(value);
+      return offset;
+    }
+
+    // otherwise, increase offset
+    g_free(value);
+    offset++;
+  }
+
+  return -1;
+}
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   struct _openslide_jpeg_file **jpegs = NULL;
@@ -776,6 +923,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   int hier_count = 0;
   int nonhier_count = 0;
   int position_nonhier_offset = -1;
+  int macro_nonhier_offset = -1;
+  int label_nonhier_offset = -1;
+  int thumbnail_nonhier_offset = -1;
 
   int slide_zoom_level_value = -1;
   char *key_slide_zoom_level_name = NULL;
@@ -975,6 +1125,23 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
 
+  // associated images
+  macro_nonhier_offset = get_nonhier_val_offset(slidedat,
+						nonhier_count,
+						GROUP_HIERARCHICAL,
+						VALUE_SCAN_DATA_LAYER,
+						VALUE_SCAN_DATA_LAYER_MACRO);
+  label_nonhier_offset = get_nonhier_val_offset(slidedat,
+						nonhier_count,
+						GROUP_HIERARCHICAL,
+						VALUE_SCAN_DATA_LAYER,
+						VALUE_SCAN_DATA_LAYER_LABEL);
+  thumbnail_nonhier_offset = get_nonhier_val_offset(slidedat,
+						    nonhier_count,
+						    GROUP_HIERARCHICAL,
+						    VALUE_SCAN_DATA_LAYER,
+						    VALUE_SCAN_DATA_LAYER_THUMBNAIL);
+
   /*
   g_debug("dirname: %s", dirname);
   g_debug("slide_version: %s", slide_version);
@@ -1065,10 +1232,18 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   // TODO load the position map and build up the tiles, using subtiles
+  GHashTable *associated_images = NULL;
+  if (osr) {
+    associated_images = osr->associated_images;
+  }
   if (!process_indexfile(slide_version, slide_id,
 			 dirname,
 			 datafile_count, datafile_names,
 			 position_nonhier_offset,
+			 macro_nonhier_offset,
+			 label_nonhier_offset,
+			 thumbnail_nonhier_offset,
+			 associated_images,
 			 zoom_levels,
 			 tiles_x, tiles_y,
 			 slide_zoom_level_sections,
