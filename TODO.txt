@@ -1,11 +1,5 @@
 * Large file support on win32
 
-* Zeiss/MIRAX
-  - Properties, associated images, comment
-  - Fix edge non-drawing condition (something with start_tile end_tile)
-  - Fix rendering artifacts with overlaps
-  - Memory leaks in setup and error cases
-
 * Error handling
 
 * Ship docs
