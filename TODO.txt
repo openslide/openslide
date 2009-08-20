@@ -1,3 +1,5 @@
+* Python bindings
+
 * Large file support on win32
 
 * Error handling
