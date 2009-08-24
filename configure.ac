@@ -5,11 +5,12 @@ AC_PREREQ(2.61)
 AC_INIT([openslide], [2.1.0], [agoode@andrew.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE([foreign 1.11])
+AM_INIT_AUTOMAKE([foreign subdir-objects 1.11])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
+AM_PROG_CC_C_O
 AC_PROG_CC_C99
 
 AC_HEADER_STDBOOL
@@ -91,7 +92,6 @@ AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wm
 
 AC_CONFIG_FILES([
 Makefile
-src/Makefile
 openslide.pc
 ])
 AC_OUTPUT
