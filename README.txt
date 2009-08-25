@@ -34,7 +34,7 @@ This library requires libjpeg, libtiff, and glib >= 2.10.
 Features
 ========
 
-The library can read Trestle, Aperio, and Hamamatsu formats.
+The library can read Trestle, Aperio, MIRAX, and Hamamatsu formats.
 
 
 Other Documentation
