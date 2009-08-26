@@ -268,7 +268,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int tiles_across,
 						   int tiles_down,
 						   int32_t *tile_positions,
-						   GHashTable *file_table,
 						   GList **jpegs_list) {
   int32_t jpeg_number = 0;
 
@@ -377,34 +376,19 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  return false;
 	}
 
-	// open file if necessary
-	FILE *jf = g_hash_table_lookup(file_table, &fileno);
-	if (!jf) {
-	  if (fileno >= datafile_count) {
-	    g_warning("Invalid fileno");
-	    return false;
-	  }
-	  const char *name = datafile_names[fileno];
-	  char *tmp = g_build_filename(dirname, name, NULL);
-	  jf = fopen(tmp, "rb");
-	  g_free(tmp);
-
-	  if (!jf) {
-	    g_warning("Can't open file for fileno %d", fileno);
-	    return false;
-	  }
-
-	  int *key = g_new(int, 1);
-	  *key = fileno;
-	  g_hash_table_insert(file_table, key, jf);
+	// save filename
+	if (fileno >= datafile_count) {
+	  g_warning("Invalid fileno");
+	  return false;
 	}
+	char *filename = g_build_filename(dirname, datafile_names[fileno], NULL);
 
 	// *** file is open
 
 	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
 
 	// populate the file structure
-	jpeg->f = jf;
+	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
 	jpeg->end_in_file = jpeg->start_in_file + length;
 	jpeg->tw = l->raw_tile_width;
@@ -489,10 +473,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   }
 
   return true;
-}
-
-static void file_table_fclose(gpointer key, gpointer value, gpointer user_data) {
-  fclose(value);
 }
 
 static int32_t *read_slide_position_file(const char *dirname, const char *name,
@@ -599,7 +579,6 @@ static bool process_indexfile(const char *slideversion,
 
   int32_t *slide_positions = NULL;
   GList *jpegs_list = NULL;
-  GHashTable *file_table = NULL;
 
   rewind(indexfile);
 
@@ -709,9 +688,6 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
-  // read all zoom level data
-  file_table = g_hash_table_new_full(g_int_hash, g_int_equal,
-				     g_free, NULL);
   // read these pages in
   if (!process_hier_data_pages_from_indexfile(indexfile,
 					      ptr,
@@ -723,7 +699,6 @@ static bool process_indexfile(const char *slideversion,
 					      tiles_x,
 					      tiles_y,
 					      slide_positions,
-					      file_table,
 					      &jpegs_list)) {
     g_warning("Cannot read some data pages from indexfile");
     goto OUT;
@@ -744,17 +719,10 @@ static bool process_indexfile(const char *slideversion,
     jpegs[cur_file++] = iter->data;
   }
   g_assert(cur_file == jpeg_count);
-  g_hash_table_unref(file_table);
-  file_table = NULL;
 
   // deallocate
   g_free(slide_positions);
   g_list_free(jpegs_list);
-
-  if (file_table) {
-    g_hash_table_foreach(file_table, file_table_fclose, NULL);
-    g_hash_table_unref(file_table);
-  }
 
   if (success) {
     *file_count_out = jpeg_count;

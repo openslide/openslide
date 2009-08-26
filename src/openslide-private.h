@@ -129,7 +129,7 @@ void _openslide_generic_tiff_tilereader(TIFF *tiff,
 
 /* JPEG support */
 struct _openslide_jpeg_file {
-  FILE *f;
+  char *filename;
 
   int64_t start_in_file;
   int64_t end_in_file;

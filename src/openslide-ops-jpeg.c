@@ -57,7 +57,7 @@ enum restart_marker_thread_state {
 };
 
 struct one_jpeg {
-  FILE *f;
+  char *filename;
   int64_t start_in_file;
   int64_t end_in_file;
 
@@ -500,11 +500,51 @@ static void compute_mcu_start(FILE *f,
   }
 }
 
+static void draw_red_x(uint32_t *dest, int w, int h) {
+  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) dest,
+								 CAIRO_FORMAT_RGB24,
+								 w, h,
+								 w * 4);
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  cairo_paint(cr);
+
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+  cairo_set_line_width(cr, 1.0);
+  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
+  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_stroke(cr);
+
+  cairo_move_to(cr, 0, 0);
+  cairo_line_to(cr, w, h);
+  cairo_stroke(cr);
+
+  cairo_move_to(cr, w, 0);
+  cairo_line_to(cr, 0, h);
+  cairo_stroke(cr);
+
+  cairo_destroy(cr);
+}
 
 static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 				     int32_t tileno,
-				     int32_t scale_denom) {
-  g_assert(jpeg->f);
+				     int32_t scale_denom,
+				     int w, int h) {
+  g_assert(jpeg->filename);
+
+  uint32_t *dest = g_slice_alloc(w * h * 4);
+
+  // open file
+  FILE *f = fopen(jpeg->filename, "rb");
+  if (f == NULL) {
+    g_critical("Can't open %s", jpeg->filename);
+
+    // fail
+    draw_red_x(dest, w, h);
+    return dest;
+  }
 
   // begin decompress
   struct jpeg_decompress_struct cinfo;
@@ -515,12 +555,10 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
-  uint32_t *dest = NULL;
-
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
     int64_t stop_position;
-    compute_mcu_start(jpeg->f,
+    compute_mcu_start(f,
 		      jpeg->mcu_starts,
 		      jpeg->unreliable_mcu_starts,
 		      jpeg->start_in_file,
@@ -530,7 +568,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
       // EOF
       stop_position = jpeg->end_in_file;
     } else {
-      compute_mcu_start(jpeg->f,
+      compute_mcu_start(f,
 			jpeg->mcu_starts,
 			jpeg->unreliable_mcu_starts,
 			jpeg->start_in_file,
@@ -545,7 +583,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     // start decompressing
     jpeg_create_decompress(&cinfo);
 
-    jpeg_random_access_src(&cinfo, jpeg->f,
+    jpeg_random_access_src(&cinfo, f,
 			   jpeg->start_in_file,
 			   jpeg->mcu_starts[0],
 			   jpeg->mcu_starts[tileno],
@@ -569,32 +607,34 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
       //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
 
-    int dest_size = cinfo.output_width * cinfo.output_height * 4;
-    dest = g_slice_alloc(dest_size);
+    if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
+      g_critical("Dimensional mismatch in read_from_one_jpeg");
+      draw_red_x(dest, w, h);
+    } else {
+      // decompress
+      uint32_t *jpeg_dest = dest;
+      while (cinfo.output_scanline < cinfo.output_height) {
+	JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+						   buffer,
+						   cinfo.rec_outbuf_height);
+	//g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
+	//g_debug(" rows read: %d", rows_read);
+	int cur_buffer = 0;
+	while (rows_read > 0) {
+	  // copy a row
+	  int32_t dest_i = 0;
+	  for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
+	    jpeg_dest[dest_i++] = 0xFF000000 |      // A
+	      buffer[cur_buffer][i * 3 + 0] << 16 | // R
+	      buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+	      buffer[cur_buffer][i * 3 + 2];        // B
+	  }
 
-    // decompress
-    uint32_t *jpeg_dest = dest;
-    while (cinfo.output_scanline < cinfo.output_height) {
-      JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
-						 buffer,
-						 cinfo.rec_outbuf_height);
-      //g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
-      //g_debug(" rows read: %d", rows_read);
-      int cur_buffer = 0;
-      while (rows_read > 0) {
-	// copy a row
-	int32_t dest_i = 0;
-	for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
-	  jpeg_dest[dest_i++] = 0xFF000000 |      // A
-	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][i * 3 + 2];        // B
+	  // advance everything 1 row
+	  cur_buffer++;
+	  jpeg_dest += cinfo.output_width;
+	  rows_read--;
 	}
-
-	// advance everything 1 row
-	cur_buffer++;
-	jpeg_dest += cinfo.output_width;
-	rows_read--;
       }
     }
   } else {
@@ -613,6 +653,8 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
   g_slice_free1(src->buffer_size, src->buffer);
   jpeg_destroy_decompress(&cinfo);
+
+  fclose(f);
 
   return dest;
 }
@@ -650,16 +692,18 @@ static void read_tile(openslide_t *osr,
 					    tile->jpegno,
 					    tile->tileno,
 					    layer);
+  int tw = tile->jpeg->tile_width / l->scale_denom;
+  int th = tile->jpeg->tile_height / l->scale_denom;
+
   cachemiss = !tiledata;
   if (!tiledata) {
     tiledata = read_from_one_jpeg(tile->jpeg,
 				  tile->tileno,
-				  l->scale_denom);
+				  l->scale_denom,
+				  tw, th);
   }
 
   // draw it
-  int tw = tile->jpeg->tile_width / l->scale_denom;
-  int th = tile->jpeg->tile_height / l->scale_denom;
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
 								 CAIRO_FORMAT_RGB24,
 								 tw, th,
@@ -800,16 +844,14 @@ static void destroy(openslide_t *osr) {
   g_mutex_unlock(data->restart_marker_cond_mutex);
   g_thread_join(data->restart_marker_thread);
 
-  // each jpeg in turn, don't close a file handle more than once
-  GHashTable *fclose_hashtable = filehandle_hashtable_new();
+  // each jpeg in turn
   for (int32_t i = 0; i < data->jpeg_count; i++) {
     struct one_jpeg *jpeg = data->all_jpegs[i];
-    filehandle_hashtable_conditional_insert(fclose_hashtable, jpeg->f);
+    g_free(jpeg->filename);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->unreliable_mcu_starts);
     g_slice_free(struct one_jpeg, jpeg);
   }
-  g_hash_table_unref(fclose_hashtable);
 
   // each layer in turn
   for (int32_t i = 0; i < osr->layer_count; i++) {
@@ -857,7 +899,7 @@ static const struct _openslide_ops jpeg_ops = {
 
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_file *file) {
-  onej->f = file->f;
+  onej->filename = file->filename;
   onej->start_in_file = file->start_in_file;
   onej->end_in_file = file->end_in_file;
   onej->unreliable_mcu_starts = file->mcu_starts;
@@ -900,6 +942,7 @@ static void get_keys(gpointer key,
   *((GList **) user_data) = keys;
 }
 
+// warning: calls g_assert for trivial things, use only for debugging
 static void verify_mcu_starts(struct jpegops_data *data) {
   g_debug("verifying mcu starts");
 
@@ -908,7 +951,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 
   while(current_jpeg < data->jpeg_count) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (!oj->f) {
+    if (!oj->filename) {
       current_jpeg++;
       continue;
     }
@@ -916,10 +959,13 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     if (current_mcu_start > 0) {
       int64_t offset = oj->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
-      fseeko(oj->f, offset - 2, SEEK_SET);
-      g_assert(getc(oj->f) == 0xFF);
-      int marker = getc(oj->f);
+      FILE *f = fopen(oj->filename, "rb");
+      g_assert(f);
+      fseeko(f, offset - 2, SEEK_SET);
+      g_assert(getc(f) == 0xFF);
+      int marker = getc(f);
       g_assert(marker >= 0xD0 && marker <= 0xD7);
+      fclose(f);
     }
 
     current_mcu_start++;
@@ -991,13 +1037,18 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (oj->f) {
-      compute_mcu_start(oj->f, oj->mcu_starts,
-			oj->unreliable_mcu_starts,
-			oj->start_in_file,
-			oj->end_in_file,
-			current_mcu_start);
-
+    if (oj->filename) {
+      FILE *f = fopen(oj->filename, "rb");
+      if (!f) {
+	g_critical("Can't open %s", oj->filename);
+      } else {
+	compute_mcu_start(f, oj->mcu_starts,
+			  oj->unreliable_mcu_starts,
+			  oj->start_in_file,
+			  oj->end_in_file,
+			  current_mcu_start);
+	fclose(f);
+      }
       current_mcu_start++;
       if (current_mcu_start >= oj->mcu_starts_count) {
 	current_mcu_start = 0;
@@ -1019,14 +1070,23 @@ static int one_jpeg_compare(const void *a, const void *b) {
   const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
 
   // compare files
-  if (aa->f < bb->f) {
-    return -1;
-  } else if (aa->f > bb->f) {
-    return 1;
+  int str_result;
+  if ((aa->filename == NULL) && (bb->filename == NULL)) {
+    str_result = 0;
+  } else if (aa->filename == NULL) {
+    str_result = -1;
+  } else if (bb->filename == NULL) {
+    str_result = 1;
+  } else {
+    str_result = strcmp(aa->filename, bb->filename);
+  }
+
+  if (str_result != 0) {
+    return str_result;
   }
 
   // compare offsets
-  if (aa->f && bb->f) {
+  if (aa->filename && bb->filename) {
     if (aa->start_in_file < bb->start_in_file) {
       return -1;
     } else if (aa->start_in_file > bb->start_in_file) {
@@ -1062,16 +1122,13 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   if (osr == NULL) {
     // free now and return
-    GHashTable *fclose_hashtable = filehandle_hashtable_new();
     for (int32_t i = 0; i < file_count; i++) {
-      if (files[i]->f) {
-	filehandle_hashtable_conditional_insert(fclose_hashtable,
-						files[i]->f);
+      if (files[i]->filename) {
+	g_free(files[i]->filename);
 	g_free(files[i]->mcu_starts);
       }
       g_slice_free(struct _openslide_jpeg_file, files[i]);
     }
-    g_hash_table_unref(fclose_hashtable);
     g_free(files);
 
     for (int32_t i = 0; i < layer_count; i++) {

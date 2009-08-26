@@ -397,8 +397,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 
     // these jpeg files always start at 0
     jp->start_in_file = 0;
+    jp->filename = g_strdup(image_filenames[i]);
 
-    if ((jp->f = fopen(image_filenames[i], "rb")) == NULL) {
+    FILE *f;
+    if ((f = fopen(jp->filename, "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
       goto FAIL;
     }
@@ -410,8 +412,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(jp->f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr)) {
+    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr)) {
       g_warning("Can't verify JPEG %d", i);
+      fclose(f);
       goto FAIL;
     }
 
@@ -421,12 +424,16 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
 			  comment);
     }
 
-    fseeko(jp->f, 0, SEEK_END);
-    jp->end_in_file = ftello(jp->f);
+    fseeko(f, 0, SEEK_END);
+    jp->end_in_file = ftello(f);
     if (jp->end_in_file == -1) {
       g_warning("Can't read file size for JPEG %d", i);
+      fclose(f);
       goto FAIL;
     }
+
+    // file is done now
+    fclose(f);
 
     int32_t num_tiles_across = jp->w / jp->tw;
     int32_t num_tiles_down = jp->h / jp->th;
@@ -578,10 +585,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
  FAIL:
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
-      FILE *f = jpegs[i]->f;
-      if (f) {
-	fclose(f);
-      }
+      g_free(jpegs[i]->filename);
     }
     g_free(jpegs);
   }
