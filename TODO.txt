@@ -9,8 +9,8 @@
 * Vendor format cheatsheet document
 
 * Lockless concurrency (long term)
-  - Use pread (or mmap) for everything
-  - Figure out what to do about libtiff
+  - JPEG backend now should have this
+  - TIFF backend will likely never be lockless as long as we use libtiff
 
 * XTP format?
 
