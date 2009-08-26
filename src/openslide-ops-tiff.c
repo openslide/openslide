@@ -35,6 +35,8 @@
 struct _openslide_tiffopsdata {
   TIFF *tiff;
 
+  GMutex *tiff_mutex;
+
   int32_t overlap_count;
   int32_t *overlaps;
   int32_t *layers;
@@ -100,6 +102,7 @@ static void store_properties(TIFF *tiff, GHashTable *ht) {
 
 static void destroy_data(struct _openslide_tiffopsdata *data) {
   TIFFClose(data->tiff);
+  g_mutex_free(data->tiff_mutex);
   g_free(data->layers);
   g_free(data->overlaps);
   g_slice_free(struct _openslide_tiffopsdata, data);
@@ -111,8 +114,8 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *w, int64_t *h) {
+static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
+				    int64_t *w, int64_t *h) {
   uint32_t tmp;
 
   // init
@@ -163,6 +166,15 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
   // commit
   *w = iw_minus_o;
   *h = ih_minus_o;
+}
+
+static void get_dimensions(openslide_t *osr, int32_t layer,
+			   int64_t *w, int64_t *h) {
+  struct _openslide_tiffopsdata *data = osr->data;
+
+  g_mutex_lock(data->tiff_mutex);
+  get_dimensions_unlocked(osr, layer, w, h);
+  g_mutex_unlock(data->tiff_mutex);
 }
 
 static void read_tile(openslide_t *osr,
@@ -229,10 +241,10 @@ static void read_tile(openslide_t *osr,
   }
 }
 
-static void paint_region(openslide_t *osr, cairo_t *cr,
-			 int64_t x, int64_t y,
-			 int32_t layer,
-			 int32_t w, int32_t h) {
+static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
+				  int64_t x, int64_t y,
+				  int32_t layer,
+				  int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
@@ -300,6 +312,18 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			read_tile);
 }
 
+static void paint_region(openslide_t *osr, cairo_t *cr,
+			 int64_t x, int64_t y,
+			 int32_t layer,
+			 int32_t w, int32_t h) {
+  struct _openslide_tiffopsdata *data = osr->data;
+
+  g_mutex_lock(data->tiff_mutex);
+  paint_region_unlocked(osr, cr, x, y, layer, w, h);
+  g_mutex_unlock(data->tiff_mutex);
+}
+
+
 static const struct _openslide_ops _openslide_tiff_ops = {
   .get_dimensions = get_dimensions,
   .paint_region = paint_region,
@@ -322,6 +346,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // populate private data
   data->tiff = tiff;
+  data->tiff_mutex = g_mutex_new();
   data->tileread = tileread;
   data->overlap_count = overlap_count;
   data->overlaps = overlaps;

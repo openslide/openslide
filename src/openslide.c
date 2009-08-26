@@ -69,6 +69,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename) {
 }
 
 bool openslide_can_open(const char *filename) {
+  // we are threading
+  if (!g_thread_supported ()) g_thread_init (NULL);
+
   // quick test
   return try_all_formats(NULL, filename);
 }
