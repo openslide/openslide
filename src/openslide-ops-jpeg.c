@@ -983,6 +983,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
+  FILE *current_file = NULL;
+
   while(current_jpeg < data->jpeg_count) {
     g_mutex_lock(data->restart_marker_cond_mutex);
 
@@ -1038,21 +1040,26 @@ static gpointer restart_marker_thread_func(gpointer d) {
 
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
     if (oj->filename) {
-      FILE *f = fopen(oj->filename, "rb");
-      if (!f) {
-	g_critical("Can't open %s", oj->filename);
-      } else {
-	compute_mcu_start(f, oj->mcu_starts,
+      if (current_file == NULL) {
+	current_file = fopen(oj->filename, "rb");
+	if (current_file == NULL) {
+	  g_critical("Can't open %s", oj->filename);
+	}
+      }
+      if (current_file != NULL) {
+	compute_mcu_start(current_file, oj->mcu_starts,
 			  oj->unreliable_mcu_starts,
 			  oj->start_in_file,
 			  oj->end_in_file,
 			  current_mcu_start);
-	fclose(f);
       }
+
       current_mcu_start++;
       if (current_mcu_start >= oj->mcu_starts_count) {
 	current_mcu_start = 0;
 	current_jpeg++;
+	fclose(current_file);
+	current_file = NULL;
       }
     } else {
       current_jpeg++;
