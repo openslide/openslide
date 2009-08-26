@@ -4,6 +4,8 @@
 *.loT
 *.o
 
+.dirstamp
+
 Makefile
 Makefile.in
 .deps
