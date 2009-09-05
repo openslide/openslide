@@ -1246,12 +1246,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   goto DONE;
 
  FAIL:
-  for (int i = 0; i < zoom_levels; i++) {
-    struct _openslide_jpeg_layer *l = layers[i];
-    g_hash_table_unref(l->tiles);
-    g_slice_free(struct _openslide_jpeg_layer, l);
+  if (layers != NULL) {
+    for (int i = 0; i < zoom_levels; i++) {
+      struct _openslide_jpeg_layer *l = layers[i];
+      g_hash_table_unref(l->tiles);
+      g_slice_free(struct _openslide_jpeg_layer, l);
+    }
+    g_free(layers);
   }
-  g_free(layers);
   g_free(jpegs);
 
   success = false;
