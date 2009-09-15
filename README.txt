@@ -37,6 +37,10 @@ Features
 
 The library can read Trestle, Aperio, MIRAX, and Hamamatsu formats.
 
+An openslide_t object can be used concurrently from multiple threads
+without locking. (But you must lock or otherwise use memory barriers
+when passing the object between threads.)
+
 
 Other Documentation
 ===================
