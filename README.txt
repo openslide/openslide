@@ -5,7 +5,7 @@ Carnegie Mellon University
 http://openslide.cs.cmu.edu/
 
 
-2008-11-03
+2009-09-15
 
 ==========================
 
@@ -28,7 +28,8 @@ See the file gpl-2.0.txt for the text of the license.
 Requirements
 ============
 
-This library requires libjpeg, libtiff, and glib >= 2.10.
+This library requires libjpeg, libtiff, openjpeg, cairo >= 1.2,
+and glib >= 2.12.
 
 
 Features
