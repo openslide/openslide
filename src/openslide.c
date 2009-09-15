@@ -138,7 +138,7 @@ openslide_t *openslide_open(const char *filename) {
 
   // check downsamples
   for (int32_t i = 1; i < osr->layer_count; i++) {
-    g_debug("downsample: %g", osr->downsamples[i]);
+    //g_debug("downsample: %g", osr->downsamples[i]);
 
     if (osr->downsamples[i] < osr->downsamples[i - 1]) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
