@@ -121,6 +121,8 @@ struct jpegops_data {
   // layer_count is in the osr struct
   struct layer *layers;
 
+  // cache lock
+  GMutex *cache_mutex;
 
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
@@ -686,10 +688,12 @@ static void read_tile(openslide_t *osr,
   }
 
   // get the jpeg data, possibly from cache
+  g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = _openslide_cache_get(cache,
 					    tile->jpegno,
 					    tile->tileno,
 					    layer);
+  g_mutex_unlock(data->cache_mutex);
   int tw = tile->jpeg->tile_width / l->scale_denom;
   int th = tile->jpeg->tile_height / l->scale_denom;
 
@@ -765,9 +769,11 @@ static void read_tile(openslide_t *osr,
 
   // put into cache last, because the cache can free this tile
   if (cachemiss) {
+    g_mutex_lock(data->cache_mutex);
     _openslide_cache_put(cache, tile->jpegno, tile->tileno, layer,
 			 tiledata,
 			 tw * th * 4);
+    g_mutex_unlock(data->cache_mutex);
   }
 }
 
@@ -865,6 +871,8 @@ static void destroy(openslide_t *osr) {
   // the layer array
   g_free(data->layers);
 
+  // the cache lock
+  g_mutex_free(data->cache_mutex);
 
   // the background stuff
   g_mutex_free(data->restart_marker_mutex);
@@ -1273,6 +1281,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_hash_table_unref(expanded_layers);
 
 
+  // init cache lock
+  data->cache_mutex = g_mutex_new();
 
   // init background thread for finding restart markers
   data->restart_marker_thread_state = R_M_THREAD_STATE_RUN;
