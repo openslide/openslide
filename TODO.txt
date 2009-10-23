@@ -7,8 +7,9 @@
 * Vendor format cheatsheet document
 
 * Lockless concurrency (long term)
-  - JPEG backend now should have this
+  - JPEG backend now should have this (except for the cache)
   - TIFF backend will likely never be lockless as long as we use libtiff
+  - Will the cache become the bottleneck?
 
 * XTP format?
 
