@@ -121,8 +121,6 @@ struct jpegops_data {
   // layer_count is in the osr struct
   struct layer *layers;
 
-  // cache
-  struct _openslide_cache *cache;
 
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
@@ -867,8 +865,6 @@ static void destroy(openslide_t *osr) {
   // the layer array
   g_free(data->layers);
 
-  // the cache
-  _openslide_cache_destroy(data->cache);
 
   // the background stuff
   g_mutex_free(data->restart_marker_mutex);
@@ -1277,8 +1273,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_hash_table_unref(expanded_layers);
 
 
-  // init cache
-  data->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
 
   // init background thread for finding restart markers
   data->restart_marker_thread_state = R_M_THREAD_STATE_RUN;
