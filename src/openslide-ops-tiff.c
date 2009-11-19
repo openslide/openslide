@@ -48,7 +48,7 @@ struct _openslide_tiffopsdata {
 static void store_string_property(TIFF *tiff, GHashTable *ht,
 				  const char *name, ttag_t tag) {
   char *value;
-  if (TIFFGetField(tiff, tag, &value)) {
+  if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
     g_hash_table_insert(ht, g_strdup(name), g_strdup(value));
   }
 }
@@ -56,7 +56,7 @@ static void store_string_property(TIFF *tiff, GHashTable *ht,
 static void store_float_property(TIFF *tiff, GHashTable *ht,
 				  const char *name, ttag_t tag) {
   float value;
-  if (TIFFGetField(tiff, tag, &value)) {
+  if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
     g_hash_table_insert(ht, g_strdup(name), g_strdup_printf("%g", value));
   }
 }
@@ -79,7 +79,7 @@ static void store_properties(TIFF *tiff, GHashTable *ht) {
 
   // special
   uint16_t resolution_unit;
-  if (TIFFGetField(tiff, TIFFTAG_RESOLUTIONUNIT, &resolution_unit)) {
+  if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &resolution_unit)) {
     const char *result;
 
     switch(resolution_unit) {
