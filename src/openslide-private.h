@@ -104,6 +104,7 @@ bool _openslide_try_trestle(openslide_t *osr, const char* filename);
 bool _openslide_try_aperio(openslide_t *osr, const char* filename);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename);
+bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,

@@ -16,7 +16,7 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
-	src/openslide-vendor-mirax.c
+	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c
 
 
 src_libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src

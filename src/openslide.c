@@ -42,6 +42,7 @@ static const vendor_fn all_formats[] = {
   _openslide_try_hamamatsu,
   _openslide_try_trestle,
   _openslide_try_aperio,
+  _openslide_try_generic_tiff,
   NULL
 };
 
