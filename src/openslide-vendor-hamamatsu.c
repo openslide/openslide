@@ -447,7 +447,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
       jpeg0_ta = num_tiles_across;
       jpeg0_td = num_tiles_down;
     } else if (i != (num_jpegs - 1)) {
-      // not map file (still within layer 0
+      // not map file (still within layer 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
 	g_warning("Tile size not consistent");
