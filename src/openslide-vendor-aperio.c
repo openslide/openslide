@@ -80,37 +80,48 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
   opj_image_comp_t *comps = image->comps;
 
+  int y_sub_x = w / comps[0].w;
+  int y_sub_y = h / comps[0].h;
+  int cb_sub_x = w / comps[1].w;
+  int cb_sub_y = h / comps[1].h;
+  int cr_sub_x = w / comps[2].w;
+  int cr_sub_y = h / comps[2].h;
+
   // copy
-  for (int i = 0; i < h * w; i++) {
-    uint8_t Y = comps[0].data[i];
-    uint8_t Cb = comps[1].data[i/2];
-    uint8_t Cr = comps[2].data[i/2];
+  int i = 0;
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      uint8_t Y = comps[0].data[(y / y_sub_y) * comps[0].w + (x / y_sub_x)];
+      uint8_t Cb = comps[1].data[(y / cb_sub_y) * comps[1].w + (x / cb_sub_x)];
+      uint8_t Cr = comps[2].data[(y / cr_sub_y) * comps[2].w + (x / cr_sub_x)];
 
-    uint8_t A = 255;
-    double R = Y + 1.402 * (Cr - 128);
-    double G = Y - 0.34414 * (Cb - 128) - 0.71414 * (Cr - 128);
-    double B = Y + 1.772 * (Cb - 128);
+      uint8_t A = 255;
+      double R = Y + 1.402 * (Cr - 128);
+      double G = Y - 0.34414 * (Cb - 128) - 0.71414 * (Cr - 128);
+      double B = Y + 1.772 * (Cb - 128);
 
-    if (R > 255) {
-      R = 255;
-    }
-    if (R < 0) {
-      R = 0;
-    }
-    if (G > 255) {
-      G = 255;
-    }
-    if (G < 0) {
-      G = 0;
-    }
-    if (B > 255) {
-      B = 255;
-    }
-    if (B < 0) {
-      B = 0;
-    }
+      if (R > 255) {
+	R = 255;
+      }
+      if (R < 0) {
+	R = 0;
+      }
+      if (G > 255) {
+	G = 255;
+      }
+      if (G < 0) {
+	G = 0;
+      }
+      if (B > 255) {
+	B = 255;
+      }
+      if (B < 0) {
+	B = 0;
+      }
 
-    dest[i] = A << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
+      dest[i] = A << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
+      i++;
+    }
   }
 
   // erase
