@@ -222,10 +222,10 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   // read in the 2 parts
   //  g_debug("reading header from %" PRId64, header_start_position);
   fseeko(infile, header_start_position, SEEK_SET);
-  fread(src->buffer, header_length, 1, infile);
+  g_return_if_fail(fread(src->buffer, header_length, 1, infile));
   //  g_debug("reading from %" PRId64, start_position);
   fseeko(infile, start_position, SEEK_SET);
-  fread(src->buffer + header_length, data_length, 1, infile);
+  g_return_if_fail(fread(src->buffer + header_length, data_length, 1, infile));
 
   // change the final byte to EOI
   g_return_if_fail(src->buffer[src->buffer_size - 2] == 0xFF);
