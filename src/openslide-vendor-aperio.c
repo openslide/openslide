@@ -42,7 +42,6 @@ static void error_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_critical("%s", msg);
 }
 
-// XXX revisit assumptions that color is always downsampled in x by 2
 static void aperio_tiff_tilereader(TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
@@ -79,6 +78,10 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   opj_image_t *image = opj_decode(dinfo, stream);
 
   opj_image_comp_t *comps = image->comps;
+
+  g_return_if_fail(image->numcomps != 3);
+  g_return_if_fail(image->color_space != CLRSPC_SYCC);
+  // TODO more checks?
 
   int y_sub_x = w / comps[0].w;
   int y_sub_y = h / comps[0].h;
