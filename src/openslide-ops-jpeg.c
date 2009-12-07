@@ -150,7 +150,7 @@ static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to be done */
 }
 
-static boolean fill_input_buffer (j_decompress_ptr cinfo) {
+static bool fill_input_buffer (j_decompress_ptr cinfo) {
   /* this should never be called, there is nothing to fill */
   ERREXIT(cinfo, JERR_INPUT_EMPTY);
 
@@ -350,7 +350,7 @@ static uint8_t find_next_ff_marker(FILE *f,
 				   int *bytes_in_buf) {
   //g_debug("bytes_in_buf: %d", *bytes_in_buf);
   int64_t file_pos = ftello(f);
-  boolean last_was_ff = false;
+  bool last_was_ff = false;
   *after_marker_pos = -1;
   while (true) {
     if (*bytes_in_buf == 0) {
