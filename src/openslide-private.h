@@ -98,6 +98,8 @@ struct _openslide_ops {
   void (*destroy)(openslide_t *osr);
 };
 
+/* DSO constructor */
+void __attribute ((constructor)) _openslide_init(void);
 
 /* vendor detection and parsing */
 bool _openslide_try_trestle(openslide_t *osr, const char* filename);

@@ -46,6 +46,12 @@ static const vendor_fn all_formats[] = {
   NULL
 };
 
+// called from shared-library constructor!
+void _openslide_init(void) {
+  // activate threads
+  if (!g_thread_supported ()) g_thread_init (NULL);
+}
+
 static void destroy_associated_image(gpointer data) {
   struct _openslide_associated_image *img = data;
 
@@ -70,9 +76,6 @@ static bool try_all_formats(openslide_t *osr, const char *filename) {
 }
 
 bool openslide_can_open(const char *filename) {
-  // we are threading
-  if (!g_thread_supported ()) g_thread_init (NULL);
-
   // quick test
   return try_all_formats(NULL, filename);
 }
@@ -101,9 +104,6 @@ static const char **strv_from_hashtable_keys(GHashTable *h) {
 }
 
 openslide_t *openslide_open(const char *filename) {
-  // we are threading
-  if (!g_thread_supported ()) g_thread_init (NULL);
-
   // alloc memory
   openslide_t *osr = g_slice_new0(openslide_t);
   osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
