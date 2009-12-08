@@ -241,7 +241,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
     goto FAIL;
   }
   if (!g_key_file_has_group(vms_file, GROUP_VMS)) {
-    g_warning("Can't find VMS group");
+    //    g_warning("Can't find VMS group");
     goto FAIL;
   }
 
