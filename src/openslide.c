@@ -37,9 +37,13 @@
 
 typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
 
-static const vendor_fn all_formats[] = {
+static const vendor_fn non_tiff_formats[] = {
   _openslide_try_mirax,
   _openslide_try_hamamatsu,
+  NULL
+};
+
+static const vendor_fn tiff_formats[] = {
   _openslide_try_trestle,
   _openslide_try_aperio,
   _openslide_try_generic_tiff,
@@ -59,19 +63,78 @@ static void destroy_associated_image(gpointer data) {
   g_slice_free(struct _openslide_associated_image, img);
 }
 
-static bool try_all_formats(openslide_t *osr, const char *filename) {
-  const vendor_fn *fn = all_formats;
-  while (*fn) {
-    if (osr) {
-      g_hash_table_remove_all(osr->properties);
-      g_hash_table_remove_all(osr->associated_images);
-    }
+// TODO: update when we switch to BigTIFF, or remove entirely
+// if libtiff gets private error/warning callbacks
+static bool quick_tiff_check(const char *filename) {
+  FILE *f = fopen(filename, "rb");
+  if (f == NULL) {
+    return false;
+  }
 
-    if ((*fn)(osr, filename)) {
+  // read magic
+  uint8_t buf[4];
+  if (fread(buf, 4, 1, f) != 1) {
+    // can't read
+    fclose(f);
+    return false;
+  }
+
+  fclose(f);
+
+  // check magic
+  if (buf[0] != buf[1]) {
+    return false;
+  }
+
+  switch (buf[0]) {
+  case 'M':
+    // big endian
+    return (buf[2] == 0) && (buf[3] == 42);
+
+  case 'I':
+    // little endian
+    return (buf[3] == 0) && (buf[2] == 42);
+
+  default:
+    return false;
+  }
+}
+
+static bool try_format(openslide_t *osr, const char *filename,
+		       const vendor_fn *format_check) {
+  if (osr) {
+    g_hash_table_remove_all(osr->properties);
+    g_hash_table_remove_all(osr->associated_images);
+  }
+
+  return (*format_check)(osr, filename);
+}
+
+static bool try_all_formats(openslide_t *osr, const char *filename) {
+  const vendor_fn *fn;
+
+  // non-tiff
+  fn = non_tiff_formats;
+  while (*fn) {
+    if (try_format(osr, filename, fn)) {
       return true;
     }
     fn++;
   }
+
+  // tiff check (fix when libtiff doesn't spew stuff to stderr anymore)
+  if (quick_tiff_check(filename)) {
+    // tiff formats
+    fn = tiff_formats;
+    while (*fn) {
+      if (try_format(osr, filename, fn)) {
+	return true;
+      }
+      fn++;
+    }
+  }
+
+  // no match
   return false;
 }
 
