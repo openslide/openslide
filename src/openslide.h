@@ -95,8 +95,12 @@ void openslide_read_region(openslide_t *osr,
  * @param w The width of the region.
  * @param h The height of the region.
  * @returns A unique identifier for this prefetch hint.
+ *
+ * @deprecated This function has never been implemented and its
+ *             use is not recommended.
  */
 openslide_public
+openslide_deprecated
 int openslide_give_prefetch_hint(openslide_t *osr,
 				 int64_t x, int64_t y,
 				 int32_t layer,
@@ -108,8 +112,12 @@ int openslide_give_prefetch_hint(openslide_t *osr,
  *
  * @param osr The whole slide image handle.
  * @param prefetch_id An identifier returned by openslide_give_prefetch_hint().
+ *
+ * @deprecated This function has never been implemented and its
+ *             use is not recommended.
  */
 openslide_public
+openslide_deprecated
 void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 
 
