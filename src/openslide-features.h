@@ -39,6 +39,11 @@
 # define openslide_public
 #endif
 
+#if __GNUC__ > 3 || ((__GNUC__ == 3) && (__GNUC_MINOR__ > 0))
+# define openslide_deprecated __attribute__ ((deprecated))
+#else
+# define openslide_deprecated
+#endif
 
 
 #endif
