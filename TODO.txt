@@ -13,6 +13,4 @@
 
 * XTP format?
 
-* Interscope format?
-
 * Bacus format?
