@@ -80,6 +80,18 @@ bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename) {
 	continue;
       }
 
+      // confirm it is either the first image, or reduced-resolution
+      if (current_layer != 0) {
+	uint32_t subfiletype;
+	if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype)) {
+	  continue;
+	}
+
+	if (!(subfiletype & FILETYPE_REDUCEDIMAGE)) {
+	  continue;
+	}
+      }
+
       // push into list
       struct layer *l = g_slice_new(struct layer);
       l->layer_number = current_layer;
