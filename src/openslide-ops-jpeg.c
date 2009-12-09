@@ -150,7 +150,7 @@ static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to be done */
 }
 
-static bool fill_input_buffer (j_decompress_ptr cinfo) {
+static int fill_input_buffer (j_decompress_ptr cinfo) {
   /* this should never be called, there is nothing to fill */
   ERREXIT(cinfo, JERR_INPUT_EMPTY);
 
