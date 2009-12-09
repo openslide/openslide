@@ -70,7 +70,6 @@ struct _openslide {
   double fill_color_r;
   double fill_color_g;
   double fill_color_b;
-  double fill_color_a;
 
   double *downsamples;  // if not specified, then filled in automatically from dimensions
 

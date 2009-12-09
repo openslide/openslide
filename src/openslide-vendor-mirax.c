@@ -91,7 +91,7 @@ struct slide_zoom_level_section {
   double overlap_x;
   double overlap_y;
 
-  uint32_t fill_argb;
+  uint32_t fill_rgb;
 
   int tile_w;
   int tile_h;
@@ -1050,9 +1050,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     READ_KEY_OR_FAIL(hs->tile_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
 		     integer, "Can't read tile height");
 
-    // convert fill color bgr into argb
-    hs->fill_argb =
-      0xFF000000 |
+    // convert fill color bgr into rgb
+    hs->fill_rgb =
       ((bgr << 16) & 0x00FF0000) |
       (bgr & 0x0000FF00) |
       ((bgr >> 16) & 0x000000FF);
@@ -1122,7 +1121,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
     g_debug("  overlap_x: %g", hs->overlap_x);
     g_debug("  overlap_y: %g", hs->overlap_y);
-    g_debug("  fill_argb: %" PRIu32, hs->fill_argb);
+    g_debug("  fill_rgb: %" PRIu32, hs->fill_rgb);
     g_debug("  tile_w: %d", hs->tile_w);
     g_debug("  tile_h: %d", hs->tile_h);
   }
@@ -1222,11 +1221,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   }
 
   if (osr) {
-    uint32_t fill = slide_zoom_level_sections[0].fill_argb;
+    uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
     osr->fill_color_r = ((fill >> 16) & 0xFF) / 255.0;
     osr->fill_color_g = ((fill >> 8) & 0xFF) / 255.0;
     osr->fill_color_b = (fill & 0xFF) / 255.0;
-    osr->fill_color_a = ((fill >> 24) & 0xFF) / 255.0;
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);

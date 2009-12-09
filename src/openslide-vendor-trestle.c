@@ -118,7 +118,6 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
 	  osr->fill_color_r = ((bg >> 16) & 0xFF) / 255.0;
 	  osr->fill_color_g = ((bg >> 8) & 0xFF) / 255.0;
 	  osr->fill_color_b = (bg & 0xFF) / 255.0;
-	  osr->fill_color_a = 1.0;
 	}
       }
     }

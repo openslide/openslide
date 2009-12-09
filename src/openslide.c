@@ -346,12 +346,11 @@ void openslide_read_region(openslide_t *osr,
 
   // fill with background
   cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-  cairo_set_source_rgba(cr,
-			osr->fill_color_r,
-			osr->fill_color_g,
-			osr->fill_color_b,
-			osr->fill_color_a);
-  //  cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0); // red
+  cairo_set_source_rgb(cr,
+		       osr->fill_color_r,
+		       osr->fill_color_g,
+		       osr->fill_color_b);
+  //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
   cairo_paint(cr);
 
   // check constraints
