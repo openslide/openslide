@@ -55,7 +55,7 @@ LIBS="-lopenjpeg $LIBS"
 AC_LINK_IFELSE(
   [AC_LANG_SOURCE(
 [[
-#include <openjpeg/openjpeg.h>
+#include <openjpeg.h>
 int
 main ()
 {

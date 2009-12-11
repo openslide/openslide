@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <tiffio.h>
 
-#include <openjpeg/openjpeg.h>
+#include <openjpeg.h>
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
 

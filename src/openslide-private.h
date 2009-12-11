@@ -49,7 +49,7 @@
 #include <jpeglib.h>
 #include <cairo.h>
 
-#include <openjpeg/openjpeg.h>
+#include <openjpeg.h>
 
 #define _OPENSLIDE_COMMENT_NAME "openslide.comment"
 #define _OPENSLIDE_VENDOR_NAME "openslide.vendor"
