@@ -5,7 +5,7 @@ Carnegie Mellon University
 http://openslide.cs.cmu.edu/
 
 
-2009-09-15
+2009-12-11
 
 ==========================
 
@@ -35,7 +35,12 @@ and glib >= 2.12.
 Features
 ========
 
-The library can read Trestle, Aperio, MIRAX, and Hamamatsu formats.
+The library can read Trestle, Aperio, MIRAX, and Hamamatsu formats,
+as well as TIFF files that conform to a simple convention. (InterScope
+files tend to be readable as this generic TIFF.)
+
+More information about formats is here:
+http://openslide.cs.cmu.edu/wiki/Supported%20Virtual%20Slide%20Formats
 
 An openslide_t object can be used concurrently from multiple threads
 without locking. (But you must lock or otherwise use memory barriers
@@ -44,6 +49,9 @@ when passing the object between threads.)
 
 Other Documentation
 ===================
+
+The website:
+http://openslide.cs.cmu.edu/
 
 See the Carnegie Mellon SCS Technical Report:
 
