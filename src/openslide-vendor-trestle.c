@@ -66,6 +66,10 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename) {
     return false; // not TIFF, not trestle
   }
 
+  if (!TIFFIsTiled(tiff)) {
+    return false;
+  }
+
   int tiff_result;
   tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
   if (!tiff_result ||

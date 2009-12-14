@@ -253,6 +253,10 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename) {
     return false; // not TIFF, not aperio
   }
 
+  if (!TIFFIsTiled(tiff)) {
+    return false;
+  }
+
   int tiff_result;
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result ||
