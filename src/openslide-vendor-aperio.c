@@ -79,9 +79,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   opj_image_comp_t *comps = image->comps;
 
   g_return_if_fail(image->numcomps == 3);
-
-  // would like to assert SYCC, but not always true?
-  //  g_return_if_fail(image->color_space == CLRSPC_SYCC);
+  // would like to assert SYCC, but not available in the J2K codestream?
 
   // TODO more checks?
 
