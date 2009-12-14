@@ -68,8 +68,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   opj_event_mgr_t event_callbacks = {
     .error_handler = error_callback,
     .warning_handler = warning_callback,
-
-    /* don't user info_handler, it outputs lots of junk */
+    /* don't use info_handler, it outputs lots of junk */
   };
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, NULL);
 
