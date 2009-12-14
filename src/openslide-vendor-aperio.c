@@ -79,8 +79,8 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
   opj_image_comp_t *comps = image->comps;
 
-  g_return_if_fail(image->numcomps != 3);
-  g_return_if_fail(image->color_space != CLRSPC_SYCC);
+  g_return_if_fail(image->numcomps == 3);
+  g_return_if_fail(image->color_space == CLRSPC_SYCC);
   // TODO more checks?
 
   int y_sub_x = w / comps[0].w;
