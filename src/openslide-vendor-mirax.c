@@ -1198,7 +1198,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     //    g_debug("layer %d tile advance %.10g %.10g", i, l->tile_advance_x, l->tile_advance_y);
   }
 
-  // TODO load the position map and build up the tiles, using subtiles
+  // load the position map and build up the tiles, using subtiles
   GHashTable *associated_images = NULL;
   if (osr) {
     associated_images = osr->associated_images;
