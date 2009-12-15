@@ -591,7 +591,7 @@ static bool process_indexfile(const char *slideversion,
 
   // save root positions
   int64_t hier_root = ftello(indexfile);
-  int64_t nonhier_root = hier_root + 4;;
+  int64_t nonhier_root = hier_root + 4;
 
   // read in the nonhierarchical sections
   int slide_position_fileno;
