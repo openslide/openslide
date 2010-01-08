@@ -78,11 +78,17 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
   opj_image_comp_t *comps = image->comps;
 
-  g_return_if_fail(image->numcomps == 3);
+  // sanity check
+  if (image->numcomps != 3) {
+    g_critical("image->numcomps != 3");
+    goto OUT;
+  }
   // would like to assert SYCC, but not available in the J2K codestream?
 
   // TODO more checks?
 
+
+  // copy
   int y_sub_x = w / comps[0].w;
   int y_sub_y = h / comps[0].h;
   int cb_sub_x = w / comps[1].w;
@@ -90,7 +96,6 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   int cr_sub_x = w / comps[2].w;
   int cr_sub_y = h / comps[2].h;
 
-  // copy
   int i = 0;
   for (int y = 0; y < h; y++) {
     for (int x = 0; x < w; x++) {
@@ -127,6 +132,8 @@ static void aperio_tiff_tilereader(TIFF *tiff,
     }
   }
 
+
+ OUT:
   // erase
   g_slice_free1(max_tile_size, buf);
   opj_image_destroy(image);

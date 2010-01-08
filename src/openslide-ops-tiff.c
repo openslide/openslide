@@ -385,7 +385,11 @@ void _openslide_generic_tiff_tilereader(TIFF *tiff,
   img.row_offset = y;
 
   // draw it
-  g_return_if_fail(TIFFRGBAImageGet(&img, dest, w, h));
+  if (!TIFFRGBAImageGet(&img, dest, w, h)) {
+    g_critical("TIFFRGBAImageGet failed");
+
+    // can keep going, to do the cleanup below
+  }
 
   // permute
   uint32_t *p = dest;
