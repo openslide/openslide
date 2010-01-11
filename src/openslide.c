@@ -306,13 +306,11 @@ int openslide_give_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
 				 int32_t _OPENSLIDE_UNUSED(layer),
 				 int64_t _OPENSLIDE_UNUSED(w),
 				 int64_t _OPENSLIDE_UNUSED(h)) {
-  // TODO
   return 0;
 }
 
 void openslide_cancel_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
 				    int _OPENSLIDE_UNUSED(prefetch_id)) {
-  // TODO
   return;
 }
 
