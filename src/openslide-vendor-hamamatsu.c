@@ -572,8 +572,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       FILE *macro_f = fopen(macro_filename, "rb");
       if (macro_f) {
 	add_macro_associated_image(osr->associated_images, macro_f);
+	fclose(macro_f);
       }
-      fclose(macro_f);
       g_free(macro_filename);
       g_free(tmp);
     }
