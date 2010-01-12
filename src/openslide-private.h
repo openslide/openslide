@@ -106,6 +106,17 @@ void __attribute ((constructor)) _openslide_init(void);
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
 				     GChecksum *checksum);
+/*
+ * A note on the checksum: this should be a hash of data that
+ * will not change with revisions to the openslide library. It should
+ * also be quick to generate. It should be a way to uniquely identify
+ * a particular slide by content, but does not need to be sensitive
+ * to file corruption.
+ *
+ * Suggested data to hash:
+ * easily available image metadata + raw compressed lowest resolution image
+ */
+
 
 bool _openslide_try_trestle(openslide_t *osr, const char* filename,
 			    GChecksum *checksum);
