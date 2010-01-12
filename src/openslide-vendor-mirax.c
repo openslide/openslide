@@ -43,6 +43,7 @@ static const char KEY_SLIDE_VERSION[] = "SLIDE_VERSION";
 static const char KEY_SLIDE_ID[] = "SLIDE_ID";
 static const char KEY_IMAGENUMBER_X[] = "IMAGENUMBER_X";
 static const char KEY_IMAGENUMBER_Y[] = "IMAGENUMBER_Y";
+static const char KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE[] = "CameraImageDivisionsPerSide";
 
 static const char GROUP_HIERARCHICAL[] = "HIERARCHICAL";
 static const char KEY_HIER_COUNT[] = "HIER_COUNT";
@@ -267,6 +268,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   struct _openslide_jpeg_layer **layers,
 						   int tiles_across,
 						   int tiles_down,
+						   int tiles_per_position,
 						   int32_t *tile_positions,
 						   GList **jpegs_list) {
   int32_t jpeg_number = 0;
@@ -413,21 +415,17 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	      break;
 	    }
 
-	    // tile_positions stored in 24.8 fixed point, and only every other x and y
+	    // tile_positions stored in 24.8 fixed point, and only some x and y
 	    // are stored!
-	    int x2 = xx / 2;
-	    int y2 = yy / 2;
-	    int tt = y2 * (tiles_across / 2) + x2;
+	    int x2 = xx / tiles_per_position;
+	    int y2 = yy / tiles_per_position;
+	    int tt = y2 * (tiles_across / tiles_per_position) + x2;
 	    double pos_x = ((double) tile_positions[tt * 2]) / 256.0;
 	    double pos_y = ((double) tile_positions[(tt * 2) + 1]) / 256.0;
 
-	    // possibly adjust
-	    if (x2 * 2 != xx) {
-	      pos_x += jpeg->w;
-	    }
-	    if (y2 * 2 != yy) {
-	      pos_y += jpeg->h;
-	    }
+	    // adjust
+	    pos_x += jpeg->w * (xx - (x2 * tiles_per_position));
+	    pos_y += jpeg->h * (yy - (y2 * tiles_per_position));
 
 	    // scale down
 	    pos_x /= (double) tile_count;
@@ -565,6 +563,7 @@ static bool process_indexfile(const char *slideversion,
 			      int zoom_levels,
 			      int tiles_x,
 			      int tiles_y,
+			      int tiles_per_position,
 			      struct slide_zoom_level_section *slide_zoom_level_sections,
 			      FILE *indexfile,
 			      struct _openslide_jpeg_layer **layers,
@@ -608,7 +607,7 @@ static bool process_indexfile(const char *slideversion,
   }
   //  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64, slide_position_fileno, slide_position_size, slide_position_offset);
 
-  if (slide_position_size != (9 * (tiles_x / 2) * (tiles_y / 2))) {
+  if (slide_position_size != (9 * (tiles_x / tiles_per_position) * (tiles_y / tiles_per_position))) {
     g_warning("Slide position file not of expected size");
     goto OUT;
   }
@@ -698,6 +697,7 @@ static bool process_indexfile(const char *slideversion,
 					      layers,
 					      tiles_x,
 					      tiles_y,
+					      tiles_per_position,
 					      slide_positions,
 					      &jpegs_list)) {
     g_warning("Cannot read some data pages from indexfile");
@@ -885,6 +885,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   char *slide_id = NULL;
   int tiles_x = 0;
   int tiles_y = 0;
+  int tiles_per_position = 0;
 
   char *index_filename = NULL;
   int zoom_levels = 0;
@@ -945,6 +946,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 		   KEY_IMAGENUMBER_X, integer, "Can't read tiles across");
   READ_KEY_OR_FAIL(tiles_y, slidedat, GROUP_GENERAL,
 		   KEY_IMAGENUMBER_Y, integer, "Can't read tiles down");
+  READ_KEY_OR_FAIL(tiles_per_position, slidedat, GROUP_GENERAL,
+		   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE, integer,
+		   "Can't read camera image divisions per side");
 
   // load hierarchical stuff
   if (!g_key_file_has_group(slidedat, GROUP_HIERARCHICAL)) {
@@ -1148,7 +1152,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
   int64_t base_h = 0;
 
   for (int i = 0; i < tiles_x; i++) {
-    if (((i % 2) == 0) || (i == tiles_x - 1)) {
+    if (((i % tiles_per_position) != (tiles_per_position - 1))
+	|| (i == tiles_x - 1)) {
       // full size
       base_w += slide_zoom_level_sections[0].tile_w;
     } else {
@@ -1157,7 +1162,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     }
   }
   for (int i = 0; i < tiles_y; i++) {
-    if (((i % 2) == 0) || (i == tiles_y - 1)) {
+    if (((i % tiles_per_position) != (tiles_per_position - 1))
+	|| (i == tiles_y - 1)) {
       // full size
       base_h += slide_zoom_level_sections[0].tile_h;
     } else {
@@ -1184,16 +1190,16 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
     l->raw_tile_width = hs->tile_w;
     l->raw_tile_height = hs->tile_h;
 
-    // use half the overlap, so that our tile correction will flip between
-    // positive and negative values typically
-    // this is because only every other tile overlaps
+    // use a fraction of the overlap, so that our tile correction will flip between
+    // positive and negative values typically (in case tiles_per_position=2)
+    // this is because not every tile overlaps
 
     // overlaps are concatenated within physical tiles, so our virtual tile
     // size must shrink
     l->tile_advance_x = (((double) hs->tile_w) / ((double) divisor)) -
-      ((double) hs->overlap_x / 2.0);
+      ((double) hs->overlap_x / (double) tiles_per_position);
     l->tile_advance_y = (((double) hs->tile_h) / ((double) divisor)) -
-      ((double) hs->overlap_y / 2.0);
+      ((double) hs->overlap_y / (double) tiles_per_position);
 
     //    g_debug("layer %d tile advance %.10g %.10g", i, l->tile_advance_x, l->tile_advance_y);
   }
@@ -1213,6 +1219,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
 			 associated_images,
 			 zoom_levels,
 			 tiles_x, tiles_y,
+			 tiles_per_position,
 			 slide_zoom_level_sections,
 			 indexfile,
 			 layers,
