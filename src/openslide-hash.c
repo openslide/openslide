@@ -24,6 +24,14 @@
 
 #include "openslide-hash.h"
 
+#include <string.h>
+
+void _openslide_hash_string(GChecksum *checksum, const char *str) {
+  if (str) {
+    g_checksum_update(checksum, (const guchar *) str, strlen(str));
+  }
+}
+
 void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
   g_assert(TIFFIsTiled(tiff));
 
