@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -50,7 +50,8 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename) {
+bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename,
+				 GChecksum *checksum) {
   // first, see if it's a TIFF
   TIFF *tiff = TIFFOpen(filename, "r");
   if (tiff == NULL) {
@@ -121,7 +122,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename) {
   _openslide_add_tiff_ops(osr, tiff,
 			  0, NULL,
 			  layer_count, layers,
-			  _openslide_generic_tiff_tilereader);
+			  _openslide_generic_tiff_tilereader,
+			  checksum);
 
 
   return true;

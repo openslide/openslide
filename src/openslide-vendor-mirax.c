@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -868,7 +868,8 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
   return -1;
 }
 
-bool _openslide_try_mirax(openslide_t *osr, const char *filename) {
+bool _openslide_try_mirax(openslide_t *osr, const char *filename,
+			  GChecksum *checksum) {
   struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
   struct _openslide_jpeg_layer **layers = NULL;

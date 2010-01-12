@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -31,6 +31,7 @@
 
 #include "openslide-private.h"
 #include "openslide-tilehelper.h"
+#include "openslide-hash.h"
 
 struct _openslide_tiffopsdata {
   TIFF *tiff;
@@ -338,7 +339,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_fn tileread) {
+			     _openslide_tiff_tilereader_fn tileread,
+			     GChecksum *checksum) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);
@@ -358,6 +360,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     destroy_data(data);
     return;
   }
+
+  // generate hash of the smallest layer
+  TIFFSetDirectory(data->tiff, layers[layer_count - 1]);
+  _openslide_hash_tiff_layer(tiff, checksum);
 
   // load TIFF properties
   TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed

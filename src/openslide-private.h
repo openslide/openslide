@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -53,6 +53,9 @@
 
 #define _OPENSLIDE_COMMENT_NAME "openslide.comment"
 #define _OPENSLIDE_VENDOR_NAME "openslide.vendor"
+#define _OPENSLIDE_HASH_NAME "openslide.hash"
+
+#define _OPENSLIDE_CHECKSUM_TYPE G_CHECKSUM_SHA256
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -101,11 +104,19 @@ struct _openslide_ops {
 void __attribute ((constructor)) _openslide_init(void);
 
 /* vendor detection and parsing */
-bool _openslide_try_trestle(openslide_t *osr, const char* filename);
-bool _openslide_try_aperio(openslide_t *osr, const char* filename);
-bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename);
-bool _openslide_try_mirax(openslide_t *osr, const char* filename);
-bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename);
+typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
+				     GChecksum *checksum);
+
+bool _openslide_try_trestle(openslide_t *osr, const char* filename,
+			    GChecksum *checksum);
+bool _openslide_try_aperio(openslide_t *osr, const char* filename,
+			   GChecksum *checksum);
+bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
+			      GChecksum *checksum);
+bool _openslide_try_mirax(openslide_t *osr, const char* filename,
+			  GChecksum *checksum);
+bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
+				 GChecksum *checksum);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
@@ -121,7 +132,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t *overlaps,
 			     int32_t layer_count,
 			     int32_t *layers,
-			     _openslide_tiff_tilereader_fn tileread);
+			     _openslide_tiff_tilereader_fn tileread,
+			     GChecksum *checksum);
 
 void _openslide_generic_tiff_tilereader(TIFF *tiff,
 					uint32_t *dest,

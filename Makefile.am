@@ -12,6 +12,7 @@ src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-cache.c src/openslide-tilehelper.c \
+	src/openslide-hash.c \
 	src/openslide-ops-jpeg.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-ops-tiff.c \
@@ -26,7 +27,7 @@ src_libopenslide_la_LDFLAGS = -version-info 1:5:1 -no-undefined
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h
 
-noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/valgrind.h src/callgrind.h
+noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h
 
 
 

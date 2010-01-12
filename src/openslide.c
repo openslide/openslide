@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -35,15 +35,13 @@
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 
-typedef bool (*vendor_fn)(openslide_t *osr, const char *filename);
-
-static const vendor_fn non_tiff_formats[] = {
+static const _openslide_vendor_fn non_tiff_formats[] = {
   _openslide_try_mirax,
   _openslide_try_hamamatsu,
   NULL
 };
 
-static const vendor_fn tiff_formats[] = {
+static const _openslide_vendor_fn tiff_formats[] = {
   _openslide_try_trestle,
   _openslide_try_aperio,
   _openslide_try_generic_tiff,
@@ -101,22 +99,37 @@ static bool quick_tiff_check(const char *filename) {
 }
 
 static bool try_format(openslide_t *osr, const char *filename,
-		       const vendor_fn *format_check) {
+		       GChecksumType checksum_type,
+		       GChecksum **checksum_OUT,
+		       const _openslide_vendor_fn *format_check) {
   if (osr) {
     g_hash_table_remove_all(osr->properties);
     g_hash_table_remove_all(osr->associated_images);
   }
 
-  return (*format_check)(osr, filename);
+  GChecksum *checksum = g_checksum_new(checksum_type);
+  bool result = (*format_check)(osr, filename, checksum);
+
+  if (result && checksum_OUT) {
+    // success, save the checksum
+    *checksum_OUT = checksum;
+  } else {
+    // fail, or checksum_OUT is NULL
+    g_checksum_free(checksum);
+  }
+
+  return result;
 }
 
-static bool try_all_formats(openslide_t *osr, const char *filename) {
-  const vendor_fn *fn;
+static bool try_all_formats(openslide_t *osr, const char *filename,
+			    GChecksumType checksum_type,
+			    GChecksum **checksum_OUT) {
+  const _openslide_vendor_fn *fn;
 
   // non-tiff
   fn = non_tiff_formats;
   while (*fn) {
-    if (try_format(osr, filename, fn)) {
+    if (try_format(osr, filename, checksum_type, checksum_OUT, fn)) {
       return true;
     }
     fn++;
@@ -127,7 +140,7 @@ static bool try_all_formats(openslide_t *osr, const char *filename) {
     // tiff formats
     fn = tiff_formats;
     while (*fn) {
-      if (try_format(osr, filename, fn)) {
+      if (try_format(osr, filename, checksum_type, checksum_OUT, fn)) {
 	return true;
       }
       fn++;
@@ -140,7 +153,7 @@ static bool try_all_formats(openslide_t *osr, const char *filename) {
 
 bool openslide_can_open(const char *filename) {
   // quick test
-  return try_all_formats(NULL, filename);
+  return try_all_formats(NULL, filename, _OPENSLIDE_CHECKSUM_TYPE, NULL);
 }
 
 
@@ -175,7 +188,8 @@ openslide_t *openslide_open(const char *filename) {
 						 g_free, destroy_associated_image);
 
   // try to read it
-  if (!try_all_formats(osr, filename)) {
+  GChecksum *checksum = NULL;
+  if (!try_all_formats(osr, filename, _OPENSLIDE_CHECKSUM_TYPE, &checksum)) {
     // failure
     openslide_close(osr);
     return NULL;
@@ -208,9 +222,16 @@ openslide_t *openslide_open(const char *filename) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
 		osr->downsamples[i], osr->downsamples[i - 1]);
       openslide_close(osr);
+      g_checksum_free(checksum);
       return NULL;
     }
   }
+
+  // set hash property
+  g_hash_table_insert(osr->properties,
+		      g_strdup(_OPENSLIDE_HASH_NAME),
+		      g_strdup(g_checksum_get_string(checksum)));
+  g_checksum_free(checksum);
 
   // fill in names
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
@@ -220,6 +241,7 @@ openslide_t *openslide_open(const char *filename) {
   osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
   //osr->cache = _openslide_cache_create(0);
 
+  // validate required properties
   g_assert(openslide_get_property_value(osr, _OPENSLIDE_VENDOR_NAME));
 
   return osr;

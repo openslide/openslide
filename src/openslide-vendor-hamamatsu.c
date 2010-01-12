@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -211,7 +211,8 @@ static void add_macro_associated_image(GHashTable *ht,
   _openslide_add_jpeg_associated_image(ht, "macro", f);
 }
 
-bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename) {
+bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
+			      GChecksum *checksum) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
   struct _openslide_jpeg_file **jpegs = NULL;
