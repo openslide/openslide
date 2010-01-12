@@ -304,6 +304,7 @@ int main(int argc, char **argv) {
   //test_image_fetch(osr, "test2", w - 500, h - 300, 900, 800, skip);
   //test_image_fetch(osr, "test3", w*2, h*2, 900, 800, skip);
   //test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
+  test_image_fetch(osr, "test7", 0, 0, 200, 200, skip);
   test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
   test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
 
