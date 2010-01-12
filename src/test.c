@@ -26,6 +26,8 @@
 
 #include "openslide.h"
 
+#include "callgrind.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -262,6 +264,7 @@ int main(int argc, char **argv) {
     associated_image_names++;
   }
 
+  CALLGRIND_START_INSTRUMENTATION
   /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
@@ -303,6 +306,8 @@ int main(int argc, char **argv) {
   //test_image_fetch(osr, "test4", 10, 10, 1900, 800, skip);
   test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
   test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
+
+  CALLGRIND_STOP_INSTRUMENTATION
 
   openslide_close(osr);
 

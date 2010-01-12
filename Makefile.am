@@ -26,7 +26,7 @@ src_libopenslide_la_LDFLAGS = -version-info 1:5:1 -no-undefined
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h
 
-noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h
+noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/valgrind.h src/callgrind.h
 
 
 
