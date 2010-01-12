@@ -623,7 +623,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 	while (rows_read > 0) {
 	  // copy a row
 	  int32_t dest_i = 0;
-	  for (int32_t i = 0; i < (int32_t) cinfo.output_width; i++) {
+	  for (int i = 0; i < w; i++) {
 	    jpeg_dest[dest_i++] = 0xFF000000 |      // A
 	      buffer[cur_buffer][i * 3 + 0] << 16 | // R
 	      buffer[cur_buffer][i * 3 + 1] << 8 |  // G
