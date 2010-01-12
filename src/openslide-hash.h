@@ -32,6 +32,6 @@
 #include <tiffio.h>
 #include <glib.h>
 
-void _openslide_hash_tiff_layer(TIFF *tiff, GChecksum *checksum);
+void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff);
 
 #endif

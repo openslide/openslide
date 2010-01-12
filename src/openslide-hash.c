@@ -24,7 +24,7 @@
 
 #include "openslide-hash.h"
 
-void _openslide_hash_tiff_layer(TIFF *tiff, GChecksum *checksum) {
+void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
   g_assert(TIFFIsTiled(tiff));
 
   // set up buffer

@@ -363,7 +363,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // generate hash of the smallest layer
   TIFFSetDirectory(data->tiff, layers[layer_count - 1]);
-  _openslide_hash_tiff_layer(tiff, checksum);
+  _openslide_hash_tiff_tiles(checksum, tiff);
 
   // load TIFF properties
   TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
