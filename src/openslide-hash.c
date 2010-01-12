@@ -48,7 +48,7 @@ void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
       continue;
     }
 
-    g_debug("hashing tile %d", tile_no);
+    //g_debug("hashing tile %d", tile_no);
     g_checksum_update(checksum, buf, size);
   }
 
