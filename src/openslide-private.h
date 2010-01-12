@@ -53,7 +53,7 @@
 
 #define _OPENSLIDE_COMMENT_NAME "openslide.comment"
 #define _OPENSLIDE_VENDOR_NAME "openslide.vendor"
-#define _OPENSLIDE_HASH_NAME "openslide.hash"
+#define _OPENSLIDE_HASH_NAME "openslide.quickhash"
 
 #define _OPENSLIDE_CHECKSUM_TYPE G_CHECKSUM_SHA256
 
