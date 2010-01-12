@@ -33,6 +33,7 @@
 #include <jpeglib.h>
 
 #include "openslide-private.h"
+#include "openslide-hash.h"
 
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
@@ -246,6 +247,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
+  // hash in the VMS file
+  _openslide_hash_file(checksum, filename);
 
   // make sure values are within known bounds
   int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
@@ -289,10 +292,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      KEY_MAP_FILE,
 			      NULL);
   if (tmp) {
-    image_filenames[num_jpegs - 1] = g_build_filename(dirname, tmp, NULL);
+    char *map_filename = g_build_filename(dirname, tmp, NULL);
+
+    image_filenames[num_jpegs - 1] = map_filename;
     struct _openslide_jpeg_file *file =
       g_slice_new0(struct _openslide_jpeg_file);
     jpegs[num_jpegs - 1] = file;
+
+    // hash in the map file
+    _openslide_hash_file(checksum, map_filename);
 
     g_free(tmp);
   } else {
