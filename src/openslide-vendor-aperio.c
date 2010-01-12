@@ -46,6 +46,10 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
 				   int32_t w, int32_t h) {
+  opj_cio_t *stream = NULL;
+  opj_dinfo_t *dinfo = NULL;
+  opj_image_t *image = NULL;
+
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);
 
@@ -56,14 +60,18 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
   // get raw tile
   tdata_t buf = g_slice_alloc(max_tile_size);
-  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, max_tile_size); // XXX?
+  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, max_tile_size);
+  if (size == -1) {
+    g_critical("Cannot get raw tile");
+    goto OUT;
+  }
 
   // init decompressor
   opj_dparameters_t parameters;
-  opj_dinfo_t *dinfo = opj_create_decompress(CODEC_J2K);
+  dinfo = opj_create_decompress(CODEC_J2K);
   opj_set_default_decoder_parameters(&parameters);
   opj_setup_decoder(dinfo, &parameters);
-  opj_cio_t *stream = opj_cio_open((opj_common_ptr) dinfo, buf, size);
+  stream = opj_cio_open((opj_common_ptr) dinfo, buf, size);
 
   opj_event_mgr_t event_callbacks = {
     .error_handler = error_callback,
@@ -74,7 +82,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
 
   // decode
-  opj_image_t *image = opj_decode(dinfo, stream);
+  image = opj_decode(dinfo, stream);
 
   opj_image_comp_t *comps = image->comps;
 
@@ -136,9 +144,9 @@ static void aperio_tiff_tilereader(TIFF *tiff,
  OUT:
   // erase
   g_slice_free1(max_tile_size, buf);
-  opj_image_destroy(image);
-  opj_cio_close(stream);
-  opj_destroy_decompress(dinfo);
+  if (image) opj_image_destroy(image);
+  if (stream) opj_cio_close(stream);
+  if (dinfo) opj_destroy_decompress(dinfo);
 }
 
 static void add_properties(GHashTable *ht, char **props) {
