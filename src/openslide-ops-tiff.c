@@ -46,34 +46,57 @@ struct _openslide_tiffopsdata {
 };
 
 
-static void store_string_property(TIFF *tiff, GHashTable *ht,
-				  const char *name, ttag_t tag) {
+static const char *store_string_property(TIFF *tiff, GHashTable *ht,
+					 const char *name, ttag_t tag) {
   char *value;
   if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
-    g_hash_table_insert(ht, g_strdup(name), g_strdup(value));
+    value = g_strdup(value);
+    g_hash_table_insert(ht, g_strdup(name), value);
+    return value;
   }
+  return NULL;
+}
+
+static void store_and_hash_string_property(TIFF *tiff, GHashTable *ht,
+					   GChecksum *checksum,
+					   const char *name, ttag_t tag) {
+  _openslide_hash_string(checksum, name);
+  _openslide_hash_string(checksum, store_string_property(tiff, ht, name, tag));
 }
 
 static void store_float_property(TIFF *tiff, GHashTable *ht,
-				  const char *name, ttag_t tag) {
+				 const char *name, ttag_t tag) {
   float value;
   if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
     g_hash_table_insert(ht, g_strdup(name), g_strdup_printf("%g", value));
   }
 }
 
-static void store_properties(TIFF *tiff, GHashTable *ht) {
+static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
+				      GChecksum *checksum) {
   // strings
   store_string_property(tiff, ht, _OPENSLIDE_COMMENT_NAME, TIFFTAG_IMAGEDESCRIPTION);
-  store_string_property(tiff, ht, "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
-  store_string_property(tiff, ht, "tiff.Make", TIFFTAG_MAKE);
-  store_string_property(tiff, ht, "tiff.Model", TIFFTAG_MODEL);
-  store_string_property(tiff, ht, "tiff.Software", TIFFTAG_SOFTWARE);
-  store_string_property(tiff, ht, "tiff.DateTime", TIFFTAG_DATETIME);
-  store_string_property(tiff, ht, "tiff.Artist", TIFFTAG_ARTIST);
-  store_string_property(tiff, ht, "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
-  store_string_property(tiff, ht, "tiff.Copyright", TIFFTAG_COPYRIGHT);
 
+  // strings to store and hash
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.Make", TIFFTAG_MAKE);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.Model", TIFFTAG_MODEL);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.Software", TIFFTAG_SOFTWARE);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.DateTime", TIFFTAG_DATETIME);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.Artist", TIFFTAG_ARTIST);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.Copyright", TIFFTAG_COPYRIGHT);
+
+
+  // don't hash floats, they might be unstable over time
   // floats
   store_float_property(tiff, ht, "tiff.XResolution", TIFFTAG_XRESOLUTION);
   store_float_property(tiff, ht, "tiff.YResolution", TIFFTAG_YRESOLUTION);
@@ -367,7 +390,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // load TIFF properties
   TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
-  store_properties(data->tiff, osr->properties);
+  store_and_hash_properties(data->tiff, osr->properties, checksum);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);
