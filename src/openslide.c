@@ -110,14 +110,17 @@ static bool try_format(openslide_t *osr, const char *filename,
     g_hash_table_remove_all(osr->associated_images);
   }
 
-  GChecksum *checksum = g_checksum_new(checksum_type);
+  GChecksum *checksum = NULL;
+  if (checksum_OUT) {
+    checksum = g_checksum_new(checksum_type);
+  }
   bool result = (*format_check)(osr, filename, checksum);
 
   if (result && checksum_OUT) {
     // success, save the checksum
     *checksum_OUT = checksum;
-  } else {
-    // fail, or checksum_OUT is NULL
+  } else if (checksum != NULL) {
+    // fail
     g_checksum_free(checksum);
   }
 
