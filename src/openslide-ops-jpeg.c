@@ -663,6 +663,7 @@ static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      int32_t layer,
 		      int64_t tile_x, int64_t tile_y,
+		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   //g_debug("read_tile");
   struct jpegops_data *data = osr->data;
@@ -737,8 +738,8 @@ static void read_tile(openslide_t *osr,
 
   cairo_save(cr);
   cairo_translate(cr,
-		  tile->dest_offset_x / l->scale_denom,
-		  tile->dest_offset_y / l->scale_denom);
+		  tile->dest_offset_x / l->scale_denom + translate_x,
+		  tile->dest_offset_y / l->scale_denom + translate_y);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);

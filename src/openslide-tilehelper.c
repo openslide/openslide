@@ -42,16 +42,15 @@ void _openslide_read_tiles(cairo_t *cr,
 					     cairo_t *cr,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
+					     double translate_x, double translate_y,
 					     struct _openslide_cache *cache)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
   g_return_if_fail(fabs(offset_x) < advance_x);
   g_return_if_fail(fabs(offset_y) < advance_y);
 
-  cairo_save(cr);
   //  cairo_set_source_rgb(cr, 0, 1, 0);
   //  cairo_paint(cr);
   //g_debug("offset: %d %d", offset_x, offset_y);
-  cairo_translate(cr, -offset_x, -offset_y);
 
   //g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
   //g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
@@ -59,20 +58,16 @@ void _openslide_read_tiles(cairo_t *cr,
   int64_t tile_y = start_tile_y;
 
   while (tile_y < end_tile_y) {
-    cairo_save(cr);
-
+    double translate_y = ((tile_y - start_tile_y) * advance_y) - offset_y;
     int64_t tile_x = start_tile_x;
-    while (tile_x < end_tile_x) {
-      //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
-      read_tile(osr, cr, layer, tile_x, tile_y, cache);
 
+    while (tile_x < end_tile_x) {
+      double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
+      //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
+      read_tile(osr, cr, layer, tile_x, tile_y, translate_x, translate_y, cache);
       tile_x++;
-      cairo_translate(cr, advance_x, 0);
     }
 
-    cairo_restore(cr);
     tile_y++;
-    cairo_translate(cr, 0, advance_y);
   }
-  cairo_restore(cr);
 }

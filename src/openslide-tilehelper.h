@@ -44,5 +44,6 @@ void _openslide_read_tiles(cairo_t *cr,
 					     cairo_t *cr,
 					     int32_t layer,
 					     int64_t tile_x, int64_t tile_y,
+					     double translate_x, double translate_y,
 					     struct _openslide_cache *cache));
 #endif
