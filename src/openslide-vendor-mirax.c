@@ -34,6 +34,7 @@
 #include <jpeglib.h>
 
 #include "openslide-private.h"
+#include "openslide-hash.h"
 
 static const char MRXS_EXT[] = ".mrxs";
 static const char SLIDEDAT_INI[] = "Slidedat.ini";
@@ -270,8 +271,10 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int tiles_down,
 						   int tiles_per_position,
 						   int32_t *tile_positions,
-						   GList **jpegs_list) {
+						   GList **jpegs_list,
+						   GChecksum *checksum) {
   int32_t jpeg_number = 0;
+  int32_t last_fileno = -1;
 
   for (int zoom_level = 0; zoom_level < zoom_levels; zoom_level++) {
     struct _openslide_jpeg_layer *l = layers[zoom_level];
@@ -337,6 +340,9 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	int32_t offset = read_le_int32_from_file(f);
 	int32_t length = read_le_int32_from_file(f);
 	int32_t fileno = read_le_int32_from_file(f);
+
+	// save fileno of lowest res data
+	last_fileno = fileno;
 
 	if (tile_index < 0) {
 	  g_warning("tile_index < 0");
@@ -470,6 +476,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     seek_location += 4;
   }
 
+  // hash in the lowest res datafile
+  g_assert(last_fileno >= 0);
+  char *filename = g_build_filename(dirname, datafile_names[last_fileno], NULL);
+  _openslide_hash_file(checksum, filename);
+  g_free(filename);
+
   return true;
 }
 
@@ -568,7 +580,8 @@ static bool process_indexfile(const char *slideversion,
 			      FILE *indexfile,
 			      struct _openslide_jpeg_layer **layers,
 			      int *file_count_out,
-			      struct _openslide_jpeg_file ***files_out) {
+			      struct _openslide_jpeg_file ***files_out,
+			      GChecksum *checksum) {
   // init out parameters
   *file_count_out = 0;
   *files_out = NULL;
@@ -699,7 +712,8 @@ static bool process_indexfile(const char *slideversion,
 					      tiles_y,
 					      tiles_per_position,
 					      slide_positions,
-					      &jpegs_list)) {
+					      &jpegs_list,
+					      checksum)) {
     g_warning("Cannot read some data pages from indexfile");
     goto OUT;
   }
@@ -920,6 +934,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // first, check slidedat
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
+  _openslide_hash_file(checksum, tmp);  // hash the slidedat
   slidedat = g_key_file_new();
   if (!g_key_file_load_from_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
     g_warning("Can't load Slidedat file");
@@ -1224,7 +1239,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 slide_zoom_level_sections,
 			 indexfile,
 			 layers,
-			 &num_jpegs, &jpegs)) {
+			 &num_jpegs, &jpegs,
+			 checksum)) {
     goto FAIL;
   }
 
