@@ -22,6 +22,13 @@
  *  combination.
  */
 
+/*
+ * MIRAX (mrxs) support
+ *
+ * quickhash comes from the slidedat file and the lowest resolution datafile
+ *
+ */
+
 #include "config.h"
 
 #include <glib.h>
@@ -390,9 +397,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  return false;
 	}
 	char *filename = g_build_filename(dirname, datafile_names[fileno], NULL);
-
-	// *** file is open
-
 	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
 
 	// populate the file structure

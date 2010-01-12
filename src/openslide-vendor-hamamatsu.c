@@ -22,6 +22,14 @@
  *  combination.
  */
 
+/*
+ * Hamamatsu (VMS) support
+ *
+ * quickhash comes from VMS file and map2 file
+ *
+ */
+
+
 #include "config.h"
 
 #include <glib.h>

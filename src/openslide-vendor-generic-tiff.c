@@ -22,6 +22,13 @@
  *  combination.
  */
 
+/*
+ * Generic TIFF support
+ *
+ * quickhash comes from what the TIFF backend does
+ *
+ */
+
 #include "config.h"
 
 #include "openslide-private.h"
