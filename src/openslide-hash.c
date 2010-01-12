@@ -63,3 +63,18 @@ void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
   // free
   g_slice_free1(buf_size, buf);
 }
+
+
+void _openslide_hash_file(GChecksum *checksum, const char *filename) {
+  if (checksum == NULL) {
+    return;
+  }
+
+  gchar *contents;
+  gsize length;
+
+  g_return_if_fail(g_file_get_contents(filename, &contents, &length, NULL));
+
+  g_checksum_update(checksum, (guchar *) contents, length);
+  g_free(contents);
+}

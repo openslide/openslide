@@ -34,5 +34,6 @@
 
 void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff);
 void _openslide_hash_string(GChecksum *checksum, const char *str);
+void _openslide_hash_file(GChecksum *checksum, const char *filename);
 
 #endif
