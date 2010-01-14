@@ -96,6 +96,13 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
     }									\
   } while(0)
 
+#define POSITIVE_OR_FAIL(N)					\
+  do {								\
+    if (N <= 0) {						\
+      g_warning(#N " <= 0: %d", N); goto FAIL;			\
+    }								\
+  } while(0)
+
 struct slide_zoom_level_section {
   double overlap_x;
   double overlap_y;
@@ -970,6 +977,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE, integer,
 		   "Can't read camera image divisions per side");
 
+  // ensure positive values
+  POSITIVE_OR_FAIL(tiles_x);
+  POSITIVE_OR_FAIL(tiles_y);
+  POSITIVE_OR_FAIL(tiles_per_position);
+
   // load hierarchical stuff
   if (!g_key_file_has_group(slidedat, GROUP_HIERARCHICAL)) {
     g_warning("Can't find %s group", GROUP_HIERARCHICAL);
@@ -980,6 +992,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_HIER_COUNT, integer, "Can't read hier count");
   READ_KEY_OR_FAIL(nonhier_count, slidedat, GROUP_HIERARCHICAL,
 		   KEY_NONHIER_COUNT, integer, "Can't read nonhier count");
+
+  POSITIVE_OR_FAIL(hier_count);
+  POSITIVE_OR_FAIL(nonhier_count);
 
   // find key for slide zoom level
   for (int i = 0; i < hier_count; i++) {
@@ -1018,6 +1033,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_INDEXFILE, value, "Can't read index filename");
   READ_KEY_OR_FAIL(zoom_levels, slidedat, GROUP_HIERARCHICAL,
 		   key_slide_zoom_level_count, integer, "Can't read zoom levels");
+  POSITIVE_OR_FAIL(zoom_levels);
+
 
   slide_zoom_level_section_names = g_new0(char *, zoom_levels + 1);
   for (int i = 0; i < zoom_levels; i++) {
@@ -1038,6 +1055,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   READ_KEY_OR_FAIL(datafile_count, slidedat, GROUP_DATAFILE,
 		   KEY_FILE_COUNT, integer, "Can't read datafile count");
+  POSITIVE_OR_FAIL(datafile_count);
 
   datafile_names = g_new0(char *, datafile_count + 1);
   for (int i = 0; i < datafile_count; i++) {
@@ -1073,6 +1091,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		     integer, "Can't read tile width");
     READ_KEY_OR_FAIL(hs->tile_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
 		     integer, "Can't read tile height");
+
+    POSITIVE_OR_FAIL(hs->tile_w);
+    POSITIVE_OR_FAIL(hs->tile_h);
 
     // convert fill color bgr into rgb
     hs->fill_rgb =
