@@ -615,7 +615,7 @@ static bool process_indexfile(const char *slideversion,
   int64_t hier_root = ftello(indexfile);
   int64_t nonhier_root = hier_root + 4;
 
-  // read in the nonhierarchical sections
+  // read in the slide position info
   int slide_position_fileno;
   int64_t slide_position_size;
   int64_t slide_position_offset;
@@ -635,7 +635,7 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
-  // read in the slide position data
+  // read in the slide positions
   slide_positions = read_slide_position_file(dirname,
 					     datafile_names[slide_position_fileno],
 					     slide_position_size,
