@@ -432,17 +432,16 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	      break;
 	    }
 
-	    // tile_positions stored in 24.8 fixed point, and only some x and y
-	    // are stored!
-	    int x2 = xx / tiles_per_position;
-	    int y2 = yy / tiles_per_position;
-	    int tt = y2 * (tiles_across / tiles_per_position) + x2;
-	    double pos_x = ((double) tile_positions[tt * 2]) / 256.0;
-	    double pos_y = ((double) tile_positions[(tt * 2) + 1]) / 256.0;
+	    // look up the tile position, stored in 24.8 fixed point
+	    int xp = xx / tiles_per_position;
+	    int yp = yy / tiles_per_position;
+	    int tp = yp * (tiles_across / tiles_per_position) + xp;
+	    double pos_x = ((double) tile_positions[tp * 2]) / 256.0;
+	    double pos_y = ((double) tile_positions[(tp * 2) + 1]) / 256.0;
 
 	    // adjust
-	    pos_x += jpeg->w * (xx - (x2 * tiles_per_position));
-	    pos_y += jpeg->h * (yy - (y2 * tiles_per_position));
+	    pos_x += jpeg->w * (xx - (xp * tiles_per_position));
+	    pos_y += jpeg->h * (yy - (yp * tiles_per_position));
 
 	    // scale down
 	    pos_x /= (double) tile_count;
