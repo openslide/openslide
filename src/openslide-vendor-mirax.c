@@ -290,6 +290,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   int32_t jpeg_number = 0;
   int32_t last_fileno = -1;
 
+  bool success = false;
+
+  // used for storing which positions actually have data
+  GHashTable *active_positions = g_hash_table_new_full(g_int_hash, g_int_equal,
+						       g_free, NULL);
+
   for (int zoom_level = 0; zoom_level < zoom_levels; zoom_level++) {
     struct _openslide_jpeg_layer *l = layers[zoom_level];
     int32_t ptr;
@@ -298,36 +304,36 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
     if (fseeko(f, seek_location, SEEK_SET) == -1) {
       g_warning("Cannot seek to zoom level pointer %d", zoom_level + 1);
-      return false;
+      goto OUT;
     }
 
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
       g_warning("Can't read zoom level pointer");
-      return false;
+      goto OUT;
     }
     if (fseeko(f, ptr, SEEK_SET) == -1) {
       g_warning("Cannot seek to start of data pages");
-      return false;
+      goto OUT;
     }
 
     // read initial 0
     if (read_le_int32_from_file(f) != 0) {
       g_warning("Expected 0 value at beginning of data page");
-      return false;
+      goto OUT;
     }
 
     // read pointer
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
       g_warning("Can't read initial data page pointer");
-      return false;
+      goto OUT;
     }
 
     // seek to offset
     if (fseeko(f, ptr, SEEK_SET) == -1) {
       g_warning("Can't seek to initial data page");
-      return false;
+      goto OUT;
     }
 
     int32_t next_ptr;
@@ -336,7 +342,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       int32_t page_len = read_le_int32_from_file(f);
       if (page_len == -1) {
 	g_warning("Can't read page length");
-	return false;
+	goto OUT;
       }
 
       //    g_debug("page_len: %d", page_len);
@@ -345,7 +351,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       next_ptr = read_le_int32_from_file(f);
       if (next_ptr == -1) {
 	g_warning("Cannot read \"next\" pointer");
-	return false;
+	goto OUT;
       }
 
       // read all the data into the list
@@ -360,19 +366,19 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	if (tile_index < 0) {
 	  g_warning("tile_index < 0");
-	  return false;
+	  goto OUT;
 	}
 	if (offset < 0) {
 	  g_warning("offset < 0");
-	  return false;
+	  goto OUT;
 	}
 	if (length < 0) {
 	  g_warning("length < 0");
-	  return false;
+	  goto OUT;
 	}
 	if (fileno < 0) {
 	  g_warning("fileno < 0");
-	  return false;
+	  goto OUT;
 	}
 
 	// we have only encountered images with exactly power-of-two scale
@@ -384,24 +390,24 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	if (y >= tiles_down) {
 	  g_warning("y (%d) outside of bounds for zoom level (%d)",
 		    y, zoom_level);
-	  return false;
+	  goto OUT;
 	}
 
 	if (x % (1 << zoom_level)) {
 	  g_warning("x (%d) not correct multiple for zoom level (%d)",
 		    x, zoom_level);
-	  return false;
+	  goto OUT;
 	}
 	if (y % (1 << zoom_level)) {
 	  g_warning("y (%d) not correct multiple for zoom level (%d)",
 		    y, zoom_level);
-	  return false;
+	  goto OUT;
 	}
 
 	// save filename
 	if (fileno >= datafile_count) {
 	  g_warning("Invalid fileno");
-	  return false;
+	  goto OUT;
 	}
 	char *filename = g_build_filename(dirname, datafile_names[fileno], NULL);
 	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
@@ -438,6 +444,18 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    int tp = yp * (tiles_across / tiles_per_position) + xp;
 	    double pos_x = ((double) tile_positions[tp * 2]) / 256.0;
 	    double pos_y = ((double) tile_positions[(tp * 2) + 1]) / 256.0;
+
+	    if (zoom_level == 0) {
+	      // if the zoom level is 0, then mark this position as active
+	      int *key = g_new(int, 1);
+	      *key = tp;
+	      g_hash_table_insert(active_positions, key, NULL);
+	    } else {
+	      // make sure we have an active position for this tile
+	      if (!g_hash_table_lookup_extended(active_positions, &tp, NULL, NULL)) {
+		continue;
+	      }
+	    }
 
 	    // adjust
 	    pos_x += jpeg->w * (xx - (xp * tiles_per_position));
@@ -492,7 +510,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   _openslide_hash_file(checksum, filename);
   g_free(filename);
 
-  return true;
+  success = true;
+
+ OUT:
+  g_hash_table_unref(active_positions);
+
+  return success;
 }
 
 static int32_t *read_slide_position_file(const char *dirname, const char *name,
