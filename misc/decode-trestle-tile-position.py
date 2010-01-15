@@ -33,7 +33,10 @@ while True:
     if not data:
         break
 
-    print i
+    unpacked = struct.unpack("<2i8B2i8B", data)
+
+    print ("%12d: " + (" " + ("%12.d" * 2 + "   " + "%3.x" * 8) * 2)) % ((i,) + unpacked)
+
 #    printX(struct.unpack("32B", data))
 #    printB(struct.unpack("32b", data))
 #    printB(struct.unpack("32B", data))
@@ -41,7 +44,7 @@ while True:
 #    printH(struct.unpack("<16H", data))
 #    printH(struct.unpack(">16h", data))
 #    printH(struct.unpack(">16H", data))
-    printI(struct.unpack("<8i", data))
+#    printI(struct.unpack("<8i", data))
 #    printI(struct.unpack("<8I", data))
 #    printI(struct.unpack(">8i", data))
 #    printI(struct.unpack(">8I", data))
@@ -54,6 +57,5 @@ while True:
 #    printD(struct.unpack(">4d", data))
 #    printD(struct.unpack(">4d", data))
 
-    print
 
     i = i + 1
