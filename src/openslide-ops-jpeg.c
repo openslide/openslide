@@ -232,25 +232,6 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
 
-static void filehandle_free(gpointer data) {
-  //g_debug("fclose(%p)", data);
-  fclose(data);
-}
-
-static GHashTable *filehandle_hashtable_new(void) {
-  return g_hash_table_new_full(g_direct_hash,
-			       g_direct_equal,
-			       filehandle_free,
-			       NULL);
-}
-
-static void filehandle_hashtable_conditional_insert(GHashTable *h,
-						    FILE *f) {
-  if (f && !g_hash_table_lookup_extended(h, f, NULL, NULL)) {
-    g_hash_table_insert(h, f, NULL);
-  }
-}
-
 static guint int64_hash(gconstpointer v) {
   int64_t i = *((const int64_t *) v);
   return i ^ (i >> 32);

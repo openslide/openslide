@@ -128,21 +128,6 @@ struct mirax_nonhier_page_entry {
   int32_t fileno;
 };
 
-static gint hier_page_entry_compare(gconstpointer a, gconstpointer b) {
-  const struct mirax_hier_page_entry *pa = (const struct mirax_hier_page_entry *) a;
-  const struct mirax_hier_page_entry *pb = (const struct mirax_hier_page_entry *) b;
-
-  if (pa->y != pb->y) {
-    return pa->y - pb->y;
-  }
-
-  return pa->x - pb->x;
-}
-
-static void hier_page_entry_delete(gpointer data, gpointer user_data) {
-  g_slice_free(struct mirax_hier_page_entry, data);
-}
-
 static bool verify_string_from_file(FILE *f, const char *str) {
   bool result;
   int len = strlen(str);
@@ -565,7 +550,6 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
 
 static void add_associated_image(const char *dirname,
 				 const char *filename,
-				 int64_t size,
 				 int64_t offset,
 				 GHashTable *ht,
 				 const char *name) {
@@ -609,7 +593,6 @@ static bool process_indexfile(const char *slideversion,
 			      int tiles_x,
 			      int tiles_y,
 			      int tiles_per_position,
-			      struct slide_zoom_level_section *slide_zoom_level_sections,
 			      FILE *indexfile,
 			      struct _openslide_jpeg_layer **layers,
 			      int *file_count_out,
@@ -682,7 +665,6 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_offset)) {
     add_associated_image(dirname,
 			 datafile_names[tmp_fileno],
-			 tmp_size,
 			 tmp_offset,
 			 associated_images,
 			 "macro");
@@ -695,7 +677,6 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_offset)) {
     add_associated_image(dirname,
 			 datafile_names[tmp_fileno],
-			 tmp_size,
 			 tmp_offset,
 			 associated_images,
 			 "label");
@@ -708,7 +689,6 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_offset)) {
     add_associated_image(dirname,
 			 datafile_names[tmp_fileno],
-			 tmp_size,
 			 tmp_offset,
 			 associated_images,
 			 "thumbnail");
@@ -1283,7 +1263,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 zoom_levels,
 			 tiles_x, tiles_y,
 			 tiles_per_position,
-			 slide_zoom_level_sections,
 			 indexfile,
 			 layers,
 			 &num_jpegs, &jpegs,
