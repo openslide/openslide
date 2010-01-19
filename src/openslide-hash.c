@@ -31,9 +31,10 @@ void _openslide_hash_string(GChecksum *checksum, const char *str) {
     return;
   }
 
-  if (str) {
-    g_checksum_update(checksum, (const guchar *) str, strlen(str));
-  }
+  const char *str_to_hash = str ? str : "";
+  g_checksum_update(checksum,
+		    (const guchar *) str_to_hash,
+		    strlen(str_to_hash) + 1);
 }
 
 void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
