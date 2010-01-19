@@ -27,7 +27,6 @@ def printD(dd):
 def printQ(qq):
     print ("%40d" * 4) % qq
 
-
 while True:
     data = f.read(32)
     if not data:
@@ -35,7 +34,24 @@ while True:
 
     unpacked = struct.unpack("<2i8B2i8B", data)
 
-    print ("%12d: " + (" " + ("%12.d" * 2 + "   " + "%3.x" * 8) * 2)) % ((i,) + unpacked)
+    a0 = unpacked[0]
+    a1 = unpacked[1]
+    b0 = unpacked[10]
+    b1 = unpacked[11]
+
+    d0 = unpacked[2:10]
+    d1 = unpacked[12:]
+
+    #print d0
+    #print d1
+
+    #format = "               %12.d" * 2 + "   " + "%3.x" * 8
+#    format = "               %12d" * 2 + "   " + "%3.2x" * 8
+    format = ("   " + "%3.2x" * 8) * 2
+    #print format
+#    print "%12d:" % (i,)
+#    print (format + "\n" + format) % unpacked
+    print ("%12d:" + "%12.d" * 4 + format) % ((i, a0, a1, b0, b1) + unpacked[2:10] + unpacked[12:])
 
 #    printX(struct.unpack("32B", data))
 #    printB(struct.unpack("32b", data))
