@@ -46,6 +46,13 @@ struct _openslide_tiffopsdata {
 };
 
 
+static char *serialize_double(double d) {
+  char buf[G_ASCII_DTOSTR_BUF_SIZE];
+  g_ascii_dtostr (buf, sizeof buf, d);
+
+  return g_strdup(buf);
+}
+
 static const char *store_string_property(TIFF *tiff, GHashTable *ht,
 					 const char *name, ttag_t tag) {
   char *value;
@@ -68,7 +75,7 @@ static void store_float_property(TIFF *tiff, GHashTable *ht,
 				 const char *name, ttag_t tag) {
   float value;
   if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
-    g_hash_table_insert(ht, g_strdup(name), g_strdup_printf("%g", value));
+    g_hash_table_insert(ht, g_strdup(name), serialize_double(value));
   }
 }
 
