@@ -267,7 +267,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 
 
 bool _openslide_try_aperio(openslide_t *osr, const char *filename,
-			   GChecksum *checksum) {
+			   GChecksum *quickhash1) {
   char *tagval;
   uint32_t depth;
 
@@ -366,12 +366,12 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename,
     // special jpeg 2000 aperio thing
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
 			    aperio_tiff_tilereader,
-			    checksum);
+			    quickhash1);
   } else {
     // let libtiff handle it
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
 			    _openslide_generic_tiff_tilereader,
-			    checksum);
+			    quickhash1);
   }
 
   return true;

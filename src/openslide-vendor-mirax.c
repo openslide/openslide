@@ -286,7 +286,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int tiles_per_position,
 						   int32_t *tile_positions,
 						   GList **jpegs_list,
-						   GChecksum *checksum) {
+						   GChecksum *quickhash1) {
   int32_t jpeg_number = 0;
   int32_t last_fileno = -1;
 
@@ -507,7 +507,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   // hash in the lowest res datafile
   g_assert(last_fileno >= 0);
   char *filename = g_build_filename(dirname, datafile_names[last_fileno], NULL);
-  _openslide_hash_file(checksum, filename);
+  _openslide_hash_file(quickhash1, filename);
   g_free(filename);
 
   success = true;
@@ -614,7 +614,7 @@ static bool process_indexfile(const char *slideversion,
 			      struct _openslide_jpeg_layer **layers,
 			      int *file_count_out,
 			      struct _openslide_jpeg_file ***files_out,
-			      GChecksum *checksum) {
+			      GChecksum *quickhash1) {
   // init out parameters
   *file_count_out = 0;
   *files_out = NULL;
@@ -746,7 +746,7 @@ static bool process_indexfile(const char *slideversion,
 					      tiles_per_position,
 					      slide_positions,
 					      &jpegs_list,
-					      checksum)) {
+					      quickhash1)) {
     g_warning("Cannot read some data pages from indexfile");
     goto OUT;
   }
@@ -916,7 +916,7 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 }
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
-			  GChecksum *checksum) {
+			  GChecksum *quickhash1) {
   struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
   struct _openslide_jpeg_layer **layers = NULL;
@@ -967,7 +967,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // first, check slidedat
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
-  _openslide_hash_file(checksum, tmp);  // hash the slidedat
+  _openslide_hash_file(quickhash1, tmp);  // hash the slidedat
   slidedat = g_key_file_new();
   if (!g_key_file_load_from_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
     g_warning("Can't load Slidedat file");
@@ -1287,7 +1287,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 indexfile,
 			 layers,
 			 &num_jpegs, &jpegs,
-			 checksum)) {
+			 quickhash1)) {
     goto FAIL;
   }
 

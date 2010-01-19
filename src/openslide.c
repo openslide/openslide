@@ -102,40 +102,40 @@ static bool quick_tiff_check(const char *filename) {
 }
 
 static bool try_format(openslide_t *osr, const char *filename,
-		       GChecksumType checksum_type,
-		       GChecksum **checksum_OUT,
+		       GChecksumType quickhash1_type,
+		       GChecksum **quickhash1_OUT,
 		       const _openslide_vendor_fn *format_check) {
   if (osr) {
     g_hash_table_remove_all(osr->properties);
     g_hash_table_remove_all(osr->associated_images);
   }
 
-  GChecksum *checksum = NULL;
-  if (checksum_OUT) {
-    checksum = g_checksum_new(checksum_type);
+  GChecksum *quickhash1 = NULL;
+  if (quickhash1_OUT) {
+    quickhash1 = g_checksum_new(quickhash1_type);
   }
-  bool result = (*format_check)(osr, filename, checksum);
+  bool result = (*format_check)(osr, filename, quickhash1);
 
-  if (result && checksum_OUT) {
-    // success, save the checksum
-    *checksum_OUT = checksum;
-  } else if (checksum != NULL) {
+  if (result && quickhash1_OUT) {
+    // success, save the quickhash1
+    *quickhash1_OUT = quickhash1;
+  } else if (quickhash1 != NULL) {
     // fail
-    g_checksum_free(checksum);
+    g_checksum_free(quickhash1);
   }
 
   return result;
 }
 
 static bool try_all_formats(openslide_t *osr, const char *filename,
-			    GChecksumType checksum_type,
-			    GChecksum **checksum_OUT) {
+			    GChecksumType quickhash1_type,
+			    GChecksum **quickhash1_OUT) {
   const _openslide_vendor_fn *fn;
 
   // non-tiff
   fn = non_tiff_formats;
   while (*fn) {
-    if (try_format(osr, filename, checksum_type, checksum_OUT, fn)) {
+    if (try_format(osr, filename, quickhash1_type, quickhash1_OUT, fn)) {
       return true;
     }
     fn++;
@@ -146,7 +146,7 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
     // tiff formats
     fn = tiff_formats;
     while (*fn) {
-      if (try_format(osr, filename, checksum_type, checksum_OUT, fn)) {
+      if (try_format(osr, filename, quickhash1_type, quickhash1_OUT, fn)) {
 	return true;
       }
       fn++;
@@ -161,7 +161,8 @@ bool openslide_can_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
   // quick test
-  return try_all_formats(NULL, filename, _OPENSLIDE_CHECKSUM_TYPE, NULL);
+  return try_all_formats(NULL, filename,
+			 _OPENSLIDE_QUICKHASH1_CHECKSUM_TYPE, NULL);
 }
 
 
@@ -198,8 +199,9 @@ openslide_t *openslide_open(const char *filename) {
 						 g_free, destroy_associated_image);
 
   // try to read it
-  GChecksum *checksum = NULL;
-  if (!try_all_formats(osr, filename, _OPENSLIDE_CHECKSUM_TYPE, &checksum)) {
+  GChecksum *quickhash1 = NULL;
+  if (!try_all_formats(osr, filename,
+		       _OPENSLIDE_QUICKHASH1_CHECKSUM_TYPE, &quickhash1)) {
     // failure
     openslide_close(osr);
     return NULL;
@@ -232,16 +234,16 @@ openslide_t *openslide_open(const char *filename) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
 		osr->downsamples[i], osr->downsamples[i - 1]);
       openslide_close(osr);
-      g_checksum_free(checksum);
+      g_checksum_free(quickhash1);
       return NULL;
     }
   }
 
   // set hash property
   g_hash_table_insert(osr->properties,
-		      g_strdup(_OPENSLIDE_HASH_NAME),
-		      g_strdup(g_checksum_get_string(checksum)));
-  g_checksum_free(checksum);
+		      g_strdup(_OPENSLIDE_QUICKHASH1_NAME),
+		      g_strdup(g_checksum_get_string(quickhash1)));
+  g_checksum_free(quickhash1);
 
   // fill in names
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);

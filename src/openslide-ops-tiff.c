@@ -65,10 +65,10 @@ static const char *store_string_property(TIFF *tiff, GHashTable *ht,
 }
 
 static void store_and_hash_string_property(TIFF *tiff, GHashTable *ht,
-					   GChecksum *checksum,
+					   GChecksum *quickhash1,
 					   const char *name, ttag_t tag) {
-  _openslide_hash_string(checksum, name);
-  _openslide_hash_string(checksum, store_string_property(tiff, ht, name, tag));
+  _openslide_hash_string(quickhash1, name);
+  _openslide_hash_string(quickhash1, store_string_property(tiff, ht, name, tag));
 }
 
 static void store_float_property(TIFF *tiff, GHashTable *ht,
@@ -80,28 +80,28 @@ static void store_float_property(TIFF *tiff, GHashTable *ht,
 }
 
 static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
-				      GChecksum *checksum) {
+				      GChecksum *quickhash1) {
   // strings
   store_string_property(tiff, ht, _OPENSLIDE_COMMENT_NAME, TIFFTAG_IMAGEDESCRIPTION);
 
   // strings to store and hash
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.Make", TIFFTAG_MAKE);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.Model", TIFFTAG_MODEL);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.Software", TIFFTAG_SOFTWARE);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.DateTime", TIFFTAG_DATETIME);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.Artist", TIFFTAG_ARTIST);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.Copyright", TIFFTAG_COPYRIGHT);
-  store_and_hash_string_property(tiff, ht, checksum,
+  store_and_hash_string_property(tiff, ht, quickhash1,
 				 "tiff.DocumentName", TIFFTAG_DOCUMENTNAME);
 
 
@@ -373,7 +373,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     _openslide_tiff_tilereader_fn tileread,
-			     GChecksum *checksum) {
+			     GChecksum *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);
@@ -396,11 +396,11 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // generate hash of the smallest layer
   TIFFSetDirectory(data->tiff, layers[layer_count - 1]);
-  _openslide_hash_tiff_tiles(checksum, tiff);
+  _openslide_hash_tiff_tiles(quickhash1, tiff);
 
   // load TIFF properties
   TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
-  store_and_hash_properties(data->tiff, osr->properties, checksum);
+  store_and_hash_properties(data->tiff, osr->properties, quickhash1);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);

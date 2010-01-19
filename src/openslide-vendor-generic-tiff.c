@@ -58,7 +58,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 }
 
 bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename,
-				 GChecksum *checksum) {
+				 GChecksum *quickhash1) {
   // first, see if it's a TIFF
   TIFF *tiff = TIFFOpen(filename, "r");
   if (tiff == NULL) {
@@ -130,7 +130,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename,
 			  0, NULL,
 			  layer_count, layers,
 			  _openslide_generic_tiff_tilereader,
-			  checksum);
+			  quickhash1);
 
 
   return true;

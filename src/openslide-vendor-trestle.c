@@ -65,7 +65,7 @@ static void add_properties(GHashTable *ht, char **tags) {
 }
 
 bool _openslide_try_trestle(openslide_t *osr, const char *filename,
-			    GChecksum *checksum) {
+			    GChecksum *quickhash1) {
   char *tagval;
 
   // first, see if it's a TIFF
@@ -154,7 +154,7 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename,
 			  overlap_count / 2, overlaps,
 			  layer_count, layers,
 			  _openslide_generic_tiff_tilereader,
-			  checksum);
+			  quickhash1);
 
 
   return true;

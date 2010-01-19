@@ -53,9 +53,9 @@
 
 #define _OPENSLIDE_COMMENT_NAME "openslide.comment"
 #define _OPENSLIDE_VENDOR_NAME "openslide.vendor"
-#define _OPENSLIDE_HASH_NAME "openslide.quickhash-1"
+#define _OPENSLIDE_QUICKHASH1_NAME "openslide.quickhash-1"
 
-#define _OPENSLIDE_CHECKSUM_TYPE G_CHECKSUM_SHA256
+#define _OPENSLIDE_QUICKHASH1_CHECKSUM_TYPE G_CHECKSUM_SHA256
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -105,13 +105,17 @@ void __attribute ((constructor)) _openslide_init(void);
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
-				     GChecksum *checksum);
+				     GChecksum *quickhash1);
 /*
- * A note on the checksum: this should be a hash of data that
+ * A note on quickhash1: this should be a hash of data that
  * will not change with revisions to the openslide library. It should
  * also be quick to generate. It should be a way to uniquely identify
  * a particular slide by content, but does not need to be sensitive
  * to file corruption.
+ *
+ * It is called "quickhash1" so that we can create a "quickhash2" if needed.
+ * The hash is stored in a property, it is expected that we will store
+ * more hash properties if needed.
  *
  * Suggested data to hash:
  * easily available image metadata + raw compressed lowest resolution image
@@ -119,15 +123,15 @@ typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
 
 
 bool _openslide_try_trestle(openslide_t *osr, const char* filename,
-			    GChecksum *checksum);
+			    GChecksum *quickhash1);
 bool _openslide_try_aperio(openslide_t *osr, const char* filename,
-			   GChecksum *checksum);
+			   GChecksum *quickhash1);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
-			      GChecksum *checksum);
+			      GChecksum *quickhash1);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
-			  GChecksum *checksum);
+			  GChecksum *quickhash1);
 bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
-				 GChecksum *checksum);
+				 GChecksum *quickhash1);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
@@ -144,7 +148,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     _openslide_tiff_tilereader_fn tileread,
-			     GChecksum *checksum);
+			     GChecksum *quickhash1);
 
 void _openslide_generic_tiff_tilereader(TIFF *tiff,
 					uint32_t *dest,

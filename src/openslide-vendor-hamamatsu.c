@@ -221,7 +221,7 @@ static void add_macro_associated_image(GHashTable *ht,
 }
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
-			      GChecksum *checksum) {
+			      GChecksum *quickhash1) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
   struct _openslide_jpeg_file **jpegs = NULL;
@@ -256,7 +256,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   }
 
   // hash in the VMS file
-  _openslide_hash_file(checksum, filename);
+  _openslide_hash_file(quickhash1, filename);
 
   // make sure values are within known bounds
   int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
@@ -308,7 +308,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     jpegs[num_jpegs - 1] = file;
 
     // hash in the map file
-    _openslide_hash_file(checksum, map_filename);
+    _openslide_hash_file(quickhash1, map_filename);
 
     g_free(tmp);
   } else {
