@@ -101,12 +101,15 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
 				 "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
   store_and_hash_string_property(tiff, ht, checksum,
 				 "tiff.Copyright", TIFFTAG_COPYRIGHT);
+  store_and_hash_string_property(tiff, ht, checksum,
+				 "tiff.DocumentName", TIFFTAG_DOCUMENTNAME);
 
 
   // don't hash floats, they might be unstable over time
-  // floats
   store_float_property(tiff, ht, "tiff.XResolution", TIFFTAG_XRESOLUTION);
   store_float_property(tiff, ht, "tiff.YResolution", TIFFTAG_YRESOLUTION);
+  store_float_property(tiff, ht, "tiff.XPosition", TIFFTAG_XPOSITION);
+  store_float_property(tiff, ht, "tiff.YPosition", TIFFTAG_YPOSITION);
 
   // special
   uint16_t resolution_unit;
