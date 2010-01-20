@@ -34,5 +34,10 @@ noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-til
 noinst_PROGRAMS = src/test
 
 src_test_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
-
 src_test_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+
+
+bin_PROGRAMS = tools/openslide-quickhash1sum
+
+tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
+tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
