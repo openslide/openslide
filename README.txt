@@ -5,7 +5,7 @@ Carnegie Mellon University
 http://openslide.cs.cmu.edu/
 
 
-2009-12-11
+2010-01-22
 
 ==========================
 
@@ -46,6 +46,31 @@ An openslide_t object can be used concurrently from multiple threads
 without locking. (But you must lock or otherwise use memory barriers
 when passing the object between threads.)
 
+
+Properties
+==========
+
+The library exposes certain properties as string key-value pairs for
+a given virtual slide. (These are accessed by way of the
+"openslide_get_property_names" and "openslide_get_property_value" calls.)
+
+These properties are generally uninterpreted data gathered from the
+on-disk files. New properties can be added over time in subsequent releases
+of OpenSlide. A list of some properties can be found at:
+http://openslide.cs.cmu.edu/wiki/List%20of%20Known%20Properties
+
+OpenSlide itself creates three properties (for now). They are:
+
+ openslide.vendor
+   The name of the vendor backend.
+
+ openslide.comment
+   A free-form text comment, the same as returned from openslide_get_comment.
+
+ openslide.quickhash-1
+   A non-cryptographic hash of a subset of the slide data. It can be used
+   to uniquely identify a particular virtual slide, but cannot be used
+   to detect file corruption or modification.
 
 Other Documentation
 ===================
