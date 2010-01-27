@@ -25,6 +25,7 @@
 #include "openslide-hash.h"
 
 #include <string.h>
+#include <inttypes.h>
 
 void _openslide_hash_string(GChecksum *checksum, const char *str) {
   if (checksum == NULL) {
@@ -103,6 +104,7 @@ void _openslide_hash_file_part(GChecksum *checksum, const char *filename,
     fclose(f);
   }
 
+  //g_debug("hash '%s' %" PRId64 " %d", filename, offset, size);
   g_checksum_update(checksum, (guchar *) buf, size);
   g_slice_free1(size, buf);
   fclose(f);
