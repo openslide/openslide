@@ -37,7 +37,10 @@ src_test_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 src_test_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 
-bin_PROGRAMS = tools/openslide-quickhash1sum
+bin_PROGRAMS = tools/openslide-quickhash1sum tools/openslide-show-properties
 
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
+
+tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src
+tools_openslide_show_properties_LDADD = src/libopenslide.la
