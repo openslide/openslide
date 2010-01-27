@@ -79,3 +79,31 @@ void _openslide_hash_file(GChecksum *checksum, const char *filename) {
   g_checksum_update(checksum, (guchar *) contents, length);
   g_free(contents);
 }
+
+void _openslide_hash_file_part(GChecksum *checksum, const char *filename,
+			       int64_t offset, int size) {
+  if (checksum == NULL) {
+    return;
+  }
+
+  FILE *f = fopen(filename, "rb");
+  g_return_if_fail(f);
+
+  void *buf = g_slice_alloc(size);
+
+  if (fseeko(f, offset, SEEK_SET) == -1) {
+    g_critical("Can't seek in %s", filename);
+    g_slice_free1(size, buf);
+    fclose(f);
+  }
+
+  if (fread(buf, size, 1, f) != 1) {
+    g_critical("Can't read from %s", filename);
+    g_slice_free1(size, buf);
+    fclose(f);
+  }
+
+  g_checksum_update(checksum, (guchar *) buf, size);
+  g_slice_free1(size, buf);
+  fclose(f);
+}
