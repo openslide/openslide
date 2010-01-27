@@ -273,7 +273,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   GList **jpegs_list,
 						   GChecksum *quickhash1) {
   int32_t jpeg_number = 0;
-  int32_t last_fileno = -1;
 
   bool success = false;
 
@@ -346,9 +345,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	int32_t length = read_le_int32_from_file(f);
 	int32_t fileno = read_le_int32_from_file(f);
 
-	// save fileno of lowest res data
-	last_fileno = fileno;
-
 	if (tile_index < 0) {
 	  g_warning("tile_index < 0");
 	  goto OUT;
@@ -395,9 +391,14 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  goto OUT;
 	}
 	char *filename = g_build_filename(dirname, datafile_names[fileno], NULL);
-	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
+
+	// hash in the lowest-res on-disk tiles
+	if (zoom_level == zoom_levels - 1) {
+	  _openslide_hash_file_part(quickhash1, filename, offset, length);
+	}
 
 	// populate the file structure
+	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
 	jpeg->end_in_file = jpeg->start_in_file + length;
@@ -488,12 +489,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     // advance for next zoom level
     seek_location += 4;
   }
-
-  // hash in the lowest res datafile
-  g_assert(last_fileno >= 0);
-  char *filename = g_build_filename(dirname, datafile_names[last_fileno], NULL);
-  _openslide_hash_file(quickhash1, filename);
-  g_free(filename);
 
   success = true;
 
