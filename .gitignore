@@ -29,6 +29,8 @@ Makefile.in
 /stamp-h1
 /*.pc
 
+/mingw32-config.cache
+
 /src/test
 
 /doc/html
