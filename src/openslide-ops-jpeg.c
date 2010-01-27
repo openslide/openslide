@@ -436,7 +436,7 @@ static void compute_mcu_start(FILE *f,
     size_t result = fread(buf, 2, 1, f);
     if (result == 0 ||
 	buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-      g_warning("Restart marker not found in expected place");
+      g_critical("Restart marker not found in expected place");
     } else {
       mcu_starts[target] = offset;
       return;
@@ -1303,7 +1303,7 @@ static void my_output_message(j_common_ptr cinfo) {
 
   (*cinfo->err->format_message) (cinfo, buffer);
 
-  g_warning("%s", buffer);
+  g_critical("%s", buffer);
 }
 
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
@@ -1397,7 +1397,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     g_hash_table_insert(ht, g_strdup(name), aimg);
   } else {
     // setjmp has returned again
-    g_warning("Error in decoding associated JPEG image");
+    g_critical("Error in decoding associated JPEG image");
     g_free(argb_data);
   }
 
