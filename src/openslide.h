@@ -160,7 +160,8 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 
 
 /**
- * Get the comment (if any) for this image.
+ * Get the comment (if any) for this image. Exactly equivalent to calling
+ * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
  *
  * @param osr The whole slide image handle.
  * @return The comment for this image.
