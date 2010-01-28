@@ -52,7 +52,7 @@ bool openslide_can_open(const char *filename);
  * Open a whole slide image.
  *
  * @param filename The filename to open.
- * @return A new handle to an open whole slide image.
+ * @return A new whole slide image object.
  */
 openslide_public
 openslide_t *openslide_open(const char *filename);
@@ -66,7 +66,7 @@ openslide_t *openslide_open(const char *filename);
  * pointer to enough memory to hold the region, at least (@p w * @p h * 4)
  * bytes in length.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param dest The destination buffer for the ARGB data.
  * @param x The top left x-coordinate. Must be non-negative.
  * @param y The top left y-coordinate. Must be non-negative.
@@ -94,9 +94,9 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
 
 
 /**
- * Close a whole slide image handle.
+ * Close a whole slide image object.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  */
 openslide_public
 void openslide_close(openslide_t *osr);
@@ -105,7 +105,7 @@ void openslide_close(openslide_t *osr);
 /**
  * Get the number of layers in the whole slide image.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @return The number of layers.
  */
 openslide_public
@@ -115,7 +115,7 @@ int32_t openslide_get_layer_count(openslide_t *osr);
 /**
  * Get the dimensions of layer 0 (the largest layer).
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
  */
@@ -126,7 +126,7 @@ void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
 /**
  * Get the dimensions of a layer.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param layer The desired layer.
  * @param[out] w The width of the image.
  * @param[out] h The height of the image.
@@ -139,7 +139,7 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 /**
  * Get the downsampling factor of a given layer.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param layer The desired layer.
  * @return The downsampling factor for this layer.
  */
@@ -150,7 +150,7 @@ double openslide_get_layer_downsample(openslide_t *osr, int32_t layer);
 /**
  * Get the best layer to use for displaying the given downsample.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param downsample The downsample factor.
  * @return The layer identifier.
  */
@@ -163,7 +163,7 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
  * Get the comment (if any) for this image. Exactly equivalent to calling
  * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @return The comment for this image.
  */
 openslide_public
@@ -192,7 +192,7 @@ const char *openslide_get_comment(openslide_t *osr);
  * pairs. This call provides a list of names as strings
  * that can be used to read properties with openslide_get_property_value().
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @return A NULL-terminated string array of property names.
  */
 openslide_public
@@ -207,7 +207,7 @@ const char * const *openslide_get_property_names(openslide_t *osr);
  * pairs. This call provides the value of the property given
  * by @p name.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param name The name of the desired property. Must be
                a valid name as given by openslide_get_property_names().
  * @return The value of the named property, or NULL if the property
@@ -227,7 +227,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name);
  * openslide_get_associated_image_dimensions() and
  * openslide_read_associated_image().
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @return A NULL-terminated string array of associated image names.
  */
 openslide_public
@@ -240,7 +240,7 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr);
  * associated with a whole slide image. Once the dimensions are known,
  * use openslide_read_associated_image() to read the image.
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param name The name of the desired associated image. Must be
  *            a valid name as given by openslide_get_associated_image_names().
  * @param[out] w The width of the associated image.
@@ -262,7 +262,7 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * Get the width and height with
  * openslide_get_associated_image_dimensions().
  *
- * @param osr The whole slide image handle.
+ * @param osr The whole slide image object.
  * @param dest The destination buffer for the ARGB data.
  * @param name The name of the desired associated image. Must be
  *             a valid name as given by openslide_get_associated_image_names().
