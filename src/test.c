@@ -229,10 +229,6 @@ int main(int argc, char **argv) {
   test_next_biggest(osr, 1000);
   test_next_biggest(osr, 10000);
 
-  int prefetch_hint = openslide_give_prefetch_hint(osr, 0, 0, 0, 5, 5);
-  openslide_cancel_prefetch_hint(osr, prefetch_hint);
-
-
   int64_t elapsed;
 
   // test NULL dest

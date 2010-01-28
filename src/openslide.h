@@ -81,41 +81,10 @@ void openslide_read_region(openslide_t *osr,
 			   int32_t layer,
 			   int64_t w, int64_t h);
 
-
-/**
- * Give a non-blocking hint that a region is likely to be needed soon.
- *
- * @param osr The whole slide image handle.
- * @param x The top left x-coordinate.
- * @param y The top left y-coordinate.
- * @param layer The desired layer.
- * @param w The width of the region.
- * @param h The height of the region.
- * @returns A unique identifier for this prefetch hint.
- *
- * @deprecated This function has never been implemented and its
- *             use is not recommended.
- */
-openslide_public
-openslide_deprecated
-int openslide_give_prefetch_hint(openslide_t *osr,
-				 int64_t x, int64_t y,
-				 int32_t layer,
-				 int64_t w, int64_t h);
-
-
-/**
- * Cancel an existing prefetch hint.
- *
- * @param osr The whole slide image handle.
- * @param prefetch_id An identifier returned by openslide_give_prefetch_hint().
- *
- * @deprecated This function has never been implemented and its
- *             use is not recommended.
- */
-openslide_public
-openslide_deprecated
-void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
+// these definitions are meant to throw link-time errors, the functions
+// they replace were never implemented
+#define openslide_give_prefetch_hint do_not_use_openslide_give_prefetch_hint
+#define openslide_cancel_prefetch_hint do_not_use_openslide_cancel_prefetch_hint
 
 
 /**
