@@ -81,10 +81,16 @@ void openslide_read_region(openslide_t *osr,
 			   int32_t layer,
 			   int64_t w, int64_t h);
 
-// these definitions are meant to throw link-time errors, the functions
-// they replace were never implemented
-#define openslide_give_prefetch_hint do_not_use_openslide_give_prefetch_hint
-#define openslide_cancel_prefetch_hint do_not_use_openslide_cancel_prefetch_hint
+
+
+// these are meant to throw compile- and link-time errors,
+// since the functions they replace were never implemented
+int _openslide_give_prefetch_hint_UNIMPLEMENTED(void);
+void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
+#define openslide_give_prefetch_hint(osr, x, y, layer, w, h)	\
+  _openslide_give_prefetch_hint_UNIMPLEMENTED(-1);
+#define openslide_cancel_prefetch_hint(osr, prefetch_id)	\
+  _openslide_cancel_prefetch_hint_UNIMPLEMENTED(-1)
 
 
 /**
