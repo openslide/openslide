@@ -227,17 +227,16 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
 
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
-// still needs these declarations
+// still needs these declarations for ABI compat
+// TODO: remove if soname bump
 #undef openslide_give_prefetch_hint
 openslide_public
-openslide_deprecated
 int openslide_give_prefetch_hint(openslide_t *osr,
 				 int64_t x, int64_t y,
 				 int32_t layer,
 				 int64_t w, int64_t h);
 #undef openslide_cancel_prefetch_hint
 openslide_public
-openslide_deprecated
 void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 
 
