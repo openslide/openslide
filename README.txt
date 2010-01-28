@@ -21,8 +21,8 @@ vendors.
 What is the license?
 ====================
 
-This code is licensed under the GNU GPL version 2, not any later version.
-See the file gpl-2.0.txt for the text of the license.
+This code is licensed under the GNU LGPL version 2.1, not any later version.
+See the file lgpl-2.1.txt for the text of the license.
 
 
 Requirements
