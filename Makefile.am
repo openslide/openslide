@@ -20,7 +20,7 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c
 
 
-src_libopenslide_la_CPPFLAGS = -pedantic -DBUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
+src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
 src_libopenslide_la_LDFLAGS = -version-info 1:5:1 -no-undefined
 
