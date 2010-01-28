@@ -190,8 +190,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  struct timeval start_tv;
-  struct timeval end_tv;
+  //  struct timeval start_tv;
+  //  struct timeval end_tv;
 
   printf("openslide_can_open returns %s\n", openslide_can_open(argv[1]) ? "true" : "false");
   openslide_t *osr = openslide_open(argv[1]);
@@ -229,7 +229,7 @@ int main(int argc, char **argv) {
   test_next_biggest(osr, 1000);
   test_next_biggest(osr, 10000);
 
-  int64_t elapsed;
+  //  int64_t elapsed;
 
   // test NULL dest
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
