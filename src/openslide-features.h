@@ -26,20 +26,20 @@
 // for exporting from shared libraries or DLLs
 #if defined _WIN32
 #  ifdef _OPENSLIDE_BUILDING_DLL
-#    define openslide_public __declspec(dllexport)
+#    define OPENSLIDE_PUBLIC() __declspec(dllexport)
 #  else
-#    define openslide_public __declspec(dllimport)
+#    define OPENSLIDE_PUBLIC() __declspec(dllimport)
 #  endif
 #elif __GNUC__ > 3
-# define openslide_public __attribute__ ((visibility("default")))
+# define OPENSLIDE_PUBLIC() __attribute__ ((visibility("default")))
 #else
-# define openslide_public
+# define OPENSLIDE_PUBLIC()
 #endif
 
 #if __GNUC__ > 3 || ((__GNUC__ == 3) && (__GNUC_MINOR__ > 0))
-# define openslide_deprecated __attribute__ ((deprecated))
+# define OPENSLIDE_DEPRECATED() __attribute__ ((deprecated))
 #else
-# define openslide_deprecated
+# define OPENSLIDE_DEPRECATED()
 #endif
 
 
