@@ -79,7 +79,8 @@ static void store_float_property(TIFF *tiff, GHashTable *ht,
 static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
 				      GChecksum *quickhash1) {
   // strings
-  store_string_property(tiff, ht, _OPENSLIDE_COMMENT_NAME, TIFFTAG_IMAGEDESCRIPTION);
+  store_string_property(tiff, ht, OPENSLIDE_PROPERTY_NAME_COMMENT,
+			TIFFTAG_IMAGEDESCRIPTION);
 
   // strings to store and hash
   store_and_hash_string_property(tiff, ht, quickhash1,

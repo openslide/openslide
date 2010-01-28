@@ -42,7 +42,7 @@ static const char BACKGROUND_COLOR[] = "Background Color=";
 
 static void add_properties(GHashTable *ht, char **tags) {
   g_hash_table_insert(ht,
-		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
 		      g_strdup("trestle"));
 
   for (char **tag = tags; *tag != NULL; tag++) {

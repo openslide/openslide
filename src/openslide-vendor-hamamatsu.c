@@ -191,7 +191,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
 
 static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_hash_table_insert(ht,
-		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
 		      g_strdup("hamamatsu"));
 
   char **keys = g_key_file_get_keys(kf, GROUP_VMS, NULL, NULL);
@@ -434,7 +434,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
     if (comment) {
       g_hash_table_insert(osr->properties,
-			  g_strdup(_OPENSLIDE_COMMENT_NAME),
+			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
 			  comment);
     }
 

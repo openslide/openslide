@@ -48,10 +48,6 @@
 
 #include <openjpeg.h>
 
-#define _OPENSLIDE_COMMENT_NAME "openslide.comment"
-#define _OPENSLIDE_VENDOR_NAME "openslide.vendor"
-#define _OPENSLIDE_QUICKHASH1_NAME "openslide.quickhash-1"
-
 #define _OPENSLIDE_QUICKHASH1_CHECKSUM_TYPE G_CHECKSUM_SHA256
 
 /* the associated image structure */

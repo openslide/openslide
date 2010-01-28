@@ -238,7 +238,7 @@ openslide_t *openslide_open(const char *filename) {
 
   // set hash property
   g_hash_table_insert(osr->properties,
-		      g_strdup(_OPENSLIDE_QUICKHASH1_NAME),
+		      g_strdup(OPENSLIDE_PROPERTY_NAME_QUICKHASH1),
 		      g_strdup(g_checksum_get_string(quickhash1)));
   g_checksum_free(quickhash1);
 
@@ -251,7 +251,7 @@ openslide_t *openslide_open(const char *filename) {
   //osr->cache = _openslide_cache_create(0);
 
   // validate required properties
-  g_assert(openslide_get_property_value(osr, _OPENSLIDE_VENDOR_NAME));
+  g_assert(openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_VENDOR));
 
   return osr;
 }
@@ -294,7 +294,7 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 }
 
 const char *openslide_get_comment(openslide_t *osr) {
-  return openslide_get_property_value(osr, _OPENSLIDE_COMMENT_NAME);
+  return openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_COMMENT);
 }
 
 

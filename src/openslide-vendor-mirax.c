@@ -759,7 +759,7 @@ static bool process_indexfile(const char *slideversion,
 
 static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_hash_table_insert(ht,
-		      g_strdup(_OPENSLIDE_VENDOR_NAME),
+		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
 		      g_strdup("mirax"));
 
   char **groups = g_key_file_get_groups(kf, NULL);

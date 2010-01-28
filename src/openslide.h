@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -168,6 +168,20 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 openslide_public
 const char *openslide_get_comment(openslide_t *osr);
 
+/**
+ * The name of the property containing a slide's comment, if any.
+ */
+#define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
+
+/**
+ * The name of the property containing an identification of the vendor.
+ */
+#define OPENSLIDE_PROPERTY_NAME_VENDOR "openslide.vendor"
+
+/**
+ * The name of the property containing the "quickhash-1" sum.
+ */
+#define OPENSLIDE_PROPERTY_NAME_QUICKHASH1 "openslide.quickhash-1"
 
 /**
  * Get the NULL-terminated array of property names.
