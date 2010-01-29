@@ -9,6 +9,8 @@
   - TIFF backend will likely never be lockless as long as we use libtiff
   - Will the cache become the bottleneck?
 
+* ndpi format (TIFF-wrapped VMS), requires libtiff 4
+
 * XTP format?
 
 * Bacus format?
