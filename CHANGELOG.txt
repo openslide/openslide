@@ -1,0 +1,96 @@
+Notable Changes in OpenSlide
+============================
+
+Version 3.0.0, 2010-01-28
+ * Switch from GPLv2 to LGPLv2
+ * Reduce some unlikely memory leaks
+ * Support of more MIRAX files
+ * Improve performance of MIRAX rendering, vastly in some cases
+ * Reduce appearance of seams in MIRAX
+ * Add "quickhash-1" hash property
+ * Add "openslide-quickhash1sum" and "openslide-show-properties" tools
+ * Rework the API documentation
+ * Remove never-implemented prefetch functions from openslide.h (but
+   retain with warnings in the library)
+ * Start attempting to figure out Trestle tile position files
+ * Add some defined property names to the header file
+
+
+----
+
+
+Version 2.3.1, 2009-12-14
+ * Eliminate Aperio regression introduced in Version 2.3.0
+
+Version 2.3.0, 2009-12-11
+ * Support for generic tiled TIFF format (for InterScope files)
+ * Bug fixes
+ * Reduction of some TIFF error messages
+ * Fixes for some build problems
+ * Deprecate prefetch functions (never implemented)
+
+Version 2.2.1, 2009-10-23
+ * Fixes for thread safety problems in 2.2.0
+
+Version 2.2.0, 2009-09-15
+ * Thread safety (lockless with Hamamatsu and MIRAX files)
+
+Version 2.1.0, 2009-08-18
+ * Support for MIRAX mrxs
+
+Version 2.0.0, 2009-07-16
+ * Support for image metadata and associated images
+ * Support Aperio variant
+ * Internally rework a lot in preparation for MIRAX
+ * Win32 support
+
+
+----
+
+
+Version 1.1.1, 2009-02-25
+ * Remove never-functional generic JPEG 2000 support
+ * Switch Aperio to use the released version of OpenJPEG
+ * Be more robust to errors in general
+
+Version 1.1.0, 2008-12-20
+ * Greatly speed up Hamamatsu with a tile cache and background
+   scanning thread
+
+Version 1.0.0, 2008-12-09
+ * Renamed to "OpenSlide"
+ * Multi-file Hamamatsu support
+ * Switch to 64-bit signed integers in public API where possible
+
+
+----
+
+
+Version 0.5.0, 2008-10-21
+ * GPLv2 release
+ * Working Aperio support
+ * More work on generic JPEG 2000
+
+Version 0.4.2, 2008-09-05
+ * Documentation updates
+ * For Aperio, remove Jasper in lieu of using OpenJPEG
+ * Preliminary and non-functional generic JPEG 2000 support
+
+Version 0.4.0, 2008-03-12
+ * Update simple test program
+
+Version 0.3.0, 2008-01-31
+ * Broken and unusably slow Aperio support
+
+Version 0.2.0, 2008-01-19
+ * Using glib
+ * Layers are numbered instead of named
+ * Actual start of implementation
+ * Initial Trestle support
+ * Initial Aperio support (without tile codec)
+ * Initial slow and incomplete Hamamatsu support
+ * Initial test program
+ * Documentation updates
+
+Version 0.1.0, 2007-12-06
+ * Unreleased, just documentation and headers (called "Wholeslide")
