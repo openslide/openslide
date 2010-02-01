@@ -1,4 +1,4 @@
-EXTRA_DIST = README.txt TODO.txt lgpl-2.1.txt LICENSE.txt
+EXTRA_DIST = README.txt TODO.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = openslide.pc
