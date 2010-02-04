@@ -341,28 +341,31 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
   int64_t start_tile_y = ds_y / (th - oy);
   int64_t end_tile_y = ((ds_y + h) / (th - oy)) + 1;
 
-  int32_t offset_x;
-  int32_t offset_y;
+  int32_t offset_x = ds_x % (tw - ox);
+  int32_t offset_y = ds_y % (th - oy);
 
-  // special cases for last tile
-  if (start_tile_x == tiles_across - 1) {
-    offset_x = ds_x % tw;
-  } else {
-    offset_x = ds_x % (tw - ox);
+  int32_t advance_x = tw - ox;
+  int32_t advance_y = th - oy;
+
+  // special cases for edge tiles
+  if (start_tile_x >= tiles_across - 1) {
+    start_tile_x = tiles_across - 1;
+    offset_x = ds_x - (start_tile_x * (tw - ox));
+    advance_x = tw;
+    end_tile_x = start_tile_x + 1;
   }
-
-  if (start_tile_y == tiles_down - 1) {
-    offset_y = ds_y % th;
-  } else {
-    offset_y = ds_y % (th - oy);
+  if (start_tile_y >= tiles_down - 1) {
+    start_tile_y = tiles_down - 1;
+    offset_y = ds_y - (start_tile_y * (th - oy));
+    advance_y = th;
+    end_tile_y = start_tile_y + 1;
   }
-
 
   _openslide_read_tiles(cr, layer,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
-			tw - ox, th - oy,
+			advance_x, advance_y,
 			osr, osr->cache,
 			read_tile);
 }
