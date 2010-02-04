@@ -1,6 +1,10 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.0.1, 2010-02-04
+ * Fix edge-drawing bug in TIFF backend
+ * Ship CHANGELOG.txt
+
 Version 3.0.0, 2010-01-28
  * Switch from GPLv2 to LGPLv2
  * Reduce some unlikely memory leaks
