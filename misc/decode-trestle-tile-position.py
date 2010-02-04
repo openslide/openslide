@@ -4,11 +4,11 @@ import struct, sys, os
 
 
 def bin(s):
-#    return map(lambda b: "|" if b else "_", list("%.8d" % (int(_bin(s)))))
-    return "%.8d" % (int(_bin(s)))
+    return "".join(map(lambda b: b if b=='1' else ".", list("%.8d" % (int(_bin(s))))))
+#    return "%.8d" % (int(_bin(s)))
 
 def _bin(s):
-    return str(s) if s<=1 else bin(s>>1) + str(s&1)
+    return str(s) if s<=1 else _bin(s>>1) + str(s&1)
 
 
 f = open(sys.argv[1])
@@ -30,10 +30,10 @@ while True:
     d0 = unpacked[2:10]
     d1 = unpacked[12:]
 
-    int_format = "%12.d."
+    int_format = "%11.d."
     hex_format = "   " + "%3.2x" * 8
 #    print "%12d:" % (i) + (int_format * 2) % (a0, a1) + hex_format % (d0) + (int_format * 2) % (b0, b1) + hex_format % (d1)
-    print "%12d:" % (i) + (int_format * 2) % (a0, a1) + " " + "".join(map(bin, d0)) + (int_format * 2) % (b0, b1) + " " + "".join(map(bin, d1))
+    print "%12d:" % (i) + (int_format * 2) % (a0, a1) + "   " + "".join(map(bin, d0)) + (int_format * 2) % (b0, b1) + "   " + "".join(map(bin, d1))
 
     i = i + 1
 
