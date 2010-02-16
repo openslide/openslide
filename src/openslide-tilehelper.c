@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #include "openslide-tilehelper.h"
 
 #include <glib.h>

@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #include "openslide-hash.h"
 
 #include <string.h>

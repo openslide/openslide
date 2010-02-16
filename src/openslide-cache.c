@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #include <openslide-cache.h>
 #include <glib.h>
 

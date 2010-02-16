@@ -22,6 +22,8 @@
 #ifndef OPENSLIDE_OPENSLIDE_CACHE_H_
 #define OPENSLIDE_OPENSLIDE_CACHE_H_
 
+#include <config.h>
+
 #include <openslide.h>
 
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32

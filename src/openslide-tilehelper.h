@@ -22,6 +22,8 @@
 #ifndef OPENSLIDE_OPENSLIDE_TILEHELPER_H_
 #define OPENSLIDE_OPENSLIDE_TILEHELPER_H_
 
+#include <config.h>
+
 #include "openslide.h"
 #include "openslide-cache.h"
 

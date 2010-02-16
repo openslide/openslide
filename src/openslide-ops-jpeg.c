@@ -27,7 +27,7 @@
  * For conditions of distribution and use, see the accompanying README file.
  */
 
-#include "config.h"
+#include <config.h>
 
 #include <glib.h>
 #include <setjmp.h>
