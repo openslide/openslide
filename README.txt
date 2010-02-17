@@ -5,7 +5,7 @@ Carnegie Mellon University
 http://openslide.cs.cmu.edu/
 
 
-2010-01-22
+2010-02-17
 
 ==========================
 
@@ -29,7 +29,8 @@ Requirements
 ============
 
 This library requires libjpeg, libtiff, openjpeg, cairo >= 1.2,
-and glib >= 2.12.
+and glib >= 2.12. If glib >= 2.16 is available, then OpenSlide will
+generate the "openslide.quickhash-1" property.
 
 
 Features
@@ -70,7 +71,9 @@ OpenSlide itself creates three properties (for now). They are:
  openslide.quickhash-1
    A non-cryptographic hash of a subset of the slide data. It can be used
    to uniquely identify a particular virtual slide, but cannot be used
-   to detect file corruption or modification.
+   to detect file corruption or modification. Generation of this property
+   requires that OpenSlide be compiled with glib >= 2.16.
+
 
 Other Documentation
 ===================
