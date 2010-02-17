@@ -1,7 +1,7 @@
 Notable Changes in OpenSlide
 ============================
 
-Version 3.0.2, 2010-XX-XX
+Version 3.0.2, 2010-02-17
  * Restore ability to build with glib 2.12, at the expense
    of not having "quickhash-1" in that configuration
 
