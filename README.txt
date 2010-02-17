@@ -102,6 +102,14 @@ is now "openslide_t".
 See openslide.h in this distribution for the definitive API reference.
 
 
+Acknowledgements
+================
+
+OpenSlide has been supported by the National Institutes of Health and
+the Clinical and Translational Science Institute at the University of
+Pittsburgh.
+
+
 How to build?
 =============
 
