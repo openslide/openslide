@@ -1,6 +1,10 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.0.2, 2010-XX-XX
+ * Restore ability to build with glib 2.12, at the expense
+   of not having "quickhash-1" in that configuration
+
 Version 3.0.1, 2010-02-04
  * Fix edge-drawing bug in TIFF backend
  * Ship CHANGELOG.txt
