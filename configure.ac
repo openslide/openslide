@@ -23,8 +23,6 @@ AC_DISABLE_STATIC
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 
-AC_C_BIGENDIAN
-
 # Check for recent pkg-config which supports Requires.private
 # (snippet taken from cairo configure.in)
 PKG_PROG_PKG_CONFIG()
