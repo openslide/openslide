@@ -264,7 +264,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 
 
 bool _openslide_try_aperio(openslide_t *osr, const char *filename,
-			   GChecksum *quickhash1) {
+			   struct _openslide_hash *quickhash1) {
   char *tagval;
   uint32_t depth;
 

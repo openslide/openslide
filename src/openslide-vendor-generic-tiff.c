@@ -55,7 +55,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 }
 
 bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename,
-				 GChecksum *quickhash1) {
+				 struct _openslide_hash *quickhash1) {
   // first, see if it's a TIFF
   TIFF *tiff = TIFFOpen(filename, "r");
   if (tiff == NULL) {

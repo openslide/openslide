@@ -268,7 +268,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int tiles_per_position,
 						   int32_t *tile_positions,
 						   GList **jpegs_list,
-						   GChecksum *quickhash1) {
+						   struct _openslide_hash *quickhash1) {
   int32_t jpeg_number = 0;
 
   bool success = false;
@@ -589,7 +589,7 @@ static bool process_indexfile(const char *slideversion,
 			      struct _openslide_jpeg_layer **layers,
 			      int *file_count_out,
 			      struct _openslide_jpeg_file ***files_out,
-			      GChecksum *quickhash1) {
+			      struct _openslide_hash *quickhash1) {
   // init out parameters
   *file_count_out = 0;
   *files_out = NULL;
@@ -888,7 +888,7 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 }
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
-			  GChecksum *quickhash1) {
+			  struct _openslide_hash *quickhash1) {
   struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
   struct _openslide_jpeg_layer **layers = NULL;

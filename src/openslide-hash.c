@@ -22,14 +22,29 @@
 #include <config.h>
 
 #include "openslide-hash.h"
+#include "openslide-private.h"
 
 #include <string.h>
 #include <inttypes.h>
 
-void _openslide_hash_string(GChecksum *checksum, const char *str) {
-  if (checksum == NULL) {
+#ifdef HAVE_G_CHECKSUM_NEW
+struct _openslide_hash {
+  GChecksum *checksum;
+};
+
+struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
+  struct _openslide_hash *hash = g_slice_new(struct _openslide_hash);
+  hash->checksum = g_checksum_new(G_CHECKSUM_SHA256);
+
+  return hash;
+}
+
+void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
+  if (hash == NULL) {
     return;
   }
+
+  GChecksum *checksum = hash->checksum;
 
   const char *str_to_hash = str ? str : "";
   g_checksum_update(checksum,
@@ -37,10 +52,12 @@ void _openslide_hash_string(GChecksum *checksum, const char *str) {
 		    strlen(str_to_hash) + 1);
 }
 
-void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
-  if (checksum == NULL) {
+void _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
+  if (hash == NULL) {
     return;
   }
+
+  GChecksum *checksum = hash->checksum;
 
   g_assert(TIFFIsTiled(tiff));
 
@@ -66,10 +83,12 @@ void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff) {
 }
 
 
-void _openslide_hash_file(GChecksum *checksum, const char *filename) {
-  if (checksum == NULL) {
+void _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
+  if (hash == NULL) {
     return;
   }
+
+  GChecksum *checksum = hash->checksum;
 
   gchar *contents;
   gsize length;
@@ -80,11 +99,14 @@ void _openslide_hash_file(GChecksum *checksum, const char *filename) {
   g_free(contents);
 }
 
-void _openslide_hash_file_part(GChecksum *checksum, const char *filename,
+void _openslide_hash_file_part(struct _openslide_hash *hash,
+			       const char *filename,
 			       int64_t offset, int size) {
-  if (checksum == NULL) {
+  if (hash == NULL) {
     return;
   }
+
+  GChecksum *checksum = hash->checksum;
 
   FILE *f = fopen(filename, "rb");
   g_return_if_fail(f);
@@ -108,3 +130,36 @@ void _openslide_hash_file_part(GChecksum *checksum, const char *filename,
   g_slice_free1(size, buf);
   fclose(f);
 }
+
+const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
+  return g_checksum_get_string(hash->checksum);
+}
+
+void _openslide_hash_destroy(struct _openslide_hash *hash) {
+  g_checksum_free(hash->checksum);
+  g_slice_free(struct _openslide_hash, hash);
+}
+
+#else
+
+struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
+  return NULL;
+}
+
+void _openslide_hash_tiff_tiles(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+				TIFF *_OPENSLIDE_UNUSED(tiff)) {}
+void _openslide_hash_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+			    const char *_OPENSLIDE_UNUSED(str)) {}
+void _openslide_hash_file(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+			  const char *_OPENSLIDE_UNUSED(filename)) {}
+void _openslide_hash_file_part(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+			       const char *_OPENSLIDE_UNUSED(filename),
+			       int64_t _OPENSLIDE_UNUSED(offset),
+			       int _OPENSLIDE_UNUSED(size)) {}
+const char *_openslide_hash_get_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash)) {
+  return NULL;
+}
+
+void _openslide_hash_destroy(struct _openslide_hash *_OPENSLIDE_UNUSED(hash)) {}
+
+#endif

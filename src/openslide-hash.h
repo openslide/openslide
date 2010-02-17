@@ -24,7 +24,6 @@
 
 #include <config.h>
 
-#include "openslide-private.h"
 #include "openslide.h"
 
 #include <stdbool.h>
@@ -32,10 +31,23 @@
 #include <tiffio.h>
 #include <glib.h>
 
-void _openslide_hash_tiff_tiles(GChecksum *checksum, TIFF *tiff);
-void _openslide_hash_string(GChecksum *checksum, const char *str);
-void _openslide_hash_file(GChecksum *checksum, const char *filename);
-void _openslide_hash_file_part(GChecksum *checksum, const char *filename,
+struct _openslide_hash;
+
+// constructor
+struct _openslide_hash *_openslide_hash_quickhash1_create(void);
+
+// hashers
+void _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff);
+void _openslide_hash_string(struct _openslide_hash *hash, const char *str);
+void _openslide_hash_file(struct _openslide_hash *hash, const char *filename);
+void _openslide_hash_file_part(struct _openslide_hash *hash,
+			       const char *filename,
 			       int64_t offset, int size);
+
+// accessor
+const char *_openslide_hash_get_string(struct _openslide_hash *hash);
+
+// destructor
+void _openslide_hash_destroy(struct _openslide_hash *hash);
 
 #endif

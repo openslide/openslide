@@ -218,7 +218,7 @@ static void add_macro_associated_image(GHashTable *ht,
 }
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
-			      GChecksum *quickhash1) {
+			      struct _openslide_hash *quickhash1) {
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
   struct _openslide_jpeg_file **jpegs = NULL;

@@ -40,6 +40,7 @@
 #include <config.h>
 
 #include "openslide.h"
+#include "openslide-hash.h"
 
 #include <glib.h>
 #include <stdbool.h>
@@ -49,8 +50,6 @@
 #include <cairo.h>
 
 #include <openjpeg.h>
-
-#define _OPENSLIDE_QUICKHASH1_CHECKSUM_TYPE G_CHECKSUM_SHA256
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -100,7 +99,7 @@ void __attribute ((constructor)) _openslide_init(void);
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
-				     GChecksum *quickhash1);
+				     struct _openslide_hash *quickhash1);
 /*
  * A note on quickhash1: this should be a hash of data that
  * will not change with revisions to the openslide library. It should
@@ -118,15 +117,15 @@ typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
 
 
 bool _openslide_try_trestle(openslide_t *osr, const char* filename,
-			    GChecksum *quickhash1);
+			    struct _openslide_hash *quickhash1);
 bool _openslide_try_aperio(openslide_t *osr, const char* filename,
-			   GChecksum *quickhash1);
+			   struct _openslide_hash *quickhash1);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
-			      GChecksum *quickhash1);
+			      struct _openslide_hash *quickhash1);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
-			  GChecksum *quickhash1);
+			  struct _openslide_hash *quickhash1);
 bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
-				 GChecksum *quickhash1);
+				 struct _openslide_hash *quickhash1);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
@@ -143,7 +142,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     _openslide_tiff_tilereader_fn tileread,
-			     GChecksum *quickhash1);
+			     struct _openslide_hash *quickhash1);
 
 void _openslide_generic_tiff_tilereader(TIFF *tiff,
 					uint32_t *dest,

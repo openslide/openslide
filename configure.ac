@@ -78,9 +78,15 @@ fi
 
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
-PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0])
+PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
 AC_SUBST(GLIB2_CFLAGS)
 AC_SUBST(GLIB2_LIBS)
+
+old_LIBS="$LIBS"
+LIBS="$GLIB2_LIBS $LIBS"
+AC_CHECK_FUNCS([g_checksum_new], build_hashprogs="yes", build_hashprogs="no")
+LIBS="$old_LIBS"
+AM_CONDITIONAL([BUILD_HASHPROGS], [test x$build_hashprogs = xyes])
 
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 AC_SUBST(CAIRO_CFLAGS)

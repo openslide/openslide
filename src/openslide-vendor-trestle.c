@@ -62,7 +62,7 @@ static void add_properties(GHashTable *ht, char **tags) {
 }
 
 bool _openslide_try_trestle(openslide_t *osr, const char *filename,
-			    GChecksum *quickhash1) {
+			    struct _openslide_hash *quickhash1) {
   char *tagval;
 
   // first, see if it's a TIFF

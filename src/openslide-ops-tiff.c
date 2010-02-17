@@ -62,7 +62,7 @@ static const char *store_string_property(TIFF *tiff, GHashTable *ht,
 }
 
 static void store_and_hash_string_property(TIFF *tiff, GHashTable *ht,
-					   GChecksum *quickhash1,
+					   struct _openslide_hash *quickhash1,
 					   const char *name, ttag_t tag) {
   _openslide_hash_string(quickhash1, name);
   _openslide_hash_string(quickhash1, store_string_property(tiff, ht, name, tag));
@@ -77,7 +77,7 @@ static void store_float_property(TIFF *tiff, GHashTable *ht,
 }
 
 static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
-				      GChecksum *quickhash1) {
+				      struct _openslide_hash *quickhash1) {
   // strings
   store_string_property(tiff, ht, OPENSLIDE_PROPERTY_NAME_COMMENT,
 			TIFFTAG_IMAGEDESCRIPTION);
@@ -395,7 +395,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     int32_t *layers,
 			     _openslide_tiff_tilereader_fn tileread,
-			     GChecksum *quickhash1) {
+			     struct _openslide_hash *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);
