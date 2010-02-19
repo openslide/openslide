@@ -382,20 +382,16 @@ void openslide_read_region(openslide_t *osr,
   cairo_paint(cr);
 
   // check constraints
-  if (layer > osr->layer_count || layer < 0 || x < 0 || y < 0) {
-    //    g_debug("%d %" PRId64 " %" PRId64, layer, w, h);
-    cairo_destroy(cr);
-    return;
+  if ((layer < osr->layer_count) && (layer >= 0) && (x >= 0) && (y >= 0)) {
+    // don't bother checking to see if (x/ds) and (y/ds) are within
+    // the bounds of the layer, we will just draw nothing below
+
+    // now fully within all important bounds, go for it
+
+    // paint
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
   }
-
-  // don't bother checking to see if (x/ds) and (y/ds) are within
-  // the bounds of the layer, we will just draw nothing below
-
-  // now fully within all important bounds, go for it
-
-  // paint
-  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-  (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
 
   // done
   cairo_destroy(cr);
