@@ -172,14 +172,14 @@ struct _openslide_jpeg_tile {
   int32_t tileno;
 
   // bounds in the physical tile?
-  float src_x;
-  float src_y;
-  float w;
-  float h;
+  double src_x;
+  double src_y;
+  double w;
+  double h;
 
   // delta for this tile from the standard advance
-  float dest_offset_x;
-  float dest_offset_y;
+  double dest_offset_x;
+  double dest_offset_y;
 };
 
 struct _openslide_jpeg_layer {

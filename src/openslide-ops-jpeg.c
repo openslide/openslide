@@ -75,14 +75,14 @@ struct tile {
   int32_t tileno;
 
   // bounds in the physical tile?
-  float src_x;
-  float src_y;
-  float w;
-  float h;
+  double src_x;
+  double src_y;
+  double w;
+  double h;
 
   // delta from the "natural" position
-  float dest_offset_x;
-  float dest_offset_y;
+  double dest_offset_x;
+  double dest_offset_y;
 };
 
 struct layer {
@@ -285,8 +285,8 @@ static void convert_tiles(gpointer key,
   new_tile->dest_offset_y = old_tile->dest_offset_y;
 
   // margin stuff
-  float dsx = new_tile->dest_offset_x;
-  float dsy = new_tile->dest_offset_y;
+  double dsx = new_tile->dest_offset_x;
+  double dsy = new_tile->dest_offset_y;
   if (dsx > 0) {
     // extra on left
     int extra_left = ceil(dsx / new_l->tile_advance_x);
