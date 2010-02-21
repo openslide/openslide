@@ -372,14 +372,12 @@ void openslide_read_region(openslide_t *osr,
   cairo_t *cr = cairo_create(surface);
   cairo_surface_destroy(surface);
 
-  // fill with background
-  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-  cairo_set_source_rgb(cr,
-		       osr->fill_color_r,
-		       osr->fill_color_g,
-		       osr->fill_color_b);
-  //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
+  // clear
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
   cairo_paint(cr);
+
+  // saturate those seams away!
+  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   // check constraints
   if ((layer < osr->layer_count) && (layer >= 0) && (x >= 0) && (y >= 0)) {
@@ -389,9 +387,16 @@ void openslide_read_region(openslide_t *osr,
     // now fully within all important bounds, go for it
 
     // paint
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
   }
+
+  // fill with background
+  cairo_set_source_rgb(cr,
+		       osr->fill_color_r,
+		       osr->fill_color_g,
+		       osr->fill_color_b);
+  //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
+  cairo_paint(cr);
 
   // done
   cairo_destroy(cr);

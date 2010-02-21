@@ -54,19 +54,19 @@ void _openslide_read_tiles(cairo_t *cr,
   //g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
   //g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
 
-  int64_t tile_y = start_tile_y;
+  int64_t tile_y = end_tile_y - 1;
 
-  while (tile_y < end_tile_y) {
+  while (tile_y >= start_tile_y) {
     double translate_y = ((tile_y - start_tile_y) * advance_y) - offset_y;
-    int64_t tile_x = start_tile_x;
+    int64_t tile_x = end_tile_x - 1;
 
-    while (tile_x < end_tile_x) {
+    while (tile_x >= start_tile_x) {
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
       //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
       read_tile(osr, cr, layer, tile_x, tile_y, translate_x, translate_y, cache);
-      tile_x++;
+      tile_x--;
     }
 
-    tile_y++;
+    tile_y--;
   }
 }
