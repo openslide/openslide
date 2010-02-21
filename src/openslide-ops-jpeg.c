@@ -662,8 +662,8 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  if (layer < 4) {
-    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y);
+  if (layer <= 1) {
+    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g, src: %g %g, dim: %d %d", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height);
   }
 
   // get the jpeg data, possibly from cache
@@ -702,6 +702,8 @@ static void read_tile(openslide_t *osr,
 							   ceil(tile->h / l->scale_denom));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -src_x, -src_y);
+
+    // replace original image surface and reset origin
     cairo_surface_destroy(surface);
     surface = surface2;
     src_x = 0;
@@ -724,6 +726,12 @@ static void read_tile(openslide_t *osr,
   cairo_rectangle(cr, 0, 0,
 		  tile->w / l->scale_denom, tile->h / l->scale_denom);
   cairo_fill(cr);
+
+  /*
+  cairo_set_source_rgba(cr, 1.0, 0, 0, 0.2);
+  cairo_rectangle(cr, 0, 0, 4, 4);
+  cairo_fill(cr);
+  */
 
   /*
   cairo_fill_preserve(cr);
@@ -1184,7 +1192,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       // check to make sure we get an even division
       if ((old_l->raw_tile_width % scale_denom) ||
 	  (old_l->raw_tile_height % scale_denom)) {
-	//g_debug("scale_denom: %d");
 	continue;
       }
 
