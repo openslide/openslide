@@ -723,9 +723,7 @@ static void read_tile(openslide_t *osr,
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
-  cairo_rectangle(cr, 0, 0,
-		  tile->w / l->scale_denom, tile->h / l->scale_denom);
-  cairo_fill(cr);
+  cairo_paint(cr);
 
   /*
   cairo_set_source_rgba(cr, 1.0, 0, 0, 0.2);
