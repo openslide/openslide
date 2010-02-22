@@ -662,8 +662,8 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  if (layer <= 1) {
-    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g, src: %g %g, dim: %d %d", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height);
+  if (layer <= 3) {
+    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
   }
 
   // get the jpeg data, possibly from cache

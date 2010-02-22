@@ -456,6 +456,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    double tw = (double) jpeg->w / (double) tile_count;
 	    double th = (double) jpeg->h / (double) tile_count;
 
+	    /*
+	    if ((tw != (int) tw) || (th != (int) th)) {
+	      g_debug("z %d, tw %g th %g", zoom_level, tw, th);
+	    }
+	    */
+
 	    tile->src_x = tw * xi;
 	    tile->src_y = th * yi;
 	    tile->w = ceil(tw);  // XXX best compromise for now
