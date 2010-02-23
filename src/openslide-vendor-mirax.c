@@ -1196,23 +1196,24 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // The camera on MIRAX takes a photo and records a position.
-  // Then, the photo is split into image_divisions^2 tiles.
-  // So, if image_division=2, you'll get 4 tiles per photo.
-  // If image_division=4, then 16 tiles per photo.
+  // Then, the photo is split into image_divisions^2 JPEG tiles.
+  // So, if image_division=2, you'll get 4 JPEG tiles per photo.
+  // If image_division=4, then 16 JPEG tiles per photo.
   //
-  // The overlap is on the original photo, not the subdivided
-  // tiles. What you'll get is position data for only a subset
-  // of tiles. The tiles within a photo must be placed edge-to-edge.
+  // The overlap is on the original photo, not the JPEG tiles.
+  // What you'll get is position data for only a subset
+  // of JPEG tiles.
+  // The JPEG tiles that come from a photo must be placed edge-to-edge.
   //
-  // To generate levels, each tile is downsampled by 2 and then
-  // concatenated into a new tile, 4 old tiles per new tile (2x2).
+  // To generate levels, each JPEG tile is downsampled by 2 and then
+  // concatenated into a new JPEG tile, 4 old tiles per new JPEG tile (2x2).
   // Note that this is per-tile, not per-photo. Repeat this several
   // times.
   //
   // The downsampling and concatenation is fine up until you start
-  // concatenating tiles that were not part of the original photo.
-  // Then the positions don't line up and tiles must be split into
-  // pieces. This significantly complicates the code.
+  // concatenating JPEG tiles that come from different photos.
+  // Then the positions don't line up and JPEG tiles must be split into
+  // subtiles. This significantly complicates the code.
 
   // compute dimensions in stupid but clear way
   int64_t base_w = 0;
@@ -1240,27 +1241,39 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
 
-  // set up layers
+  // set up layer dimensions and such
   layers = g_new(struct _openslide_jpeg_layer *, zoom_levels);
   for (int i = 0; i < zoom_levels; i++) {
+    // one jpeg layer per zoom level
     struct _openslide_jpeg_layer *l = g_slice_new0(struct _openslide_jpeg_layer);
     layers[i] = l;
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
 
-    int tile_concat = 1 << i;
-    int tiles_per_position = MAX(1, image_divisions / tile_concat);
-    int tile_count_divisor = MIN(tile_concat, image_divisions);
+    // tile_concat: number of tiles concatenated from the original in one dimension
+    const int tile_concat = 1 << i;
+
+    // subtiles_per_position: for this zoom, how many subtiles (in one dimension)
+    //                        come from a single photo?
+    const int subtiles_per_position = MAX(1, image_divisions / tile_concat);
+
+    // tile_count_divisor: as we record levels, we would prefer to shrink the
+    //                     number of tiles, but keep the tile size constant,
+    //                     but this only works until we encounter JPEG tiles
+    //                     with more than one source photo, in which case
+    //                     the tile count bottoms out and we instead shrink
+    //                     the advances
+    const int tile_count_divisor = MIN(tile_concat, image_divisions);
 
     l->tiles = _openslide_jpeg_create_tiles_table();
-    l->layer_w = base_w / tile_concat;
+    l->layer_w = base_w / tile_concat;  // tile_concat is powers of 2
     l->layer_h = base_h / tile_concat;
-    l->tiles_across = tiles_x / tile_count_divisor;  // reduce the count
+    l->tiles_across = tiles_x / tile_count_divisor;
     l->tiles_down = tiles_y / tile_count_divisor;
-    l->raw_tile_width = hs->tile_w;
+    l->raw_tile_width = hs->tile_w;  // raw JPEG size
     l->raw_tile_height = hs->tile_h;
 
-    double tile_w = (double) hs->tile_w * tile_count_divisor / tile_concat;
-    double tile_h = (double) hs->tile_h * tile_count_divisor / tile_concat;
+    double subtile_w = (double) hs->tile_w * tile_count_divisor / tile_concat;
+    double subtile_h = (double) hs->tile_h * tile_count_divisor / tile_concat;
 
     // use a fraction of the overlap, so that our tile correction will flip between
     // positive and negative values typically (in case image_divisions=2)
@@ -1268,10 +1281,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
     // overlaps are concatenated within physical tiles, so our virtual tile
     // size must shrink, once we hit image_divisions
-    l->tile_advance_x = tile_w - ((double) hs->overlap_x / (double) tiles_per_position);
-    l->tile_advance_y = tile_h - ((double) hs->overlap_y / (double) tiles_per_position);
+    l->tile_advance_x = subtile_w - ((double) hs->overlap_x / (double) subtiles_per_position);
+    l->tile_advance_y = subtile_h - ((double) hs->overlap_y / (double) subtiles_per_position);
 
-    g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, tile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, tile_w, tile_h, tile_concat, tile_count_divisor);
+    g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
   }
 
   // load the position map and build up the tiles, using subtiles
