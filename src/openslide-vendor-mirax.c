@@ -1181,7 +1181,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   for (int i = 0; i < datafile_count; i++) {
     g_debug(" datafile name %d: %s", i, datafile_names[i]);
   }
-  g_debug("position_nonheir_offset: %d", position_nonhier_offset);
+  g_debug("position_nonhier_offset: %d", position_nonhier_offset);
   */
 
   // read indexfile
