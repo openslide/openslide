@@ -407,8 +407,15 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
 
 
-	// make 2^zoom_level * 2^zoom_level tiles for this jpeg
-	int tile_count = 1 << zoom_level;
+	int tile_concat = 1 << zoom_level;
+	int tiles_per_position = MAX(1, image_divisions / tile_concat);
+	int tile_count = MAX(1, tile_concat / image_divisions);
+
+	/*
+	g_debug("tile_concat: %d, tiles_per_position: %d, tile_count: %d",
+		tile_concat, tiles_per_position, tile_count);
+	*/
+
 	for (int yi = 0; yi < tile_count; yi++) {
 	  int yy = y + yi;
 	  if (yy >= tiles_down) {
@@ -1221,28 +1228,31 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     layers[i] = l;
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
 
-    int divisor = 1 << i;
+    int tile_concat = 1 << i;
+    int tiles_per_position = MAX(1, image_divisions / tile_concat);
+    int tile_count_divisor = MIN(tile_concat, image_divisions);
 
     l->tiles = _openslide_jpeg_create_tiles_table();
-    l->layer_w = base_w / divisor;
-    l->layer_h = base_h / divisor;
-    l->tiles_across = tiles_x;    // number of virtual tiles stay constant, they just shrink
-    l->tiles_down = tiles_y;
+    l->layer_w = base_w / tile_concat;
+    l->layer_h = base_h / tile_concat;
+    l->tiles_across = tiles_x / tile_count_divisor;  // reduce the count
+    l->tiles_down = tiles_y / tile_count_divisor;
     l->raw_tile_width = hs->tile_w;
     l->raw_tile_height = hs->tile_h;
 
+    double tile_w = (double) hs->tile_w * tile_count_divisor / tile_concat;
+    double tile_h = (double) hs->tile_h * tile_count_divisor / tile_concat;
+
     // use a fraction of the overlap, so that our tile correction will flip between
-    // positive and negative values typically (in case tiles_per_position=2)
+    // positive and negative values typically (in case image_divisions=2)
     // this is because not every tile overlaps
 
     // overlaps are concatenated within physical tiles, so our virtual tile
-    // size must shrink
-    l->tile_advance_x = (((double) hs->tile_w) / ((double) divisor)) -
-      ((double) hs->overlap_x / (double) tiles_per_position);
-    l->tile_advance_y = (((double) hs->tile_h) / ((double) divisor)) -
-      ((double) hs->overlap_y / (double) tiles_per_position);
+    // size must shrink, once we hit image_divisions
+    l->tile_advance_x = tile_w - ((double) hs->overlap_x / (double) tiles_per_position);
+    l->tile_advance_y = tile_h - ((double) hs->overlap_y / (double) tiles_per_position);
 
-    //    g_debug("layer %d tile advance %.10g %.10g", i, l->tile_advance_x, l->tile_advance_y);
+    g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, tile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, tile_w, tile_h, tile_concat, tile_count_divisor);
   }
 
   // load the position map and build up the tiles, using subtiles
