@@ -265,7 +265,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   struct _openslide_jpeg_layer **layers,
 						   int tiles_across,
 						   int tiles_down,
-						   int tiles_per_position,
+						   int image_divisions,
 						   int32_t *tile_positions,
 						   GList **jpegs_list,
 						   struct _openslide_hash *quickhash1) {
@@ -590,7 +590,7 @@ static bool process_indexfile(const char *slideversion,
 			      int zoom_levels,
 			      int tiles_x,
 			      int tiles_y,
-			      int tiles_per_position,
+			      int image_divisions,
 			      FILE *indexfile,
 			      struct _openslide_jpeg_layer **layers,
 			      int *file_count_out,
@@ -634,7 +634,7 @@ static bool process_indexfile(const char *slideversion,
   }
   //  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64, slide_position_fileno, slide_position_size, slide_position_offset);
 
-  if (slide_position_size != (9 * (tiles_x / tiles_per_position) * (tiles_y / tiles_per_position))) {
+  if (slide_position_size != (9 * (tiles_x / image_divisions) * (tiles_y / image_divisions))) {
     g_warning("Slide position file not of expected size");
     goto OUT;
   }
@@ -721,7 +721,7 @@ static bool process_indexfile(const char *slideversion,
 					      layers,
 					      tiles_x,
 					      tiles_y,
-					      tiles_per_position,
+					      image_divisions,
 					      slide_positions,
 					      &jpegs_list,
 					      quickhash1)) {
@@ -911,7 +911,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char *slide_id = NULL;
   int tiles_x = 0;
   int tiles_y = 0;
-  int tiles_per_position = 0;
+  int image_divisions = 0;
 
   char *index_filename = NULL;
   int zoom_levels = 0;
@@ -973,14 +973,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_IMAGENUMBER_X, integer, "Can't read tiles across");
   READ_KEY_OR_FAIL(tiles_y, slidedat, GROUP_GENERAL,
 		   KEY_IMAGENUMBER_Y, integer, "Can't read tiles down");
-  READ_KEY_OR_FAIL(tiles_per_position, slidedat, GROUP_GENERAL,
+  READ_KEY_OR_FAIL(image_divisions, slidedat, GROUP_GENERAL,
 		   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE, integer,
 		   "Can't read camera image divisions per side");
 
   // ensure positive values
   POSITIVE_OR_FAIL(tiles_x);
   POSITIVE_OR_FAIL(tiles_y);
-  POSITIVE_OR_FAIL(tiles_per_position);
+  POSITIVE_OR_FAIL(image_divisions);
 
   // load hierarchical stuff
   if (!g_key_file_has_group(slidedat, GROUP_HIERARCHICAL)) {
@@ -1193,7 +1193,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   int64_t base_h = 0;
 
   for (int i = 0; i < tiles_x; i++) {
-    if (((i % tiles_per_position) != (tiles_per_position - 1))
+    if (((i % image_divisions) != (image_divisions - 1))
 	|| (i == tiles_x - 1)) {
       // full size
       base_w += slide_zoom_level_sections[0].tile_w;
@@ -1203,7 +1203,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     }
   }
   for (int i = 0; i < tiles_y; i++) {
-    if (((i % tiles_per_position) != (tiles_per_position - 1))
+    if (((i % image_divisions) != (image_divisions - 1))
 	|| (i == tiles_y - 1)) {
       // full size
       base_h += slide_zoom_level_sections[0].tile_h;
@@ -1260,7 +1260,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 associated_images,
 			 zoom_levels,
 			 tiles_x, tiles_y,
-			 tiles_per_position,
+			 image_divisions,
 			 indexfile,
 			 layers,
 			 &num_jpegs, &jpegs,
