@@ -1195,6 +1195,25 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
+  // The camera on MIRAX takes a photo and records a position.
+  // Then, the photo is split into image_divisions^2 tiles.
+  // So, if image_division=2, you'll get 4 tiles per photo.
+  // If image_division=4, then 16 tiles per photo.
+  //
+  // The overlap is on the original photo, not the subdivided
+  // tiles. What you'll get is position data for only a subset
+  // of tiles. The tiles within a photo must be placed edge-to-edge.
+  //
+  // To generate levels, each tile is downsampled by 2 and then
+  // concatenated into a new tile, 4 old tiles per new tile (2x2).
+  // Note that this is per-tile, not per-photo. Repeat this several
+  // times.
+  //
+  // The downsampling and concatenation is fine up until you start
+  // concatenating tiles that were not part of the original photo.
+  // Then the positions don't line up and tiles must be split into
+  // pieces. This significantly complicates the code.
+
   // compute dimensions in stupid but clear way
   int64_t base_w = 0;
   int64_t base_h = 0;
