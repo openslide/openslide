@@ -1264,6 +1264,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     //                     the advances
     const int tile_count_divisor = MIN(tile_concat, image_divisions);
 
+    // subtiles_per_jpeg_tile: for this zoom, how many subtiles in a JPEG tile?
+    const int subtiles_per_jpeg_tile = MAX(1, tile_concat / image_divisions);
+
     l->tiles = _openslide_jpeg_create_tiles_table();
     l->layer_w = base_w / tile_concat;  // tile_concat is powers of 2
     l->layer_h = base_h / tile_concat;
@@ -1272,8 +1275,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->raw_tile_width = hs->tile_w;  // raw JPEG size
     l->raw_tile_height = hs->tile_h;
 
-    double subtile_w = (double) hs->tile_w * tile_count_divisor / tile_concat;
-    double subtile_h = (double) hs->tile_h * tile_count_divisor / tile_concat;
+    double subtile_w = (double) hs->tile_w / subtiles_per_jpeg_tile;
+    double subtile_h = (double) hs->tile_h / subtiles_per_jpeg_tile;
 
     // use a fraction of the overlap, so that our tile correction will flip between
     // positive and negative values typically (in case image_divisions=2)
