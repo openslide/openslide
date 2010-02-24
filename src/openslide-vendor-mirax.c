@@ -270,8 +270,8 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
   tile->tileno = 0;
   tile->src_x = src_x;
   tile->src_y = src_y;
-  tile->w = ceil(tw);  // XXX best compromise for now
-  tile->h = ceil(th);
+  tile->w = tw;
+  tile->h = th;
 
   // compute offset
   tile->dest_offset_x = pos_x - (tile_x * tile_advance_x);
@@ -282,7 +282,7 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
   *key = (tile_y * tiles_across) + tile_x;
   g_hash_table_insert(tiles, key, tile);
 
-  if (!true) {
+  if (true) {
     g_debug("zoom %d, tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
 	    zoom_level, tile_x, tile_y, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
 
@@ -459,6 +459,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 		tile_concat, subtiles_per_position, subtile_count);
 	*/
 
+	g_debug("found %d %d from file", x, y);
+
 	// start processing 1 JPEG tile into subtile_count^2 subtiles
 	for (int yi = 0; yi < subtile_count; yi++) {
 	  int yy = y + yi;
@@ -478,7 +480,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    int xp = xx / image_divisions;
 	    int yp = yy / image_divisions;
 	    int tp = yp * (tiles_across / image_divisions) + xp;
-	    //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count);
+	    g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count);
 
 	    if (zoom_level == 0) {
 	      // if the zoom level is 0, then mark this position as active
@@ -500,7 +502,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    const double pos_x = pos0_x / tile_concat;
 	    const double pos_y = pos0_y / tile_concat;
 
-	    //g_debug("pos0: %g %g, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
+	    g_debug("pos0: %g %g, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
 	    insert_subtile(l->tiles, jpeg_number,
 			   pos_x, pos_y,
