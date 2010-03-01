@@ -466,13 +466,13 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// start processing 1 JPEG tile into subtile_count^2 subtiles
 	for (int yi = 0; yi < subtile_count; yi++) {
-	  int yy = y + yi;
+	  int yy = y + (yi * image_divisions);
 	  if (yy >= tiles_down) {
 	    break;
 	  }
 
 	  for (int xi = 0; xi < subtile_count; xi++) {
-	    int xx = x + xi;
+	    int xx = x + (xi * image_divisions);
 	    if (xx >= tiles_across) {
 	      break;
 	    }
@@ -483,7 +483,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    int xp = xx / image_divisions;
 	    int yp = yy / image_divisions;
 	    int tp = yp * (tiles_across / image_divisions) + xp;
-	    g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count);
+	    g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count, tile0_w, tile0_h, subtile_w, subtile_h);
 
 	    if (zoom_level == 0) {
 	      // if the zoom level is 0, then mark this position as active
