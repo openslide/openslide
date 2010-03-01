@@ -450,6 +450,9 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	const double subtile_w = (double) jpeg->w / subtiles_per_jpeg_tile;
 	const double subtile_h = (double) jpeg->h / subtiles_per_jpeg_tile;
 
+	const int tile0_w = layers[0]->raw_tile_width;
+	const int tile0_h = layers[0]->raw_tile_height;
+
 	// subtile_count: how many subtiles in a JPEG tile (one dimension)? this is constant
 	//                for the first few levels, depending on image_divisions
 	const int subtile_count = MAX(1, tile_concat / image_divisions);
@@ -495,8 +498,10 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    }
 
 	    // position in layer 0
-	    const double pos0_x = ((double) tile_positions[tp * 2]) / 256.0 + subtile_w * (xx - xp * image_divisions);
-	    const double pos0_y = ((double) tile_positions[(tp * 2) + 1]) / 256.0 + subtile_h * (yy - yp * image_divisions);
+	    const double pos0_x = ((double) tile_positions[tp * 2]) / 256.0 +
+	      tile0_w * (xx - xp * image_divisions);
+	    const double pos0_y = ((double) tile_positions[(tp * 2) + 1]) / 256.0 +
+	      tile0_h * (yy - yp * image_divisions);
 
 	    // position in this layer
 	    const double pos_x = pos0_x / tile_concat;
