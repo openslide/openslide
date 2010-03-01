@@ -282,7 +282,7 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
   *key = (tile_y * tiles_across) + tile_x;
   g_hash_table_insert(tiles, key, tile);
 
-  if (true) {
+  if (!true) {
     g_debug("zoom %d, tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
 	    zoom_level, tile_x, tile_y, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
 
@@ -444,7 +444,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// see comments elsewhere in this file
 	const int tile_concat = 1 << zoom_level;
-	const int subtiles_per_position = MAX(1, image_divisions / tile_concat);
 	const int tile_count_divisor = MIN(tile_concat, image_divisions);
 	const int subtiles_per_jpeg_tile = MAX(1, tile_concat / image_divisions);
 	const double subtile_w = (double) jpeg->w / subtiles_per_jpeg_tile;
@@ -458,11 +457,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	const int subtile_count = MAX(1, tile_concat / image_divisions);
 
 	/*
-	g_debug("tile_concat: %d, subtiles_per_position: %d, subtile_count: %d",
-		tile_concat, subtiles_per_position, subtile_count);
+	g_debug("tile_concat: %d, subtile_count: %d",
+		tile_concat, subtile_count);
+	g_debug("found %d %d from file", x, y);
 	*/
 
-	g_debug("found %d %d from file", x, y);
 
 	// start processing 1 JPEG tile into subtile_count^2 subtiles
 	for (int yi = 0; yi < subtile_count; yi++) {
@@ -483,7 +482,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    int xp = xx / image_divisions;
 	    int yp = yy / image_divisions;
 	    int tp = yp * (tiles_across / image_divisions) + xp;
-	    g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count, tile0_w, tile0_h, subtile_w, subtile_h);
+	    //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count, tile0_w, tile0_h, subtile_w, subtile_h);
 
 	    if (zoom_level == 0) {
 	      // if the zoom level is 0, then mark this position as active
@@ -507,7 +506,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    const double pos_x = pos0_x / tile_concat;
 	    const double pos_y = pos0_y / tile_concat;
 
-	    g_debug("pos0: %g %g, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
+	    //g_debug("pos0: %g %g, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
 	    insert_subtile(l->tiles, jpeg_number,
 			   pos_x, pos_y,
@@ -1314,7 +1313,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_x = subtile_w - ((double) hs->overlap_x / (double) subtiles_per_position);
     l->tile_advance_y = subtile_h - ((double) hs->overlap_y / (double) subtiles_per_position);
 
-    g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
+    //g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
   }
 
   // load the position map and build up the tiles, using subtiles
