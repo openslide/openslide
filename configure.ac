@@ -2,10 +2,10 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([openslide], [3.0.3], [openslide-users@lists.andrew.cmu.edu])
+AC_INIT([OpenSlide], [3.0.3], [openslide-users@lists.andrew.cmu.edu], [openslide], [http://openslide.cs.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE([foreign subdir-objects 1.11 dist-xz])
+AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -19,9 +19,8 @@ AC_HEADER_STDBOOL
 AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
 
-AC_DISABLE_STATIC
-AC_LIBTOOL_WIN32_DLL
-AC_PROG_LIBTOOL
+LT_PREREQ([2.2.5])
+LT_INIT([win32-dll disable-static])
 
 # Check for recent pkg-config which supports Requires.private
 # (snippet taken from cairo configure.in)
