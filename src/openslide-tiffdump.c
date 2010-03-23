@@ -1,6 +1,25 @@
-/* $Id: tiffdump.c,v 1.13 2005-11-21 03:35:06 fwarmerdam Exp $ */
-
 /*
+ *  OpenSlide, a library for reading whole slide image files
+ *
+ *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  All rights reserved.
+ *
+ *  OpenSlide is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as
+ *  published by the Free Software Foundation, version 2.1.
+ *
+ *  OpenSlide is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with OpenSlide. If not, see
+ *  <http://www.gnu.org/licenses/>.
+ *
+ *
+ * This file is derived from tiffdump.c:
+ *
  * Copyright (c) 1988-1997 Sam Leffler
  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
  *
