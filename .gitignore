@@ -3,6 +3,7 @@
 *.lo
 *.loT
 *.o
+*.exe
 
 .dirstamp
 
