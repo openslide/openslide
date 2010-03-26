@@ -21,8 +21,9 @@
 
 #include <config.h>
 
-#include "openslide-hash.h"
 #include "openslide-private.h"
+
+#include "openslide-hash.h"
 
 #include <string.h>
 #include <inttypes.h>

@@ -29,6 +29,8 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
+
 #include <glib.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -37,7 +39,6 @@
 
 #include <jpeglib.h>
 
-#include "openslide-private.h"
 #include "openslide-hash.h"
 
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";

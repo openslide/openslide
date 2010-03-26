@@ -21,12 +21,13 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
+
 #include <glib.h>
 #include <tiffio.h>
 #include <inttypes.h>
 #include <cairo.h>
 
-#include "openslide-private.h"
 #include "openslide-tilehelper.h"
 #include "openslide-hash.h"
 

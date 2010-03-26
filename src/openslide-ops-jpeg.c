@@ -29,6 +29,8 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
+
 #include <glib.h>
 #include <setjmp.h>
 #include <stdlib.h>
@@ -43,7 +45,6 @@
 
 #include <sys/types.h>   // for off_t ?
 
-#include "openslide-private.h"
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 

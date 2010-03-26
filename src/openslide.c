@@ -21,6 +21,8 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -28,7 +30,6 @@
 
 #include <glib.h>
 
-#include "openslide-private.h"
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 
