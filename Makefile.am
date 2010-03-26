@@ -22,7 +22,7 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 
 src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
-src_libopenslide_la_LDFLAGS = -version-info 1:9:1 -no-undefined
+src_libopenslide_la_LDFLAGS = -version-info 1:9:1 -no-undefined -Wl,$(WIN32_DLL_TRICKERY)
 
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h

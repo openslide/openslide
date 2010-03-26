@@ -24,11 +24,12 @@
 
 #ifdef _WIN32
 #define WIN32 1
+#define __MSVCRT_VERSION__ 0x0900
 #endif
 
 #if !defined(fseeko) && defined(_WIN32)
-#define fseeko(stream, offset, origin) fseek(stream, offset, origin)
-#define ftello(stream) ftell(stream)
+#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
+#define ftello(stream) _ftelli64(stream)
 #endif
 
 #if defined(__GNUC__)
