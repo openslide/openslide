@@ -80,6 +80,10 @@ old_LIBS="$LIBS"
 AC_SEARCH_LIBS([_fseeki64], [msvcr80], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80]),)
 LIBS="$old_LIBS"
 
+# windres
+AC_ARG_VAR(WINDRES, [Windows resource compiler])
+AC_CHECK_TOOL([WINDRES], [windres])
+
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
 AC_SUBST(GLIB2_CFLAGS)
 AC_SUBST(GLIB2_LIBS)
