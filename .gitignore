@@ -4,6 +4,7 @@
 *.loT
 *.o
 *.exe
+*.res
 
 .dirstamp
 

@@ -101,6 +101,6 @@ AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wm
 AC_CONFIG_FILES([
 Makefile
 openslide.pc
-openslide-dll.manifest
+src/openslide-dll.manifest
 ])
 AC_OUTPUT
