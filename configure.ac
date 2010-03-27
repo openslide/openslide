@@ -77,7 +77,7 @@ AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
 # for win32 -- why the trickery? to avoid libtool linking the exe files to msvcr90
 old_LIBS="$LIBS"
-AC_SEARCH_LIBS([_fseeki64], [msvcr90], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr90]),)
+AC_SEARCH_LIBS([_fseeki64], [msvcr80], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80]),)
 LIBS="$old_LIBS"
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])

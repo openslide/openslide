@@ -6,8 +6,8 @@
   <dependency>
     <dependentAssembly>
       <assemblyIdentity type="win32"
-                        name="Microsoft.VC90.CRT"
-                        version="9.0.30729.1"/>
+                        name="Microsoft.VC80.CRT"
+                        version="8.0.50727.3053"/>
     </dependentAssembly>
   </dependency>
 </assembly>

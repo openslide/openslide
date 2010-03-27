@@ -24,7 +24,7 @@
 
 #ifdef _WIN32
 #define WIN32 1
-#define __MSVCRT_VERSION__ 0x0900
+#define __MSVCRT_VERSION__ 0x0800
 #endif
 
 #if !defined(fseeko) && defined(_WIN32)
