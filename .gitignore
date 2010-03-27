@@ -5,6 +5,7 @@
 *.o
 *.exe
 *.res
+*.manifest
 
 .dirstamp
 
@@ -30,7 +31,6 @@ Makefile.in
 /missing
 /stamp-h1
 /*.pc
-/*.manifest
 
 /mingw32-config.cache
 
