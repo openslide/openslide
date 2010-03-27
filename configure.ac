@@ -75,7 +75,7 @@ fi
 
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
-# for win32 -- why the trickery? to avoid libtool linking the exe files to msvcr90
+# for win32 -- why the trickery? to avoid libtool linking the exe files to msvcr80
 old_LIBS="$LIBS"
 AC_SEARCH_LIBS([_fseeki64], [msvcr80], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80]),)
 LIBS="$old_LIBS"
