@@ -21,6 +21,8 @@ AC_FUNC_FSEEKO
 
 LT_PREREQ([2.2.5])
 LT_INIT([win32-dll disable-static])
+LT_LANG([Windows Resource])
+AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$WINDRES != x])
 
 # Check for recent pkg-config which supports Requires.private
 # (snippet taken from cairo configure.in)
@@ -79,10 +81,6 @@ AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 old_LIBS="$LIBS"
 AC_SEARCH_LIBS([_fseeki64], [msvcr80], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80]),)
 LIBS="$old_LIBS"
-
-# windres
-AC_ARG_VAR(WINDRES, [Windows resource compiler])
-AC_CHECK_TOOL([WINDRES], [windres])
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
 AC_SUBST(GLIB2_CFLAGS)
