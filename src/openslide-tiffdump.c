@@ -172,10 +172,8 @@ GSList *_openslide_tiffdump(FILE *f) {
 	 hdr.tiff_magic == TIFF_BIGENDIAN ? "big" : "little",
 	 hdr.tiff_version);
 
-  int64_t diroff = 0;
-  for (int64_t i = 0; diroff != 0; i++) {
-    if (i > 0)
-      putchar('\n');
+  int64_t diroff = hdr.tiff_diroff;
+  while(diroff != 0) {
     GHashTable *ht = ReadDirectory(fd, i, &diroff);
     result = g_slist_prepend(result, ht);
   }
@@ -208,13 +206,14 @@ static	int TIFFFetchData(int, TIFFDirEntry*, void*);
  * We read directories sequentially.
  */
 static off_t
-ReadDirectory(int fd, unsigned ix, off_t off)
+ReadDirectory(int fd, unsigned ix, int64_t *diroff)
 {
 	register TIFFDirEntry *dp;
 	register unsigned int n;
 	TIFFDirEntry *dir = 0;
 	uint16 dircount;
 	int space;
+	off_t off = *diroff;
 	uint32 nextdiroff = 0;
 
 	if (off == 0)			/* no more directories */
