@@ -45,9 +45,14 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
+#include "openslide-tiffdump.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>
@@ -71,72 +76,54 @@
 # define O_BINARY	0
 #endif
 
-int	swabflag;
-int	bigendian;
-int	typeshift[14];		/* data type shift counts */
-long	typemask[14];		/* data type masks */
-uint32	maxitems = 24;		/* maximum indirect data items to print */
-
-char*	bytefmt = "%s%#02x";		/* BYTE */
-char*	sbytefmt = "%s%d";		/* SBYTE */
-char*	shortfmt = "%s%u";		/* SHORT */
-char*	sshortfmt = "%s%d";		/* SSHORT */
-char*	longfmt = "%s%lu";		/* LONG */
-char*	slongfmt = "%s%ld";		/* SLONG */
-char*	rationalfmt = "%s%g";		/* RATIONAL */
-char*	srationalfmt = "%s%g";		/* SRATIONAL */
-char*	floatfmt = "%s%g";		/* FLOAT */
-char*	doublefmt = "%s%g";		/* DOUBLE */
-char*	ifdfmt = "%s%#04x";		/* IFD offset */
-
-static	void dump(int, off_t);
-
-static	TIFFHeader hdr;
-
-#define	ord(e)	((int)e)
-
 /*
  * Initialize shift & mask tables and byte
  * swapping state according to the file
  * byte order.
  */
-static void
-InitByteOrder(int magic)
-{
-	typemask[0] = 0;
-	typemask[ord(TIFF_BYTE)] = 0xff;
-	typemask[ord(TIFF_SBYTE)] = 0xff;
-	typemask[ord(TIFF_UNDEFINED)] = 0xff;
-	typemask[ord(TIFF_SHORT)] = 0xffff;
-	typemask[ord(TIFF_SSHORT)] = 0xffff;
-	typemask[ord(TIFF_LONG)] = 0xffffffff;
-	typemask[ord(TIFF_SLONG)] = 0xffffffff;
-	typemask[ord(TIFF_IFD)] = 0xffffffff;
-	typemask[ord(TIFF_RATIONAL)] = 0xffffffff;
-	typemask[ord(TIFF_SRATIONAL)] = 0xffffffff;
-	typemask[ord(TIFF_FLOAT)] = 0xffffffff;
-	typemask[ord(TIFF_DOUBLE)] = 0xffffffff;
-	typeshift[0] = 0;
-	typeshift[ord(TIFF_LONG)] = 0;
-	typeshift[ord(TIFF_SLONG)] = 0;
-	typeshift[ord(TIFF_IFD)] = 0;
-	typeshift[ord(TIFF_RATIONAL)] = 0;
-	typeshift[ord(TIFF_SRATIONAL)] = 0;
-	typeshift[ord(TIFF_FLOAT)] = 0;
-	typeshift[ord(TIFF_DOUBLE)] = 0;
-	if (magic == TIFF_BIGENDIAN || magic == MDI_BIGENDIAN) {
-		typeshift[ord(TIFF_BYTE)] = 24;
-		typeshift[ord(TIFF_SBYTE)] = 24;
-		typeshift[ord(TIFF_SHORT)] = 16;
-		typeshift[ord(TIFF_SSHORT)] = 16;
-		swabflag = !bigendian;
-	} else {
-		typeshift[ord(TIFF_BYTE)] = 0;
-		typeshift[ord(TIFF_SBYTE)] = 0;
-		typeshift[ord(TIFF_SHORT)] = 0;
-		typeshift[ord(TIFF_SSHORT)] = 0;
-		swabflag = bigendian;
-	}
+static bool init_byte_order(int magic, long typemask[], int typeshift[]) {
+  typemask[0] = 0;
+  typemask[TIFF_BYTE] = 0xff;
+  typemask[TIFF_SBYTE] = 0xff;
+  typemask[TIFF_UNDEFINED] = 0xff;
+  typemask[TIFF_SHORT] = 0xffff;
+  typemask[TIFF_SSHORT] = 0xffff;
+  typemask[TIFF_LONG] = 0xffffffff;
+  typemask[TIFF_SLONG] = 0xffffffff;
+  typemask[TIFF_IFD] = 0xffffffff;
+  typemask[TIFF_RATIONAL] = 0xffffffff;
+  typemask[TIFF_SRATIONAL] = 0xffffffff;
+  typemask[TIFF_FLOAT] = 0xffffffff;
+  typemask[TIFF_DOUBLE] = 0xffffffff;
+
+  typeshift[0] = 0;
+  typeshift[TIFF_LONG] = 0;
+  typeshift[TIFF_SLONG] = 0;
+  typeshift[TIFF_IFD] = 0;
+  typeshift[TIFF_RATIONAL] = 0;
+  typeshift[TIFF_SRATIONAL] = 0;
+  typeshift[TIFF_FLOAT] = 0;
+  typeshift[TIFF_DOUBLE] = 0;
+
+  bool swabflag;
+  if (magic == TIFF_BIGENDIAN) {
+    typeshift[TIFF_BYTE] = 24;
+    typeshift[TIFF_SBYTE] = 24;
+    typeshift[TIFF_SHORT] = 16;
+    typeshift[TIFF_SSHORT] = 16;
+    swabflag = !HOST_BIGENDIAN;
+  } else if (magic == TIFF_LITTLEENDIAN) {
+    typeshift[TIFF_BYTE] = 0;
+    typeshift[TIFF_SBYTE] = 0;
+    typeshift[TIFF_SHORT] = 0;
+    typeshift[TIFF_SSHORT] = 0;
+    swabflag = HOST_BIGENDIAN;
+  } else {
+    // TODO: fail
+    
+  }
+
+  return swabflag;
 }
 
 static	off_t ReadDirectory(int, unsigned, off_t);
@@ -144,53 +131,56 @@ static	void ReadError(char*);
 static	void Error(const char*, ...);
 static	void Fatal(const char*, ...);
 
-static void
-dump(int fd, off_t diroff)
-{
-	unsigned i;
+/* returns list of hashtables of (ttag_t -> struct _openslide_tiffdump) */
+GSList *_openslide_tiffdump(FILE *f) {
+  GSList *result = NULL;
+  TIFFHeader hdr;
 
-	lseek(fd, (off_t) 0, 0);
-	if (read(fd, (char*) &hdr, sizeof (hdr)) != sizeof (hdr))
-		ReadError("TIFF header");
-	/*
-	 * Setup the byte order handling.
-	 */
-	if (hdr.tiff_magic != TIFF_BIGENDIAN && hdr.tiff_magic != TIFF_LITTLEENDIAN &&
-#if HOST_BIGENDIAN
-	    // MDI is sensitive to the host byte order, unlike TIFF
-	    MDI_BIGENDIAN != hdr.tiff_magic )
-#else
-	    MDI_LITTLEENDIAN != hdr.tiff_magic )
-#endif
-		Fatal("Not a TIFF or MDI file, bad magic number %u (%#x)",
-		    hdr.tiff_magic, hdr.tiff_magic);
-	InitByteOrder(hdr.tiff_magic);
-	/*
-	 * Swap header if required.
-	 */
-	if (swabflag) {
-		TIFFSwabShort(&hdr.tiff_version);
-		TIFFSwabLong(&hdr.tiff_diroff);
-	}
-	/*
-	 * Now check version (if needed, it's been byte-swapped).
-	 * Note that this isn't actually a version number, it's a
-	 * magic number that doesn't change (stupid).
-	 */
-	if (hdr.tiff_version != TIFF_VERSION)
-		Fatal("Not a TIFF file, bad version number %u (%#x)",
-		    hdr.tiff_version, hdr.tiff_version); 
-	printf("Magic: %#x <%s-endian> Version: %#x\n",
-	    hdr.tiff_magic,
-	    hdr.tiff_magic == TIFF_BIGENDIAN ? "big" : "little",
-	    hdr.tiff_version);
-	if (diroff == 0)
-	    diroff = hdr.tiff_diroff;
-	for (i = 0; diroff != 0; i++) {
-		if (i > 0)
-			putchar('\n');
-		diroff = ReadDirectory(fd, i, diroff);
-	}
+  fseeko(f, 0, SEEK_SET);
+  if (fread(&hdr, sizeof (hdr), 1, f) != 1) {
+    ReadError("TIFF header");
+  }
+
+  /*
+   * Setup the byte order handling.
+   */
+  if (hdr.tiff_magic != TIFF_BIGENDIAN && hdr.tiff_magic != TIFF_LITTLEENDIAN) {
+    Fatal("Not a TIFF or MDI file, bad magic number %u (%#x)",
+	  hdr.tiff_magic, hdr.tiff_magic);
+  }
+  bool swabflag = InitByteOrder(hdr.tiff_magic);
+
+  /*
+   * Swap header if required.
+   */
+  if (swabflag) {
+    TIFFSwabShort(&hdr.tiff_version);
+    TIFFSwabLong(&hdr.tiff_diroff);
+  }
+  /*
+   * Now check version (if needed, it's been byte-swapped).
+   * Note that this isn't actually a version number, it's a
+   * magic number that doesn't change (stupid).
+   */
+  if (hdr.tiff_version != TIFF_VERSION) {
+    Fatal("Not a TIFF file, bad version number %u (%#x)",
+	  hdr.tiff_version, hdr.tiff_version);
+  }
+
+  printf("Magic: %#x <%s-endian> Version: %#x\n",
+	 hdr.tiff_magic,
+	 hdr.tiff_magic == TIFF_BIGENDIAN ? "big" : "little",
+	 hdr.tiff_version);
+
+  int64_t diroff = 0;
+  for (int64_t i = 0; diroff != 0; i++) {
+    if (i > 0)
+      putchar('\n');
+    GHashTable *ht = ReadDirectory(fd, i, &diroff);
+    result = g_slist_prepend(result, ht);
+  }
+
+  return g_slist_reverse(result);
 }
 
 static int datawidth[] = {
@@ -211,12 +201,6 @@ static int datawidth[] = {
 };
 #define	NWIDTHS	(sizeof (datawidth) / sizeof (datawidth[0]))
 static	int TIFFFetchData(int, TIFFDirEntry*, void*);
-static	void PrintTag(FILE*, uint16);
-static	void PrintType(FILE*, uint16);
-static	void PrintData(FILE*, uint16, uint32, unsigned char*);
-static	void PrintByte(FILE*, const char*, TIFFDirEntry*);
-static	void PrintShort(FILE*, const char*, TIFFDirEntry*);
-static	void PrintLong(FILE*, const char*, TIFFDirEntry*);
 
 /*
  * Read the next TIFF directory from a file
