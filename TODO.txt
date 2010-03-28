@@ -1,5 +1,3 @@
-* Large file support on win32
-
 * Error handling
 
 * Ship docs
@@ -9,7 +7,7 @@
   - TIFF backend will likely never be lockless as long as we use libtiff
   - Will the cache become the bottleneck?
 
-* ndpi format (TIFF-wrapped VMS), requires libtiff 4
+* ndpi format (TIFF-wrapped VMS)
 
 * XTP format?
 
