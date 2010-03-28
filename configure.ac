@@ -24,6 +24,15 @@ LT_INIT([win32-dll disable-static])
 LT_LANG([Windows Resource])
 AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$WINDRES != x])
 
+# for windows manifest
+AS_CASE([$host],
+  [i?86-*-*],   [WINDOWS_PROCESSOR_ARCHITECTURE=x86],
+  [x86_64-*-*], [WINDOWS_PROCESSOR_ARCHITECTURE=amd64],
+  [WINDOWS_PROCESSOR_ARCHITECTURE=""]
+)
+AC_SUBST([WINDOWS_PROCESSOR_ARCHITECTURE])
+
+
 # Check for recent pkg-config which supports Requires.private
 # (snippet taken from cairo configure.in)
 PKG_PROG_PKG_CONFIG()
