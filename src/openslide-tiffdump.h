@@ -27,13 +27,13 @@
 #include <glib.h>
 #include <tiffio.h>
 
-struct _openslide_tiffdump {
+struct _openslide_tiffdump_item {
   TIFFDataType type;
-  int count;
+  int64_t count;
   void *value;
 };
 
-/* returns list of hashtables of (ttag_t -> struct _openslide_tiffdump) */
+/* returns list of hashtables of (int -> struct _openslide_tiffdump) */
 GSList *_openslide_tiffdump(FILE *f);
 
 #endif
