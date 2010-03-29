@@ -54,132 +54,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef HAVE_UNISTD_H
-# include <unistd.h>
-#endif
-
-#ifdef HAVE_FCNTL_H
-# include <fcntl.h>
-#endif
-
-#ifdef HAVE_SYS_TYPES_H
-# include <sys/types.h>
-#endif
-
-#ifdef HAVE_IO_H
-# include <io.h>
-#endif
 
 #include <tiffio.h>
 
-#ifndef O_BINARY
-# define O_BINARY	0
-#endif
-
-/*
- * Initialize shift & mask tables and byte
- * swapping state according to the file
- * byte order.
- */
-static bool init_byte_order(int magic, long typemask[], int typeshift[]) {
-  typemask[0] = 0;
-  typemask[TIFF_BYTE] = 0xff;
-  typemask[TIFF_SBYTE] = 0xff;
-  typemask[TIFF_UNDEFINED] = 0xff;
-  typemask[TIFF_SHORT] = 0xffff;
-  typemask[TIFF_SSHORT] = 0xffff;
-  typemask[TIFF_LONG] = 0xffffffff;
-  typemask[TIFF_SLONG] = 0xffffffff;
-  typemask[TIFF_IFD] = 0xffffffff;
-  typemask[TIFF_RATIONAL] = 0xffffffff;
-  typemask[TIFF_SRATIONAL] = 0xffffffff;
-  typemask[TIFF_FLOAT] = 0xffffffff;
-  typemask[TIFF_DOUBLE] = 0xffffffff;
-
-  typeshift[0] = 0;
-  typeshift[TIFF_LONG] = 0;
-  typeshift[TIFF_SLONG] = 0;
-  typeshift[TIFF_IFD] = 0;
-  typeshift[TIFF_RATIONAL] = 0;
-  typeshift[TIFF_SRATIONAL] = 0;
-  typeshift[TIFF_FLOAT] = 0;
-  typeshift[TIFF_DOUBLE] = 0;
-
-  bool swabflag;
-  if (magic == TIFF_BIGENDIAN) {
-    typeshift[TIFF_BYTE] = 24;
-    typeshift[TIFF_SBYTE] = 24;
-    typeshift[TIFF_SHORT] = 16;
-    typeshift[TIFF_SSHORT] = 16;
-    swabflag = !HOST_BIGENDIAN;
-  } else if (magic == TIFF_LITTLEENDIAN) {
-    typeshift[TIFF_BYTE] = 0;
-    typeshift[TIFF_SBYTE] = 0;
-    typeshift[TIFF_SHORT] = 0;
-    typeshift[TIFF_SSHORT] = 0;
-    swabflag = HOST_BIGENDIAN;
-  } else {
-    // TODO: fail
-    
-  }
-
-  return swabflag;
-}
-
-static	off_t ReadDirectory(int, unsigned, off_t);
-static	void ReadError(char*);
-static	void Error(const char*, ...);
-static	void Fatal(const char*, ...);
-
-/* returns list of hashtables of (ttag_t -> struct _openslide_tiffdump) */
-GSList *_openslide_tiffdump(FILE *f) {
-  GSList *result = NULL;
-  TIFFHeader hdr;
-
-  fseeko(f, 0, SEEK_SET);
-  if (fread(&hdr, sizeof (hdr), 1, f) != 1) {
-    ReadError("TIFF header");
-  }
-
-  /*
-   * Setup the byte order handling.
-   */
-  if (hdr.tiff_magic != TIFF_BIGENDIAN && hdr.tiff_magic != TIFF_LITTLEENDIAN) {
-    Fatal("Not a TIFF or MDI file, bad magic number %u (%#x)",
-	  hdr.tiff_magic, hdr.tiff_magic);
-  }
-  bool swabflag = InitByteOrder(hdr.tiff_magic);
-
-  /*
-   * Swap header if required.
-   */
-  if (swabflag) {
-    TIFFSwabShort(&hdr.tiff_version);
-    TIFFSwabLong(&hdr.tiff_diroff);
-  }
-  /*
-   * Now check version (if needed, it's been byte-swapped).
-   * Note that this isn't actually a version number, it's a
-   * magic number that doesn't change (stupid).
-   */
-  if (hdr.tiff_version != TIFF_VERSION) {
-    Fatal("Not a TIFF file, bad version number %u (%#x)",
-	  hdr.tiff_version, hdr.tiff_version);
-  }
-
-  printf("Magic: %#x <%s-endian> Version: %#x\n",
-	 hdr.tiff_magic,
-	 hdr.tiff_magic == TIFF_BIGENDIAN ? "big" : "little",
-	 hdr.tiff_version);
-
-  int64_t diroff = hdr.tiff_diroff;
-  while(diroff != 0) {
-    GHashTable *ht = ReadDirectory(fd, i, &diroff);
-    result = g_slist_prepend(result, ht);
-  }
-
-  return g_slist_reverse(result);
-}
 
 static int datawidth[] = {
     0,	/* nothing */
@@ -197,7 +74,78 @@ static int datawidth[] = {
     8,	/* TIFF_DOUBLE */
     4	/* TIFF_IFD */
 };
-#define	NWIDTHS	(sizeof (datawidth) / sizeof (datawidth[0]))
+
+
+
+static	off_t ReadDirectory(int, unsigned, off_t);
+static	void ReadError(char*);
+static	void Error(const char*, ...);
+static	void Fatal(const char*, ...);
+
+/* returns list of hashtables of (ttag_t -> struct _openslide_tiffdump) */
+GSList *_openslide_tiffdump(FILE *f) {
+  GSList *result = NULL;
+  TIFFHeader hdr;
+
+  fseeko(f, 0, SEEK_SET);
+  if (fread(&hdr, sizeof (hdr), 1, f) != 1) {
+    ReadError("TIFF header");
+  }
+
+  /*
+   * Check magic
+   */
+  if (hdr.tiff_magic != TIFF_BIGENDIAN && hdr.tiff_magic != TIFF_LITTLEENDIAN) {
+    Fatal("Not a TIFF file, bad magic number %u (%#x)",
+	  hdr.tiff_magic, hdr.tiff_magic);
+  }
+
+  /*
+   * Setup the byte order handling.
+   */
+  bool swap = ((hdr.tiff_magic == TIFF_BIGENDIAN) && !HOST_BIGENDIAN) ||
+    ((hdr.tiff_magic == TIFF_LITTLEENDIAN) && HOST_BIGENDIAN);
+
+  /*
+   * Swap header if required.
+   */
+  if (swap) {
+    TIFFSwabShort(&hdr.tiff_version);
+    TIFFSwabLong(&hdr.tiff_diroff);
+  }
+
+  /*
+   * Now check version (if needed, it's been byte-swapped).
+   * Note that this isn't actually a version number, it's a
+   * magic number that doesn't change (stupid).
+   */
+  if (hdr.tiff_version != TIFF_VERSION) {
+    Fatal("Not a TIFF file, bad version number %u (%#x)",
+	  hdr.tiff_version, hdr.tiff_version);
+  }
+
+  printf("Magic: %#x <%s-endian> Version: %#x\n",
+	 hdr.tiff_magic,
+	 hdr.tiff_magic == TIFF_BIGENDIAN ? "big" : "little",
+	 hdr.tiff_version);
+
+
+  // initialize loop detector
+  GHashTable *loop_detector = g_hash_table_new_full(_openslide_int64_hash,
+						    _openslide_int64_equal,
+						    _openslide_int64_free,
+						    NULL);
+  // read all the directories
+  int64_t diroff = hdr.tiff_diroff;
+  while (diroff != 0) {
+    GHashTable *ht = ReadDirectory(fd, i, &diroff, loop_detector);
+    result = g_slist_prepend(result, ht);
+  }
+  g_hash_table_unref(loop_detector);
+
+  return g_slist_reverse(result);
+}
+
 static	int TIFFFetchData(int, TIFFDirEntry*, void*);
 
 /*
