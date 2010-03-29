@@ -12,7 +12,7 @@ src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-cache.c src/openslide-tilehelper.c \
-	src/openslide-hash.c \
+	src/openslide-hash.c src/openslide-util.c \
 	src/openslide-ops-jpeg.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-ops-tiff.c \

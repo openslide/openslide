@@ -230,19 +230,6 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
 
-static guint int64_hash(gconstpointer v) {
-  int64_t i = *((const int64_t *) v);
-  return i ^ (i >> 32);
-}
-
-static gboolean int64_equal(gconstpointer v1, gconstpointer v2) {
-  return *((int64_t *) v1) == *((int64_t *) v2);
-}
-
-static void int64_free(gpointer data) {
-  g_slice_free(int64_t, data);
-}
-
 static void layer_free(gpointer data) {
   //g_debug("layer_free: %p", data);
 
@@ -1159,8 +1146,10 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
   // convert all struct _openslide_jpeg_layer into struct layer, and
   //  (internally) convert all struct _openslide_jpeg_tile into struct tile
-  GHashTable *expanded_layers = g_hash_table_new_full(int64_hash, int64_equal,
-						      int64_free, layer_free);
+  GHashTable *expanded_layers = g_hash_table_new_full(_openslide_int64_hash,
+						      _openslide_int64_equal,
+						      _openslide_int64_free,
+						      layer_free);
   for (int32_t i = 0; i < layer_count; i++) {
     struct _openslide_jpeg_layer *old_l = layers[i];
 
@@ -1174,8 +1163,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     new_l->tile_advance_y = old_l->tile_advance_y;
 
     // convert tiles
-    new_l->tiles = g_hash_table_new_full(int64_hash, int64_equal,
-					 int64_free, tile_free);
+    new_l->tiles = g_hash_table_new_full(_openslide_int64_hash,
+					 _openslide_int64_equal,
+					 _openslide_int64_free, tile_free);
     struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
     g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
@@ -1256,7 +1246,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
     // manually free some things, because of that shallow copy
     g_hash_table_steal(expanded_layers, tmp_list->data);
-    int64_free(tmp_list->data);  // key
+    _openslide_int64_free(tmp_list->data);  // key
     g_slice_free(struct layer, l); // shallow deletion of layer
 
     // consume the head and continue
@@ -1320,8 +1310,9 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 }
 
 GHashTable *_openslide_jpeg_create_tiles_table(void) {
-  return g_hash_table_new_full(int64_hash, int64_equal,
-			       int64_free, struct_openslide_jpeg_tile_free);
+  return g_hash_table_new_full(_openslide_int64_hash, _openslide_int64_equal,
+			       _openslide_int64_free,
+			       struct_openslide_jpeg_tile_free);
 }
 
 

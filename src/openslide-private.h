@@ -128,6 +128,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char* filename,
 bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
 				 struct _openslide_hash *quickhash1);
 
+
+/* GHashTable utils */
+guint _openslide_int64_hash(gconstpointer v);
+gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
+void _openslide_int64_free(gpointer data);
+
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
 					      uint32_t *dest,
