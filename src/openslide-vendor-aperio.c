@@ -40,6 +40,37 @@
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
+static void write_pixel_33003(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
+  double R = c0 + 1.402 * (c2 - 128);
+  double G = c0 - 0.34414 * (c1 - 128) - 0.71414 * (c2 - 128);
+  double B = c0 + 1.772 * (c1 - 128);
+
+  if (R > 255) {
+    R = 255;
+  }
+  if (R < 0) {
+    R = 0;
+  }
+  if (G > 255) {
+    G = 255;
+  }
+  if (G < 0) {
+    G = 0;
+  }
+  if (B > 255) {
+    B = 255;
+  }
+  if (B < 0) {
+    B = 0;
+  }
+
+  *dest = 255 << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
+}
+
+static void write_pixel_33005(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
+  *dest = 255 << 24 | c0 << 16 | c1 << 8 | c2;
+}
+
 static void warning_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_warning("%s", msg);
 }
@@ -96,51 +127,41 @@ static void aperio_tiff_tilereader(TIFF *tiff,
     g_critical("image->numcomps != 3");
     goto OUT;
   }
-  // would like to assert SYCC, but not available in the J2K codestream?
 
   // TODO more checks?
 
+  // which compression?
+  uint16_t compression_mode;
+  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
   // copy
-  int y_sub_x = w / comps[0].w;
-  int y_sub_y = h / comps[0].h;
-  int cb_sub_x = w / comps[1].w;
-  int cb_sub_y = h / comps[1].h;
-  int cr_sub_x = w / comps[2].w;
-  int cr_sub_y = h / comps[2].h;
+  int c0_sub_x = w / comps[0].w;
+  int c0_sub_y = h / comps[0].h;
+  int c1_sub_x = w / comps[1].w;
+  int c1_sub_y = h / comps[1].h;
+  int c2_sub_x = w / comps[2].w;
+  int c2_sub_y = h / comps[2].h;
 
   int i = 0;
   for (int y = 0; y < h; y++) {
     for (int x = 0; x < w; x++) {
-      uint8_t Y = comps[0].data[(y / y_sub_y) * comps[0].w + (x / y_sub_x)];
-      uint8_t Cb = comps[1].data[(y / cb_sub_y) * comps[1].w + (x / cb_sub_x)];
-      uint8_t Cr = comps[2].data[(y / cr_sub_y) * comps[2].w + (x / cr_sub_x)];
+      uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
+      uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
+      uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
 
-      uint8_t A = 255;
-      double R = Y + 1.402 * (Cr - 128);
-      double G = Y - 0.34414 * (Cb - 128) - 0.71414 * (Cr - 128);
-      double B = Y + 1.772 * (Cb - 128);
+      switch (compression_mode) {
+      case 33003:
+	write_pixel_33003(dest + i, c0, c1, c2);
+	break;
 
-      if (R > 255) {
-	R = 255;
-      }
-      if (R < 0) {
-	R = 0;
-      }
-      if (G > 255) {
-	G = 255;
-      }
-      if (G < 0) {
-	G = 0;
-      }
-      if (B > 255) {
-	B = 255;
-      }
-      if (B < 0) {
-	B = 0;
+      case 33005:
+	write_pixel_33005(dest + i, c0, c1, c2);
+	break;
+
+      default:
+	g_return_if_reached();
       }
 
-      dest[i] = A << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
       i++;
     }
   }
@@ -359,12 +380,16 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename,
 
   //  g_debug("compression mode: %d", compression_mode);
 
-  if (compression_mode == 33003) {
+  switch (compression_mode) {
+  case 33003:
+  case 33005:
     // special jpeg 2000 aperio thing
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
 			    aperio_tiff_tilereader,
 			    quickhash1);
-  } else {
+    break;
+
+  default:
     // let libtiff handle it
     _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
 			    _openslide_generic_tiff_tilereader,
