@@ -131,6 +131,10 @@ static void *read_tiff_tag_1(FILE *f,
 
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
+    if (i > 50) {
+      g_debug("    ...");
+      break;
+    }
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
@@ -165,6 +169,10 @@ static void *read_tiff_tag_2(FILE *f,
 
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
+    if (i > 50) {
+      g_debug("    ...");
+      break;
+    }
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
@@ -199,6 +207,10 @@ static void *read_tiff_tag_4(FILE *f,
 
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
+    if (i > 50) {
+      g_debug("    ...");
+      break;
+    }
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
@@ -233,6 +245,10 @@ static void *read_tiff_tag_8(FILE *f,
 
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
+    if (i > 50) {
+      g_debug("    ...");
+      break;
+    }
     g_debug("   %" PRIu64, result[i]);
   }
   g_debug(" ");
