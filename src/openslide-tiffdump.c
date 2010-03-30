@@ -54,6 +54,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <glib.h>
+#include <inttypes.h>
 
 
 #include <tiffio.h>
@@ -95,23 +96,151 @@ static int64_t read_uint32(FILE *f, uint16_t endian) {
   }
 }
 
-static void *read_tiff_tag_1(int64_t count, int64_t offset, uint16_t endian) {
+static bool read_tiff_tag(FILE *f, int64_t size, void *dest,
+			  int64_t offset, uint8_t value[]) {
+  g_debug(" reading tiff tag: size: %d, value/offset %u", (int) size, (int) offset);
+
+  if (size <= 4) {
+    // inline
+    memcpy(dest, value, size);
+  } else {
+    off_t old_off = ftello(f);
+    if (fseeko(f, offset, SEEK_SET) != 0) {
+      return false;
+    }
+    if (fread(dest, size, 1, f) != 1) {
+      return false;
+    }
+    fseeko(f, old_off, SEEK_SET);
+  }
+
+  return true;
+}
+
+static void *read_tiff_tag_1(FILE *f,
+			     int64_t count, int64_t offset,
+			     uint8_t value[]) {
+  uint8_t *result = g_try_new(uint8_t, count);
+  if (result == NULL) {
+    goto FAIL;
+  }
+
+  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
+    goto FAIL;
+  }
+
+  g_debug("  count %" PRId64, count);
+  for (int i = 0; i < count; i++) {
+    g_debug("   %u", result[i]);
+  }
+  g_debug(" ");
+
+  return result;
+
+ FAIL:
+  g_free(result);
   return NULL;
 }
 
-static void *read_tiff_tag_2(int64_t count, int64_t offset, uint16_t endian) {
+static void *read_tiff_tag_2(FILE *f,
+			     int64_t count, int64_t offset,
+			     uint8_t value[], uint16_t endian) {
+  uint16_t *result = g_try_new(uint16_t, count);
+  if (result == NULL) {
+    goto FAIL;
+  }
+
+  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
+    goto FAIL;
+  }
+
+  // swap?
+  for (int64_t i = 0; i < count; i++) {
+    if (endian == TIFF_BIGENDIAN) {
+      result[i] = GUINT16_FROM_BE(result[i]);
+    } else {
+      result[i] = GUINT16_FROM_LE(result[i]);
+    }
+  }
+
+  g_debug("  count %" PRId64, count);
+  for (int i = 0; i < count; i++) {
+    g_debug("   %u", result[i]);
+  }
+  g_debug(" ");
+
+  return result;
+
+ FAIL:
+  g_free(result);
   return NULL;
 }
 
-static void *read_tiff_tag_4(int64_t count, int64_t offset, uint16_t endian) {
+static void *read_tiff_tag_4(FILE *f,
+			     int64_t count, int64_t offset,
+			     uint8_t value[], uint16_t endian) {
+  uint32_t *result = g_try_new(uint32_t, count);
+  if (result == NULL) {
+    goto FAIL;
+  }
+
+  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
+    goto FAIL;
+  }
+
+  // swap?
+  for (int64_t i = 0; i < count; i++) {
+    if (endian == TIFF_BIGENDIAN) {
+      result[i] = GUINT32_FROM_BE(result[i]);
+    } else {
+      result[i] = GUINT32_FROM_LE(result[i]);
+    }
+  }
+
+  g_debug("  count %" PRId64, count);
+  for (int i = 0; i < count; i++) {
+    g_debug("   %u", result[i]);
+  }
+  g_debug(" ");
+
+  return result;
+
+ FAIL:
+  g_free(result);
   return NULL;
 }
 
-static void *read_tiff_tag_4r(int64_t count, int64_t offset, uint16_t endian) {
-  return NULL;
-}
+static void *read_tiff_tag_8(FILE *f,
+			     int64_t count, int64_t offset,
+			     uint16_t endian) {
+  uint64_t *result = g_try_new(uint64_t, count);
+  if (result == NULL) {
+    goto FAIL;
+  }
 
-static void *read_tiff_tag_8(int64_t count, int64_t offset, uint16_t endian) {
+  if (!read_tiff_tag(f, count * sizeof *result, result, offset, NULL)) {
+    goto FAIL;
+  }
+
+  // swap?
+  for (int64_t i = 0; i < count; i++) {
+    if (endian == TIFF_BIGENDIAN) {
+      result[i] = GUINT64_FROM_BE(result[i]);
+    } else {
+      result[i] = GUINT64_FROM_LE(result[i]);
+    }
+  }
+
+  g_debug("  count %" PRId64, count);
+  for (int i = 0; i < count; i++) {
+    g_debug("   %" PRIu64, result[i]);
+  }
+  g_debug(" ");
+
+  return result;
+
+ FAIL:
+  g_free(result);
   return NULL;
 }
 
@@ -128,6 +257,8 @@ static GHashTable *ReadDirectory(FILE *f, int64_t *diroff,
   int64_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
+
+  g_debug("diroff: %" PRId64, off);
 
   // loop detection
   if (g_hash_table_lookup_extended(loop_detector, &off, NULL, NULL)) {
@@ -152,6 +283,8 @@ static GHashTable *ReadDirectory(FILE *f, int64_t *diroff,
     goto done;
   }
 
+  g_debug("dircount: %d", dircount);
+
   result = g_hash_table_new_full(g_int_hash, g_int_equal,
 				 g_free, tiffdump_data_destroy);
 
@@ -160,43 +293,64 @@ static GHashTable *ReadDirectory(FILE *f, int64_t *diroff,
     int32_t tag = read_uint16(f, endian);
     int32_t type = read_uint16(f, endian);
     int64_t count = read_uint32(f, endian);
-    int64_t offset = read_uint32(f, endian);
 
-    if ((tag == -1) || (type == -1) || (count = -1) || (offset = -1)) {
+    if ((tag == -1) || (type == -1) || (count == -1)) {
       // TODO ERROR 
       goto done;
     }
 
+    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
+
+    // read in the value/offset
+    uint8_t value[4];
+    if (fread(value, 1, 4, f) != 4) {
+      // TODO ERROR 
+      goto done;
+    }
+
+    uint32_t offset;
+    memcpy(&offset, value, 4);
+    if (endian == TIFF_BIGENDIAN) {
+      offset = GUINT32_FROM_BE(offset);
+    } else {
+      offset = GUINT32_FROM_LE(offset);
+    }
+
+    // allocate the item
     struct _openslide_tiffdump_item *data =
       g_slice_new(struct _openslide_tiffdump_item);
     data->type = type;
     data->count = count;
 
+    // load the value
     switch (type) {
     case TIFF_BYTE:
     case TIFF_ASCII:
     case TIFF_SBYTE:
     case TIFF_UNDEFINED:
-      data->value = read_tiff_tag_1(count, offset, endian);
+      data->value = read_tiff_tag_1(f, count, offset, value);
       break;
 
     case TIFF_SHORT:
     case TIFF_SSHORT:
-      data->value = read_tiff_tag_2(count, offset, endian);
+      data->value = read_tiff_tag_2(f, count, offset, value, endian);
       break;
 
     case TIFF_LONG:
     case TIFF_SLONG:
     case TIFF_FLOAT:
     case TIFF_IFD:
-      data->value = read_tiff_tag_4(count, offset, endian);
+      data->value = read_tiff_tag_4(f, count, offset, value, endian);
+      break;
 
     case TIFF_RATIONAL:
     case TIFF_SRATIONAL:
-      data->value = read_tiff_tag_4r(count, offset, endian);
+      data->value = read_tiff_tag_4(f, count * 2, offset, value, endian);
+      break;
 
     case TIFF_DOUBLE:
-      data->value = read_tiff_tag_8(count, offset, endian);
+      data->value = read_tiff_tag_8(f, count, offset, endian);
+      break;
 
     default:
       //TODO ERROR 
@@ -234,8 +388,12 @@ GSList *_openslide_tiffdump(FILE *f) {
     // TODO ERROR 
   }
 
+  g_debug("magic: %d", magic);
+
   int32_t version = read_uint16(f, magic);
   int64_t diroff = read_uint32(f, magic);
+
+  g_debug("version: %d", version);
 
   /*
    * Now check version (if needed, it's been byte-swapped).
