@@ -444,3 +444,225 @@ void _openslide_tiffdump_destroy(GSList *tiffdump) {
     tiffdump = g_slist_delete_link(tiffdump, tiffdump);
   }
 }
+
+static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
+  printf(" %d: type: %d, count: %" PRId64 "\n ", tag, item->type, item->count);
+
+  if (item->type == TIFF_ASCII) {
+    // will only print first string if there are multiple
+    const char *str = _openslide_tiffdump_get_ascii(item);
+    if (str[item->count - 1] == '\0') {
+      printf(" %s", str);
+    } else {
+      g_warning("ASCII value not null-terminated");
+    }
+  } else {
+    for (int64_t i = 0; i < item->count; i++) {
+      switch (item->type) {
+      case TIFF_BYTE:
+	printf(" %" PRIu8, _openslide_tiffdump_get_byte(item, i));
+	break;
+
+      case TIFF_SBYTE:
+	printf(" %" PRId8, _openslide_tiffdump_get_sbyte(item, i));
+	break;
+
+      case TIFF_UNDEFINED:
+	printf(" %.2" PRIx8, _openslide_tiffdump_get_undefined(item, i));
+	break;
+
+      case TIFF_SHORT:
+	printf(" %" PRIu16, _openslide_tiffdump_get_short(item, i));
+	break;
+
+      case TIFF_SSHORT:
+	printf(" %" PRId16, _openslide_tiffdump_get_sshort(item, i));
+	break;
+
+      case TIFF_LONG:
+	printf(" %" PRIu32, _openslide_tiffdump_get_long(item, i));
+	break;
+
+      case TIFF_SLONG:
+	printf(" %" PRId32, _openslide_tiffdump_get_slong(item, i));
+	break;
+
+      case TIFF_FLOAT:
+	printf(" %g", _openslide_tiffdump_get_float(item, i));
+	break;
+
+      case TIFF_IFD:
+	printf(" %.8" PRIx64, _openslide_tiffdump_get_ifd(item, i));
+	break;
+
+      case TIFF_RATIONAL:
+	printf(" %g", _openslide_tiffdump_get_rational(item, i));
+	break;
+
+      case TIFF_SRATIONAL:
+	printf(" %g", _openslide_tiffdump_get_srational(item, i));
+	break;
+
+      case TIFF_DOUBLE:
+	printf(" %g", _openslide_tiffdump_get_double(item, i));
+	break;
+
+      default:
+	g_return_if_reached();
+      }
+    }
+  }
+  printf("\n");
+}
+
+struct hash_key_helper {
+  int i;
+  int *tags;
+};
+
+static int int_compare(const void *a, const void *b) {
+  int aa = *((int *) a);
+  int bb = *((int *) b);
+
+  if (aa < bb) {
+    return -1;
+  } else if (aa > bb) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static void save_key(gpointer key, gpointer _OPENSLIDE_UNUSED(value),
+		     gpointer user_data) {
+  int tag = *((int *) key);
+  struct hash_key_helper *h = user_data;
+
+  h->tags[h->i++] = tag;
+}
+
+static void print_directory(GHashTable *dir) {
+  int count = g_hash_table_size(dir);
+  struct hash_key_helper h = { 0, g_new(int, count) };
+  g_hash_table_foreach(dir, save_key, &h);
+
+  qsort(h.tags, count, sizeof (int), int_compare);
+  for (int i = 0; i < count; i++) {
+    int tag = h.tags[i];
+    print_tag(tag, g_hash_table_lookup(dir, &tag));
+  }
+  g_free(h.tags);
+
+  printf("\n");
+}
+
+void _openslide_tiffdump_print(GSList *tiffdump) {
+  int i = 0;
+
+  while (tiffdump != NULL) {
+    printf("Directory %d\n", i);
+
+    print_directory(tiffdump->data);
+
+    i++;
+    tiffdump = tiffdump->next;
+  }
+}
+
+
+static void check_assertions(struct _openslide_tiffdump_item *item,
+			     TIFFDataType type, int64_t i) {
+  g_assert(item->type == type);
+  g_assert(i >= 0);
+  g_assert(i < item->count);
+}
+
+uint8_t _openslide_tiffdump_get_byte(struct _openslide_tiffdump_item *item,
+				     int64_t i) {
+  check_assertions(item, TIFF_BYTE, i);
+  return ((uint8_t *) item->value)[i];
+}
+
+const char *_openslide_tiffdump_get_ascii(struct _openslide_tiffdump_item *item) {
+  check_assertions(item, TIFF_ASCII, 0);
+  return item->value;
+}
+
+uint16_t _openslide_tiffdump_get_short(struct _openslide_tiffdump_item *item,
+				       int64_t i) {
+  check_assertions(item, TIFF_SHORT, i);
+  return ((uint16_t *) item->value)[i];
+}
+
+uint32_t _openslide_tiffdump_get_long(struct _openslide_tiffdump_item *item,
+				      int64_t i) {
+  check_assertions(item, TIFF_LONG, i);
+  return ((uint32_t *) item->value)[i];
+}
+
+double _openslide_tiffdump_get_rational(struct _openslide_tiffdump_item *item,
+					int64_t i) {
+  check_assertions(item, TIFF_RATIONAL, i);
+
+  // convert 2 longs into rational
+  uint32_t *value = item->value;
+  return (double) value[i * 2] / (double) value[i * 2 + 1];
+}
+
+int8_t _openslide_tiffdump_get_sbyte(struct _openslide_tiffdump_item *item,
+				     int64_t i) {
+  check_assertions(item, TIFF_SBYTE, i);
+  return ((uint8_t *) item->value)[i];
+}
+
+uint8_t _openslide_tiffdump_get_undefined(struct _openslide_tiffdump_item *item,
+					  int64_t i) {
+  check_assertions(item, TIFF_UNDEFINED, i);
+  return ((uint8_t *) item->value)[i];
+}
+
+int16_t _openslide_tiffdump_get_sshort(struct _openslide_tiffdump_item *item,
+				       int64_t i) {
+  check_assertions(item, TIFF_SSHORT, i);
+  return ((uint16_t *) item->value)[i];
+}
+
+int32_t _openslide_tiffdump_get_slong(struct _openslide_tiffdump_item *item,
+				      int64_t i) {
+  check_assertions(item, TIFF_SLONG, i);
+  return ((uint32_t *) item->value)[i];
+}
+
+double _openslide_tiffdump_get_srational(struct _openslide_tiffdump_item *item,
+					 int64_t i) {
+  check_assertions(item, TIFF_SRATIONAL, i);
+
+  // convert 2 slongs into rational
+  uint32_t *value = item->value;
+  return (double) ((int32_t) value[i * 2]) /
+    (double) ((int32_t) value[i * 2 + 1]);
+}
+
+float _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
+				    int64_t i) {
+  check_assertions(item, TIFF_FLOAT, i);
+
+  float val;
+  memcpy(&val, ((uint32_t *) item->value) + i, sizeof val);
+  return val;
+}
+
+double _openslide_tiffdump_get_double(struct _openslide_tiffdump_item *item,
+				      int64_t i) {
+  check_assertions(item, TIFF_DOUBLE, i);
+
+  double val;
+  memcpy(&val, ((uint64_t *) item->value) + i, sizeof val);
+  return val;
+}
+
+int64_t _openslide_tiffdump_get_ifd(struct _openslide_tiffdump_item *item,
+				    int64_t i) {
+  check_assertions(item, TIFF_IFD, i);
+  return ((uint32_t *) item->value)[i];
+}

@@ -33,9 +33,65 @@ struct _openslide_tiffdump_item {
   void *value;
 };
 
-/* returns list of hashtables of (int -> struct _openslide_tiffdump) */
+// returns list of hashtables of (int -> struct _openslide_tiffdump)
 GSList *_openslide_tiffdump_create(FILE *f);
 
+// destructor
 void _openslide_tiffdump_destroy(GSList *tiffdump);
+
+// helpful printout?
+void _openslide_tiffdump_print(GSList *tiffdump);
+
+// accessors
+// TIFF_BYTE
+uint8_t _openslide_tiffdump_get_byte(struct _openslide_tiffdump_item *item,
+				     int64_t i);
+
+// TIFF_ASCII
+const char *_openslide_tiffdump_get_ascii(struct _openslide_tiffdump_item *item);
+
+// TIFF_SHORT
+uint16_t _openslide_tiffdump_get_short(struct _openslide_tiffdump_item *item,
+				       int64_t i);
+
+// TIFF_LONG
+uint32_t _openslide_tiffdump_get_long(struct _openslide_tiffdump_item *item,
+				      int64_t i);
+
+// TIFF_RATIONAL
+double _openslide_tiffdump_get_rational(struct _openslide_tiffdump_item *item,
+					int64_t i);
+
+// TIFF_SBYTE
+int8_t _openslide_tiffdump_get_sbyte(struct _openslide_tiffdump_item *item,
+				     int64_t i);
+
+// TIFF_UNDEFINED
+uint8_t _openslide_tiffdump_get_undefined(struct _openslide_tiffdump_item *item,
+					  int64_t i);
+
+// TIFF_SSHORT
+int16_t _openslide_tiffdump_get_sshort(struct _openslide_tiffdump_item *item,
+				       int64_t i);
+
+// TIFF_SLONG
+int32_t _openslide_tiffdump_get_slong(struct _openslide_tiffdump_item *item,
+				      int64_t i);
+
+// TIFF_SRATIONAL
+double _openslide_tiffdump_get_srational(struct _openslide_tiffdump_item *item,
+					 int64_t i);
+
+// TIFF_FLOAT
+float _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
+				    int64_t i);
+
+// TIFF_DOUBLE
+double _openslide_tiffdump_get_double(struct _openslide_tiffdump_item *item,
+				      int64_t i);
+
+// TIFF_IFD
+int64_t _openslide_tiffdump_get_ifd(struct _openslide_tiffdump_item *item,
+				    int64_t i);
 
 #endif
