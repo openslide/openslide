@@ -73,7 +73,7 @@ static int64_t read_uint32(FILE *f, uint16_t endian) {
 
 static bool read_tiff_tag(FILE *f, int64_t size, void *dest,
 			  int64_t offset, uint8_t value[]) {
-  g_debug(" reading tiff tag: size: %d, value/offset %u", (int) size, (int) offset);
+  //  g_debug(" reading tiff tag: size: %d, value/offset %u", (int) size, (int) offset);
 
   if (size <= 4) {
     // inline
@@ -104,6 +104,7 @@ static void *read_tiff_tag_1(FILE *f,
     goto FAIL;
   }
 
+  /*
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
     if (i > 50) {
@@ -113,6 +114,7 @@ static void *read_tiff_tag_1(FILE *f,
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
+  */
 
   return result;
 
@@ -142,6 +144,7 @@ static void *read_tiff_tag_2(FILE *f,
     }
   }
 
+  /*
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
     if (i > 50) {
@@ -151,6 +154,7 @@ static void *read_tiff_tag_2(FILE *f,
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
+  */
 
   return result;
 
@@ -180,6 +184,7 @@ static void *read_tiff_tag_4(FILE *f,
     }
   }
 
+  /*
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
     if (i > 50) {
@@ -189,6 +194,7 @@ static void *read_tiff_tag_4(FILE *f,
     g_debug("   %u", result[i]);
   }
   g_debug(" ");
+  */
 
   return result;
 
@@ -218,6 +224,7 @@ static void *read_tiff_tag_8(FILE *f,
     }
   }
 
+  /*
   g_debug("  count %" PRId64, count);
   for (int i = 0; i < count; i++) {
     if (i > 50) {
@@ -227,6 +234,7 @@ static void *read_tiff_tag_8(FILE *f,
     g_debug("   %" PRIu64, result[i]);
   }
   g_debug(" ");
+  */
 
   return result;
 
@@ -249,7 +257,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   *diroff = 0;
   GHashTable *result = NULL;
 
-  g_debug("diroff: %" PRId64, off);
+  //  g_debug("diroff: %" PRId64, off);
 
   if (off <= 0) {
     g_warning("Bad offset");
@@ -279,7 +287,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     goto FAIL;
   }
 
-  g_debug("dircount: %d", dircount);
+  //  g_debug("dircount: %d", dircount);
 
 
   // initial checks passed, initialized the hashtable
@@ -297,7 +305,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       goto FAIL;
     }
 
-    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
+    //    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
 
     // read in the value/offset
     uint8_t value[4];
@@ -397,12 +405,12 @@ GSList *_openslide_tiffdump_create(FILE *f) {
     return NULL;
   }
 
-  g_debug("magic: %d", magic);
+  //  g_debug("magic: %d", magic);
 
   int32_t version = read_uint16(f, magic);
   int64_t diroff = read_uint32(f, magic);
 
-  g_debug("version: %d", version);
+  //  g_debug("version: %d", version);
 
   if (version != TIFF_VERSION) {
     return NULL;
