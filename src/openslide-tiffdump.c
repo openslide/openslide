@@ -434,3 +434,13 @@ GSList *_openslide_tiffdump(FILE *f) {
 
   return g_slist_reverse(result);
 }
+
+
+void _openslide_tiffdump_destroy(GSList *tiffdump) {
+  while (tiffdump != NULL) {
+    GHashTable *ht = tiffdump->data;
+    g_hash_table_unref(ht);
+
+    tiffdump = g_slist_delete_link(tiffdump, tiffdump);
+  }
+}
