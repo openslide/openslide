@@ -398,10 +398,10 @@ GSList *_openslide_tiffdump_create(FILE *f) {
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
-    // TODO ERROR 
+    return NULL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {
-    // TODO ERROR 
+    return NULL;
   }
 
   g_debug("magic: %d", magic);
@@ -417,7 +417,7 @@ GSList *_openslide_tiffdump_create(FILE *f) {
    * magic number that doesn't change (stupid).
    */
   if (version != TIFF_VERSION) {
-    // TODO ERROR 
+    return NULL;
   }
 
   // initialize loop detector
