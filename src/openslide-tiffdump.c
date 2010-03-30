@@ -386,11 +386,6 @@ GSList *_openslide_tiffdump_create(FILE *f) {
 
   g_debug("version: %d", version);
 
-  /*
-   * Now check version (if needed, it's been byte-swapped).
-   * Note that this isn't actually a version number, it's a
-   * magic number that doesn't change (stupid).
-   */
   if (version != TIFF_VERSION) {
     return NULL;
   }
