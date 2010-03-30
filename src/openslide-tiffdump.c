@@ -391,7 +391,7 @@ done:
 }
 
 /* returns list of hashtables of (int -> struct _openslide_tiffdump_item) */
-GSList *_openslide_tiffdump(FILE *f) {
+GSList *_openslide_tiffdump_create(FILE *f) {
   GSList *result = NULL;
 
   // read and check magic
