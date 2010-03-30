@@ -251,11 +251,16 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
   g_debug("diroff: %" PRId64, off);
 
+  if (off <= 0) {
+    g_warning("Bad offset");
+    goto FAIL;
+  }
+
   // loop detection
   if (g_hash_table_lookup_extended(loop_detector, &off, NULL, NULL)) {
     // loop
-    // TODO ERROR 
-    goto done;
+    g_warning("Loop detected");
+    goto FAIL;
   }
   int64_t *key = g_slice_new(int64_t);
   *key = off;
@@ -263,19 +268,21 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
   // no loop, let's seek
   if (fseeko(f, off, SEEK_SET) != 0) {
-    // TODO ERROR 
-    goto done;
+    g_warning("Cannot seek to offset");
+    goto FAIL;
   }
 
   // read directory count
   int dircount = read_uint16(f, endian);
   if (dircount == -1) {
-    // TODO ERROR 
-    goto done;
+    g_warning("Cannot read dircount");
+    goto FAIL;
   }
 
   g_debug("dircount: %d", dircount);
 
+
+  // initial checks passed, initialized the hashtable
   result = g_hash_table_new_full(g_int_hash, g_int_equal,
 				 g_free, tiffdump_item_destroy);
 
@@ -286,8 +293,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     int64_t count = read_uint32(f, endian);
 
     if ((tag == -1) || (type == -1) || (count == -1)) {
-      // TODO ERROR 
-      goto done;
+      g_warning("Cannot read tag, type, and count");
+      goto FAIL;
     }
 
     g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
@@ -295,8 +302,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     // read in the value/offset
     uint8_t value[4];
     if (fread(value, 1, 4, f) != 4) {
-      // TODO ERROR 
-      goto done;
+      g_warning("Cannot read value/offset");
+      goto FAIL;
     }
 
     uint32_t offset;
@@ -344,10 +351,16 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       break;
 
     default:
-      //TODO ERROR 
-      goto done;
+      g_warning("Unknown type encountered: %d", type);
+      goto FAIL;
     }
 
+    if (data->value == NULL) {
+      g_warning("Cannot read value");
+      goto FAIL;
+    }
+
+    // add this tag to the hashtable
     int *key = g_new(int, 1);
     *key = tag;
     g_hash_table_insert(result, key, data);
@@ -356,19 +369,24 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   // read the next dir offset
   int64_t nextdiroff = read_uint32(f, endian);
   if (nextdiroff == -1) {
-    // TODO ERROR 
-    goto done;
+    g_warning("Cannot read next directory offset");
+    goto FAIL;
   }
   *diroff = nextdiroff;
 
-done:
+  // success
   return result;
+
+
+ FAIL:
+  if (result != NULL) {
+    g_hash_table_unref(result);
+  }
+  return NULL;
 }
 
-/* returns list of hashtables of (int -> struct _openslide_tiffdump_item) */
+// returns list of hashtables of (int -> struct _openslide_tiffdump_item)
 GSList *_openslide_tiffdump_create(FILE *f) {
-  GSList *result = NULL;
-
   // read and check magic
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
@@ -396,12 +414,24 @@ GSList *_openslide_tiffdump_create(FILE *f) {
 						    _openslide_int64_free,
 						    NULL);
   // read all the directories
+  GSList *result = NULL;
   while (diroff != 0) {
+    // read a directory
     GHashTable *ht = read_directory(f, &diroff, loop_detector, magic);
+
+    // was the directory successfully read?
+    if (ht == NULL) {
+      // no, so destroy everything
+      _openslide_tiffdump_destroy(result);
+      result = NULL;
+      break;
+    }
+
+    // add result to list
     result = g_slist_prepend(result, ht);
   }
-  g_hash_table_unref(loop_detector);
 
+  g_hash_table_unref(loop_detector);
   return g_slist_reverse(result);
 }
 
