@@ -267,9 +267,9 @@ static void tiffdump_item_destroy(gpointer data) {
   g_slice_free(struct _openslide_tiffdump_item, td);
 }
 
-static GHashTable *ReadDirectory(FILE *f, int64_t *diroff,
-				 GHashTable *loop_detector,
-				 uint16_t endian) {
+static GHashTable *read_directory(FILE *f, int64_t *diroff,
+				  GHashTable *loop_detector,
+				  uint16_t endian) {
   int64_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
@@ -427,7 +427,7 @@ GSList *_openslide_tiffdump_create(FILE *f) {
 						    NULL);
   // read all the directories
   while (diroff != 0) {
-    GHashTable *ht = ReadDirectory(f, &diroff, loop_detector, magic);
+    GHashTable *ht = read_directory(f, &diroff, loop_detector, magic);
     result = g_slist_prepend(result, ht);
   }
   g_hash_table_unref(loop_detector);
