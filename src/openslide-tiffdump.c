@@ -260,7 +260,7 @@ static void *read_tiff_tag_8(FILE *f,
   return NULL;
 }
 
-static void tiffdump_data_destroy(gpointer data) {
+static void tiffdump_item_destroy(gpointer data) {
   struct _openslide_tiffdump_item *td = data;
 
   g_free(td->value);
@@ -302,7 +302,7 @@ static GHashTable *ReadDirectory(FILE *f, int64_t *diroff,
   g_debug("dircount: %d", dircount);
 
   result = g_hash_table_new_full(g_int_hash, g_int_equal,
-				 g_free, tiffdump_data_destroy);
+				 g_free, tiffdump_item_destroy);
 
   // read all directory entries
   for (int i = 0; i < dircount; i++) {
