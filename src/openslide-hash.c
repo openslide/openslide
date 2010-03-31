@@ -58,29 +58,28 @@ void _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
     return;
   }
 
-  GChecksum *checksum = hash->checksum;
-
   g_assert(TIFFIsTiled(tiff));
 
-  // set up buffer
-  tsize_t buf_size = TIFFTileSize(tiff);
-  tdata_t buf = g_slice_alloc(buf_size);
+  // get tile sizes
+  uint32_t *sizes;
+  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
+    g_critical("Cannot get tile size");
+    return;  // ok, haven't allocated anything yet
+  }
+
+  // get offsets
+  uint32_t *offsets;
+  if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
+    g_critical("Cannot get offsets");
+    return;  // ok, haven't allocated anything yet
+  }
 
   // hash each tile's raw data
   ttile_t count = TIFFNumberOfTiles(tiff);
+  const char *filename = TIFFFileName(tiff);
   for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
-    tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, buf_size);
-    if (size == -1) {
-      g_critical("TIFFReadRawTile failed");
-      continue;
-    }
-
-    //g_debug("hashing tile %d", tile_no);
-    g_checksum_update(checksum, buf, size);
+    _openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no]);
   }
-
-  // free
-  g_slice_free1(buf_size, buf);
 }
 
 
