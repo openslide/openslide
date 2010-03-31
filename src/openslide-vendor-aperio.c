@@ -92,11 +92,16 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   //  g_debug("aperio reading tile_no: %d", tile_no);
 
   // get tile size
-  tsize_t max_tile_size = TIFFTileSize(tiff);
+  uint32_t *sizes;
+  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
+    g_critical("Cannot get tile size");
+    return;  // ok, haven't allocated anything yet
+  }
+  tsize_t tile_size = sizes[tile_no];
 
   // get raw tile
-  tdata_t buf = g_slice_alloc(max_tile_size);
-  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, max_tile_size);
+  tdata_t buf = g_slice_alloc(tile_size);
+  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
     g_critical("Cannot get raw tile");
     goto OUT;
@@ -169,7 +174,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
  OUT:
   // erase
-  g_slice_free1(max_tile_size, buf);
+  g_slice_free1(tile_size, buf);
   if (image) opj_image_destroy(image);
   if (stream) opj_cio_close(stream);
   if (dinfo) opj_destroy_decompress(dinfo);
