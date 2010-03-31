@@ -32,6 +32,7 @@
 #include "openslide-private.h"
 
 #include <glib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
@@ -299,27 +300,20 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 
 bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1) {
-  char *tagval;
-  uint32_t depth;
+  int32_t layer_count = 0;
+  int32_t *layers = NULL;
 
   if (!TIFFIsTiled(tiff)) {
-    return false;
+    goto FAIL;
   }
 
+  char *tagval;
   int tiff_result;
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result ||
       (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
     // not aperio
-    return false;
-  }
-
-  // check depth
-  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth);
-  if (tiff_result && depth != 1) {
-    // we can't handle depth != 1
-    g_warning("Cannot handle ImageDepth=%d", depth);
-    return false;
+    goto FAIL;
   }
 
   /*
@@ -344,8 +338,6 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
    */
 
   // for aperio, the tiled layers are the ones we want
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
   do {
     if (TIFFIsTiled(tiff)) {
       layer_count++;
@@ -367,6 +359,28 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       }
       //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
     }
+
+    // check depth
+    uint32_t depth;
+    tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth);
+    if (tiff_result && depth != 1) {
+      // we can't handle depth != 1
+      g_warning("Cannot handle ImageDepth=%d", depth);
+      goto FAIL;
+    }
+
+    // check compression
+    uint16_t compression;
+    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      g_warning("Can't read compression scheme");
+      goto FAIL;
+    }
+    if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
+	(compression != APERIO_COMPRESSION_JP2K_RGB) &&
+	!TIFFIsCODECConfigured(compression)) {
+      g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+      goto FAIL;
+    }
   } while (TIFFReadDirectory(tiff));
 
   // read properties
@@ -383,4 +397,8 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			  aperio_tiff_tilereader,
 			  quickhash1);
   return true;
+
+ FAIL:
+  g_free(layers);
+  return false;
 }
