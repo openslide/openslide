@@ -31,6 +31,7 @@
 #include "openslide-private.h"
 
 #include <glib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
@@ -56,9 +57,10 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1) {
+  GList *layer_list = NULL;
 
   if (!TIFFIsTiled(tiff)) {
-    return false; // not tiled
+    goto FAIL; // not tiled
   }
 
   if (osr) {
@@ -68,7 +70,6 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   }
 
   // accumulate tiled layers
-  GList *layer_list = NULL;
   int current_layer = 0;
   int layer_count = 0;
   do {
@@ -90,6 +91,17 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 	if (!(subfiletype & FILETYPE_REDUCEDIMAGE)) {
 	  continue;
 	}
+      }
+
+      // verify that we can read this compression (hard fail if not)
+      uint16_t compression;
+      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+	g_warning("Can't read compression scheme");
+	goto FAIL;
+      };
+      if (!TIFFIsCODECConfigured(compression)) {
+	g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+	goto FAIL;
       }
 
       // push into list
@@ -126,4 +138,12 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 
 
   return true;
+
+ FAIL:
+  // free the layer list
+  for (GList *i = layer_list; i != NULL; i = g_list_delete_link(i, i)) {
+    g_slice_free(struct layer, i->data);
+  }
+
+  return false;
 }
