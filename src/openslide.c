@@ -39,7 +39,7 @@ static const _openslide_vendor_fn non_tiff_formats[] = {
   NULL
 };
 
-static const _openslide_vendor_fn tiff_formats[] = {
+static const _openslide_tiff_vendor_fn tiff_formats[] = {
   _openslide_try_trestle,
   _openslide_try_aperio,
   _openslide_try_generic_tiff,
@@ -99,37 +99,57 @@ static bool quick_tiff_check(const char *filename) {
   }
 }
 
-static bool try_format(openslide_t *osr, const char *filename,
-		       struct _openslide_hash **quickhash1_OUT,
-		       const _openslide_vendor_fn *format_check) {
+static void reset_osr(openslide_t *osr) {
   if (osr) {
     g_hash_table_remove_all(osr->properties);
     g_hash_table_remove_all(osr->associated_images);
   }
+}
 
-  struct _openslide_hash *quickhash1 = NULL;
+static void init_quickhash1_out(struct _openslide_hash **quickhash1_OUT) {
   if (quickhash1_OUT) {
-    quickhash1 = _openslide_hash_quickhash1_create();
+    *quickhash1_OUT = _openslide_hash_quickhash1_create();
   }
-  bool result = (*format_check)(osr, filename, quickhash1);
+}
 
-  if (result && quickhash1_OUT) {
-    // success, save the quickhash1
-    *quickhash1_OUT = quickhash1;
-  } else if (quickhash1 != NULL) {
-    // fail
-    _openslide_hash_destroy(quickhash1);
+static void free_quickhash1_if_failed(bool result,
+				      struct _openslide_hash **quickhash1_OUT) {
+  // if we have a hash and a false result, destroy
+  if (quickhash1_OUT && !result) {
+    _openslide_hash_destroy(*quickhash1_OUT);
   }
+}
+
+static bool try_format(openslide_t *osr, const char *filename,
+		       struct _openslide_hash **quickhash1_OUT,
+		       const _openslide_vendor_fn *format_check) {
+  reset_osr(osr);
+  init_quickhash1_out(quickhash1_OUT);
+
+  bool result = (*format_check)(osr, filename, quickhash1_OUT ? *quickhash1_OUT : NULL);
+
+  free_quickhash1_if_failed(result, quickhash1_OUT);
+
+  return result;
+}
+
+static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
+			    struct _openslide_hash **quickhash1_OUT,
+			    const _openslide_tiff_vendor_fn *format_check) {
+  reset_osr(osr);
+  init_quickhash1_out(quickhash1_OUT);
+
+  bool result = (*format_check)(osr, tiff, quickhash1_OUT ? *quickhash1_OUT : NULL);
+
+  free_quickhash1_if_failed(result, quickhash1_OUT);
 
   return result;
 }
 
 static bool try_all_formats(openslide_t *osr, const char *filename,
 			    struct _openslide_hash **quickhash1_OUT) {
-  const _openslide_vendor_fn *fn;
-
   // non-tiff
-  fn = non_tiff_formats;
+  const _openslide_vendor_fn *fn = non_tiff_formats;
   while (*fn) {
     if (try_format(osr, filename, quickhash1_OUT, fn)) {
       return true;
@@ -137,17 +157,22 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
     fn++;
   }
 
-  // tiff check (fix when libtiff doesn't spew stuff to stderr anymore)
-  if (quick_tiff_check(filename)) {
-    // tiff formats
-    fn = tiff_formats;
-    while (*fn) {
-      if (try_format(osr, filename, quickhash1_OUT, fn)) {
+
+  // tiff
+  TIFF *tiff;
+  if (quick_tiff_check(filename) && ((tiff = TIFFOpen(filename, "r")) != NULL)) {
+    const _openslide_tiff_vendor_fn *tfn = tiff_formats;
+    while (*tfn) {
+      if (try_tiff_format(osr, tiff, quickhash1_OUT, tfn)) {
 	return true;
       }
-      fn++;
+      tfn++;
     }
+
+    // close only if failed
+    TIFFClose(tiff);
   }
+
 
   // no match
   return false;

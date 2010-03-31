@@ -101,6 +101,8 @@ void __attribute ((constructor)) _openslide_init(void);
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
 				     struct _openslide_hash *quickhash1);
+typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr, TIFF *tiff,
+					  struct _openslide_hash *quickhash1);
 /*
  * A note on quickhash1: this should be a hash of data that
  * will not change with revisions to the openslide library. It should
@@ -117,15 +119,15 @@ typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
  */
 
 
-bool _openslide_try_trestle(openslide_t *osr, const char* filename,
+bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash *quickhash1);
-bool _openslide_try_aperio(openslide_t *osr, const char* filename,
+bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
 			      struct _openslide_hash *quickhash1);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
 			  struct _openslide_hash *quickhash1);
-bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
+bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1);
 
 /* TIFF support */

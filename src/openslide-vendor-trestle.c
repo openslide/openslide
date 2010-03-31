@@ -61,15 +61,9 @@ static void add_properties(GHashTable *ht, char **tags) {
   }
 }
 
-bool _openslide_try_trestle(openslide_t *osr, const char *filename,
+bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash *quickhash1) {
   char *tagval;
-
-  // first, see if it's a TIFF
-  TIFF *tiff = TIFFOpen(filename, "r");
-  if (tiff == NULL) {
-    return false; // not TIFF, not trestle
-  }
 
   if (!TIFFIsTiled(tiff)) {
     return false;
@@ -80,7 +74,6 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename,
   if (!tiff_result ||
       (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
     // not trestle
-    TIFFClose(tiff);
     return false;
   }
 
@@ -88,7 +81,6 @@ bool _openslide_try_trestle(openslide_t *osr, const char *filename,
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result) {
     // no description, not trestle
-    TIFFClose(tiff);
     return false;
   }
 

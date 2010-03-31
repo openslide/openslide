@@ -289,16 +289,10 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 }
 
 
-bool _openslide_try_aperio(openslide_t *osr, const char *filename,
+bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1) {
   char *tagval;
   uint32_t depth;
-
-  // first, see if it's a TIFF
-  TIFF *tiff = TIFFOpen(filename, "r");
-  if (tiff == NULL) {
-    return false; // not TIFF, not aperio
-  }
 
   if (!TIFFIsTiled(tiff)) {
     return false;
@@ -309,7 +303,6 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename,
   if (!tiff_result ||
       (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
     // not aperio
-    TIFFClose(tiff);
     return false;
   }
 
@@ -318,7 +311,6 @@ bool _openslide_try_aperio(openslide_t *osr, const char *filename,
   if (tiff_result && depth != 1) {
     // we can't handle depth != 1
     g_warning("Cannot handle ImageDepth=%d", depth);
-    TIFFClose(tiff);
     return false;
   }
 

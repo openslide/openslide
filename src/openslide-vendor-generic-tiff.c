@@ -54,13 +54,8 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-bool _openslide_try_generic_tiff(openslide_t *osr, const char *filename,
+bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1) {
-  // first, see if it's a TIFF
-  TIFF *tiff = TIFFOpen(filename, "r");
-  if (tiff == NULL) {
-    return false; // not TIFF
-  }
 
   if (!TIFFIsTiled(tiff)) {
     return false; // not tiled
