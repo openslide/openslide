@@ -40,7 +40,10 @@
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
-static void write_pixel_33003(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
+#define APERIO_COMPRESSION_JP2K_YCBCR 33003
+#define APERIO_COMPRESSION_JP2K_RGB   33005
+
+static void write_pixel_ycbcr(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
   double R = c0 + 1.402 * (c2 - 128);
   double G = c0 - 0.34414 * (c1 - 128) - 0.71414 * (c2 - 128);
   double B = c0 + 1.772 * (c1 - 128);
@@ -67,7 +70,7 @@ static void write_pixel_33003(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2
   *dest = 255 << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
 }
 
-static void write_pixel_33005(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
+static void write_pixel_rgb(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
   *dest = 255 << 24 | c0 << 16 | c1 << 8 | c2;
 }
 
@@ -87,7 +90,8 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
   // not for us? fallback
-  if ((compression_mode != 33003) && (compression_mode != 33005)) {
+  if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
+      (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
     _openslide_generic_tiff_tilereader(tiff, dest, x, y, w, h);
     return;
   }
@@ -162,12 +166,12 @@ static void aperio_tiff_tilereader(TIFF *tiff,
       uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
 
       switch (compression_mode) {
-      case 33003:
-	write_pixel_33003(dest + i, c0, c1, c2);
+      case APERIO_COMPRESSION_JP2K_YCBCR:
+	write_pixel_ycbcr(dest + i, c0, c1, c2);
 	break;
 
-      case 33005:
-	write_pixel_33005(dest + i, c0, c1, c2);
+      case APERIO_COMPRESSION_JP2K_RGB:
+	write_pixel_rgb(dest + i, c0, c1, c2);
 	break;
       }
 
