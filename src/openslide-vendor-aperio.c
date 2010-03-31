@@ -82,6 +82,17 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
 				   int32_t w, int32_t h) {
+  // which compression?
+  uint16_t compression_mode;
+  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
+
+  // not for us? fallback
+  if ((compression_mode != 33003) && (compression_mode != 33005)) {
+    _openslide_generic_tiff_tilereader(tiff, dest, x, y, w, h);
+    return;
+  }
+
+  // else, JPEG 2000!
   opj_cio_t *stream = NULL;
   opj_dinfo_t *dinfo = NULL;
   opj_image_t *image = NULL;
@@ -135,10 +146,6 @@ static void aperio_tiff_tilereader(TIFF *tiff,
 
   // TODO more checks?
 
-  // which compression?
-  uint16_t compression_mode;
-  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
-
   // copy
   int c0_sub_x = w / comps[0].w;
   int c0_sub_y = h / comps[0].h;
@@ -162,9 +169,6 @@ static void aperio_tiff_tilereader(TIFF *tiff,
       case 33005:
 	write_pixel_33005(dest + i, c0, c1, c2);
 	break;
-
-      default:
-	g_return_if_reached();
       }
 
       i++;
@@ -370,28 +374,9 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
     g_strfreev(props);
   }
 
-  // all set, load up the TIFF-specific ops
-  TIFFSetDirectory(tiff, 0);
-  uint16_t compression_mode;
-  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
-
-  //  g_debug("compression mode: %d", compression_mode);
-
-  switch (compression_mode) {
-  case 33003:
-  case 33005:
-    // special jpeg 2000 aperio thing
-    _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    aperio_tiff_tilereader,
-			    quickhash1);
-    break;
-
-  default:
-    // let libtiff handle it
-    _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
-			    _openslide_generic_tiff_tilereader,
-			    quickhash1);
-  }
-
+  // special jpeg 2000 aperio thing (with fallback)
+  _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
+			  aperio_tiff_tilereader,
+			  quickhash1);
   return true;
 }
