@@ -40,6 +40,7 @@ static const _openslide_vendor_fn non_tiff_formats[] = {
 };
 
 static const _openslide_vendor_fn tiff_formats[] = {
+  _openslide_try_hamamatsu_ndpi,
   _openslide_try_trestle,
   _openslide_try_aperio,
   _openslide_try_generic_tiff,

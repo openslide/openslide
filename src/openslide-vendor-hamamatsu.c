@@ -30,6 +30,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-tiffdump.h"
 
 #include <glib.h>
 #include <stdlib.h>
@@ -216,6 +217,21 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
 static void add_macro_associated_image(GHashTable *ht,
 				       FILE *f) {
   _openslide_add_jpeg_associated_image(ht, "macro", f);
+}
+
+bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
+				   struct _openslide_hash *quickhash1) {
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    return false;
+  }
+
+  GSList *dump = _openslide_tiffdump_create(f);
+  _openslide_tiffdump_print(dump);
+  _openslide_tiffdump_destroy(dump);
+  fclose(f);
+
+  return false;
 }
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,

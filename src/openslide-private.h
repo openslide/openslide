@@ -123,6 +123,8 @@ bool _openslide_try_aperio(openslide_t *osr, const char* filename,
 			   struct _openslide_hash *quickhash1);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
 			      struct _openslide_hash *quickhash1);
+bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char* filename,
+				   struct _openslide_hash *quickhash1);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
 			  struct _openslide_hash *quickhash1);
 bool _openslide_try_generic_tiff(openslide_t *osr, const char* filename,
