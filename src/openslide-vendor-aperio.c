@@ -44,6 +44,7 @@ static const char APERIO_DESCRIPTION[] = "Aperio";
 #define APERIO_COMPRESSION_JP2K_YCBCR 33003
 #define APERIO_COMPRESSION_JP2K_RGB   33005
 
+// TODO: replace with tables
 static void write_pixel_ycbcr(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
   double R = c0 + 1.402 * (c2 - 128);
   double G = c0 - 0.34414 * (c1 - 128) - 0.71414 * (c2 - 128);
