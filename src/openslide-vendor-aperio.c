@@ -159,27 +159,36 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   int c2_sub_x = w / comps[2].w;
   int c2_sub_y = h / comps[2].h;
 
+  // TODO: too slow, and with duplicated code!
   int i = 0;
-  for (int y = 0; y < h; y++) {
-    for (int x = 0; x < w; x++) {
-      uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
-      uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
-      uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
+  switch (compression_mode) {
+  case APERIO_COMPRESSION_JP2K_YCBCR:
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+	uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
+	uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
+	uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
 
-      switch (compression_mode) {
-      case APERIO_COMPRESSION_JP2K_YCBCR:
 	write_pixel_ycbcr(dest + i, c0, c1, c2);
-	break;
-
-      case APERIO_COMPRESSION_JP2K_RGB:
-	write_pixel_rgb(dest + i, c0, c1, c2);
-	break;
+	i++;
       }
-
-      i++;
     }
-  }
 
+    break;
+
+  case APERIO_COMPRESSION_JP2K_RGB:
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+	uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
+	uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
+	uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
+
+	write_pixel_rgb(dest + i, c0, c1, c2);
+	i++;
+      }
+    }
+    break;
+  }
 
  OUT:
   // erase
