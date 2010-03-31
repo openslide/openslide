@@ -31,6 +31,7 @@
 #include "openslide-private.h"
 
 #include <glib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
@@ -63,29 +64,30 @@ static void add_properties(GHashTable *ht, char **tags) {
 
 bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash *quickhash1) {
-  char *tagval;
+  int32_t overlap_count = 0;
+  int32_t *overlaps = NULL;
+  int32_t layer_count = 0;
+  int32_t *layers = NULL;
 
   if (!TIFFIsTiled(tiff)) {
-    return false;
+    goto FAIL;
   }
 
+  char *tagval;
   int tiff_result;
   tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
   if (!tiff_result ||
       (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
     // not trestle
-    return false;
+    goto FAIL;
   }
 
   // parse
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result) {
     // no description, not trestle
-    return false;
+    goto FAIL;
   }
-
-  int32_t overlap_count = 0;
-  int32_t *overlaps = NULL;
 
   char **first_pass = g_strsplit(tagval, ";", -1);
 
@@ -125,10 +127,24 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   }
   g_strfreev(first_pass);
 
-  // count layers
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
+  // count and validate layers
   do {
+    if (!TIFFIsTiled(tiff)) {
+      goto FAIL;
+    }
+
+    // verify that we can read this compression (hard fail if not)
+    uint16_t compression;
+    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      g_warning("Can't read compression scheme");
+      goto FAIL;
+    };
+    if (!TIFFIsCODECConfigured(compression)) {
+      g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+      goto FAIL;
+    }
+
+    // layer ok
     layer_count++;
   } while (TIFFReadDirectory(tiff));
   layers = g_new(int32_t, layer_count);
@@ -147,4 +163,9 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 
 
   return true;
+
+ FAIL:
+  g_free(layers);
+  g_free(overlaps);
+  return false;
 }
