@@ -139,6 +139,7 @@ static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
+  TIFFSetDirectory(tiff, 0);
   bool result = (*format_check)(osr, tiff, quickhash1_OUT ? *quickhash1_OUT : NULL);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
