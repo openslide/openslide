@@ -1,11 +1,11 @@
 Notable Changes in OpenSlide
 ============================
 
-Version 3.1.0, 2010-??-??
+Version 3.1.0, 2010-04-01
  * Enable large file access on Windows (requires Microsoft.VC80.CRT)
  * Support newer Aperio files (compression 33005)
  * Be more robust in reading raw TIFF tiles
- * Be more robust in rejecting invalid TIFF files
+ * Reject invalid TIFF files earlier
  * Fix many memory leaks when probing for TIFF files
 
 Version 3.0.3, 2010-03-01
