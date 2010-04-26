@@ -259,8 +259,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // make sure values are within known bounds
   int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
 					  NULL);
-  if (num_layers != 1) {
-    g_warning("Cannot handle VMS files with NoLayers != 1");
+  if (num_layers < 1) {
+    g_warning("Cannot handle VMS files with NoLayers < 1");
     goto FAIL;
   }
 
@@ -338,35 +338,61 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       // starts with ImageFile
       char *suffix = key + strlen(KEY_IMAGE_FILE);
 
+      int layer;
       int col;
       int row;
 
       if (suffix[0] != '\0') {
+	int a;
+	int b;
+	int c;
+
 	// parse out the row and col
 	char *endptr;
 
-	// skip (
+	// skip '('
 	suffix++;
 
-	// col
-	col = g_ascii_strtoll(suffix, &endptr, 10);
+	// first
+        a = g_ascii_strtoll(suffix, &endptr, 10);
 	//	g_debug("%d", col);
 
-	// skip ,
+	// skip ','
 	endptr++;
 
-	// row
-	row = g_ascii_strtoll(endptr, NULL, 10);
+	// second
+	b = g_ascii_strtoll(endptr, &endptr, 10);
 	//	g_debug("%d", row);
+
+	// maybe we have a third, then first is (ignored) layer
+	if (*endptr == ',') {
+	  endptr++;
+	  c = g_ascii_strtoll(endptr, NULL, 10);
+
+	  layer = a;
+	  col = b;
+	  row = c;
+	} else {
+	  layer = 0;
+	  col = a;
+	  row = b;
+	}
       } else {
+	layer = 0;
 	col = 0;
 	row = 0;
+      }
+
+      if (layer != 0) {
+	// skip non-zero layers for now
+	g_free(value);
+	continue;
       }
 
       //      g_debug("col: %d, row: %d", col, row);
 
       if (col >= num_jpeg_cols || row >= num_jpeg_rows || col < 0 || row < 0) {
-	g_warning("Invalid row or column in VMS file");
+	g_warning("Invalid row or column in VMS file (%d,%d)", row, col);
 	g_free(value);
 	goto FAIL;
       }
