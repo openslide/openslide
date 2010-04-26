@@ -367,6 +367,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
       if (col >= num_jpeg_cols || row >= num_jpeg_rows || col < 0 || row < 0) {
 	g_warning("Invalid row or column in VMS file");
+	g_free(value);
 	goto FAIL;
       }
 
