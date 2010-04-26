@@ -601,7 +601,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
  FAIL:
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
-      g_free(jpegs[i]->filename);
+      if (jpegs[i]) {
+	g_free(jpegs[i]->filename);
+	g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+      }
     }
     g_free(jpegs);
   }
