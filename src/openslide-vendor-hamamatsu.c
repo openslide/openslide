@@ -342,54 +342,48 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       int col;
       int row;
 
-      if (suffix[0] != '\0') {
-	int a;
-	int b;
-	int c;
-
-	// parse out the row and col
-	char *endptr;
-
-	// skip '('
-	suffix++;
-
-	// first
-        a = g_ascii_strtoll(suffix, &endptr, 10);
-	//	g_debug("%d", col);
-
-	// skip ','
-	endptr++;
-
-	// second
-	b = g_ascii_strtoll(endptr, &endptr, 10);
-	//	g_debug("%d", row);
-
-	// maybe we have a third, then first is (ignored) layer
-	if (*endptr == ',') {
-	  endptr++;
-	  c = g_ascii_strtoll(endptr, NULL, 10);
-
-	  layer = a;
-	  col = b;
-	  row = c;
-	} else {
-	  layer = 0;
-	  col = a;
-	  row = b;
-	}
-      } else {
+      char **split = g_strsplit(suffix, ",", 0);
+      switch (g_strv_length(split)) {
+      case 0:
+	// all zero
 	layer = 0;
 	col = 0;
 	row = 0;
+	break;
+
+      case 2:
+	// (x,y)
+	layer = 0;
+	// first item, skip '('
+	col = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	row = g_ascii_strtoll(split[1], NULL, 10);
+	break;
+
+      case 3:
+	// (z,x,y)
+	// first item, skip '('
+	layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	col = g_ascii_strtoll(split[1], NULL, 10);
+	row = g_ascii_strtoll(split[2], NULL, 10);
+	break;
+
+      default:
+	// we just don't know
+	g_warning("Unknown number of image dimensions: %d",
+		  g_strv_length(split));
+	g_free(value);
+	continue;
       }
+
+      g_strfreev(split);
+
+      //g_debug("layer: %d, col: %d, row: %d", layer, col, row);
 
       if (layer != 0) {
 	// skip non-zero layers for now
 	g_free(value);
 	continue;
       }
-
-      //      g_debug("col: %d, row: %d", col, row);
 
       if (col >= num_jpeg_cols || row >= num_jpeg_rows || col < 0 || row < 0) {
 	g_warning("Invalid row or column in VMS file (%d,%d)", row, col);
