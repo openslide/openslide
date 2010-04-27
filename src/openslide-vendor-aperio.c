@@ -109,7 +109,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   //  g_debug("aperio reading tile_no: %d", tile_no);
 
   // get tile size
-  uint32_t *sizes;
+  toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
     g_critical("Cannot get tile size");
     return;  // ok, haven't allocated anything yet

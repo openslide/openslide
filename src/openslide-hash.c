@@ -61,14 +61,14 @@ void _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   g_assert(TIFFIsTiled(tiff));
 
   // get tile sizes
-  uint32_t *sizes;
+  toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
     g_critical("Cannot get tile size");
     return;  // ok, haven't allocated anything yet
   }
 
   // get offsets
-  uint32_t *offsets;
+  toff_t *offsets;
   if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
     g_critical("Cannot get offsets");
     return;  // ok, haven't allocated anything yet
