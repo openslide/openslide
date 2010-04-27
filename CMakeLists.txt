@@ -8,14 +8,36 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-find_package(openjpeg QUIET)
+SET(TIFF_NAMES itktiff)
+set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
 
+find_package(jpeg REQUIRED)
+find_package(openjpeg REQUIRED)
+find_package(tiff REQUIRED)
 find_package(GTK2 2.6 REQUIRED)
-if(GTK2_FOUND)
+
+if(JPEG_FOUND)
+  include_directories(${JPEG_INCLUDE_DIR})
+endif(JPEG_FOUND)
+
+if(OPENJPEG_FOUND)
+  include_directories(${OPENJPEG_INCLUDE_DIR})
+endif(OPENJPEG_FOUND)
+
+if(TIFF_FOUND)
+  include_directories(${TIFF_INCLUDE_DIR})
+endif(TIFF_FOUND)
+
+if(IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} AND 
+   IS_DIRECTORY ${GTK2_CAIRO_INCLUDE_DIR} AND 
+   IS_DIRECTORY ${GTK2_GLIBCONFIG_INCLUDE_DIR})
   include_directories(${GTK2_GLIB_INCLUDE_DIR})
   include_directories(${GTK2_CAIRO_INCLUDE_DIR})
   include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
-endif(GTK2_FOUND)
+else()
+  # TODO: make this an error message
+  message("Not all required GTK dependencies found.")
+endif()
 
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
