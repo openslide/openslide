@@ -26,7 +26,7 @@
  *
  */
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide-private.h"
 
@@ -34,8 +34,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <inttypes.h>
 #include <math.h>
+
+#ifndef _MSC_VER
+#include <inttypes.h>
+#endif
 
 #include <jpeglib.h>
 

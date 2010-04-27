@@ -38,13 +38,15 @@
 #define _OPENSLIDE_UNUSED(x) x
 #endif
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide.h"
 #include "openslide-hash.h"
 
 #include <glib.h>
+#ifndef _MSC_VER
 #include <stdbool.h>
+#endif
 #include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>

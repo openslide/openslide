@@ -26,16 +26,19 @@
  *
  */
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide-private.h"
 
 #include <glib.h>
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
 #include <errno.h>
+
+#ifndef _MSC_VER
+#include <inttypes.h>
+#endif
 
 static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";

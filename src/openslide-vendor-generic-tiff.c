@@ -26,16 +26,19 @@
  *
  */
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide-private.h"
 
 #include <glib.h>
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
 #include <errno.h>
+
+#ifndef _MSC_VER
+#include <inttypes.h>
+#endif
 
 struct layer {
   int32_t layer_number;

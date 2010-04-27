@@ -19,13 +19,15 @@
  *
  */
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide-tilehelper.h"
 
 #include <glib.h>
 #include <string.h>
+#ifndef _MSC_VER
 #include <inttypes.h>
+#endif
 #include <math.h>
 #include <cairo.h>
 

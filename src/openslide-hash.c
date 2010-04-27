@@ -19,14 +19,17 @@
  *
  */
 
-#include <config.h>
+//#include <config.h>
 
 #include "openslide-private.h"
 
 #include "openslide-hash.h"
 
 #include <string.h>
+
+#ifndef _MSC_VER
 #include <inttypes.h>
+#endif
 
 #ifdef HAVE_G_CHECKSUM_NEW
 struct _openslide_hash {
