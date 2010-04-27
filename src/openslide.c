@@ -29,6 +29,8 @@
 #ifndef _MSC_VER
 #include <stdbool.h>
 #include <inttypes.h>
+#else
+#include <WinDef.h>
 #endif
 
 #include <glib.h>
@@ -50,6 +52,21 @@ static const _openslide_tiff_vendor_fn tiff_formats[] = {
 };
 
 static bool openslide_was_dynamically_loaded;
+
+#ifdef _MSC_VER
+BOOL APIENTRY DllMain(HMODULE, DWORD reason_for_call, LPVOID)
+{
+  switch (reason_for_call)
+  {
+  case DLL_PROCESS_ATTACH:
+    _openslide_init();
+    break;
+  case default:
+    break;
+  }
+  return TRUE;
+}
+#endif
 
 // called from shared-library constructor!
 void _openslide_init(void) {

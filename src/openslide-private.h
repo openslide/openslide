@@ -98,7 +98,11 @@ struct _openslide_ops {
 };
 
 /* DSO constructor */
+#ifdef _MSC_VER
+void _openslide_init(void);
+#else
 void __attribute ((constructor)) _openslide_init(void);
+#endif
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
