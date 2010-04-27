@@ -1,6 +1,13 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.1.1, 2010-04-27
+ * Fix a crash when reading an invalid VMS file
+ * Fix memory leaks when reading an invalid VMS file
+ * Accept VMS files that have more than one focal plane (non-0 planes ignored)
+ * Fix bug that could cause problems with libtiff 4
+ * Relax the required version of Microsoft.VC80.CRT
+
 Version 3.1.0, 2010-04-01
  * Enable large file access on Windows (requires Microsoft.VC80.CRT)
  * Support newer Aperio files (compression 33005)
