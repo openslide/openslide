@@ -84,9 +84,9 @@ endif(OPENJPEG_FOUND)
 #undef _LARGE_FILES
 
 # create a config.h header-file
-configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-add_definitions(-DHAVE_CONFIG_H)
+# configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+# include_directories(${CMAKE_CURRENT_BINARY_DIR})
+# add_definitions(-DHAVE_CONFIG_H)
 
 include_directories(src)
 
