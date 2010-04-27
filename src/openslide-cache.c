@@ -202,7 +202,11 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t y,
 			   int32_t layer) {
   // create key
+#ifdef _MSC_VER
+  struct _openslide_cache_key key = { x, y, layer };
+#else
   struct _openslide_cache_key key = { .x = x, .y = y, .layer = layer };
+#endif
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value = (_openslide_cache_value*)g_hash_table_lookup(cache->hashtable,
