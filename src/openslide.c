@@ -461,7 +461,7 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
-  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+  struct _openslide_associated_image *img = (_openslide_associated_image *)g_hash_table_lookup(osr->associated_images,
 								name);
   if (img && dest) {
     memcpy(dest, img->argb_data, img->w * img->h * 4);
