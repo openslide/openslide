@@ -46,16 +46,27 @@ check_include_files("inttypes.h" HAVE_INTTYPES_H)
 
 if(NOT HAVE_INTTYPES_H)
   #64 Bit format
-  check_64bit_format(ll FORMAT_64BIT)
-  check_64bit_format(L FORMAT_64BIT)
-  check_64bit_format(q FORMAT_64BIT)
-  check_64bit_format(I64 FORMAT_64BIT)
+  check_bit_format(64 ll FORMAT_64BIT)
+  check_bit_format(64 L FORMAT_64BIT)
+  check_bit_format(64 q FORMAT_64BIT)
+  check_bit_format(64 I64 FORMAT_64BIT)    
 
   if(NOT FORMAT_64BIT)
     message(FATAL "64 bit format missing.")
   endif(NOT FORMAT_64BIT)
+  
+  set(PRId64 "${FORMAT_64BIT}")
+  
+  #16 Bit format  
+  check_bit_format(16 "" FORMAT_16BIT)
+  check_bit_format(16 "u" FORMAT_16BIT)
+  check_bit_format(16 "hu" FORMAT_16BIT)
 
-  set(PRId64 "${FORMAT_64BIT}d")
+  if(NOT FORMAT_16BIT)
+    message(FATAL "16 bit format missing.")
+  endif(NOT FORMAT_16BIT)
+  
+  set(PRIu16 "${FORMAT_16BIT}")
 endif(NOT HAVE_INTTYPES_H)
 
 # create a config.h header-file

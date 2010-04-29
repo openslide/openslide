@@ -58,30 +58,33 @@
 # set(PRIo64 "${FORMAT_64BIT}o")
 # set(PRIu64 "${FORMAT_64BIT}u")
 
-MACRO(CHECK_64BIT_FORMAT FORMAT VARIABLE)
+MACRO(CHECK_BIT_FORMAT CHECK_BITS FORMAT VARIABLE)
   IF(NOT ${VARIABLE})
-    SET(FORMAT ${FORMAT})
+    SET(FORMAT \"${FORMAT}\")
     CONFIGURE_FILE("${CMAKE_SOURCE_DIR}/cmake/Check64BitFormat.c.in"
       "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/Check64BitFormat.c" IMMEDIATE @ONLY)
 
     TRY_RUN(RUN_RESULT_VAR COMPILE_RESULT_VAR
       ${CMAKE_BINARY_DIR}
       ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/Check64BitFormat.c
+	  COMPILE_DEFINITIONS 
+	  -DCHECK_BITS=${CHECK_BITS}
+	  -DBIT_FORMAT="${FORMAT}"
       OUTPUT_VARIABLE OUTPUT)
    
     IF(${RUN_RESULT_VAR} STREQUAL "0")
-      SET(${VARIABLE} ${FORMAT} CACHE INTERNAL "Have format ${FORMAT}")
-      MESSAGE(STATUS "Looking for 64bit format ${FORMAT} - found")
+      SET(${VARIABLE} \"${FORMAT}\" CACHE INTERNAL "Have format ${FORMAT}")
+      MESSAGE(STATUS "Looking for ${CHECK_BITS} bit format ${FORMAT} - found")
       FILE(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
         "Determining if the format ${FORMAT} runs passed with the following output:\n"
         "${OUTPUT}\n\n")
-      SET(${VARIABLE} ${FORMAT})
+      SET(${VARIABLE} \"${FORMAT}\")
     ELSE(${RUN_RESULT_VAR} STREQUAL "0")
-      MESSAGE(STATUS "Looking for 64bit format ${FORMAT} - not found")
+      MESSAGE(STATUS "Looking for ${CHECK_BITS} bit format ${FORMAT} - not found")
       SET(${VARIABLE} "" CACHE INTERNAL "Have format ${FORMAT}")
       FILE(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
         "Determining if the format ${FORMAT} runs with the following output:\n"
         "${OUTPUT}\n\n")
     ENDIF(${RUN_RESULT_VAR} STREQUAL "0")
   ENDIF(NOT ${VARIABLE})
-ENDMACRO(CHECK_64BIT_FORMAT)
+ENDMACRO(CHECK_BIT_FORMAT)

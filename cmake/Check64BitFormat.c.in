@@ -34,16 +34,33 @@
 *
 *******************************************************************/
 
+#if (CHECK_BITS==16)
+  #define SHIFT_BITS 8
+  #define VERIFICATION_STRING "0000000000000100"
+#elif (CHECK_BITS==32)
+  #define SHIFT_BITS 16
+  #define VERIFICATION_STRING "0000000000010000"
+#elif (CHECK_BITS==64)
+  #define SHIFT_BITS 32
+  #define VERIFICATION_STRING "0000000100000000"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
-#define LENGTH 16
-int main(int ac, char*av[]){
+#include <string.h>
+
+int main(int ac, char*av[])
+{
   unsigned long long t = 1;
-  char strbuf[LENGTH+1] = {0};
-  sprintf(strbuf, "%016@FORMAT@x", t << 32);
-  if (strcmp(strbuf, "0000000100000000") == 0){
+  char strbuf[17] = {0};
+  sprintf(strbuf, "%016"BIT_FORMAT"x", t << SHIFT_BITS);
+  if (strcmp(strbuf, VERIFICATION_STRING) == 0)
+  {    
     exit(0);
-  } else {
+  }
+  else 
+  {
     exit(1);
   }
 }
+
