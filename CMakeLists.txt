@@ -59,7 +59,7 @@ if(NOT HAVE_INTTYPES_H)
 endif(NOT HAVE_INTTYPES_H)
 
 # create a config.h header-file
-configure_file(${PROJECT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+configure_file(${PROJECT_SOURCE_DIR}/config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_definitions(-DHAVE_CONFIG_H)
 
