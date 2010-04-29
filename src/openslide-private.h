@@ -87,6 +87,16 @@ struct _openslide {
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
+  _openslide_ops( void (*get_dimensions_func)(openslide_t*, int32_t, int64_t*, int64_t*), 
+                  void (*paint_region_func)(openslide_t*, cairo_t*, int64_t, int64_t, int32_t, int32_t, int32_t),
+                  void (*destroy_func)(openslide_t*) ) :
+    get_dimensions(get_dimensions_func),
+    paint_region(paint_region_func),
+    destroy(destroy_func)
+  {
+
+  }
+
   void (*get_dimensions)(openslide_t *osr,
 			 int32_t layer,
 			 int64_t *w, int64_t *h);

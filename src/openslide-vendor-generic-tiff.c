@@ -46,8 +46,8 @@ struct layer {
 };
 
 static int width_compare(gconstpointer a, gconstpointer b) {
-  const struct layer *la = a;
-  const struct layer *lb = b;
+  const struct layer *la = (layer*)a;
+  const struct layer *lb = (layer*)b;
 
   if (la->width > lb->width) {
     return -1;
@@ -123,7 +123,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   // copy layers in, while deleting the list
   int32_t *layers = g_new(int32_t, layer_count);
   for (int i = 0; i < layer_count; i++) {
-    struct layer *l = layer_list->data;
+    struct layer *l = (layer*)layer_list->data;
     layer_list = g_list_delete_link(layer_list, layer_list);
 
     layers[i] = l->layer_number;

@@ -185,7 +185,7 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
 
   src = (struct my_src_mgr *) cinfo->src;
   src->pub.init_source = init_source;
-  src->pub.fill_input_buffer = fill_input_buffer;
+  src->pub.fill_input_buffer = (boolean (__cdecl*)(j_decompress_ptr))fill_input_buffer;
   src->pub.skip_input_data = skip_input_data;
   src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->pub.term_source = term_source;
@@ -216,7 +216,7 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
 
   src->buffer_size = header_length + data_length;
   src->pub.bytes_in_buffer = src->buffer_size;
-  src->buffer = g_slice_alloc(src->buffer_size);
+  src->buffer = (JOCTET*)g_slice_alloc(src->buffer_size);
 
   src->pub.next_input_byte = src->buffer;
 
@@ -249,7 +249,7 @@ static void int64_free(gpointer data) {
 static void layer_free(gpointer data) {
   //g_debug("layer_free: %p", data);
 
-  struct layer *l = data;
+  struct layer *l = (layer*)data;
 
   //  g_debug("g_free(%p)", (void *) l->layer_jpegs);
   g_hash_table_unref(l->tiles);
@@ -272,8 +272,8 @@ struct convert_tiles_args {
 static void convert_tiles(gpointer key,
 			  gpointer value,
 			  gpointer user_data) {
-  struct convert_tiles_args *args = user_data;
-  struct _openslide_jpeg_tile *old_tile = value;
+  struct convert_tiles_args *args = (convert_tiles_args*)user_data;
+  struct _openslide_jpeg_tile *old_tile = (_openslide_jpeg_tile*)value;
   struct layer *new_l = args->new_l;
 
   // create new tile
@@ -361,7 +361,7 @@ static uint8_t find_next_ff_marker(FILE *f,
     }
 
     // search for ff
-    uint8_t *ff = memchr(*buf, 0xFF, *bytes_in_buf);
+    uint8_t *ff = (uint8_t*)memchr(*buf, 0xFF, *bytes_in_buf);
     if (ff == NULL) {
       // keep searching
       *bytes_in_buf = 0;
@@ -516,7 +516,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 				     int w, int h) {
   g_assert(jpeg->filename);
 
-  uint32_t *dest = g_slice_alloc(w * h * 4);
+  uint32_t *dest = (uint32_t*)g_slice_alloc(w * h * 4);
 
   // open file
   FILE *f = fopen(jpeg->filename, "rb");
@@ -535,7 +535,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 
   gsize row_size = 0;
 
-  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = (JSAMPARRAY)g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
@@ -585,7 +585,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     // allocate scanline buffers
     row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = g_slice_alloc(row_size);
+      buffer[i] = (JSAMPROW)g_slice_alloc(row_size);
       //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
 
@@ -648,7 +648,7 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   //g_debug("read_tile");
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (jpegops_data*)osr->data;
   struct layer *l = data->layers + layer;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
@@ -657,11 +657,11 @@ static void read_tile(openslide_t *osr,
   }
 
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
-  struct tile *tile = g_hash_table_lookup(l->tiles, &tileindex);
+  struct tile *requested_tile = (tile*)g_hash_table_lookup(l->tiles, &tileindex);
 
   bool cachemiss;
 
-  if (!tile) {
+  if (!requested_tile) {
     //    g_debug("no tile at index %" PRId64, tileindex);
     return;
   }
@@ -672,18 +672,18 @@ static void read_tile(openslide_t *osr,
 
   // get the jpeg data, possibly from cache
   g_mutex_lock(data->cache_mutex);
-  uint32_t *tiledata = _openslide_cache_get(cache,
-					    tile->jpegno,
-					    tile->tileno,
+  uint32_t *tiledata = (uint32_t*)_openslide_cache_get(cache,
+					    requested_tile->jpegno,
+					    requested_tile->tileno,
 					    layer);
   g_mutex_unlock(data->cache_mutex);
-  int tw = tile->jpeg->tile_width / l->scale_denom;
-  int th = tile->jpeg->tile_height / l->scale_denom;
+  int tw = requested_tile->jpeg->tile_width / l->scale_denom;
+  int th = requested_tile->jpeg->tile_height / l->scale_denom;
 
   cachemiss = !tiledata;
   if (!tiledata) {
-    tiledata = read_from_one_jpeg(tile->jpeg,
-				  tile->tileno,
+    tiledata = read_from_one_jpeg(requested_tile->jpeg,
+				  requested_tile->tileno,
 				  l->scale_denom,
 				  tw, th);
   }
@@ -694,16 +694,16 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  double src_x = tile->src_x / l->scale_denom;
-  double src_y = tile->src_y / l->scale_denom;
+  double src_x = requested_tile->src_x / l->scale_denom;
+  double src_y = requested_tile->src_y / l->scale_denom;
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((tile->jpeg->tile_width > tile->w) ||
-      (tile->jpeg->tile_height > tile->h)) {
+  if ((requested_tile->jpeg->tile_width > requested_tile->w) ||
+      (requested_tile->jpeg->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-							   ceil(tile->w / l->scale_denom),
-							   ceil(tile->h / l->scale_denom));
+							   ceil(requested_tile->w / l->scale_denom),
+							   ceil(requested_tile->h / l->scale_denom));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -src_x, -src_y);
 
@@ -714,16 +714,16 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-		    tile->w / l->scale_denom,
-		    tile->h / l->scale_denom);
+		    requested_tile->w / l->scale_denom,
+		    requested_tile->h / l->scale_denom);
     cairo_fill(cr2);
     cairo_destroy(cr2);
   }
 
   cairo_save(cr);
   cairo_translate(cr,
-		  tile->dest_offset_x / l->scale_denom + translate_x,
-		  tile->dest_offset_y / l->scale_denom + translate_y);
+		  requested_tile->dest_offset_x / l->scale_denom + translate_x,
+		  requested_tile->dest_offset_y / l->scale_denom + translate_y);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
@@ -759,7 +759,7 @@ static void read_tile(openslide_t *osr,
   // put into cache last, because the cache can free this tile
   if (cachemiss) {
     g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, tile->jpegno, tile->tileno, layer,
+    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, layer,
 			 tiledata,
 			 tw * th * 4);
     g_mutex_unlock(data->cache_mutex);
@@ -771,7 +771,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer,
 			 int32_t w, int32_t h) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (jpegops_data*)osr->data;
   struct layer *l = data->layers + layer;
 
   // tell the background thread to pause
@@ -828,7 +828,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (jpegops_data*)osr->data;
 
   // tell the thread to finish and wait
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -876,19 +876,14 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr,
 			   int32_t layer,
 			   int64_t *w, int64_t *h) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (jpegops_data*)osr->data;
   struct layer *l = data->layers + layer;
 
   *w = l->pixel_w;
   *h = l->pixel_h;
 }
 
-static const struct _openslide_ops jpeg_ops = {
-  .get_dimensions = get_dimensions,
-  .paint_region = paint_region,
-  .destroy = destroy
-};
-
+static const struct _openslide_ops jpeg_ops(get_dimensions,paint_region,destroy);
 
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_file *file) {
@@ -971,7 +966,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 }
 
 static gpointer restart_marker_thread_func(gpointer d) {
-  struct jpegops_data *data = d;
+  struct jpegops_data *data = (jpegops_data*)d;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1251,7 +1246,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   //  g_debug("copying sorted layers");
   while(tmp_list != NULL) {
     // get a key and value
-    struct layer *l = g_hash_table_lookup(expanded_layers, tmp_list->data);
+    struct layer *l = (layer*)g_hash_table_lookup(expanded_layers, tmp_list->data);
 
     // copy
     struct layer *dest = data->layers + i;
@@ -1336,7 +1331,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
   jmp_buf env;
 
   uint32_t *argb_data = NULL;
-  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = (JSAMPARRAY)g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -1358,7 +1353,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
 
     // allocate scanline buffers
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = g_malloc(sizeof(JSAMPLE)
+      buffer[i] = (JSAMPROW)g_malloc(sizeof(JSAMPLE)
 			   * cinfo.output_width
 			   * cinfo.output_components);
     }
@@ -1367,7 +1362,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     JDIMENSION h = cinfo.output_height;
 
     // allocate dest
-    argb_data = g_malloc(w * h * 4);
+    argb_data = (uint32_t*)g_malloc(w * h * 4);
     uint32_t *dest = argb_data;
 
     // decompress

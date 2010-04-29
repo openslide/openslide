@@ -132,13 +132,11 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   dinfo = opj_create_decompress(CODEC_J2K);
   opj_set_default_decoder_parameters(&parameters);
   opj_setup_decoder(dinfo, &parameters);
-  stream = opj_cio_open((opj_common_ptr) dinfo, buf, size);
+  stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char*)buf, size);
 
-  opj_event_mgr_t event_callbacks = {
-    .error_handler = error_callback,
-    .warning_handler = warning_callback,
-    /* don't use info_handler, it outputs lots of junk */
-  };
+  /* don't use info_handler, it outputs lots of junk */
+  opj_event_mgr_t event_callbacks(error_callback,warning_callback,0);    
+
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, NULL);
 
 
@@ -281,7 +279,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     int64_t h = tmp;
 
     // get the image
-    uint32_t *img_data = g_malloc(w * h * 4);
+    uint32_t *img_data = (uint32_t*)g_malloc(w * h * 4);
     if (!TIFFReadRGBAImageOriented(tiff, w, h, img_data, ORIENTATION_TOPLEFT, 0)) {
       g_free(name);
       g_free(img_data);
