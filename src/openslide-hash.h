@@ -22,7 +22,7 @@
 #ifndef OPENSLIDE_OPENSLIDE_HASH_H_
 #define OPENSLIDE_OPENSLIDE_HASH_H_
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide.h"
 

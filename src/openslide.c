@@ -19,17 +19,20 @@
  *
  */
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide-private.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef _MSC_VER
-#include <stdbool.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
-#else
+#endif
+
+//#include <stdbool.h>
+
+#ifdef _MSC_VER
 #include <WinDef.h>
 #endif
 

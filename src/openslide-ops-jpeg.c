@@ -38,8 +38,11 @@
 #include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
-#include <inttypes.h>
 #include <math.h>
+
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 
 #include <cairo.h>
 

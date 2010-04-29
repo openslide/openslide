@@ -19,17 +19,18 @@
  *
  */
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide-tilehelper.h"
 
 #include <glib.h>
 #include <string.h>
-#ifndef _MSC_VER
-#include <inttypes.h>
-#endif
 #include <math.h>
 #include <cairo.h>
+
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 
 void _openslide_read_tiles(cairo_t *cr,
 			   int32_t layer,

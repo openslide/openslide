@@ -26,7 +26,7 @@
  *
  */
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide-private.h"
 
@@ -36,7 +36,7 @@
 #include <string.h>
 #include <math.h>
 
-#ifndef _MSC_VER
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 

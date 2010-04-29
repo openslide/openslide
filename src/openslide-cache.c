@@ -19,7 +19,7 @@
  *
  */
 
-//#include <config.h>
+#include <config.h>
 
 #define G_DISABLE_ASSERT
 

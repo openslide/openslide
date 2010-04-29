@@ -38,7 +38,7 @@
 #define _OPENSLIDE_UNUSED(x) x
 #endif
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide.h"
 #include "openslide-hash.h"

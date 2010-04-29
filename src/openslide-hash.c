@@ -19,7 +19,7 @@
  *
  */
 
-//#include <config.h>
+#include <config.h>
 
 #include "openslide-private.h"
 
@@ -27,7 +27,7 @@
 
 #include <string.h>
 
-#ifndef _MSC_VER
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 
