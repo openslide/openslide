@@ -262,8 +262,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // make sure values are within known bounds
   int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
 					  NULL);
-  if (num_layers != 1) {
-    g_warning("Cannot handle VMS files with NoLayers != 1");
+  if (num_layers < 1) {
+    g_warning("Cannot handle VMS files with NoLayers < 1");
     goto FAIL;
   }
 
@@ -341,35 +341,56 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       // starts with ImageFile
       char *suffix = key + strlen(KEY_IMAGE_FILE);
 
+      int layer;
       int col;
       int row;
 
-      if (suffix[0] != '\0') {
-	// parse out the row and col
-	char *endptr;
-
-	// skip (
-	suffix++;
-
-	// col
-	col = g_ascii_strtoll(suffix, &endptr, 10);
-	//	g_debug("%d", col);
-
-	// skip ,
-	endptr++;
-
-	// row
-	row = g_ascii_strtoll(endptr, NULL, 10);
-	//	g_debug("%d", row);
-      } else {
+      char **split = g_strsplit(suffix, ",", 0);
+      switch (g_strv_length(split)) {
+      case 0:
+	// all zero
+	layer = 0;
 	col = 0;
 	row = 0;
+	break;
+
+      case 2:
+	// (x,y)
+	layer = 0;
+	// first item, skip '('
+	col = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	row = g_ascii_strtoll(split[1], NULL, 10);
+	break;
+
+      case 3:
+	// (z,x,y)
+	// first item, skip '('
+	layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	col = g_ascii_strtoll(split[1], NULL, 10);
+	row = g_ascii_strtoll(split[2], NULL, 10);
+	break;
+
+      default:
+	// we just don't know
+	g_warning("Unknown number of image dimensions: %d",
+		  g_strv_length(split));
+	g_free(value);
+	continue;
       }
 
-      //      g_debug("col: %d, row: %d", col, row);
+      g_strfreev(split);
 
-      if (col >= num_jpeg_cols || row >= num_jpeg_rows) {
-	g_warning("Invalid row or column in VMS file");
+      //g_debug("layer: %d, col: %d, row: %d", layer, col, row);
+
+      if (layer != 0) {
+	// skip non-zero layers for now
+	g_free(value);
+	continue;
+      }
+
+      if (col >= num_jpeg_cols || row >= num_jpeg_rows || col < 0 || row < 0) {
+	g_warning("Invalid row or column in VMS file (%d,%d)", row, col);
+	g_free(value);
 	goto FAIL;
       }
 
@@ -603,7 +624,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
  FAIL:
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
-      g_free(jpegs[i]->filename);
+      if (jpegs[i]) {
+	g_free(jpegs[i]->filename);
+	g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+      }
     }
     g_free(jpegs);
   }
