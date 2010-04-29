@@ -39,7 +39,7 @@ else()
 endif()
 
 # add modules for config.h setup
-include(Check64BitFormat)
+include(CheckBitFormat)
 include(CheckIncludeFiles)
 
 check_include_files("inttypes.h" HAVE_INTTYPES_H)
