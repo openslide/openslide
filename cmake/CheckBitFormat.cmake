@@ -33,20 +33,20 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ###################################################################
-# - Check the 64 bit formats.
-# CHECK_64BIT_FORMAT(FORMAT VARIABLE)
-# - macro which checks if the 64 bit format is accepted
-#  FORMAT - the format, e.g ll, L, q or I64
+# - Check the bit formats.
+# CHECK_BIT_FORMAT(FORMAT VARIABLE)
+# - macro which checks if the specified bit format is accepted
+#  FORMAT - the format, e.g ll, L, q or I64 (for 64 bit)
 #  VARIABLE - variable to store the format if it is a valdid format
 #
-# Example of use in a CMakeLists.txt
+# Example of use in a CMakeLists.txt for 64 bit tests
 #
 # include(Check64BitFormat)
 #
-# check_64bit_format(ll FORMAT_64BIT)
-# check_64bit_format(L FORMAT_64BIT)
-# check_64bit_format(q FORMAT_64BIT)
-# check_64bit_format(I64 FORMAT_64BIT)
+# check_bit_format(64 ll FORMAT_64BIT)
+# check_bit_format(64 L FORMAT_64BIT)
+# check_bit_format(64 q FORMAT_64BIT)
+# check_bit_format(64 I64 FORMAT_64BIT)
 #
 # if(NOT FORMAT_64BIT)
 #   message(FATAL " 64 bit format missing")
@@ -61,12 +61,12 @@
 MACRO(CHECK_BIT_FORMAT CHECK_BITS FORMAT VARIABLE)
   IF(NOT ${VARIABLE})
     SET(FORMAT \"${FORMAT}\")
-    CONFIGURE_FILE("${CMAKE_SOURCE_DIR}/cmake/Check64BitFormat.c.in"
-      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/Check64BitFormat.c" IMMEDIATE @ONLY)
+    CONFIGURE_FILE("${CMAKE_SOURCE_DIR}/cmake/CheckBitFormat.c.in"
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/CheckBitFormat.c" IMMEDIATE @ONLY)
 
     TRY_RUN(RUN_RESULT_VAR COMPILE_RESULT_VAR
       ${CMAKE_BINARY_DIR}
-      ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/Check64BitFormat.c
+      ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/CheckBitFormat.c
 	  COMPILE_DEFINITIONS 
 	  -DCHECK_BITS=${CHECK_BITS}
 	  -DBIT_FORMAT="${FORMAT}"
