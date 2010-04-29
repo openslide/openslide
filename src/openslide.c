@@ -30,12 +30,6 @@
 #include <inttypes.h>
 #endif
 
-//#include <stdbool.h>
-
-#ifdef _MSC_VER
-#include <WinDef.h>
-#endif
-
 #include <glib.h>
 
 #include "openslide-cache.h"
@@ -56,21 +50,6 @@ static const _openslide_tiff_vendor_fn tiff_formats[] = {
 
 static bool openslide_was_dynamically_loaded;
 
-#ifdef _MSC_VER
-BOOL APIENTRY DllMain(HMODULE, DWORD reason_for_call, LPVOID)
-{
-  switch (reason_for_call)
-  {
-  case DLL_PROCESS_ATTACH:
-    _openslide_init();
-    break;
-  case default:
-    break;
-  }
-  return TRUE;
-}
-#endif
-
 // called from shared-library constructor!
 void _openslide_init(void) {
   // activate threads
@@ -79,7 +58,7 @@ void _openslide_init(void) {
 }
 
 static void destroy_associated_image(gpointer data) {
-  struct _openslide_associated_image *img = data;
+  struct _openslide_associated_image *img = (_openslide_associated_image*)data;
 
   g_free(img->argb_data);
   g_slice_free(struct _openslide_associated_image, img);
@@ -218,9 +197,9 @@ struct add_key_to_strv_data {
 static void add_key_to_strv(gpointer key,
 			    gpointer _OPENSLIDE_UNUSED(value),
 			    gpointer user_data) {
-  struct add_key_to_strv_data *d = user_data;
+  struct add_key_to_strv_data *d = (add_key_to_strv_data*)user_data;
 
-  d->strv[d->i++] = key;
+  d->strv[d->i++] = (const char*)key;
 }
 
 static const char **strv_from_hashtable_keys(GHashTable *h) {
@@ -458,7 +437,7 @@ const char * const *openslide_get_property_names(openslide_t *osr) {
 }
 
 const char *openslide_get_property_value(openslide_t *osr, const char *name) {
-  return g_hash_table_lookup(osr->properties, name);
+  return (const char*)g_hash_table_lookup(osr->properties, name);
 }
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {
@@ -467,7 +446,7 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr) {
 
 void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
 					       int64_t *w, int64_t *h) {
-  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+  struct _openslide_associated_image *img = (_openslide_associated_image*)g_hash_table_lookup(osr->associated_images,
 								name);
   if (img) {
     *w = img->w;
