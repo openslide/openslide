@@ -39,14 +39,13 @@
 #include <jpeglib.h>
 #include <jerror.h>
 #include <math.h>
+#include <sys/types.h> // for off_t
 
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 
 #include <cairo.h>
-
-#include <sys/types.h>   // for off_t ?
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
