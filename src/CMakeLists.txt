@@ -1,3 +1,28 @@
+# let's check whether all required dependecies are available
+# and where they are located
+SET(TIFF_NAMES itktiff)
+set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
+
+find_package(jpeg REQUIRED)
+find_package(openjpeg REQUIRED)
+find_package(tiff REQUIRED)
+find_package(zlib REQUIRED)
+find_package(GTK2 2.6 REQUIRED)
+
+if(NOT IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} OR 
+   NOT IS_DIRECTORY ${GTK2_CAIRO_INCLUDE_DIR} OR 
+   NOT IS_DIRECTORY ${GTK2_GLIBCONFIG_INCLUDE_DIR})
+  message(FATAL "Not all required GTK dependencies found.")
+endif()
+
+include_directories(${JPEG_INCLUDE_DIR})
+include_directories(${OPENJPEG_INCLUDE_DIR})
+include_directories(${TIFF_INCLUDE_DIR})
+include_directories(${GTK2_GLIB_INCLUDE_DIR})
+include_directories(${GTK2_CAIRO_INCLUDE_DIR})
+include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
+
+# prepare the target library
 file(GLOB source_files "*.c" "*.cpp")
 
 # remove test.c
@@ -25,3 +50,17 @@ endif()
 
 # finally create the project
 add_library(OpenSlide SHARED ${library_files})
+
+add_definitions(-D_OPENSLIDE_BUILDING_DLL -DOPJ_STATIC)
+
+if(WIN32)
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
+
+target_link_libraries(OpenSlide ${JPEG_LIBRARY})
+target_link_libraries(OpenSlide ${OPENJPEG_LIBRARY})
+target_link_libraries(OpenSlide ${TIFF_LIBRARY})
+target_link_libraries(OpenSlide ${ZLIB_LIBRARY})
+target_link_libraries(OpenSlide ${GTK2_CAIRO_LIBRARY})
+target_link_libraries(OpenSlide ${GTK2_GLIB_LIBRARY})
+target_link_libraries(OpenSlide ${GTK2_GTHREAD_LIBRARY})

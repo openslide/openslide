@@ -8,36 +8,6 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-SET(TIFF_NAMES itktiff)
-set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
-
-find_package(jpeg REQUIRED)
-find_package(openjpeg REQUIRED)
-find_package(tiff REQUIRED)
-find_package(GTK2 2.6 REQUIRED)
-
-if(JPEG_FOUND)
-  include_directories(${JPEG_INCLUDE_DIR})
-endif(JPEG_FOUND)
-
-if(OPENJPEG_FOUND)
-  include_directories(${OPENJPEG_INCLUDE_DIR})
-endif(OPENJPEG_FOUND)
-
-if(TIFF_FOUND)
-  include_directories(${TIFF_INCLUDE_DIR})
-endif(TIFF_FOUND)
-
-if(IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} AND 
-   IS_DIRECTORY ${GTK2_CAIRO_INCLUDE_DIR} AND 
-   IS_DIRECTORY ${GTK2_GLIBCONFIG_INCLUDE_DIR})
-  include_directories(${GTK2_GLIB_INCLUDE_DIR})
-  include_directories(${GTK2_CAIRO_INCLUDE_DIR})
-  include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
-else()
-  message(FATAL "Not all required GTK dependencies found.")
-endif()
-
 # add modules for config.h setup
 include(CheckBitFormat)
 include(CheckIncludeFiles)
