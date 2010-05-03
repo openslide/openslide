@@ -109,10 +109,14 @@ struct _openslide_ops {
 
 /* DSO constructor */
 #ifdef _MSC_VER
-void _openslide_init(void);
-#else
-void __attribute ((constructor)) _openslide_init(void);
+  #define DSO_DECLARATOR
+  #define DSO_DECL_SPEC __cdecl
+#elif defined(__GNUC__)
+  #define DSO_DECLARATOR __attribute__((constructor))
+  #define DSO_DECL_SPEC
 #endif
+
+void DSO_DECL_SPEC _openslide_init() DSO_DECLARATOR;
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
