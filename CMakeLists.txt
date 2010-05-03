@@ -47,3 +47,4 @@ add_definitions(-DHAVE_CONFIG_H)
 include_directories(src)
 
 add_subdirectory(src)
+add_subdirectory(test)
