@@ -52,7 +52,7 @@ static void test_tile_walk(openslide_t *osr,
   printf("test_tile_walk: %" PRId64 "\n", tile_size);
 
   struct timeval tv, tv2;
-  uint32_t *buf = malloc(tile_size * tile_size * 4);
+  uint32_t *buf = (uint32_t *) malloc(tile_size * tile_size * 4);
 
   int64_t w, h;
   openslide_get_layer0_dimensions(osr, &w, &h);
@@ -102,7 +102,7 @@ static void test_image_fetch(openslide_t *osr,
     filename = g_strdup_printf("%s-%.2d.ppm", name, layer);
     int64_t num_bytes = w * h * 4;
     printf("Going to allocate %" PRId64 " bytes...\n", num_bytes);
-    uint32_t *buf = malloc(num_bytes);
+    uint32_t *buf = (uint32_t *) malloc(num_bytes);
 
     printf("x: %" PRId64 ", y: %" PRId64 ", layer: %d, w: %" PRId64 ", h: %" PRId64 "\n", x, y, layer, w, h);
     openslide_read_region(osr, buf, x, y, layer, w, h);
@@ -127,7 +127,7 @@ static void test_horizontal_walk(openslide_t *osr,
   openslide_get_layer_dimensions(osr, layer, &w, &h);
   int64_t d = MIN(w,h);
 
-  uint32_t *buf = malloc(patch_w * patch_h * 4);
+  uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
 
   for (int64_t x = start_x; x < d; x += stride) {
     openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
@@ -148,7 +148,7 @@ static void test_vertical_walk(openslide_t *osr,
   openslide_get_layer_dimensions(osr, layer, &w, &h);
   int64_t d = MIN(w,h);
 
-  uint32_t *buf = malloc(patch_w * patch_h * 4);
+  uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
 
   for (int64_t y = start_y; y < d; y += stride) {
     openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
@@ -164,7 +164,7 @@ static void dump_as_tiles(openslide_t *osr, const char *name,
   int64_t w, h;
   openslide_get_layer0_dimensions(osr, &w, &h);
 
-  uint32_t *buf = malloc(tile_w * tile_h * 4);
+  uint32_t *buf = (uint32_t *) malloc(tile_w * tile_h * 4);
 
   for (int64_t y = 0; y < h; y += tile_h) {
     for (int64_t x = 0; x < w; x += tile_w) {

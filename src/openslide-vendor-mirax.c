@@ -134,7 +134,7 @@ static bool verify_string_from_file(FILE *f, const char *str) {
   bool result;
   int len = strlen(str);
 
-  char *possible_str = (char*)g_malloc(len + 1);
+  char *possible_str = (char *) g_malloc(len + 1);
   possible_str[len] = '\0';
   size_t size = fread(possible_str, len, 1, f);
 
@@ -784,7 +784,7 @@ static bool process_indexfile(const char *slideversion,
 
   int cur_file = 0;
   for (GList *iter = jpegs_list; iter != NULL; iter = iter->next) {
-    jpegs[cur_file++] = (_openslide_jpeg_file*)iter->data;
+    jpegs[cur_file++] = (struct _openslide_jpeg_file *) iter->data;
   }
   g_assert(cur_file == jpeg_count);
 
