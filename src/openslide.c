@@ -56,7 +56,7 @@ void _openslide_init(void) {
 }
 
 static void destroy_associated_image(gpointer data) {
-  struct _openslide_associated_image *img = data;
+  struct _openslide_associated_image *img = (struct _openslide_associated_image *) data;
 
   g_free(img->argb_data);
   g_slice_free(struct _openslide_associated_image, img);
@@ -195,9 +195,9 @@ struct add_key_to_strv_data {
 static void add_key_to_strv(gpointer key,
 			    gpointer _OPENSLIDE_UNUSED(value),
 			    gpointer user_data) {
-  struct add_key_to_strv_data *d = user_data;
+  struct add_key_to_strv_data *d = (struct add_key_to_strv_data *) user_data;
 
-  d->strv[d->i++] = key;
+  d->strv[d->i++] = (const char *) key;
 }
 
 static const char **strv_from_hashtable_keys(GHashTable *h) {
@@ -435,7 +435,7 @@ const char * const *openslide_get_property_names(openslide_t *osr) {
 }
 
 const char *openslide_get_property_value(openslide_t *osr, const char *name) {
-  return g_hash_table_lookup(osr->properties, name);
+  return (const char *) g_hash_table_lookup(osr->properties, name);
 }
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {
@@ -444,8 +444,9 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr) {
 
 void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
 					       int64_t *w, int64_t *h) {
-  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
-								name);
+  struct _openslide_associated_image *img =
+    (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
+							      name);
   if (img) {
     *w = img->w;
     *h = img->h;
@@ -458,8 +459,9 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
-  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
-								name);
+  struct _openslide_associated_image *img =
+    (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
+							       name);
   if (img && dest) {
     memcpy(dest, img->argb_data, img->w * img->h * 4);
   }

@@ -56,7 +56,8 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
 
   while(size > target) {
     // get key of last element
-    struct _openslide_cache_value *value = g_queue_peek_tail(cache->list);
+    struct _openslide_cache_value *value =
+      (struct _openslide_cache_value *) g_queue_peek_tail(cache->list);
     if (value == NULL) {
       return; // cache is empty
     }
@@ -74,7 +75,7 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
 
 // hash function helpers
 static guint hash_func(gconstpointer key) {
-  const struct _openslide_cache_key *c_key = key;
+  const struct _openslide_cache_key *c_key = (const struct _openslide_cache_key *) key;
 
   // assume 32-bit hash
 
@@ -85,8 +86,8 @@ static guint hash_func(gconstpointer key) {
 
 static gboolean key_equal_func(gconstpointer a,
 			       gconstpointer b) {
-  const struct _openslide_cache_key *c_a = a;
-  const struct _openslide_cache_key *c_b = b;
+  const struct _openslide_cache_key *c_a = (const struct _openslide_cache_key *) a;
+  const struct _openslide_cache_key *c_b = (const struct _openslide_cache_key *) b;
 
   return (c_a->x == c_b->x) && (c_a->y == c_b->y) &&
     (c_a->layer == c_b->layer);
@@ -97,7 +98,7 @@ static void hash_destroy_key(gpointer data) {
 }
 
 static void hash_destroy_value(gpointer data) {
-  struct _openslide_cache_value *value = data;
+  struct _openslide_cache_value *value = (struct _openslide_cache_value *) data;
 
   // remove the item from the list
   g_queue_delete_link(value->cache->list, value->link);
@@ -203,8 +204,9 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_key key = { .x = x, .y = y, .layer = layer };
 
   // lookup key, maybe return NULL
-  struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
-							     &key);
+  struct _openslide_cache_value *value =
+    (struct _openslide_cache_value *) g_hash_table_lookup(cache->hashtable,
+							  &key);
   if (value == NULL) {
     return NULL;
   }

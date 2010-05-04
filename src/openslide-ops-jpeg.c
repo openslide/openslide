@@ -213,7 +213,7 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
 
   src->buffer_size = header_length + data_length;
   src->pub.bytes_in_buffer = src->buffer_size;
-  src->buffer = g_slice_alloc(src->buffer_size);
+  src->buffer = (JOCTET *) g_slice_alloc(src->buffer_size);
 
   src->pub.next_input_byte = src->buffer;
 
@@ -246,7 +246,7 @@ static void int64_free(gpointer data) {
 static void layer_free(gpointer data) {
   //g_debug("layer_free: %p", data);
 
-  struct layer *l = data;
+  struct layer *l = (struct layer *) data;
 
   //  g_debug("g_free(%p)", (void *) l->layer_jpegs);
   g_hash_table_unref(l->tiles);
@@ -269,8 +269,8 @@ struct convert_tiles_args {
 static void convert_tiles(gpointer key,
 			  gpointer value,
 			  gpointer user_data) {
-  struct convert_tiles_args *args = user_data;
-  struct _openslide_jpeg_tile *old_tile = value;
+  struct convert_tiles_args *args = (struct convert_tiles_args *) user_data;
+  struct _openslide_jpeg_tile *old_tile = (struct _openslide_jpeg_tile *) value;
   struct layer *new_l = args->new_l;
 
   // create new tile
@@ -358,7 +358,7 @@ static uint8_t find_next_ff_marker(FILE *f,
     }
 
     // search for ff
-    uint8_t *ff = memchr(*buf, 0xFF, *bytes_in_buf);
+    uint8_t *ff = (uint8_t *) memchr(*buf, 0xFF, *bytes_in_buf);
     if (ff == NULL) {
       // keep searching
       *bytes_in_buf = 0;
@@ -513,7 +513,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 				     int w, int h) {
   g_assert(jpeg->filename);
 
-  uint32_t *dest = g_slice_alloc(w * h * 4);
+  uint32_t *dest = (uint32_t *) g_slice_alloc(w * h * 4);
 
   // open file
   FILE *f = fopen(jpeg->filename, "rb");
@@ -532,7 +532,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
 
   gsize row_size = 0;
 
-  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
@@ -582,7 +582,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     // allocate scanline buffers
     row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = g_slice_alloc(row_size);
+      buffer[i] = (JSAMPROW) g_slice_alloc(row_size);
       //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
 
@@ -645,7 +645,7 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   //g_debug("read_tile");
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (struct jpegops_data *) osr->data;
   struct layer *l = data->layers + layer;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
@@ -654,7 +654,7 @@ static void read_tile(openslide_t *osr,
   }
 
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
-  struct tile *tile = g_hash_table_lookup(l->tiles, &tileindex);
+  struct tile *tile = (struct tile *) g_hash_table_lookup(l->tiles, &tileindex);
 
   bool cachemiss;
 
@@ -669,10 +669,10 @@ static void read_tile(openslide_t *osr,
 
   // get the jpeg data, possibly from cache
   g_mutex_lock(data->cache_mutex);
-  uint32_t *tiledata = _openslide_cache_get(cache,
-					    tile->jpegno,
-					    tile->tileno,
-					    layer);
+  uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
+							 tile->jpegno,
+							 tile->tileno,
+							 layer);
   g_mutex_unlock(data->cache_mutex);
   int tw = tile->jpeg->tile_width / l->scale_denom;
   int th = tile->jpeg->tile_height / l->scale_denom;
@@ -768,7 +768,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer,
 			 int32_t w, int32_t h) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (struct jpegops_data *) osr->data;
   struct layer *l = data->layers + layer;
 
   // tell the background thread to pause
@@ -825,7 +825,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (struct jpegops_data *) osr->data;
 
   // tell the thread to finish and wait
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -873,7 +873,7 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr,
 			   int32_t layer,
 			   int64_t *w, int64_t *h) {
-  struct jpegops_data *data = osr->data;
+  struct jpegops_data *data = (struct jpegops_data *) osr->data;
   struct layer *l = data->layers + layer;
 
   *w = l->pixel_w;
@@ -968,7 +968,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 }
 
 static gpointer restart_marker_thread_func(gpointer d) {
-  struct jpegops_data *data = d;
+  struct jpegops_data *data = (struct jpegops_data *) d;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1248,7 +1248,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   //  g_debug("copying sorted layers");
   while(tmp_list != NULL) {
     // get a key and value
-    struct layer *l = g_hash_table_lookup(expanded_layers, tmp_list->data);
+    struct layer *l = (struct layer *) g_hash_table_lookup(expanded_layers, tmp_list->data);
 
     // copy
     struct layer *dest = data->layers + i;
@@ -1333,7 +1333,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
   jmp_buf env;
 
   uint32_t *argb_data = NULL;
-  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -1355,16 +1355,16 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
 
     // allocate scanline buffers
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = g_malloc(sizeof(JSAMPLE)
-			   * cinfo.output_width
-			   * cinfo.output_components);
+      buffer[i] = (JSAMPROW) g_malloc(sizeof(JSAMPLE)
+				      * cinfo.output_width
+				      * cinfo.output_components);
     }
 
     JDIMENSION w = cinfo.output_width;
     JDIMENSION h = cinfo.output_height;
 
     // allocate dest
-    argb_data = g_malloc(w * h * 4);
+    argb_data = (uint32_t *) g_malloc(w * h * 4);
     uint32_t *dest = argb_data;
 
     // decompress
