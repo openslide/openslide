@@ -245,6 +245,17 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     layers[i]->tiles = _openslide_jpeg_create_tiles_table();
   }
 
+  // these variables need to be initialized before the first 
+  // potential call to 'goto FAIL;'
+  int32_t jpeg0_tw = 0;
+  int32_t jpeg0_th = 0;
+  int32_t jpeg0_ta = 0;
+  int32_t jpeg0_td = 0;
+
+  int num_layers = 0;
+  int num_jpeg_cols = 0;
+  int num_jpeg_rows = 0;
+
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
@@ -260,24 +271,24 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   _openslide_hash_file(quickhash1, filename);
 
   // make sure values are within known bounds
-  int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
-					  NULL);
+  num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
+    NULL);
   if (num_layers < 1) {
     g_warning("Cannot handle VMS files with NoLayers < 1");
     goto FAIL;
   }
 
-  int num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
-					     KEY_NUM_JPEG_COLS,
-					     NULL);
+  num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
+    KEY_NUM_JPEG_COLS,
+    NULL);
   if (num_jpeg_cols < 1) {
     goto FAIL;
   }
 
-  int num_jpeg_rows = g_key_file_get_integer(vms_file,
-					     GROUP_VMS,
-					     KEY_NUM_JPEG_ROWS,
-					     NULL);
+  num_jpeg_rows = g_key_file_get_integer(vms_file,
+    GROUP_VMS,
+    KEY_NUM_JPEG_ROWS,
+    NULL);
   if (num_jpeg_rows < 1) {
     goto FAIL;
   }
@@ -297,9 +308,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   // extract MapFile
   tmp = g_key_file_get_string(vms_file,
-			      GROUP_VMS,
-			      KEY_MAP_FILE,
-			      NULL);
+    GROUP_VMS,
+    KEY_MAP_FILE,
+    NULL);
   if (tmp) {
     char *map_filename = g_build_filename(dirname, tmp, NULL);
 
@@ -320,9 +331,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   // extract OptimisationFile
   tmp = g_key_file_get_string(vms_file,
-			      GROUP_VMS,
-			      KEY_OPTIMISATION_FILE,
-			      NULL);
+    GROUP_VMS,
+    KEY_OPTIMISATION_FILE,
+    NULL);
   if (tmp) {
     optimisation_filename = g_build_filename(dirname, tmp, NULL);
     g_free(tmp);
@@ -348,34 +359,34 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       char **split = g_strsplit(suffix, ",", 0);
       switch (g_strv_length(split)) {
       case 0:
-	// all zero
-	layer = 0;
-	col = 0;
-	row = 0;
-	break;
+        // all zero
+        layer = 0;
+        col = 0;
+        row = 0;
+        break;
 
       case 2:
-	// (x,y)
-	layer = 0;
-	// first item, skip '('
-	col = g_ascii_strtoll(split[0] + 1, NULL, 10);
-	row = g_ascii_strtoll(split[1], NULL, 10);
-	break;
+        // (x,y)
+        layer = 0;
+        // first item, skip '('
+        col = g_ascii_strtoll(split[0] + 1, NULL, 10);
+        row = g_ascii_strtoll(split[1], NULL, 10);
+        break;
 
       case 3:
-	// (z,x,y)
-	// first item, skip '('
-	layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
-	col = g_ascii_strtoll(split[1], NULL, 10);
-	row = g_ascii_strtoll(split[2], NULL, 10);
-	break;
+        // (z,x,y)
+        // first item, skip '('
+        layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
+        col = g_ascii_strtoll(split[1], NULL, 10);
+        row = g_ascii_strtoll(split[2], NULL, 10);
+        break;
 
       default:
-	// we just don't know
-	g_warning("Unknown number of image dimensions: %d",
-		  g_strv_length(split));
-	g_free(value);
-	continue;
+        // we just don't know
+        g_warning("Unknown number of image dimensions: %d",
+          g_strv_length(split));
+        g_free(value);
+        continue;
       }
 
       g_strfreev(split);
@@ -383,15 +394,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       //g_debug("layer: %d, col: %d, row: %d", layer, col, row);
 
       if (layer != 0) {
-	// skip non-zero layers for now
-	g_free(value);
-	continue;
+        // skip non-zero layers for now
+        g_free(value);
+        continue;
       }
 
       if (col >= num_jpeg_cols || row >= num_jpeg_rows || col < 0 || row < 0) {
-	g_warning("Invalid row or column in VMS file (%d,%d)", row, col);
-	g_free(value);
-	goto FAIL;
+        g_warning("Invalid row or column in VMS file (%d,%d)", row, col);
+        g_free(value);
+        goto FAIL;
       }
 
       // compute index from x,y
@@ -399,11 +410,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
       // init the file
       if (jpegs[i]) {
-	g_warning("Ignoring duplicate image for (%d,%d)", col, row);
+        g_warning("Ignoring duplicate image for (%d,%d)", col, row);
       } else {
-	image_filenames[i] = g_build_filename(dirname, value, NULL);
+        image_filenames[i] = g_build_filename(dirname, value, NULL);
 
-	jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
+        jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
       }
     }
     g_free(value);
@@ -425,11 +436,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   if (optimisation_file == NULL) {
     g_warning("Can't use optimisation file");
   }
-
-  int32_t jpeg0_tw = 0;
-  int32_t jpeg0_th = 0;
-  int32_t jpeg0_ta = 0;
-  int32_t jpeg0_td = 0;
 
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];
@@ -459,8 +465,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
     if (comment) {
       g_hash_table_insert(osr->properties,
-			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
-			  comment);
+        g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
+        comment);
     }
 
     fseeko(f, 0, SEEK_END);
@@ -489,8 +495,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       // not map file (still within layer 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
-	g_warning("Tile size not consistent");
-	goto FAIL;
+        g_warning("Tile size not consistent");
+        goto FAIL;
       }
     }
 
@@ -499,9 +505,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     int64_t *mcu_starts = NULL;
     if (optimisation_file) {
       mcu_starts = extract_one_optimisation(optimisation_file,
-					    num_tiles_down,
-					    num_tiles_across,
-					    mcu_starts_count);
+        num_tiles_down,
+        num_tiles_across,
+        mcu_starts_count);
     }
     if (mcu_starts) {
       jp->mcu_starts = mcu_starts;
@@ -602,15 +608,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // add macro image if present
   if (osr) {
     tmp = g_key_file_get_string(vms_file,
-				GROUP_VMS,
-				KEY_MACRO_IMAGE,
-				NULL);
+      GROUP_VMS,
+      KEY_MACRO_IMAGE,
+      NULL);
     if (tmp) {
       char *macro_filename = g_build_filename(dirname, tmp, NULL);
       FILE *macro_f = fopen(macro_filename, "rb");
       if (macro_f) {
-	add_macro_associated_image(osr->associated_images, macro_f);
-	fclose(macro_f);
+        add_macro_associated_image(osr->associated_images, macro_f);
+        fclose(macro_f);
       }
       g_free(macro_filename);
       g_free(tmp);
@@ -621,12 +627,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   success = true;
   goto DONE;
 
- FAIL:
+FAIL:
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
       if (jpegs[i]) {
-	g_free(jpegs[i]->filename);
-	g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+        g_free(jpegs[i]->filename);
+        g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
       }
     }
     g_free(jpegs);
@@ -642,7 +648,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   success = false;
 
- DONE:
+DONE:
   g_strfreev(all_keys);
   g_free(dirname);
   g_free(optimisation_filename);

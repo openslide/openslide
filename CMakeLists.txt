@@ -1,6 +1,9 @@
-project(OpenSlide)
-
 cmake_minimum_required(VERSION 2.6.2)
+if(POLICY CMP0011)
+   cmake_policy(SET CMP0011 NEW)
+endif(POLICY CMP0011)
+
+project(OpenSlide)
 
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. (you may need to remove CMakeCache.txt ")

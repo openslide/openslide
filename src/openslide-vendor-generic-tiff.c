@@ -66,81 +66,83 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
     goto FAIL; // not tiled
   }
 
-  if (osr) {
-    g_hash_table_insert(osr->properties,
-			g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-			g_strdup("generic-tiff"));
-  }
-
-  // accumulate tiled layers
-  int current_layer = 0;
-  int layer_count = 0;
-  do {
-    if (TIFFIsTiled(tiff)) {
-      // get width
-      uint32_t width;
-      if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width)) {
-	// oh no
-	continue;
-      }
-
-      // confirm it is either the first image, or reduced-resolution
-      if (current_layer != 0) {
-	uint32_t subfiletype;
-	if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype)) {
-	  continue;
-	}
-
-	if (!(subfiletype & FILETYPE_REDUCEDIMAGE)) {
-	  continue;
-	}
-      }
-
-      // verify that we can read this compression (hard fail if not)
-      uint16_t compression;
-      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-	g_warning("Can't read compression scheme");
-	goto FAIL;
-      };
-      if (!TIFFIsCODECConfigured(compression)) {
-	g_warning("Unsupported TIFF compression: %" PRIu16, compression);
-	goto FAIL;
-      }
-
-      // push into list
-      struct layer *l = g_slice_new(struct layer);
-      l->layer_number = current_layer;
-      l->width = width;
-      layer_list = g_list_prepend(layer_list, l);
-      layer_count++;
+  {
+    if (osr) {
+      g_hash_table_insert(osr->properties,
+        g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+        g_strdup("generic-tiff"));
     }
-    current_layer++;
-  } while (TIFFReadDirectory(tiff));
 
-  // sort tiled layers
-  layer_list = g_list_sort(layer_list, width_compare);
+    // accumulate tiled layers
+    int current_layer = 0;
+    int layer_count = 0;
+    do {
+      if (TIFFIsTiled(tiff)) {
+        // get width
+        uint32_t width;
+        if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width)) {
+          // oh no
+          continue;
+        }
 
-  // copy layers in, while deleting the list
-  int32_t *layers = g_new(int32_t, layer_count);
-  for (int i = 0; i < layer_count; i++) {
-    struct layer *l = (layer*)layer_list->data;
-    layer_list = g_list_delete_link(layer_list, layer_list);
+        // confirm it is either the first image, or reduced-resolution
+        if (current_layer != 0) {
+          uint32_t subfiletype;
+          if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype)) {
+            continue;
+          }
 
-    layers[i] = l->layer_number;
-    g_slice_free(struct layer, l);
+          if (!(subfiletype & FILETYPE_REDUCEDIMAGE)) {
+            continue;
+          }
+        }
+
+        // verify that we can read this compression (hard fail if not)
+        uint16_t compression;
+        if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+          g_warning("Can't read compression scheme");
+          goto FAIL;
+        };
+        if (!TIFFIsCODECConfigured(compression)) {
+          g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+          goto FAIL;
+        }
+
+        // push into list
+        struct layer *l = g_slice_new(struct layer);
+        l->layer_number = current_layer;
+        l->width = width;
+        layer_list = g_list_prepend(layer_list, l);
+        layer_count++;
+      }
+      current_layer++;
+    } while (TIFFReadDirectory(tiff));
+
+    // sort tiled layers
+    layer_list = g_list_sort(layer_list, width_compare);
+
+    // copy layers in, while deleting the list
+    int32_t *layers = g_new(int32_t, layer_count);
+    for (int i = 0; i < layer_count; i++) {
+      struct layer *l = (layer*)layer_list->data;
+      layer_list = g_list_delete_link(layer_list, layer_list);
+
+      layers[i] = l->layer_number;
+      g_slice_free(struct layer, l);
+    }
+
+    g_assert(layer_list == NULL);
+
+    // all set, load up the TIFF-specific ops
+    _openslide_add_tiff_ops(osr, tiff,
+      0, NULL,
+      layer_count, layers,
+      _openslide_generic_tiff_tilereader,
+      quickhash1);
+
+
+    return true;
   }
-
-  g_assert(layer_list == NULL);
-
-  // all set, load up the TIFF-specific ops
-  _openslide_add_tiff_ops(osr, tiff,
-			  0, NULL,
-			  layer_count, layers,
-			  _openslide_generic_tiff_tilereader,
-			  quickhash1);
-
-
-  return true;
 
  FAIL:
   // free the layer list

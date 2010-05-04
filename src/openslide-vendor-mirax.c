@@ -643,6 +643,11 @@ static bool process_indexfile(const char *slideversion,
 
   int32_t *slide_positions = NULL;
   GList *jpegs_list = NULL;
+  
+  // needs to be initialized before the first potential call to 'goto OUT;'
+  int32_t ptr = 0;
+  int64_t hier_root = 0;
+  int64_t nonhier_root = 0;
 
   rewind(indexfile);
 
@@ -654,8 +659,8 @@ static bool process_indexfile(const char *slideversion,
   }
 
   // save root positions
-  int64_t hier_root = ftello(indexfile);
-  int64_t nonhier_root = hier_root + 4;
+  hier_root = ftello(indexfile);
+  nonhier_root = hier_root + 4;
 
   // read in the slide position info
   int slide_position_fileno;
@@ -736,7 +741,7 @@ static bool process_indexfile(const char *slideversion,
     goto OUT;
   }
 
-  int32_t ptr = read_le_int32_from_file(indexfile);
+  ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
     goto OUT;
@@ -970,6 +975,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char **datafile_names = NULL;
 
   FILE *indexfile = NULL;
+
+  // initialize variables before the first potential goto-call
+  int64_t base_w = 0;
+  int64_t base_h = 0;
+  GHashTable *associated_images = NULL;
 
   // start reading
 
@@ -1246,9 +1256,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // Then the positions don't line up and JPEG tiles must be split into
   // subtiles. This significantly complicates the code.
 
-  // compute dimensions in stupid but clear way
-  int64_t base_w = 0;
-  int64_t base_h = 0;
+  // compute dimensions base_w and base_h in stupid but clear way
+  base_w = 0;
+  base_h = 0;
 
   for (int i = 0; i < tiles_x; i++) {
     if (((i % image_divisions) != (image_divisions - 1))
@@ -1322,7 +1332,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // load the position map and build up the tiles, using subtiles
-  GHashTable *associated_images = NULL;
+  associated_images = NULL;
   if (osr) {
     associated_images = osr->associated_images;
   }

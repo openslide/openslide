@@ -18,6 +18,7 @@ FIND_PATH(OPENJPEG_INCLUDE_DIR openjpeg.h #openjpeg-1.0/openjpeg.h
 /usr/local/include/openjpeg-1.0
 /usr/include
 /usr/include/openjpeg-1.0
+/openjpeg # happened to happen on cygwin
 )
 
 FIND_LIBRARY(OPENJPEG_LIBRARY

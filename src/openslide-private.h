@@ -116,7 +116,7 @@ struct _openslide_ops {
   #define DSO_DECL_SPEC
 #endif
 
-void DSO_DECL_SPEC _openslide_init() DSO_DECLARATOR;
+static void DSO_DECL_SPEC _openslide_init() DSO_DECLARATOR;
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
