@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2010 Regents of the University of California
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -22,14 +23,8 @@
 /*
  * Hamamatsu (VMU) support
  *
- * Steve Lamont <spl@ncmir.ucsd.edu>
- * National Center for Microscopy and Imaging Research
- * Center for Research in Biological Structure
- * University of California, San Diego
- * La Jolla, CA 92093-0715
- *
  * quickhash comes from VMU file and map2 file
- * 
+ *
  */
 
 
