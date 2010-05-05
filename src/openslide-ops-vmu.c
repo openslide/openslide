@@ -27,17 +27,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdint.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <glib.h>
 #include <inttypes.h>
 #include <cairo.h>
 
 #include "openslide-hash.h"
 
-#define MAX_MMAP ( ( int64_t ) SIZE_MAX / 2 )
 
 struct _openslide_vmuopsdata {
 
