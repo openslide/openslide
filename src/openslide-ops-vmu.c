@@ -62,14 +62,14 @@ static void destroy_data(struct _openslide_vmuopsdata *data) {
   g_slice_free(struct _openslide_vmuopsdata, data);
 }
 
-static void destroy(openslide_t * osr) {
+static void destroy(openslide_t *osr) {
   struct _openslide_vmuopsdata *data = osr->data;
   destroy_data(data);
 }
 
 
-static void get_dimensions_unlocked(openslide_t * osr, int32_t layer,
-				    int64_t * w, int64_t * h) {
+static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
+				    int64_t *w, int64_t *h) {
 
   struct _openslide_vmuopsdata *data = osr->data;
   struct _openslide_vmu_file *vmu_file = data->files[layer];
@@ -79,8 +79,8 @@ static void get_dimensions_unlocked(openslide_t * osr, int32_t layer,
 
 }
 
-static void get_dimensions(openslide_t * osr, int32_t layer,
-			   int64_t * w, int64_t * h) {
+static void get_dimensions(openslide_t *osr, int32_t layer,
+			   int64_t *w, int64_t *h) {
   struct _openslide_vmuopsdata *data = osr->data;
 
   g_mutex_lock(data->vmu_mutex);
@@ -88,7 +88,7 @@ static void get_dimensions(openslide_t * osr, int32_t layer,
   g_mutex_unlock(data->vmu_mutex);
 }
 
-static void paint_region_unlocked(openslide_t * osr, cairo_t * cr,
+static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 				  int64_t x, int64_t y,
 				  int32_t layer, int32_t w, int32_t h)
 {
@@ -162,7 +162,7 @@ static void paint_region_unlocked(openslide_t * osr, cairo_t * cr,
 
 }
 
-static void paint_region(openslide_t * osr, cairo_t * cr,
+static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer, int32_t w, int32_t h) {
   struct _openslide_vmuopsdata *data = osr->data;
@@ -179,7 +179,7 @@ static const struct _openslide_ops _openslide_vmu_ops = {
   .destroy = destroy
 };
 
-void _openslide_add_vmu_ops(openslide_t * osr,
+void _openslide_add_vmu_ops(openslide_t *osr,
 			    struct _openslide_hash *quickhash1,
 			    int32_t file_count,
 			    struct _openslide_vmu_file **files)
