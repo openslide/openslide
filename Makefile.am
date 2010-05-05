@@ -15,6 +15,8 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-hash.c \
 	src/openslide-ops-jpeg.c \
 	src/openslide-vendor-hamamatsu.c \
+	src/openslide-vendor-hamamatsu-vmu.c \
+	src/openslide-ops-vmu.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
 	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c
