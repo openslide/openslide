@@ -1,3 +1,8 @@
+# configure the build's output directories for the src folder
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin) # .exe, .dll
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .so
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .lib .a
+
 # let's check whether all required dependecies are available
 # and where they are located
 SET(TIFF_NAMES itktiff)
