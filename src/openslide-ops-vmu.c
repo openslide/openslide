@@ -98,96 +98,55 @@ static void paint_region_unlocked( openslide_t *osr, cairo_t *cr,
     struct _openslide_vmu_file *vmu_file = data->files[layer];
     int64_t **chunk_table = vmu_file->chunk_table;
     
-    int f = open( vmu_file->filename, O_RDONLY );
-
-    int pagesize = getpagesize();
+    FILE *f = fopen( vmu_file->filename, "rb" );
 
     // Get the initial offset.
 
     int64_t xc = x / vmu_file->chunksize;
     int64_t offset = chunk_table[y][xc];
 
-    // Get the page boundary.
-
-    int64_t page_offset = ( offset / pagesize ) * pagesize;
-    int64_t length = vmu_file->end_in_file - page_offset;
-
-    // If the length is greater than the maximum allowable memory
-    // mapping, then clamp the length to that maximum.  Note that this
-    // value is set to half of that allowed by the address space, to
-    // allow for other data.  There's still a possiblity that this can
-    // blow up if we're dealing with a very large file on a 32 bit
-    // system.  This probably requires a bit of thought to get right.
-
-    if ( length > ( int64_t ) MAX_MMAP )
-	length = MAX_MMAP;
-
-    unsigned char *map = ( unsigned char *) mmap( 0, ( size_t ) length,
-						  PROT_READ, MAP_PRIVATE, 
-						  f, ( off_t ) page_offset );
-
     unsigned char *imagedata = 
 	g_slice_alloc( ( int64_t ) w * ( int64_t ) h * ( int64_t ) 4 );
+    memset( imagedata, 0x00, ( int64_t ) w * ( int64_t ) h * ( int64_t ) 4 );
     
+    int64_t pixelbytes = 3 * sizeof( unsigned short );
+    int64_t chunkbytes = vmu_file->chunksize * pixelbytes;
+    unsigned short *buffer = 
+	( unsigned short *) g_slice_alloc( chunkbytes );
+
+    int64_t ct = -1;
     for ( int64_t j = y, J = 0; J < h; j++, J++ ) {
 
 	for ( int64_t i = x, I = 0; I < w; i++, I++ ) {
 
-	    int64_t image_offset = ( ( J * w ) + I ) * 4;
+	    int64_t cto = chunk_table[j][i / vmu_file->chunksize];
 
+	    if ( cto != ct ) {
+
+		fseek( f, cto, SEEK_SET );
+		fread( buffer, chunkbytes, 1, f );
+		ct = cto;
+
+	    }
+	    int64_t image_offset = ( ( J * w ) + I ) * 4;
+	    
 	    if ( ( 0 <= i ) && ( i < vmu_file->w ) &&
 		 ( 0 <= j ) && ( j < vmu_file->h ) ) {
-
-		int64_t ic = i / vmu_file->chunksize;
-		int64_t o = chunk_table[j][ic];
 		
-		if ( o < page_offset ) {
-		    
-		    munmap( map, length ); // Drop the old page chunk.
-		    
-		    page_offset = ( o / pagesize ) * pagesize;
-		    length = vmu_file->end_in_file - page_offset;
-		    if ( length > ( int64_t ) MAX_MMAP )
-			length = MAX_MMAP;
-		    
-		    map = ( unsigned char *) mmap( 0, ( size_t ) length,
-						   PROT_READ, MAP_PRIVATE, 
-						   f, ( off_t ) page_offset );
-		    
-		}
-		int64_t loc = 
-		    ( o - page_offset ) +
-		    ( ( i % vmu_file->chunksize ) * sizeof( unsigned short ) * 3 );
+		int64_t loc = ( i % vmu_file->chunksize ) * 3;
 		
-		/*
-		 * Note: we can't just assign the pointer since we don't
-		 * know whether it's on a short integer boundary or not
-		 * and references to an odd address may cause a
-		 * segmentation violation on most architectures.  Thus, we
-		 * must copy the data to an array.
-		 */
-		
-		unsigned short rgb[3];
-		memcpy( ( void *) &rgb[0],
-			map + loc,
-			sizeof( unsigned short ) * 3 );
-	    
-		imagedata[image_offset + 0] = rgb[2] >> 4;
-		imagedata[image_offset + 1] = rgb[1] >> 4;
-		imagedata[image_offset + 2] = rgb[0] >> 4;
+		imagedata[image_offset + 0] = *( buffer + loc + 2 ) >> 4;
+		imagedata[image_offset + 1] = *( buffer + loc + 1 ) >> 4;
+		imagedata[image_offset + 2] = *( buffer + loc + 0 ) >> 4;
 		imagedata[image_offset + 3] = 0xff;
-
-	    } else
-		imagedata[image_offset + 0] =
-		    imagedata[image_offset + 1] =
-		    imagedata[image_offset + 2] =
-		    imagedata[image_offset + 3] = 0x00;
+		
+	    }
     
 	}
 
     }
-    munmap( map, length );	/* Drop the mapping. */
-    close( f );
+
+    fclose( f );
 
     cairo_surface_t *surface = 
 	cairo_image_surface_create_for_data( ( unsigned char *) imagedata,
@@ -202,6 +161,7 @@ static void paint_region_unlocked( openslide_t *osr, cairo_t *cr,
     cairo_restore(cr);
 
     g_slice_free( unsigned char *, imagedata );
+    g_slice_free( unsigned short *, buffer );
 
 }
 
