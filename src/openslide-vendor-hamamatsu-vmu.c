@@ -74,8 +74,7 @@ static void add_macro_associated_image(GHashTable *ht, FILE *f) {
 }
 
 bool _openslide_try_hamamatsu_vmu(openslide_t *osr, const char *filename,
-				  struct _openslide_hash *quickhash1)
-{
+				  struct _openslide_hash *quickhash1) {
 
   char *dirname = g_path_get_dirname(filename);
   char **image_filenames = NULL;
