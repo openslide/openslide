@@ -53,8 +53,21 @@ if (WIN32)
 	list(APPEND library_files ${header_files})
 endif()
 
+if (MSVC_IDE)
+  configure_file(./openslide-cmake-dll.rc.in ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
+  list(APPEND library_files ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
+endif()
+
 # finally create the project
 add_library(OpenSlide SHARED ${library_files})
+
+# configure OpenSlide installation
+install(TARGETS OpenSlide
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  CONFIGURATIONS Release
+)
 
 add_definitions(-D_OPENSLIDE_BUILDING_DLL -DOPJ_STATIC)
 
