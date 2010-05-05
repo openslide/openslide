@@ -36,17 +36,12 @@
 
 
 struct _openslide_vmuopsdata {
-
-  GMutex *vmu_mutex;
-
   int32_t file_count;
   struct _openslide_vmu_file **files;
-
 };
 
 
 static void destroy_data(struct _openslide_vmuopsdata *data) {
-  g_mutex_free(data->vmu_mutex);
   for (int i = 0; i < data->file_count; i++) {
 
     g_free(data->files[i]->filename);
@@ -64,31 +59,19 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
-				    int64_t *w, int64_t *h) {
+static void get_dimensions(openslide_t *osr, int32_t layer,
+			   int64_t *w, int64_t *h) {
 
   struct _openslide_vmuopsdata *data = osr->data;
   struct _openslide_vmu_file *vmu_file = data->files[layer];
 
   *w = vmu_file->w;
   *h = vmu_file->h;
-
 }
 
-static void get_dimensions(openslide_t *osr, int32_t layer,
-			   int64_t *w, int64_t *h) {
-  struct _openslide_vmuopsdata *data = osr->data;
-
-  g_mutex_lock(data->vmu_mutex);
-  get_dimensions_unlocked(osr, layer, w, h);
-  g_mutex_unlock(data->vmu_mutex);
-}
-
-static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
-				  int64_t x, int64_t y,
-				  int32_t layer, int32_t w, int32_t h)
-{
-
+static void paint_region(openslide_t *osr, cairo_t *cr,
+			 int64_t x, int64_t y,
+			 int32_t layer, int32_t w, int32_t h) {
   struct _openslide_vmuopsdata *data = osr->data;
   struct _openslide_vmu_file *vmu_file = data->files[layer];
   int64_t **chunk_table = vmu_file->chunk_table;
@@ -158,16 +141,6 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 
 }
 
-static void paint_region(openslide_t *osr, cairo_t *cr,
-			 int64_t x, int64_t y,
-			 int32_t layer, int32_t w, int32_t h) {
-  struct _openslide_vmuopsdata *data = osr->data;
-
-  g_mutex_lock(data->vmu_mutex);
-  paint_region_unlocked(osr, cr, x, y, layer, w, h);
-  g_mutex_unlock(data->vmu_mutex);
-}
-
 
 static const struct _openslide_ops _openslide_vmu_ops = {
   .get_dimensions = get_dimensions,
@@ -175,15 +148,15 @@ static const struct _openslide_ops _openslide_vmu_ops = {
   .destroy = destroy
 };
 
+
 void _openslide_add_vmu_ops(openslide_t *osr,
 			    struct _openslide_hash *quickhash1,
 			    int32_t file_count,
-			    struct _openslide_vmu_file **files)
-{
-
+			    struct _openslide_vmu_file **files) {
   if (osr == NULL) {
     return;
   }
+
   // allocate private data
   struct _openslide_vmuopsdata *data =
     g_slice_new(struct _openslide_vmuopsdata);
@@ -191,17 +164,14 @@ void _openslide_add_vmu_ops(openslide_t *osr,
   data->file_count = file_count;
   data->files = files;
 
-  // populate private data
-  data->vmu_mutex = g_mutex_new();
-
   // generate hash of the smallest layer
   _openslide_hash_file(quickhash1, files[0]->filename);
 
   // store vmu-specific data into osr
   g_assert(osr->data == NULL);
+  osr->data = data;
 
   // general osr data
   osr->layer_count = file_count;
-  osr->data = data;
   osr->ops = &_openslide_vmu_ops;
 }
