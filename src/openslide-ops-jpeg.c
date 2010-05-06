@@ -184,7 +184,7 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
 
   src = (struct my_src_mgr *) cinfo->src;
   src->pub.init_source = init_source;
-  src->pub.fill_input_buffer = (boolean (__cdecl*)(j_decompress_ptr))fill_input_buffer;
+  src->pub.fill_input_buffer = fill_input_buffer;
   src->pub.skip_input_data = skip_input_data;
   src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->pub.term_source = term_source;
