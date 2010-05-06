@@ -68,7 +68,8 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
     size -= value->size;
 
     // remove from hashtable, this will trigger removal from everything
-    g_assert(g_hash_table_remove(cache->hashtable, key));
+    bool result = g_hash_table_remove(cache->hashtable, key);
+    g_assert(result);
   }
 }
 
