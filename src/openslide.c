@@ -53,7 +53,8 @@ static bool openslide_was_dynamically_loaded;
 #ifdef _MSC_VER
   #pragma section(".CRT$XCU",read)
   #define INITIALIZER(f) \
-  __declspec(allocate(".CRT$XCU")) void (DSO_DECL_SPEC*f##_)(void) = f; \
+  static void __cdecl f(void); \
+  __declspec(allocate(".CRT$XCU")) void (__cdecl*f##_)(void) = f; \
   static void __cdecl f(void)
 #elif defined(__GNUC__)
   #define INITIALIZER(f) \
