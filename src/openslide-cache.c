@@ -21,8 +21,6 @@
 
 #include <config.h>
 
-#define G_DISABLE_ASSERT
-
 #include <openslide-cache.h>
 #include <glib.h>
 
