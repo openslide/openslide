@@ -57,12 +57,11 @@ static bool openslide_was_dynamically_loaded;
   static void __cdecl f(void)
 #elif defined(__GNUC__)
   #define INITIALIZER(f) \
-  static void f(void)
+  static void __attribute__((constructor)) f(void)
 #endif
 
 // called from shared-library constructor!
-INITIALIZER(_openslide_init)
-{
+INITIALIZER(_openslide_init) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
   openslide_was_dynamically_loaded = true;
