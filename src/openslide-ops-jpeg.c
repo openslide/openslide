@@ -882,7 +882,11 @@ static void get_dimensions(openslide_t *osr,
   *h = l->pixel_h;
 }
 
-static const struct _openslide_ops jpeg_ops(get_dimensions,paint_region,destroy);
+static const struct _openslide_ops jpeg_ops = {
+  get_dimensions,
+  paint_region,
+  destroy
+};
 
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_file *file) {

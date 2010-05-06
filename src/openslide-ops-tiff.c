@@ -387,7 +387,11 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 
-static const struct _openslide_ops _openslide_tiff_ops(get_dimensions,paint_region,destroy);
+static const struct _openslide_ops _openslide_tiff_ops = {
+  get_dimensions,
+  paint_region,
+  destroy
+};
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,

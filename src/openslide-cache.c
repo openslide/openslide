@@ -25,8 +25,6 @@
 #include <glib.h>
 
 struct _openslide_cache_key {
-  _openslide_cache_key(int64_t _x, int64_t _y, int32_t _layer) :
-    x(_x), y(_y), layer(_layer) {}
   int64_t x;
   int64_t y;
   int32_t layer;
@@ -204,7 +202,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t y,
 			   int32_t layer) {
   // create key
-  struct _openslide_cache_key key(x, y, layer);
+  struct _openslide_cache_key key = { x, y, layer };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value =
