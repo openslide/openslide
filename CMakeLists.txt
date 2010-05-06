@@ -3,9 +3,6 @@ if(POLICY CMP0011)
    cmake_policy(SET CMP0011 NEW)
 endif(POLICY CMP0011)
 
-# save us from typing
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. (you may need to remove CMakeCache.txt ")
 endif()
@@ -23,27 +20,27 @@ check_include_files("inttypes.h" HAVE_INTTYPES_H)
 
 if(NOT HAVE_INTTYPES_H)
   #64 Bit format
-  check_bit_format(64 ll FORMAT_64BIT)
-  check_bit_format(64 L FORMAT_64BIT)
-  check_bit_format(64 q FORMAT_64BIT)
-  check_bit_format(64 I64 FORMAT_64BIT)    
+  check_bit_format(64 ll FORMAT_64BIT FOUND_64BIT_FORMAT)
+  check_bit_format(64 L FORMAT_64BIT FOUND_64BIT_FORMAT)
+  check_bit_format(64 q FORMAT_64BIT FOUND_64BIT_FORMAT)
+  check_bit_format(64 I64 FORMAT_64BIT FOUND_64BIT_FORMAT)  
 
-  if(NOT FORMAT_64BIT)
+  if(NOT FOUND_64BIT_FORMAT)
     message(FATAL "64 bit format missing.")
-  endif(NOT FORMAT_64BIT)
+  endif()
   
-  set(PRId64 "${FORMAT_64BIT}")
-  
-  #16 Bit format  
-  check_bit_format(16 "" FORMAT_16BIT)
-  check_bit_format(16 "u" FORMAT_16BIT)
-  check_bit_format(16 "hu" FORMAT_16BIT)
+  set(PRId64 "\"${FORMAT_64BIT}d\"")
 
-  if(NOT FORMAT_16BIT)
+  #16 Bit format
+  check_bit_format(16 "" FORMAT_16BIT FOUND_16BIT_FORMAT)
+  check_bit_format(16 "u" FORMAT_16BIT FOUND_16BIT_FORMAT)
+  check_bit_format(16 "hu" FORMAT_16BIT FOUND_16BIT_FORMAT)
+
+  if(NOT FOUND_16BIT_FORMAT)
     message(FATAL "16 bit format missing.")
-  endif(NOT FORMAT_16BIT)
+  endif()
   
-  set(PRIu16 "${FORMAT_16BIT}")
+  set(PRIu16 "\"${FORMAT_16BIT}u\"")
 endif(NOT HAVE_INTTYPES_H)
 
 # definine the library version
@@ -55,7 +52,8 @@ set(OPENSLIDE_VERSION_NUMBER ${OPENSLIDE_WORLD_VERSION}.${OPENSLIDE_MAJOR_VERSIO
 # create a config.h header-file
 configure_file(${PROJECT_SOURCE_DIR}/config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 add_definitions(-DHAVE_CONFIG_H)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR} src)
 
 add_subdirectory(src)
 add_subdirectory(test)
