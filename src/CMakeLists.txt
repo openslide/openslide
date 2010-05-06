@@ -58,16 +58,30 @@ if (MSVC_IDE)
   list(APPEND library_files ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
 endif()
 
+if(WIN32)
+  set(CMAKE_DEBUG_POSTFIX d)
+endif()
+
 # finally create the project
-add_library(OpenSlide SHARED ${library_files})
+add_library(openslide SHARED ${library_files})
 
 # configure OpenSlide installation
-install(TARGETS OpenSlide
+install(TARGETS openslide
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
-  CONFIGURATIONS Release
 )
+
+install(FILES openslide.h openslide-features.h
+  DESTINATION include
+)
+
+if(WIN32)
+  install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Debug/openslide${CMAKE_DEBUG_POSTFIX}.pdb
+    DESTINATION bin
+    CONFIGURATIONS Debug
+  )
+endif()
 
 add_definitions(-D_OPENSLIDE_BUILDING_DLL -DOPJ_STATIC)
 
@@ -75,10 +89,10 @@ if(WIN32)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-target_link_libraries(OpenSlide ${JPEG_LIBRARY})
-target_link_libraries(OpenSlide ${OPENJPEG_LIBRARY})
-target_link_libraries(OpenSlide ${TIFF_LIBRARY})
-target_link_libraries(OpenSlide ${ZLIB_LIBRARY})
-target_link_libraries(OpenSlide ${GTK2_CAIRO_LIBRARY})
-target_link_libraries(OpenSlide ${GTK2_GLIB_LIBRARY})
-target_link_libraries(OpenSlide ${GTK2_GTHREAD_LIBRARY})
+target_link_libraries(openslide ${JPEG_LIBRARY})
+target_link_libraries(openslide ${OPENJPEG_LIBRARY})
+target_link_libraries(openslide ${TIFF_LIBRARY})
+target_link_libraries(openslide ${ZLIB_LIBRARY})
+target_link_libraries(openslide ${GTK2_CAIRO_LIBRARY})
+target_link_libraries(openslide ${GTK2_GLIB_LIBRARY})
+target_link_libraries(openslide ${GTK2_GTHREAD_LIBRARY})

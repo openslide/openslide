@@ -14,4 +14,4 @@ if(WIN32)
 endif()
 
 add_executable(openslide_test "test.c")
-target_link_libraries(openslide_test OpenSlide)
+target_link_libraries(openslide_test openslide)
