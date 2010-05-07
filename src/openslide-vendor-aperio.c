@@ -227,8 +227,10 @@ static void add_properties(GHashTable *ht, char **props) {
 }
 
 // add the image from the current TIFF directory
-static void add_associated_image(GHashTable *ht, const char *name_if_available,
-				 TIFF *tiff) {
+// returns false if fatal error
+// true does not necessarily imply an image was added
+static boolean add_associated_image(GHashTable *ht, const char *name_if_available,
+				    TIFF *tiff) {
   char *name = NULL;
   if (name_if_available) {
     name = g_strdup(name_if_available);
@@ -237,13 +239,13 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 
     // get name
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &val)) {
-      return;
+      return true;
     }
 
     // parse ImageDescription, after newline up to first whitespace -> gives name
     char **lines = g_strsplit_set(val, "\r\n", -1);
     if (!lines) {
-      return;
+      return true;
     }
 
     if (lines[0] && lines[1]) {
@@ -267,13 +269,13 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     // get the dimensions
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
       g_free(name);
-      return;
+      return false;
     }
     int64_t w = tmp;
 
     if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
       g_free(name);
-      return;
+      return false;
     }
     int64_t h = tmp;
 
@@ -282,7 +284,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     if (!TIFFReadRGBAImageOriented(tiff, w, h, img_data, ORIENTATION_TOPLEFT, 0)) {
       g_free(name);
       g_free(img_data);
-      return;
+      return false;
     }
 
     // permute
@@ -295,16 +297,23 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 	| ((val >> 16) & 0xFF);
     }
 
-    // load into struct
-    struct _openslide_associated_image *aimg =
-      g_slice_new(struct _openslide_associated_image);
-    aimg->w = w;
-    aimg->h = h;
-    aimg->argb_data = img_data;
+    // possibly load into struct
+    if (ht) {
+      struct _openslide_associated_image *aimg =
+	g_slice_new(struct _openslide_associated_image);
+      aimg->w = w;
+      aimg->h = h;
+      aimg->argb_data = img_data;
 
-    // save
-    g_hash_table_insert(ht, name, aimg);
+      // save
+      g_hash_table_insert(ht, name, aimg);
+    } else {
+      g_free(name);
+      g_free(img_data);
+    }
   }
+
+  return true;
 }
 
 
@@ -363,9 +372,10 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       //g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
     } else {
       // associated image
-      if (osr) {
-	char *name = (i == 1) ? "thumbnail" : NULL;
-	add_associated_image(osr->associated_images, name, tiff);
+      char *name = (i == 1) ? "thumbnail" : NULL;
+      if (!add_associated_image(osr ? osr->associated_images : NULL, name, tiff)) {
+	g_warning("Can't read associated image");
+	goto FAIL;
       }
       //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
     }

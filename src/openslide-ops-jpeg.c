@@ -1325,9 +1325,10 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 }
 
 
-void _openslide_add_jpeg_associated_image(GHashTable *ht,
-					  const char *name,
-					  FILE *f) {
+boolean _openslide_add_jpeg_associated_image(GHashTable *ht,
+					     const char *name,
+					     FILE *f) {
+  boolean result;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -1346,7 +1347,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       jpeg_destroy_decompress(&cinfo);
-      return;
+      return false;
     }
 
     cinfo.out_color_space = JCS_RGB;
@@ -1391,17 +1392,23 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     }
 
     // success!
-    struct _openslide_associated_image *aimg =
-      g_slice_new(struct _openslide_associated_image);
-    aimg->w = w;
-    aimg->h = h;
-    aimg->argb_data = argb_data;
+    if (ht) {
+      struct _openslide_associated_image *aimg =
+	g_slice_new(struct _openslide_associated_image);
+      aimg->w = w;
+      aimg->h = h;
+      aimg->argb_data = argb_data;
 
-    g_hash_table_insert(ht, g_strdup(name), aimg);
+      g_hash_table_insert(ht, g_strdup(name), aimg);
+    } else {
+      g_free(argb_data);
+    }
+
+    result = true;
   } else {
     // setjmp has returned again
-    g_critical("Error in decoding associated JPEG image");
     g_free(argb_data);
+    result = false;
   }
 
   // free buffers
@@ -1411,4 +1418,6 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   jpeg_destroy_decompress(&cinfo);
+
+  return result;
 }

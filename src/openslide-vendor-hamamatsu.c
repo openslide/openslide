@@ -213,9 +213,9 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_strfreev(keys);
 }
 
-static void add_macro_associated_image(GHashTable *ht,
-				       FILE *f) {
-  _openslide_add_jpeg_associated_image(ht, "macro", f);
+static boolean add_macro_associated_image(GHashTable *ht,
+					  FILE *f) {
+  return _openslide_add_jpeg_associated_image(ht, "macro", f);
 }
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
@@ -597,20 +597,27 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
 
   // add macro image if present
-  if (osr) {
-    tmp = g_key_file_get_string(vms_file,
-				GROUP_VMS,
-				KEY_MACRO_IMAGE,
-				NULL);
-    if (tmp) {
-      char *macro_filename = g_build_filename(dirname, tmp, NULL);
-      FILE *macro_f = fopen(macro_filename, "rb");
-      if (macro_f) {
-	add_macro_associated_image(osr->associated_images, macro_f);
-	fclose(macro_f);
-      }
-      g_free(macro_filename);
-      g_free(tmp);
+  tmp = g_key_file_get_string(vms_file,
+			      GROUP_VMS,
+			      KEY_MACRO_IMAGE,
+			      NULL);
+  if (tmp) {
+    char *macro_filename = g_build_filename(dirname, tmp, NULL);
+    FILE *macro_f = fopen(macro_filename, "rb");
+    boolean result;
+
+    if (macro_f) {
+      result = add_macro_associated_image(osr ? osr->associated_images : NULL, macro_f);
+      fclose(macro_f);
+    } else {
+      result = false;
+    }
+    g_free(macro_filename);
+    g_free(tmp);
+
+    if (!result) {
+      g_warning("Could not find macro image");
+      goto FAIL;
     }
   }
 
