@@ -8,10 +8,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .lib .a
 SET(TIFF_NAMES itktiff)
 set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
 
-find_package(jpeg REQUIRED)
-find_package(openjpeg REQUIRED)
-find_package(tiff REQUIRED)
-find_package(zlib REQUIRED)
+find_package(JPEG REQUIRED)
+find_package(OpenJPEG REQUIRED)
+find_package(TIFF REQUIRED)
+find_package(ZLIB REQUIRED)
 find_package(GTK2 2.6 REQUIRED)
 
 if(NOT IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} OR 
