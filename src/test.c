@@ -207,6 +207,11 @@ int main(int argc, char **argv) {
 
   osr = openslide_open(argv[1]);
 
+  if (osr == NULL) {
+    printf("oh no\n");
+    exit(1);
+  }
+
   openslide_get_layer0_dimensions(osr, &w, &h);
   printf("dimensions: %" PRId64 " x %" PRId64 "\n", w, h);
   printf("comment: %s\n", openslide_get_comment(osr));
@@ -242,7 +247,7 @@ int main(int argc, char **argv) {
 
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
-  while (*property_names) {
+  while (property_names && *property_names) {
     const char *name = *property_names;
     const char *value = openslide_get_property_value(osr, name);
     printf("property: %s -> %s\n", name, value);
@@ -252,7 +257,7 @@ int main(int argc, char **argv) {
 
   // read associated images
   const char * const *associated_image_names = openslide_get_associated_image_names(osr);
-  while (*associated_image_names) {
+  while (associated_image_names && *associated_image_names) {
     int64_t w;
     int64_t h;
     const char *name = *associated_image_names;
