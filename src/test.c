@@ -214,6 +214,12 @@ int main(int argc, char **argv) {
   int32_t layers = openslide_get_layer_count(osr);
   printf("num layers: %d\n", layers);
 
+  for (int32_t i = -1; i < layers + 1; i++) {
+    int64_t ww, hh;
+    openslide_get_layer_dimensions(osr, i, &ww, &hh);
+    printf(" layer %d dimensions: %" PRId64 " x %" PRId64 "\n", i, ww, hh);
+  }
+
   print_downsamples(osr);
 
   test_next_biggest(osr, 0.8);
