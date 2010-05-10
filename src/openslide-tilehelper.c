@@ -22,6 +22,7 @@
 #include <config.h>
 
 #include "openslide-tilehelper.h"
+#include "openslide-private.h"
 
 #include <glib.h>
 #include <string.h>
@@ -44,8 +45,14 @@ void _openslide_read_tiles(cairo_t *cr,
 					     double translate_x, double translate_y,
 					     struct _openslide_cache *cache)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
-  g_return_if_fail(fabs(offset_x) < advance_x);
-  g_return_if_fail(fabs(offset_y) < advance_y);
+  if (fabs(offset_x) >= advance_x) {
+    _openslide_set_error(osr, "fabs(offset_x) >= advance_x");
+    return;
+  }
+  if (fabs(offset_y) >= advance_y) {
+    _openslide_set_error(osr, "fabs(offset_y) >= advance_y");
+    return;
+  }
 
   //  cairo_set_source_rgb(cr, 0, 1, 0);
   //  cairo_paint(cr);
