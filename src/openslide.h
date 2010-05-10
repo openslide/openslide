@@ -238,8 +238,8 @@ const char *openslide_get_error(openslide_t *osr);
  * that can be used to read properties with openslide_get_property_value().
  *
  * @param osr The OpenSlide object.
- * @return A NULL-terminated string array of property names, or NULL if an
- *         error occurred.
+ * @return A NULL-terminated string array of property names, or
+ *         an empty array if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char * const *openslide_get_property_names(openslide_t *osr);
@@ -292,7 +292,7 @@ const char *openslide_get_comment(openslide_t *osr);
  *
  * @param osr The OpenSlide object.
  * @return A NULL-terminated string array of associated image names, or
-           NULL if an error occurred.
+           an empty array if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char * const *openslide_get_associated_image_names(openslide_t *osr);

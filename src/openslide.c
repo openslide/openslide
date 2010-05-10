@@ -33,6 +33,8 @@
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 
+static const char * const EMPTY_STRING_ARRAY[] = { NULL };
+
 static const _openslide_vendor_fn non_tiff_formats[] = {
   _openslide_try_mirax,
   _openslide_try_hamamatsu,
@@ -473,7 +475,7 @@ void openslide_read_region(openslide_t *osr,
 
 const char * const *openslide_get_property_names(openslide_t *osr) {
   if (openslide_get_error(osr)) {
-    return NULL;
+    return EMPTY_STRING_ARRAY;
   }
 
   return osr->property_names;
@@ -489,7 +491,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {
   if (openslide_get_error(osr)) {
-    return NULL;
+    return EMPTY_STRING_ARRAY;
   }
 
   return osr->associated_image_names;
