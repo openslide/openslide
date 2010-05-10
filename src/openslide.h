@@ -154,6 +154,50 @@ void openslide_close(openslide_t *osr);
 //@}
 
 /**
+ * @name Error Handling
+ * A simple mechanism for detecting errors.
+ *
+ * Sometimes an unrecoverable error can occur that will invalidate the
+ * OpenSlide object. (This is typically something like an I/O error or
+ * data corruption.)  When such an error happens in an OpenSlide
+ * object, the object will move terminally into an error state.
+ *
+ * While an object is in an error state, no OpenSlide functions will
+ * have any effect on it except for openslide_close(). Functions
+ * that are expected to return values will instead return an error
+ * value, typically something like NULL or -1. openslide_read_region()
+ * will clear its destination buffer instead of painting into
+ * it. openslide_get_error() will return a non-NULL string containing
+ * an error message. See the documentation for each function for
+ * details on what is returned in case of error.
+ *
+ * This style of error handling allows programs written in C to check
+ * for errors only when convenient, because the error state is
+ * terminal and the OpenSlide functions return harmlessly when there
+ * has been an error.
+ *
+ * If writing wrappers for OpenSlide in languages that support
+ * exceptions, it is recommended that the error state be checked after
+ * each call and converted into an exception for that language.
+ */
+//@{
+/**
+ * Get the current error string.
+ *
+ * For a given OpenSlide object, once this function returns a non-NULL
+ * value, the only useful operation on the object is to call
+ * openslide_close() to free its resources.
+ *
+ * @param osr The OpenSlide object.
+ * @return A string describing the original error that caused
+ * the problem, or NULL if no error has occurred.
+ *
+ */
+OPENSLIDE_PUBLIC()
+const char *openslide_get_error(openslide_t *osr);
+//@}
+
+/**
  * @name Predefined Properties
  * Some predefined properties.
  */

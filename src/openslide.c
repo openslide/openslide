@@ -299,6 +299,8 @@ void openslide_close(openslide_t *osr) {
     _openslide_cache_destroy(osr->cache);
   }
 
+  g_free(g_atomic_pointer_get(&osr->error));
+
   g_slice_free(openslide_t, osr);
 }
 

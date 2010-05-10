@@ -81,6 +81,9 @@ struct _openslide {
 
   // cache
   struct _openslide_cache *cache;
+
+  // error handling, NULL if no error
+  gpointer error; // must use g_atomic_pointer!
 };
 
 /* the function pointer structure for backends */
@@ -224,6 +227,10 @@ GHashTable *_openslide_jpeg_create_tiles_table(void);
 boolean _openslide_add_jpeg_associated_image(GHashTable *ht,
 					     const char *name,
 					     FILE *f);
+
+
+// error handling
+boolean _openslide_set_error(openslide_t *osr, const char *format, ...);
 
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
