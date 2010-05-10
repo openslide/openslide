@@ -62,6 +62,18 @@ static void destroy_associated_image(gpointer data) {
   g_slice_free(struct _openslide_associated_image, img);
 }
 
+static bool layer_in_range(openslide_t *osr, int32_t layer) {
+  if (layer < 0) {
+    return false;
+  }
+
+  if (layer > osr->layer_count - 1) {
+    return false;
+  }
+
+  return true;
+}
+
 // TODO: update when we switch to BigTIFF, or remove entirely
 // if libtiff gets private error/warning callbacks
 static bool quick_tiff_check(const char *filename) {
@@ -312,12 +324,18 @@ void openslide_get_layer0_dimensions(openslide_t *osr,
 
 void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 				    int64_t *w, int64_t *h) {
-  if (layer > osr->layer_count || layer < 0) {
-    *w = 0;
-    *h = 0;
-  } else {
-    (osr->ops->get_dimensions)(osr, layer, w, h);
+  *w = -1;
+  *h = -1;
+
+  if (openslide_get_error(osr)) {
+    return;
   }
+
+  if (!layer_in_range(osr, layer)) {
+    return;
+  }
+
+  (osr->ops->get_dimensions)(osr, layer, w, h);
 }
 
 const char *openslide_get_comment(openslide_t *osr) {
@@ -326,12 +344,20 @@ const char *openslide_get_comment(openslide_t *osr) {
 
 
 int32_t openslide_get_layer_count(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
   return osr->layer_count;
 }
 
 
 int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 						double downsample) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
   // too small, return first
   if (downsample < osr->downsamples[0]) {
     return 0;
@@ -350,8 +376,8 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 
 
 double openslide_get_layer_downsample(openslide_t *osr, int32_t layer) {
-  if (layer > osr->layer_count || layer < 0) {
-    return 0.0;
+  if (openslide_get_error(osr) || !layer_in_range(osr, layer)) {
+    return -1.0;
   }
 
   return osr->downsamples[layer];
@@ -405,11 +431,17 @@ void openslide_read_region(openslide_t *osr,
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
   cairo_paint(cr);
 
+  // do nothing else if error
+  if (openslide_get_error(osr)) {
+    cairo_destroy(cr);
+    return;
+  }
+
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   // check constraints
-  if ((layer < osr->layer_count) && (layer >= 0) && (x >= 0) && (y >= 0)) {
+  if (layer_in_range(osr, layer) && (x >= 0) && (y >= 0)) {
     // don't bother checking to see if (x/ds) and (y/ds) are within
     // the bounds of the layer, we will just draw nothing below
 
@@ -427,40 +459,66 @@ void openslide_read_region(openslide_t *osr,
   //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
   cairo_paint(cr);
 
+  // clear if an error occurred during paint_region
+  if (openslide_get_error(osr)) {
+    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+    cairo_paint(cr);
+  }
+
   // done
   cairo_destroy(cr);
 }
 
 
 const char * const *openslide_get_property_names(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return NULL;
+  }
+
   return osr->property_names;
 }
 
 const char *openslide_get_property_value(openslide_t *osr, const char *name) {
+  if (openslide_get_error(osr)) {
+    return NULL;
+  }
+
   return (const char *) g_hash_table_lookup(osr->properties, name);
 }
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return NULL;
+  }
+
   return osr->associated_image_names;
 }
 
 void openslide_get_associated_image_dimensions(openslide_t *osr, const char *name,
 					       int64_t *w, int64_t *h) {
+  *w = -1;
+  *h = -1;
+
+  if (openslide_get_error(osr)) {
+    return;
+  }
+
   struct _openslide_associated_image *img =
     (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
 							      name);
   if (img) {
     *w = img->w;
     *h = img->h;
-  } else {
-    *w = 0;
-    *h = 0;
   }
 }
 
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
+  if (openslide_get_error(osr)) {
+    return;
+  }
+
   struct _openslide_associated_image *img =
     (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
 							       name);

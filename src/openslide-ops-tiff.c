@@ -151,10 +151,6 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
 				    int64_t *w, int64_t *h) {
   uint32_t tmp;
 
-  // init
-  *w = 0;
-  *h = 0;
-
   struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
   TIFF *tiff = data->tiff;
 
