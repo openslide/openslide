@@ -79,11 +79,13 @@ static void write_pixel_rgb(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) 
 static void warning_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_warning("%s", msg);
 }
-static void error_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
-  g_critical("%s", msg);
+static void error_callback(const char *msg, void *data) {
+  openslide_t *osr = (openslide_t *) data;
+  _openslide_set_error(osr, "%s", msg);
 }
 
-static void aperio_tiff_tilereader(TIFF *tiff,
+static void aperio_tiff_tilereader(openslide_t *osr,
+				   TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
 				   int32_t w, int32_t h) {
@@ -94,7 +96,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   // not for us? fallback
   if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
       (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
-    _openslide_generic_tiff_tilereader(tiff, dest, x, y, w, h);
+    _openslide_generic_tiff_tilereader(osr, tiff, dest, x, y, w, h);
     return;
   }
 
@@ -111,7 +113,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   // get tile size
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_critical("Cannot get tile size");
+    _openslide_set_error(osr, "Cannot get tile size");
     return;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
@@ -120,7 +122,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   tdata_t buf = g_slice_alloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
-    g_critical("Cannot get raw tile");
+    _openslide_set_error(osr, "Cannot get raw tile");
     goto OUT;
   }
 
@@ -136,17 +138,22 @@ static void aperio_tiff_tilereader(TIFF *tiff,
     .warning_handler = warning_callback,
     /* don't use info_handler, it outputs lots of junk */
   };
-  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, NULL);
+  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
 
 
   // decode
   image = opj_decode(dinfo, stream);
 
+  // check error
+  if (openslide_get_error(osr)) {
+    goto OUT;
+  }
+
   opj_image_comp_t *comps = image->comps;
 
   // sanity check
   if (image->numcomps != 3) {
-    g_critical("image->numcomps != 3");
+    _openslide_set_error(osr, "image->numcomps != 3");
     goto OUT;
   }
 

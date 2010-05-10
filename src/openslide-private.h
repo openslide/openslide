@@ -134,7 +134,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1);
 
 /* TIFF support */
-typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
+typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
+					      TIFF *tiff,
 					      uint32_t *dest,
 					      int64_t x,
 					      int64_t y,
@@ -150,7 +151,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1);
 
-void _openslide_generic_tiff_tilereader(TIFF *tiff,
+void _openslide_generic_tiff_tilereader(openslide_t *osr,
+					TIFF *tiff,
 					uint32_t *dest,
 					int64_t x, int64_t y,
 					int32_t w, int32_t h);
