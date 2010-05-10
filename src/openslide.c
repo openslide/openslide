@@ -173,7 +173,8 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
   // tiff
   TIFF *tiff;
-  if (quick_tiff_check(filename) && ((tiff = TIFFOpen(filename, "r")) != NULL)) {
+  // TIFFOpen: m disables mmap to avoid sigbus and other mmap fragility
+  if (quick_tiff_check(filename) && ((tiff = TIFFOpen(filename, "rm")) != NULL)) {
     const _openslide_tiff_vendor_fn *tfn = tiff_formats;
     while (*tfn) {
       if (try_tiff_format(osr, tiff, quickhash1_OUT, tfn)) {
