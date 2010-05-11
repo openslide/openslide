@@ -308,9 +308,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   // extract MapFile
   tmp = g_key_file_get_string(vms_file,
-    GROUP_VMS,
-    KEY_MAP_FILE,
-    NULL);
+			      GROUP_VMS,
+			      KEY_MAP_FILE,
+			      NULL);
   if (tmp) {
     char *map_filename = g_build_filename(dirname, tmp, NULL);
 
@@ -465,8 +465,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
     if (comment) {
       g_hash_table_insert(osr->properties,
-        g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
-        comment);
+			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
+			  comment);
     }
 
     fseeko(f, 0, SEEK_END);
@@ -505,9 +505,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     int64_t *mcu_starts = NULL;
     if (optimisation_file) {
       mcu_starts = extract_one_optimisation(optimisation_file,
-        num_tiles_down,
-        num_tiles_across,
-        mcu_starts_count);
+					    num_tiles_down,
+					    num_tiles_across,
+					    mcu_starts_count);
     }
     if (mcu_starts) {
       jp->mcu_starts = mcu_starts;
@@ -608,9 +608,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // add macro image if present
   if (osr) {
     tmp = g_key_file_get_string(vms_file,
-      GROUP_VMS,
-      KEY_MACRO_IMAGE,
-      NULL);
+				GROUP_VMS,
+				KEY_MACRO_IMAGE,
+				NULL);
     if (tmp) {
       char *macro_filename = g_build_filename(dirname, tmp, NULL);
       FILE *macro_f = fopen(macro_filename, "rb");
@@ -627,7 +627,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   success = true;
   goto DONE;
 
-FAIL:
+ FAIL:
   if (jpegs) {
     for (int i = 0; i < num_jpegs; i++) {
       if (jpegs[i]) {
@@ -648,7 +648,7 @@ FAIL:
 
   success = false;
 
-DONE:
+ DONE:
   g_strfreev(all_keys);
   g_free(dirname);
   g_free(optimisation_filename);

@@ -82,7 +82,7 @@ static guint hash_func(gconstpointer key) {
 
   // take the top 4 bits for layer, then 14 bits per x and y,
   // xor it all together
-  return (guint)((c_key->layer << 28) ^ (c_key->y << 14) ^ (c_key->x));
+  return (guint) ((c_key->layer << 28) ^ (c_key->y << 14) ^ (c_key->x));
 }
 
 static gboolean key_equal_func(gconstpointer a,

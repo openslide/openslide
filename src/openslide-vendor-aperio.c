@@ -87,9 +87,9 @@ static void error_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
 }
 
 static void aperio_tiff_tilereader(TIFF *tiff,
-  uint32_t *dest,
-  int64_t x, int64_t y,
-  int32_t w, int32_t h) {
+				   uint32_t *dest,
+				   int64_t x, int64_t y,
+				   int32_t w, int32_t h) {
   // which compression?
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
