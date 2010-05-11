@@ -146,7 +146,15 @@ static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to be done */
 }
 
-static int fill_input_buffer (j_decompress_ptr cinfo) {
+#ifndef jpeg_boolean
+# ifdef boolean
+#  define jpeg_boolean boolean
+# else
+#  define jpeg_boolean int
+# endif
+#endif
+
+static jpeg_boolean fill_input_buffer (j_decompress_ptr cinfo) {
   /* this should never be called, there is nothing to fill */
   ERREXIT(cinfo, JERR_INPUT_EMPTY);
 
@@ -181,7 +189,7 @@ static void jpeg_random_access_src (openslide_t *osr,
 
   src = (struct my_src_mgr *) cinfo->src;
   src->pub.init_source = init_source;
-  src->pub.fill_input_buffer =  (boolean (*)(j_decompress_ptr))fill_input_buffer;
+  src->pub.fill_input_buffer = fill_input_buffer;
   src->pub.skip_input_data = skip_input_data;
   src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->pub.term_source = term_source;
