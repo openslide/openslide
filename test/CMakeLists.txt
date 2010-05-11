@@ -9,7 +9,7 @@ include_directories(${GTK2_GLIB_INCLUDE_DIR})
 include_directories(${GTK2_CAIRO_INCLUDE_DIR})
 include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
 
-if(WIN32)
+if(MSVC_IDE)
 	set_source_files_properties("test.c" PROPERTIES LANGUAGE CXX)
 endif()
 

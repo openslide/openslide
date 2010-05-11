@@ -15,6 +15,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 # add modules for config.h setup
 include(CheckIncludeFiles)
 
+check_include_files("stdbool.h" HAVE_STDBOOL_H)
+
+if(CMAKE_COMPILER_IS_GNUCXX) # also true when the code is compiled as c-code
+  add_definitions(-DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat -fvisibility=hidden -fno-common")
+endif()
+
 # definine the library version
 set(OPENSLIDE_WORLD_VERSION "3")
 set(OPENSLIDE_MAJOR_VERSION "1")

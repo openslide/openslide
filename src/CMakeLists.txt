@@ -31,30 +31,30 @@ include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
 file(GLOB source_files "*.c" "*.cpp")
 
 # we want to compile all .c files as C++ code on windows
-if(WIN32)
-	SET_SOURCE_FILES_PROPERTIES(${source_files} PROPERTIES LANGUAGE CXX)
+if(MSVC_IDE)
+    set_source_files_properties(${source_files} PROPERTIES LANGUAGE CXX)
 endif()
 
 set(library_files ${source_files})
 
 # on windows add header files for the IDE
 # TODO: do this only on visual studio builds
-if (WIN32)
-	file(GLOB header_files "*.h")
-	
-    # there is no valigrind/callgrind support on windows machines	
-	file(GLOB grind_files "valgrind.h" "callgrind.h")
-	list(REMOVE_ITEM header_files ${grind_files})
-	
-	list(APPEND library_files ${header_files})
+if(MSVC_IDE)
+    file(GLOB header_files "*.h")
+    
+    # there is no valigrind/callgrind support on windows machines    
+    file(GLOB grind_files "valgrind.h" "callgrind.h")
+    list(REMOVE_ITEM header_files ${grind_files})
+    
+    list(APPEND library_files ${header_files})
 endif()
 
-if (MSVC_IDE)
+if(MSVC_IDE)
   configure_file(./openslide-cmake-dll.rc.in ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
   list(APPEND library_files ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
 endif()
 
-if(WIN32)
+if(MSVC_IDE)
   set(CMAKE_DEBUG_POSTFIX d)
 endif()
 
@@ -72,17 +72,21 @@ install(FILES openslide.h openslide-features.h
   DESTINATION include
 )
 
-if(WIN32)
+if(MSVC_IDE)
   install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Debug/openslide${CMAKE_DEBUG_POSTFIX}.pdb
     DESTINATION bin
     CONFIGURATIONS Debug
   )
 endif()
 
-add_definitions(-D_OPENSLIDE_BUILDING_DLL -DOPJ_STATIC)
+add_definitions(-D_OPENSLIDE_BUILDING_DLL)
 
-if(WIN32)
-  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+if(CMAKE_COMPILER_IS_GNUCXX) # also true when the code is compiled as c-code
+  add_definitions(-DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES)
+endif()
+
+if(MSVC_IDE)
+  add_definitions(-DOPJ_STATIC -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
 target_link_libraries(openslide ${JPEG_LIBRARY})
