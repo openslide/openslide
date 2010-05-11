@@ -44,6 +44,7 @@ typedef struct _openslide openslide_t;
  * Opening, reading, and closing.
  */
 //@{
+
 /**
  * Do a quick check to see if a whole slide image is valid.
  *
@@ -208,6 +209,7 @@ const char *openslide_get_error(openslide_t *osr);
  * Some predefined properties.
  */
 //@{
+
 /**
  * The name of the property containing a slide's comment, if any.
  */
@@ -229,6 +231,7 @@ const char *openslide_get_error(openslide_t *osr);
  * Querying properties.
  */
 //@{
+
 /**
  * Get the NULL-terminated array of property names.
  *
