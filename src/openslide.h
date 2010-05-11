@@ -59,7 +59,7 @@ bool openslide_can_open(const char *filename);
  * Open a whole slide image.
  *
  * @param filename The filename to open.
- * @return A new OpenSlide object.
+ * @return A new OpenSlide object, or NULL if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 openslide_t *openslide_open(const char *filename);
