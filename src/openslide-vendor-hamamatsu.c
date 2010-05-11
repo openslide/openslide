@@ -229,6 +229,15 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   char **all_keys = NULL;
 
+  int32_t jpeg0_tw = 0;
+  int32_t jpeg0_th = 0;
+  int32_t jpeg0_ta = 0;
+  int32_t jpeg0_td = 0;
+
+  int num_jpeg_cols;
+  int num_jpeg_rows;
+  int num_layers;
+
   bool success = false;
   char *tmp;
 
@@ -259,24 +268,24 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   }
 
   // make sure values are within known bounds
-  int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
+  num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
 					  NULL);
   if (num_layers < 1) {
     g_warning("Cannot handle VMS files with NoLayers < 1");
     goto FAIL;
   }
 
-  int num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
-					     KEY_NUM_JPEG_COLS,
-					     NULL);
+  num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
+					 KEY_NUM_JPEG_COLS,
+					 NULL);
   if (num_jpeg_cols < 1) {
     goto FAIL;
   }
 
-  int num_jpeg_rows = g_key_file_get_integer(vms_file,
-					     GROUP_VMS,
-					     KEY_NUM_JPEG_ROWS,
-					     NULL);
+  num_jpeg_rows = g_key_file_get_integer(vms_file,
+					 GROUP_VMS,
+					 KEY_NUM_JPEG_ROWS,
+					 NULL);
   if (num_jpeg_rows < 1) {
     goto FAIL;
   }
@@ -426,11 +435,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   if (optimisation_file == NULL) {
     g_warning("Can't use optimisation file");
   }
-
-  int32_t jpeg0_tw = 0;
-  int32_t jpeg0_th = 0;
-  int32_t jpeg0_ta = 0;
-  int32_t jpeg0_td = 0;
 
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];

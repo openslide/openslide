@@ -88,6 +88,18 @@ static void aperio_tiff_tilereader(openslide_t *osr,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
 				   int32_t w, int32_t h) {
+  int c0_sub_x;
+  int c0_sub_y;
+  int c1_sub_x;
+  int c1_sub_y;
+  int c2_sub_x;
+  int c2_sub_y;
+
+  int i;
+
+  opj_image_comp_t *comps;
+  opj_event_mgr_t event_callbacks;
+
   // which compression?
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
@@ -146,8 +158,6 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     goto OUT;
   }
 
-  opj_image_comp_t *comps = image->comps;
-
   // sanity check
   if (image->numcomps != 3) {
     _openslide_set_error(osr, "image->numcomps != 3");
@@ -157,15 +167,16 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // TODO more checks?
 
   // copy
-  int c0_sub_x = w / comps[0].w;
-  int c0_sub_y = h / comps[0].h;
-  int c1_sub_x = w / comps[1].w;
-  int c1_sub_y = h / comps[1].h;
-  int c2_sub_x = w / comps[2].w;
-  int c2_sub_y = h / comps[2].h;
+  comps = image->comps;
+  c0_sub_x = w / comps[0].w;
+  c0_sub_y = h / comps[0].h;
+  c1_sub_x = w / comps[1].w;
+  c1_sub_y = h / comps[1].h;
+  c2_sub_x = w / comps[2].w;
+  c2_sub_y = h / comps[2].h;
 
   // TODO: too slow, and with duplicated code!
-  int i = 0;
+  i = 0;
   switch (compression_mode) {
   case APERIO_COMPRESSION_JP2K_YCBCR:
     for (int y = 0; y < h; y++) {
@@ -325,6 +336,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1) {
   int32_t layer_count = 0;
   int32_t *layers = NULL;
+  int32_t i;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL;
@@ -369,7 +381,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   layers = g_new(int32_t, layer_count);
 
   TIFFSetDirectory(tiff, 0);
-  int32_t i = 0;
+  i = 0;
   do {
     if (TIFFIsTiled(tiff)) {
       layers[i++] = TIFFCurrentDirectory(tiff);
