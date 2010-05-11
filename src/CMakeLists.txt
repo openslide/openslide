@@ -30,10 +30,6 @@ include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
 # prepare the target library
 file(GLOB source_files "*.c" "*.cpp")
 
-# remove test.c
-file(GLOB unused_files "test.c")
-list(REMOVE_ITEM source_files ${unused_files})
-
 # we want to compile all .c files as C++ code on windows
 if(WIN32)
 	SET_SOURCE_FILES_PROPERTIES(${source_files} PROPERTIES LANGUAGE CXX)
