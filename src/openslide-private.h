@@ -226,13 +226,13 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 							 jmp_buf *env);
 GHashTable *_openslide_jpeg_create_tiles_table(void);
 
-boolean _openslide_add_jpeg_associated_image(GHashTable *ht,
-					     const char *name,
-					     FILE *f);
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+					  const char *name,
+					  FILE *f);
 
 
 // error handling
-boolean _openslide_set_error(openslide_t *osr, const char *format, ...);
+bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),

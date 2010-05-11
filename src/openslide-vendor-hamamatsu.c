@@ -213,7 +213,7 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_strfreev(keys);
 }
 
-static boolean add_macro_associated_image(GHashTable *ht,
+static bool add_macro_associated_image(GHashTable *ht,
 					  FILE *f) {
   return _openslide_add_jpeg_associated_image(ht, "macro", f);
 }
@@ -609,7 +609,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   if (tmp) {
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
     FILE *macro_f = fopen(macro_filename, "rb");
-    boolean result;
+    bool result;
 
     if (macro_f) {
       result = add_macro_associated_image(osr ? osr->associated_images : NULL, macro_f);

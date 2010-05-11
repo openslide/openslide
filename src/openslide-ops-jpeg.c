@@ -1314,10 +1314,10 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 }
 
 
-boolean _openslide_add_jpeg_associated_image(GHashTable *ht,
-					     const char *name,
-					     FILE *f) {
-  boolean result;
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+					  const char *name,
+					  FILE *f) {
+  bool result;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;

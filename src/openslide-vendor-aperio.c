@@ -236,8 +236,8 @@ static void add_properties(GHashTable *ht, char **props) {
 // add the image from the current TIFF directory
 // returns false if fatal error
 // true does not necessarily imply an image was added
-static boolean add_associated_image(GHashTable *ht, const char *name_if_available,
-				    TIFF *tiff) {
+static bool add_associated_image(GHashTable *ht, const char *name_if_available,
+				 TIFF *tiff) {
   char *name = NULL;
   if (name_if_available) {
     name = g_strdup(name_if_available);

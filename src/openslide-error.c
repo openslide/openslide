@@ -32,7 +32,7 @@ const char *openslide_get_error(openslide_t *osr) {
 }
 
 // private error functions
-boolean _openslide_set_error(openslide_t *osr, const char *format, ...) {
+bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
   g_assert(format != NULL);
 
   va_list args;

@@ -584,11 +584,11 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   return result;
 }
 
-static boolean add_associated_image(const char *dirname,
-				    const char *filename,
-				    int64_t offset,
-				    GHashTable *ht,
-				    const char *name) {
+static bool add_associated_image(const char *dirname,
+				 const char *filename,
+				 int64_t offset,
+				 GHashTable *ht,
+				 const char *name) {
   char *tmp = g_build_filename(dirname, filename, NULL);
   FILE *f = fopen(tmp, "rb");
   g_free(tmp);
@@ -604,7 +604,7 @@ static boolean add_associated_image(const char *dirname,
     return false;
   }
 
-  boolean result = _openslide_add_jpeg_associated_image(ht, name, f);
+  bool result = _openslide_add_jpeg_associated_image(ht, name, f);
 
   fclose(f);
   return result;
