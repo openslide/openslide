@@ -36,10 +36,6 @@
 #include <stdlib.h>
 #include <tiffio.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 #include <openjpeg.h>
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
@@ -405,7 +401,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
         (compression != APERIO_COMPRESSION_JP2K_RGB) &&
         !TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+      g_warning("Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
   } while (TIFFReadDirectory(tiff));

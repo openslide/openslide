@@ -29,10 +29,6 @@
 #include <math.h>
 #include <cairo.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 void _openslide_read_tiles(cairo_t *cr,
 			   int32_t layer,
 			   int64_t start_tile_x, int64_t start_tile_y,
@@ -61,8 +57,8 @@ void _openslide_read_tiles(cairo_t *cr,
   //  cairo_paint(cr);
   //g_debug("offset: %d %d", offset_x, offset_y);
 
-  //g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
-  //g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
+  //g_debug("start: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y);
+  //g_debug("end: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, end_tile_x, end_tile_y);
 
   int64_t tile_y = end_tile_y - 1;
 
@@ -72,7 +68,7 @@ void _openslide_read_tiles(cairo_t *cr,
 
     while (tile_x >= start_tile_x) {
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
-      //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
+      //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
       read_tile(osr, cr, layer, tile_x, tile_y, translate_x, translate_y, cache);
       tile_x--;
     }

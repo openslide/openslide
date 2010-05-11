@@ -37,10 +37,6 @@
 #include <math.h>
 #include <sys/types.h> // for off_t
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 #include <jpeglib.h>
 
 #include "openslide-hash.h"
@@ -291,7 +287,7 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
     g_debug("zoom %d, tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
 	    zoom_level, tile_x, tile_y, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
 
-    g_debug(" src %.10g %.10g dim %.10g %.10g key %" PRId64,
+    g_debug(" src %.10g %.10g dim %.10g %.10g key %" G_GINT64_FORMAT,
 	    tile->src_x, tile->src_y, tile->w, tile->h, *key);
   }
 }
@@ -671,7 +667,7 @@ static bool process_indexfile(const char *slideversion,
     g_warning("Cannot read slide position info");
     goto OUT;
   }
-  //  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64, slide_position_fileno, slide_position_size, slide_position_offset);
+  //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
 
   if (slide_position_size != (9 * (tiles_x / image_divisions) * (tiles_y / image_divisions))) {
     g_warning("Slide position file not of expected size");
@@ -1332,7 +1328,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_x = subtile_w - ((double) hs->overlap_x / (double) subtiles_per_position);
     l->tile_advance_y = subtile_h - ((double) hs->overlap_y / (double) subtiles_per_position);
 
-    //g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
+    //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
   }
 
   // load the position map and build up the tiles, using subtiles

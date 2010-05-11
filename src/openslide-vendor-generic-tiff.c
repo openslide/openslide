@@ -36,10 +36,6 @@
 #include <tiffio.h>
 #include <errno.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 struct layer {
   int32_t layer_number;
   int64_t width;
@@ -103,7 +99,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 	goto FAIL;
       };
       if (!TIFFIsCODECConfigured(compression)) {
-	g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+	g_warning("Unsupported TIFF compression: %u", compression);
 	goto FAIL;
       }
 

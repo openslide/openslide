@@ -13,35 +13,7 @@ project(OpenSlide)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 # add modules for config.h setup
-include(CheckBitFormat)
 include(CheckIncludeFiles)
-
-check_include_files("inttypes.h" HAVE_INTTYPES_H)
-
-if(NOT HAVE_INTTYPES_H)
-  #64 Bit format
-  check_bit_format(64 ll FORMAT_64BIT FOUND_64BIT_FORMAT)
-  check_bit_format(64 L FORMAT_64BIT FOUND_64BIT_FORMAT)
-  check_bit_format(64 q FORMAT_64BIT FOUND_64BIT_FORMAT)
-  check_bit_format(64 I64 FORMAT_64BIT FOUND_64BIT_FORMAT)  
-
-  if(NOT FOUND_64BIT_FORMAT)
-    message(FATAL "64 bit format missing.")
-  endif()
-  
-  set(PRId64 "\"${FORMAT_64BIT}d\"")
-
-  #16 Bit format
-  check_bit_format(16 "" FORMAT_16BIT FOUND_16BIT_FORMAT)
-  check_bit_format(16 "u" FORMAT_16BIT FOUND_16BIT_FORMAT)
-  check_bit_format(16 "hu" FORMAT_16BIT FOUND_16BIT_FORMAT)
-
-  if(NOT FOUND_16BIT_FORMAT)
-    message(FATAL "16 bit format missing.")
-  endif()
-  
-  set(PRIu16 "\"${FORMAT_16BIT}u\"")
-endif(NOT HAVE_INTTYPES_H)
 
 # definine the library version
 set(OPENSLIDE_WORLD_VERSION "3")

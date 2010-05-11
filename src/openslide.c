@@ -26,10 +26,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 #include <glib.h>
 
 #include "openslide-cache.h"
@@ -420,10 +416,10 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h) {
-  //g_debug("openslide_read_region: %" PRId64 " %" PRId64 " %d %" PRId64 " %" PRId64, x, y, layer, w, h);
+  //g_debug("openslide_read_region: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT " %d %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, x, y, layer, w, h);
 
   if (w <= 0 || h <= 0) {
-    //g_debug("%" PRId64 " %" PRId64, w, h);
+    //g_debug("%" G_GINT64_FORMAT " %" G_GINT64_FORMAT, w, h);
     return;
   }
 

@@ -26,10 +26,6 @@
 #include <glib.h>
 #include <tiffio.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 #include <string.h>
 #include <cairo.h>
 
@@ -276,7 +272,7 @@ static void read_tile(openslide_t *osr,
   /*
   int z = 4;
   int64_t tiles_across = (iw / tw) + !!(iw % tw);
-  char *zz = g_strdup_printf("%" PRId64 ",%" PRId64 " (%" PRId64 ")",
+  char *zz = g_strdup_printf("%" G_GINT64_FORMAT ",%" G_GINT64_FORMAT " (%" G_GINT64_FORMAT ")",
 			     tile_x, tile_y, tile_y * tiles_across + tile_x);
   cairo_set_source_rgb(cr, 0, 0, 0);
   cairo_move_to(cr, 0, 20);

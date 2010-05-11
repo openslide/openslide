@@ -36,10 +36,6 @@
 #include <tiffio.h>
 #include <errno.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
 static const char BACKGROUND_COLOR[] = "Background Color=";
@@ -143,7 +139,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       goto FAIL;
     };
     if (!TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+      g_warning("Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
 

@@ -41,10 +41,6 @@
 #include <math.h>
 #include <sys/types.h> // for off_t
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-
 #include <cairo.h>
 
 #include "openslide-cache.h"
@@ -197,10 +193,10 @@ static void jpeg_random_access_src (openslide_t *osr,
       (header_stop_position > start_position) ||
       (start_position >= stop_position)) {
     _openslide_set_error(osr, "Can't do random access JPEG read: "
-	       "header_start_position: %" PRId64 ", "
-	       "header_stop_position: %" PRId64 ", "
-	       "start_position: %" PRId64 ", "
-	       "stop_position: %" PRId64,
+	       "header_start_position: %" G_GINT64_FORMAT ", "
+	       "header_stop_position: %" G_GINT64_FORMAT ", "
+	       "start_position: %" G_GINT64_FORMAT ", "
+	       "stop_position: %" G_GINT64_FORMAT,
 	       header_start_position, header_stop_position,
 	       start_position, stop_position);
 
@@ -221,13 +217,13 @@ static void jpeg_random_access_src (openslide_t *osr,
   src->pub.next_input_byte = src->buffer;
 
   // read in the 2 parts
-  //  g_debug("reading header from %" PRId64, header_start_position);
+  //  g_debug("reading header from %" G_GINT64_FORMAT, header_start_position);
   fseeko(infile, header_start_position, SEEK_SET);
   if (!fread(src->buffer, header_length, 1, infile)) {
     _openslide_set_error(osr, "Cannot read header in JPEG");
     return;
   }
-  //  g_debug("reading from %" PRId64, start_position);
+  //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
   fseeko(infile, start_position, SEEK_SET);
   if (!fread(src->buffer + header_length, data_length, 1, infile)) {
     _openslide_set_error(osr, "Cannot read data in JPEG");
@@ -478,7 +474,7 @@ static void compute_mcu_start(openslide_t *osr,
       _openslide_set_error(osr, "after_marker_pos == -1");
       break;
     }
-    //g_debug("after_marker_pos: %" PRId64, after_marker_pos);
+    //g_debug("after_marker_pos: %" G_GINT64_FORMAT, after_marker_pos);
 
     // EOI?
     if (b == JPEG_EOI) {
@@ -641,12 +637,12 @@ static void read_tile(openslide_t *osr,
   bool cachemiss;
 
   if (!requested_tile) {
-    //    g_debug("no tile at index %" PRId64, tileindex);
+    //    g_debug("no tile at index %" G_GINT64_FORMAT, tileindex);
     return;
   }
 
   if (layer <= 3) {
-    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
+    //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
   }
 
   // get the jpeg data, possibly from cache
@@ -774,8 +770,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
   int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1;
 
-  //g_debug("ds: % " PRId64 " %" PRId64, ds_x, ds_y);
-  //  g_debug("start tile: %" PRId64 " %" PRId64 ", end tile: %" PRId64 " %" PRId64,
+  //g_debug("ds: % " G_GINT64_FORMAT " %" G_GINT64_FORMAT, ds_x, ds_y);
+  //  g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT,
   //	  start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 
   // accommodate extra tiles being drawn
@@ -1096,7 +1092,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   for (int32_t i = 0; i < layer_count; i++) {
     struct _openslide_jpeg_layer *l = layers[i];
     g_debug("layer %d", i);
-    g_debug(" size %" PRId64 " %" PRId64, l->layer_w, l->layer_h);
+    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->layer_w, l->layer_h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
     g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);

@@ -26,10 +26,8 @@
 #include "openslide-hash.h"
 
 #include <string.h>
+#include <glib.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
 
 #ifdef HAVE_G_CHECKSUM_NEW
 struct _openslide_hash {
@@ -123,7 +121,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     return false;
   }
 
-  //g_debug("hash '%s' %" PRId64 " %d", filename, offset, size);
+  //g_debug("hash '%s' %" G_GINT64_FORMAT " %d", filename, offset, size);
   if (hash != NULL) {
     GChecksum *checksum = hash->checksum;
     g_checksum_update(checksum, (guchar *) buf, size);
