@@ -245,17 +245,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     layers[i]->tiles = _openslide_jpeg_create_tiles_table();
   }
 
-  // these variables need to be initialized before the first 
-  // potential call to 'goto FAIL;'
-  int32_t jpeg0_tw = 0;
-  int32_t jpeg0_th = 0;
-  int32_t jpeg0_ta = 0;
-  int32_t jpeg0_td = 0;
-
-  int num_layers = 0;
-  int num_jpeg_cols = 0;
-  int num_jpeg_rows = 0;
-
   // first, see if it's a VMS file
   GKeyFile *vms_file = g_key_file_new();
   if (!g_key_file_load_from_file(vms_file, filename, G_KEY_FILE_NONE, NULL)) {
@@ -271,24 +260,24 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   _openslide_hash_file(quickhash1, filename);
 
   // make sure values are within known bounds
-  num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
-    NULL);
+  int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
+					  NULL);
   if (num_layers < 1) {
     g_warning("Cannot handle VMS files with NoLayers < 1");
     goto FAIL;
   }
 
-  num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
-    KEY_NUM_JPEG_COLS,
-    NULL);
+  int num_jpeg_cols = g_key_file_get_integer(vms_file, GROUP_VMS,
+					     KEY_NUM_JPEG_COLS,
+					     NULL);
   if (num_jpeg_cols < 1) {
     goto FAIL;
   }
 
-  num_jpeg_rows = g_key_file_get_integer(vms_file,
-    GROUP_VMS,
-    KEY_NUM_JPEG_ROWS,
-    NULL);
+  int num_jpeg_rows = g_key_file_get_integer(vms_file,
+					     GROUP_VMS,
+					     KEY_NUM_JPEG_ROWS,
+					     NULL);
   if (num_jpeg_rows < 1) {
     goto FAIL;
   }
@@ -359,19 +348,19 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       char **split = g_strsplit(suffix, ",", 0);
       switch (g_strv_length(split)) {
       case 0:
-        // all zero
-        layer = 0;
-        col = 0;
-        row = 0;
-        break;
+	// all zero
+	layer = 0;
+	col = 0;
+	row = 0;
+	break;
 
       case 2:
-        // (x,y)
-        layer = 0;
-        // first item, skip '('
-        col = g_ascii_strtoll(split[0] + 1, NULL, 10);
-        row = g_ascii_strtoll(split[1], NULL, 10);
-        break;
+	// (x,y)
+	layer = 0;
+	// first item, skip '('
+	col = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	row = g_ascii_strtoll(split[1], NULL, 10);
+	break;
 
       case 3:
         // (z,x,y)
@@ -436,6 +425,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   if (optimisation_file == NULL) {
     g_warning("Can't use optimisation file");
   }
+
+  int32_t jpeg0_tw = 0;
+  int32_t jpeg0_th = 0;
+  int32_t jpeg0_ta = 0;
+  int32_t jpeg0_td = 0;
 
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];
