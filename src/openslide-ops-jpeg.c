@@ -49,7 +49,7 @@
 enum restart_marker_thread_state {
   R_M_THREAD_STATE_RUN,
   R_M_THREAD_STATE_PAUSE,
-  R_M_THREAD_STATE_STOP,
+  R_M_THREAD_STATE_STOP
 };
 
 struct one_jpeg {
