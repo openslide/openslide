@@ -132,8 +132,9 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   opj_setup_decoder(dinfo, &parameters);
   stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char *) buf, size);
 
-  // don't use info_handler, it outputs lots of junk
-  opj_event_mgr_t event_callbacks = { error_callback, warning_callback, NULL };
+  event_callbacks.error_handler = error_callback;
+  event_callbacks.warning_handler = warning_callback;
+  event_callbacks.info_handler = NULL; // don't use info_handler, it outputs lots of junk
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
 
 
