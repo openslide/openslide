@@ -21,8 +21,8 @@
 
 #include <config.h>
 
-#include "openslide-tilehelper.h"
 #include "openslide-private.h"
+#include "openslide-tilehelper.h"
 
 #include <glib.h>
 #include <string.h>
