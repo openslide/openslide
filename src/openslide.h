@@ -68,6 +68,7 @@ typedef struct _openslide openslide_t;
  * Opening, reading, and closing.
  */
 //@{
+
 /**
  * Do a quick check to see if a whole slide image is valid.
  *
@@ -82,7 +83,7 @@ bool openslide_can_open(const char *filename);
  * Open a whole slide image.
  *
  * @param filename The filename to open.
- * @return A new whole slide image object.
+ * @return A new OpenSlide object, or NULL if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 openslide_t *openslide_open(const char *filename);
@@ -91,19 +92,20 @@ openslide_t *openslide_open(const char *filename);
 /**
  * Get the number of layers in the whole slide image.
  *
- * @param osr The whole slide image object.
- * @return The number of layers.
+ * @param osr The OpenSlide object.
+ * @return The number of layers, or -1 if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 int32_t openslide_get_layer_count(openslide_t *osr);
 
 
 /**
- * Get the dimensions of layer 0 (the largest layer).
+ * Get the dimensions of layer 0 (the largest layer). Exactly
+ * equivalent to calling openslide_get_layer_dimensions(osr, 0, w, h).
  *
- * @param osr The whole slide image object.
- * @param[out] w The width of the image.
- * @param[out] h The height of the image.
+ * @param osr The OpenSlide object.
+ * @param[out] w The width of the image, or -1 if an error occurred.
+ * @param[out] h The height of the image, or -1 if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
@@ -112,10 +114,12 @@ void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
 /**
  * Get the dimensions of a layer.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param layer The desired layer.
- * @param[out] w The width of the image.
- * @param[out] h The height of the image.
+ * @param[out] w The width of the image, or -1 if an error occurred
+ *               or the layer was out of range.
+ * @param[out] h The height of the image, or -1 if an error occurred
+ *               or the layer was out of range.
  */
 OPENSLIDE_PUBLIC()
 void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
@@ -125,9 +129,10 @@ void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
 /**
  * Get the downsampling factor of a given layer.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param layer The desired layer.
- * @return The downsampling factor for this layer.
+ * @return The downsampling factor for this layer, or -1.0 if an error occurred
+ *         or the layer was out of range.
  */
 OPENSLIDE_PUBLIC()
 double openslide_get_layer_downsample(openslide_t *osr, int32_t layer);
@@ -136,9 +141,9 @@ double openslide_get_layer_downsample(openslide_t *osr, int32_t layer);
 /**
  * Get the best layer to use for displaying the given downsample.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param downsample The downsample factor.
- * @return The layer identifier.
+ * @return The layer identifier, or -1 if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
@@ -150,9 +155,10 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
  * This function reads and decompresses a region of a whole slide
  * image into the specified memory location. @p dest must be a valid
  * pointer to enough memory to hold the region, at least (@p w * @p h * 4)
- * bytes in length.
+ * bytes in length. If an error occurs or has occurred, then the memory
+ * pointed to by @p dest will be cleared.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
  * @param x The top left x-coordinate. Must be non-negative.
  * @param y The top left y-coordinate. Must be non-negative.
@@ -169,12 +175,57 @@ void openslide_read_region(openslide_t *osr,
 
 
 /**
- * Close a whole slide image object.
+ * Close an OpenSlide object. After this call returns, the object cannot
+ * be used anymore.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  */
 OPENSLIDE_PUBLIC()
 void openslide_close(openslide_t *osr);
+//@}
+
+/**
+ * @name Error Handling
+ * A simple mechanism for detecting errors.
+ *
+ * Sometimes an unrecoverable error can occur that will invalidate the
+ * OpenSlide object. (This is typically something like an I/O error or
+ * data corruption.)  When such an error happens in an OpenSlide
+ * object, the object will move terminally into an error state.
+ *
+ * While an object is in an error state, no OpenSlide functions will
+ * have any effect on it except for openslide_close(). Functions
+ * that are expected to return values will instead return an error
+ * value, typically something like NULL or -1. openslide_read_region()
+ * will clear its destination buffer instead of painting into
+ * it. openslide_get_error() will return a non-NULL string containing
+ * an error message. See the documentation for each function for
+ * details on what is returned in case of error.
+ *
+ * This style of error handling allows programs written in C to check
+ * for errors only when convenient, because the error state is
+ * terminal and the OpenSlide functions return harmlessly when there
+ * has been an error.
+ *
+ * If writing wrappers for OpenSlide in languages that support
+ * exceptions, it is recommended that the error state be checked after
+ * each call and converted into an exception for that language.
+ */
+//@{
+/**
+ * Get the current error string.
+ *
+ * For a given OpenSlide object, once this function returns a non-NULL
+ * value, the only useful operation on the object is to call
+ * openslide_close() to free its resources.
+ *
+ * @param osr The OpenSlide object.
+ * @return A string describing the original error that caused
+ * the problem, or NULL if no error has occurred.
+ *
+ */
+OPENSLIDE_PUBLIC()
+const char *openslide_get_error(openslide_t *osr);
 //@}
 
 /**
@@ -182,6 +233,7 @@ void openslide_close(openslide_t *osr);
  * Some predefined properties.
  */
 //@{
+
 /**
  * The name of the property containing a slide's comment, if any.
  */
@@ -203,6 +255,7 @@ void openslide_close(openslide_t *osr);
  * Querying properties.
  */
 //@{
+
 /**
  * Get the NULL-terminated array of property names.
  *
@@ -211,8 +264,9 @@ void openslide_close(openslide_t *osr);
  * pairs. This call provides a list of names as strings
  * that can be used to read properties with openslide_get_property_value().
  *
- * @param osr The whole slide image object.
- * @return A NULL-terminated string array of property names.
+ * @param osr The OpenSlide object.
+ * @return A NULL-terminated string array of property names, or
+ *         an empty array if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char * const *openslide_get_property_names(openslide_t *osr);
@@ -226,11 +280,11 @@ const char * const *openslide_get_property_names(openslide_t *osr);
  * pairs. This call provides the value of the property given
  * by @p name.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param name The name of the desired property. Must be
                a valid name as given by openslide_get_property_names().
  * @return The value of the named property, or NULL if the property
- *         doesn't exist.
+ *         doesn't exist or an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char *openslide_get_property_value(openslide_t *osr, const char *name);
@@ -239,8 +293,8 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name);
  * Get the comment (if any) for this image. Exactly equivalent to calling
  * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
  *
- * @param osr The whole slide image object.
- * @return The comment for this image.
+ * @param osr The OpenSlide object.
+ * @return The comment for this image, or NULL if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char *openslide_get_comment(openslide_t *osr);
@@ -252,6 +306,7 @@ const char *openslide_get_comment(openslide_t *osr);
  * Reading associated images.
  */
 //@{
+
 /**
  * Get the NULL-terminated array of associated image names.
  *
@@ -262,8 +317,9 @@ const char *openslide_get_comment(openslide_t *osr);
  * openslide_get_associated_image_dimensions() and
  * openslide_read_associated_image().
  *
- * @param osr The whole slide image object.
- * @return A NULL-terminated string array of associated image names.
+ * @param osr The OpenSlide object.
+ * @return A NULL-terminated string array of associated image names, or
+           an empty array if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 const char * const *openslide_get_associated_image_names(openslide_t *osr);
@@ -275,11 +331,11 @@ const char * const *openslide_get_associated_image_names(openslide_t *osr);
  * associated with a whole slide image. Once the dimensions are known,
  * use openslide_read_associated_image() to read the image.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param name The name of the desired associated image. Must be
  *            a valid name as given by openslide_get_associated_image_names().
- * @param[out] w The width of the associated image.
- * @param[out] h The height of the associated image.
+ * @param[out] w The width of the associated image, or -1 if an error occurred.
+ * @param[out] h The height of the associated image, or -1 if an error occurred.
  */
 OPENSLIDE_PUBLIC()
 void openslide_get_associated_image_dimensions(openslide_t *osr,
@@ -290,14 +346,14 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
 /**
  * Copy ARGB data from an associated image.
  *
- * This function reads and decompresses an associated image associated with
- * a whole slide image. @p dest must be a valid
- * pointer to enough memory to hold the image,
- * at least (width * height * 4) bytes in length.
- * Get the width and height with
- * openslide_get_associated_image_dimensions().
+ * This function reads and decompresses an associated image associated
+ * with a whole slide image. @p dest must be a valid pointer to enough
+ * memory to hold the image, at least (width * height * 4) bytes in
+ * length.  Get the width and height with
+ * openslide_get_associated_image_dimensions(). This call does nothing
+ * if an error occurred.
  *
- * @param osr The whole slide image object.
+ * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
  * @param name The name of the desired associated image. Must be
  *             a valid name as given by openslide_get_associated_image_names().
@@ -318,5 +374,13 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
 #define openslide_cancel_prefetch_hint(osr, prefetch_id)	\
   _openslide_cancel_prefetch_hint_UNIMPLEMENTED(-1)
 
+
+/**
+ * @mainpage OpenSlide
+ *
+ * OpenSlide is a C library that provides a simple interface to read
+ * whole-slide images (also known as virtual slides). See
+ * http://openslide.cs.cmu.edu/ for more details.
+ */
 
 #endif

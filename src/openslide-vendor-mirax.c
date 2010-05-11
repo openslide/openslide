@@ -431,7 +431,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// hash in the lowest-res on-disk tiles
 	if (zoom_level == zoom_levels - 1) {
-	  _openslide_hash_file_part(quickhash1, filename, offset, length);
+	  if (!_openslide_hash_file_part(quickhash1, filename, offset, length)) {
+	    g_free(filename);
+	    g_warning("Can't hash tiles");
+	    goto OUT;
+	  }
 	}
 
 	// populate the file structure
@@ -584,33 +588,30 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   return result;
 }
 
-static void add_associated_image(const char *dirname,
+static bool add_associated_image(const char *dirname,
 				 const char *filename,
 				 int64_t offset,
 				 GHashTable *ht,
 				 const char *name) {
-  if (ht == NULL) {
-    return;
-  }
-
   char *tmp = g_build_filename(dirname, filename, NULL);
   FILE *f = fopen(tmp, "rb");
   g_free(tmp);
 
   if (!f) {
     g_warning("Cannot open associated image file");
-    return;
+    return false;
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_warning("Cannot seek to offset");
     fclose(f);
-    return;
+    return false;
   }
 
-  _openslide_add_jpeg_associated_image(ht, name, f);
+  bool result = _openslide_add_jpeg_associated_image(ht, name, f);
 
   fclose(f);
+  return result;
 }
 
 
@@ -699,11 +700,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "macro");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "macro")) {
+      g_warning("Cannot read macro associated image");
+      goto OUT;
+    }
   }
   if (read_nonhier_record(indexfile,
 			  nonhier_root,
@@ -711,11 +715,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "label");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "label")) {
+      g_warning("Cannot read label associated image");
+      goto OUT;
+    }
   }
   if (read_nonhier_record(indexfile,
 			  nonhier_root,
@@ -723,11 +730,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "thumbnail");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "thumbnail")) {
+      g_warning("Cannot read thumbnail associated image");
+      goto OUT;
+    }
   }
 
   // read hierarchical sections
@@ -983,7 +993,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // first, check slidedat
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
-  _openslide_hash_file(quickhash1, tmp);  // hash the slidedat
+  // hash the slidedat
+  if (!_openslide_hash_file(quickhash1, tmp)) {
+    g_warning("Can't hash Slidedat file");
+    goto FAIL;
+  }
   slidedat = g_key_file_new();
   if (!g_key_file_load_from_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
     g_warning("Can't load Slidedat file");

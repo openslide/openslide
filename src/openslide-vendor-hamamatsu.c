@@ -216,9 +216,9 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
   g_strfreev(keys);
 }
 
-static void add_macro_associated_image(GHashTable *ht,
-				       FILE *f) {
-  _openslide_add_jpeg_associated_image(ht, "macro", f);
+static bool add_macro_associated_image(GHashTable *ht,
+					  FILE *f) {
+  return _openslide_add_jpeg_associated_image(ht, "macro", f);
 }
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
@@ -257,7 +257,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   }
 
   // hash in the VMS file
-  _openslide_hash_file(quickhash1, filename);
+  if (!_openslide_hash_file(quickhash1, filename)) {
+    g_warning("Cannot hash VMS file");
+    goto FAIL;
+  }
 
   // make sure values are within known bounds
   int num_layers = g_key_file_get_integer(vms_file, GROUP_VMS, KEY_NUM_LAYERS,
@@ -302,6 +305,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      NULL);
   if (tmp) {
     char *map_filename = g_build_filename(dirname, tmp, NULL);
+    g_free(tmp);
 
     image_filenames[num_jpegs - 1] = map_filename;
     struct _openslide_jpeg_file *file =
@@ -309,9 +313,10 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     jpegs[num_jpegs - 1] = file;
 
     // hash in the map file
-    _openslide_hash_file(quickhash1, map_filename);
-
-    g_free(tmp);
+    if (!_openslide_hash_file(quickhash1, map_filename)) {
+      g_warning("Can't hash map file");
+      goto FAIL;
+    }
   } else {
     g_warning("Can't read map file");
     goto FAIL;
@@ -600,20 +605,27 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
 
   // add macro image if present
-  if (osr) {
-    tmp = g_key_file_get_string(vms_file,
-				GROUP_VMS,
-				KEY_MACRO_IMAGE,
-				NULL);
-    if (tmp) {
-      char *macro_filename = g_build_filename(dirname, tmp, NULL);
-      FILE *macro_f = fopen(macro_filename, "rb");
-      if (macro_f) {
-        add_macro_associated_image(osr->associated_images, macro_f);
-        fclose(macro_f);
-      }
-      g_free(macro_filename);
-      g_free(tmp);
+  tmp = g_key_file_get_string(vms_file,
+			      GROUP_VMS,
+			      KEY_MACRO_IMAGE,
+			      NULL);
+  if (tmp) {
+    char *macro_filename = g_build_filename(dirname, tmp, NULL);
+    FILE *macro_f = fopen(macro_filename, "rb");
+    bool result;
+
+    if (macro_f) {
+      result = add_macro_associated_image(osr ? osr->associated_images : NULL, macro_f);
+      fclose(macro_f);
+    } else {
+      result = false;
+    }
+    g_free(macro_filename);
+    g_free(tmp);
+
+    if (!result) {
+      g_warning("Could not find macro image");
+      goto FAIL;
     }
   }
 

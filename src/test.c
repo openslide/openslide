@@ -207,12 +207,23 @@ int main(int argc, char **argv) {
 
   osr = openslide_open(argv[1]);
 
+  if (osr == NULL) {
+    printf("oh no\n");
+    exit(1);
+  }
+
   openslide_get_layer0_dimensions(osr, &w, &h);
   printf("dimensions: %" PRId64 " x %" PRId64 "\n", w, h);
   printf("comment: %s\n", openslide_get_comment(osr));
 
   int32_t layers = openslide_get_layer_count(osr);
   printf("num layers: %d\n", layers);
+
+  for (int32_t i = -1; i < layers + 1; i++) {
+    int64_t ww, hh;
+    openslide_get_layer_dimensions(osr, i, &ww, &hh);
+    printf(" layer %d dimensions: %" PRId64 " x %" PRId64 "\n", i, ww, hh);
+  }
 
   print_downsamples(osr);
 

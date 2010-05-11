@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #endif
 
+#include <string.h>
 #include <cairo.h>
 
 #include "openslide-tilehelper.h"
@@ -47,6 +48,18 @@ struct _openslide_tiffopsdata {
   _openslide_tiff_tilereader_fn tileread;
 };
 
+#define SET_DIR_OR_FAIL(osr, tiff, i)				\
+  if (!TIFFSetDirectory(tiff, i)) {				\
+    _openslide_set_error(osr, "Cannot set TIFF directory");	\
+    return;							\
+  }
+
+#define GET_FIELD_OR_FAIL(osr, tiff, tag, result)		\
+  if (!TIFFGetField(tiff, tag, &tmp)) {				\
+    _openslide_set_error(osr, "Cannot get required TIFF tag: %d", tag);	\
+    return;							\
+  }								\
+  result = tmp;
 
 static char *serialize_double(double d) {
   char buf[G_ASCII_DTOSTR_BUF_SIZE];
@@ -155,10 +168,6 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
 				    int64_t *w, int64_t *h) {
   uint32_t tmp;
 
-  // init
-  *w = 0;
-  *h = 0;
-
   struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
   TIFF *tiff = data->tiff;
 
@@ -169,22 +178,18 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
     oy = data->overlaps[(layer * 2) + 1];
   }
 
-  // get the layer
-  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
+  // set the layer
+  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
 
   // figure out tile size
   int64_t tw, th;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
-  tw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
-  th = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
 
   // get image size
   int64_t iw, ih;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
-  iw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
-  ih = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
   // num tiles in each dimension
   int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
@@ -226,21 +231,17 @@ static void read_tile(openslide_t *osr,
   uint32_t tmp;
 
   // set the layer
-  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
+  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
 
-  // figure out raw tile size
+  // figure out tile size
   int64_t tw, th;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
-  tw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
-  th = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
 
   // get image size
   int64_t iw, ih;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
-  iw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
-  ih = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
   int64_t x = tile_x * tw;
   int64_t y = tile_y * th;
@@ -258,7 +259,7 @@ static void read_tile(openslide_t *osr,
   cachemiss = !tiledata;
   if (!tiledata) {
     tiledata = (uint32_t *) g_slice_alloc(tw * th * 4);
-    data->tileread(data->tiff, tiledata, x, y, tw, th);
+    data->tileread(osr, data->tiff, tiledata, x, y, tw, th);
   }
 
   // draw it
@@ -310,21 +311,17 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
   uint32_t tmp;
 
   // set the layer
-  g_return_if_fail(TIFFSetDirectory(tiff, data->layers[layer]));
+  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
 
-  // figure out raw tile size
+  // figure out tile size
   int64_t tw, th;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tmp));
-  tw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_TILELENGTH, &tmp));
-  th = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
 
   // get image size
   int64_t iw, ih;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp));
-  iw = tmp;
-  g_return_if_fail(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp));
-  ih = tmp;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
   // num tiles in each dimension
   int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
@@ -423,7 +420,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // generate hash of the smallest layer
   TIFFSetDirectory(data->tiff, layers[layer_count - 1]);
-  _openslide_hash_tiff_tiles(quickhash1, tiff);
+  if (!_openslide_hash_tiff_tiles(quickhash1, tiff)) {
+    _openslide_set_error(osr, "Cannot hash TIFF tiles");
+  }
 
   // load TIFF properties
   TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
@@ -438,7 +437,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   osr->ops = &_openslide_tiff_ops;
 }
 
-void _openslide_generic_tiff_tilereader(TIFF *tiff,
+void _openslide_generic_tiff_tilereader(openslide_t *osr,
+					TIFF *tiff,
 					uint32_t *dest,
 					int64_t x, int64_t y,
 					int32_t w, int32_t h) {
@@ -446,27 +446,32 @@ void _openslide_generic_tiff_tilereader(TIFF *tiff,
   char emsg[1024] = "";
 
   // init
-  g_return_if_fail(TIFFRGBAImageOK(tiff, emsg));
-  g_return_if_fail(TIFFRGBAImageBegin(&img, tiff, 0, emsg));
+  if (!TIFFRGBAImageOK(tiff, emsg)) {
+    _openslide_set_error(osr, "Failure in TIFFRGBAImageOK: %s", emsg);
+    return;
+  }
+  if (!TIFFRGBAImageBegin(&img, tiff, 1, emsg)) {
+    _openslide_set_error(osr, "Failure in TIFFRGBAImageBegin: %s", emsg);
+    return;
+  }
   img.req_orientation = ORIENTATION_TOPLEFT;
   img.col_offset = x;
   img.row_offset = y;
 
   // draw it
-  if (!TIFFRGBAImageGet(&img, dest, w, h)) {
-    g_critical("TIFFRGBAImageGet failed");
-
-    // can keep going, to do the cleanup below
-  }
-
-  // permute
-  uint32_t *p = dest;
-  uint32_t *end = dest + w * h;
-  while (p < end) {
-    uint32_t val = *p;
-    *p++ = (val & 0xFF00FF00)
-      | ((val << 16) & 0xFF0000)
-      | ((val >> 16) & 0xFF);
+  if (TIFFRGBAImageGet(&img, dest, w, h)) {
+    // permute
+    uint32_t *p = dest;
+    uint32_t *end = dest + w * h;
+    while (p < end) {
+      uint32_t val = *p;
+      *p++ = (val & 0xFF00FF00)
+	| ((val << 16) & 0xFF0000)
+	| ((val >> 16) & 0xFF);
+    }
+  } else {
+    _openslide_set_error(osr, "TIFFRGBAImageGet failed: %s", emsg);
+    memset(dest, 0, w * h * 4);
   }
 
   // done
