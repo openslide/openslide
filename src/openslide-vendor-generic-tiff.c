@@ -58,11 +58,6 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1) {
   GList *layer_list = NULL;
 
-  int32_t *layers;
-
-  int current_layer = 0;
-  int layer_count = 0;
-
   if (!TIFFIsTiled(tiff)) {
     goto FAIL; // not tiled
   }
@@ -74,6 +69,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   }
 
   // accumulate tiled layers
+  int current_layer = 0;
+  int layer_count = 0;
   do {
     if (TIFFIsTiled(tiff)) {
       // get width
@@ -120,7 +117,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   layer_list = g_list_sort(layer_list, width_compare);
 
   // copy layers in, while deleting the list
-  layers = g_new(int32_t, layer_count);
+  int32_t *layers = g_new(int32_t, layer_count);
   for (int i = 0; i < layer_count; i++) {
     struct layer *l = (struct layer *)layer_list->data;
     layer_list = g_list_delete_link(layer_list, layer_list);

@@ -68,8 +68,6 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   int32_t layer_count = 0;
   int32_t *layers = NULL;
 
-  char **first_pass;
-
   if (!TIFFIsTiled(tiff)) {
     goto FAIL;
   }
@@ -90,7 +88,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     goto FAIL;
   }
 
-  first_pass = g_strsplit(tagval, ";", -1);
+  char **first_pass = g_strsplit(tagval, ";", -1);
 
   if (osr) {
     add_properties(osr->properties, first_pass);
