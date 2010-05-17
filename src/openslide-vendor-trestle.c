@@ -111,17 +111,6 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       }
 
       g_strfreev(second_pass);
-    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
-      // found the other thing
-      errno = 0;
-      uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
-      if (bg || !errno) {
-	if (osr) {
-	  osr->fill_color_r = ((bg >> 16) & 0xFF) / 255.0;
-	  osr->fill_color_g = ((bg >> 8) & 0xFF) / 255.0;
-	  osr->fill_color_b = (bg & 0xFF) / 255.0;
-	}
-      }
     }
   }
   g_strfreev(first_pass);

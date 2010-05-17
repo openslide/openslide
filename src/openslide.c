@@ -463,13 +463,8 @@ void openslide_read_region(openslide_t *osr,
     (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
   }
 
-  // fill with background
-  cairo_set_source_rgb(cr,
-		       osr->fill_color_r,
-		       osr->fill_color_g,
-		       osr->fill_color_b);
   //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
-  cairo_paint(cr);
+  //  cairo_paint(cr);
 
   // clear if an error occurred during paint_region
   if (openslide_get_error(osr)) {

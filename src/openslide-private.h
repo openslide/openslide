@@ -67,10 +67,6 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
-  double fill_color_r;
-  double fill_color_g;
-  double fill_color_b;
-
   double *downsamples;  // if not specified, then filled in automatically from dimensions
 
   // associated images
