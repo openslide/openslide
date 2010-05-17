@@ -346,13 +346,14 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
   int32_t advance_y = th - oy;
 
   // special cases for edge tiles
-  if (start_tile_x >= tiles_across - 1) {
+  // XXX this code is ugly and should be replaced like in jpeg
+  if (ox && (start_tile_x >= tiles_across - 1)) {
     start_tile_x = tiles_across - 1;
     offset_x = ds_x - (start_tile_x * (tw - ox));
     advance_x = tw;
     end_tile_x = start_tile_x + 1;
   }
-  if (start_tile_y >= tiles_down - 1) {
+  if (oy && (start_tile_y >= tiles_down - 1)) {
     start_tile_y = tiles_down - 1;
     offset_y = ds_y - (start_tile_y * (th - oy));
     advance_y = th;
