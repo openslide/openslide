@@ -45,7 +45,7 @@ void _openslide_read_tiles(cairo_t *cr,
 					     struct _openslide_cache *cache)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
   if (fabs(offset_x) >= advance_x) {
-    _openslide_set_error(osr, "fabs(offset_x) >= advance_x");
+    _openslide_set_error(osr, "internal error: fabs(offset_x) >= advance_x");
     return;
   }
   if (fabs(offset_y) >= advance_y) {
