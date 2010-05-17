@@ -256,6 +256,29 @@ static void read_tile(openslide_t *osr,
   if (!tiledata) {
     tiledata = (uint32_t *) g_slice_alloc(tw * th * 4);
     data->tileread(osr, data->tiff, tiledata, x, y, tw, th);
+
+    // clip, if necessary
+    int64_t rx = iw - x;
+    int64_t ry = ih - y;
+    if ((rx < tw) || (ry < th)) {
+      cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+								     CAIRO_FORMAT_ARGB32,
+								     tw, th,
+								     tw * 4);
+      cairo_t *cr2 = cairo_create(surface);
+      cairo_surface_destroy(surface);
+
+      cairo_set_operator(cr2, CAIRO_OPERATOR_CLEAR);
+
+      cairo_rectangle(cr2, rx, 0, tw - rx, th);
+      cairo_fill(cr2);
+
+      cairo_rectangle(cr2, 0, ry, tw, th - ry);
+      cairo_fill(cr2);
+
+
+      cairo_destroy(cr2);
+    }
   }
 
   // draw it
