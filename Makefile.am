@@ -53,13 +53,17 @@ test_test_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 
+# tools
+
+# show-properties
 bin_PROGRAMS = tools/openslide-show-properties
+tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src
+tools_openslide_show_properties_LDADD = src/libopenslide.la
+
+# quickhash1sum
 if BUILD_HASHPROGS
   bin_PROGRAMS += tools/openslide-quickhash1sum
 endif
-
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
 
-tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src
-tools_openslide_show_properties_LDADD = src/libopenslide.la
