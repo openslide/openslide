@@ -31,7 +31,6 @@
 #include "openslide-private.h"
 
 #include <glib.h>
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
@@ -100,7 +99,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 	goto FAIL;
       };
       if (!TIFFIsCODECConfigured(compression)) {
-	g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+	g_warning("Unsupported TIFF compression: %u", compression);
 	goto FAIL;
       }
 
@@ -120,7 +119,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   // copy layers in, while deleting the list
   int32_t *layers = g_new(int32_t, layer_count);
   for (int i = 0; i < layer_count; i++) {
-    struct layer *l = (struct layer *) layer_list->data;
+    struct layer *l = (struct layer *)layer_list->data;
     layer_list = g_list_delete_link(layer_list, layer_list);
 
     layers[i] = l->layer_number;

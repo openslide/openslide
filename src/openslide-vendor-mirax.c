@@ -34,8 +34,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <inttypes.h>
 #include <math.h>
+#include <sys/types.h> // for off_t
 
 #include <jpeglib.h>
 
@@ -287,7 +287,7 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
     g_debug("zoom %d, tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
 	    zoom_level, tile_x, tile_y, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
 
-    g_debug(" src %.10g %.10g dim %.10g %.10g key %" PRId64,
+    g_debug(" src %.10g %.10g dim %.10g %.10g key %" G_GINT64_FORMAT,
 	    tile->src_x, tile->src_y, tile->w, tile->h, *key);
   }
 }
@@ -427,7 +427,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// hash in the lowest-res on-disk tiles
 	if (zoom_level == zoom_levels - 1) {
-	  _openslide_hash_file_part(quickhash1, filename, offset, length);
+	  if (!_openslide_hash_file_part(quickhash1, filename, offset, length)) {
+	    g_free(filename);
+	    g_warning("Can't hash tiles");
+	    goto OUT;
+	  }
 	}
 
 	// populate the file structure
@@ -580,33 +584,30 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   return result;
 }
 
-static void add_associated_image(const char *dirname,
+static bool add_associated_image(const char *dirname,
 				 const char *filename,
 				 int64_t offset,
 				 GHashTable *ht,
 				 const char *name) {
-  if (ht == NULL) {
-    return;
-  }
-
   char *tmp = g_build_filename(dirname, filename, NULL);
   FILE *f = fopen(tmp, "rb");
   g_free(tmp);
 
   if (!f) {
     g_warning("Cannot open associated image file");
-    return;
+    return false;
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_warning("Cannot seek to offset");
     fclose(f);
-    return;
+    return false;
   }
 
-  _openslide_add_jpeg_associated_image(ht, name, f);
+  bool result = _openslide_add_jpeg_associated_image(ht, name, f);
 
   fclose(f);
+  return result;
 }
 
 
@@ -666,7 +667,7 @@ static bool process_indexfile(const char *slideversion,
     g_warning("Cannot read slide position info");
     goto OUT;
   }
-  //  g_debug("slide position: fileno %d size %" PRId64 " offset %" PRId64, slide_position_fileno, slide_position_size, slide_position_offset);
+  //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
 
   if (slide_position_size != (9 * (tiles_x / image_divisions) * (tiles_y / image_divisions))) {
     g_warning("Slide position file not of expected size");
@@ -695,11 +696,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "macro");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "macro")) {
+      g_warning("Cannot read macro associated image");
+      goto OUT;
+    }
   }
   if (read_nonhier_record(indexfile,
 			  nonhier_root,
@@ -707,11 +711,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "label");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "label")) {
+      g_warning("Cannot read label associated image");
+      goto OUT;
+    }
   }
   if (read_nonhier_record(indexfile,
 			  nonhier_root,
@@ -719,11 +726,14 @@ static bool process_indexfile(const char *slideversion,
 			  &tmp_fileno,
 			  &tmp_size,
 			  &tmp_offset)) {
-    add_associated_image(dirname,
-			 datafile_names[tmp_fileno],
-			 tmp_offset,
-			 associated_images,
-			 "thumbnail");
+    if (!add_associated_image(dirname,
+			      datafile_names[tmp_fileno],
+			      tmp_offset,
+			      associated_images,
+			      "thumbnail")) {
+      g_warning("Cannot read thumbnail associated image");
+      goto OUT;
+    }
   }
 
   // read hierarchical sections
@@ -979,7 +989,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // first, check slidedat
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
-  _openslide_hash_file(quickhash1, tmp);  // hash the slidedat
+  // hash the slidedat
+  if (!_openslide_hash_file(quickhash1, tmp)) {
+    g_warning("Can't hash Slidedat file");
+    goto FAIL;
+  }
   slidedat = g_key_file_new();
   if (!g_key_file_load_from_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
     g_warning("Can't load Slidedat file");
@@ -1242,7 +1256,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // Then the positions don't line up and JPEG tiles must be split into
   // subtiles. This significantly complicates the code.
 
-  // compute dimensions in stupid but clear way
+  // compute dimensions base_w and base_h in stupid but clear way
   int64_t base_w = 0;
   int64_t base_h = 0;
 
@@ -1314,7 +1328,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_x = subtile_w - ((double) hs->overlap_x / (double) subtiles_per_position);
     l->tile_advance_y = subtile_h - ((double) hs->overlap_y / (double) subtiles_per_position);
 
-    //g_debug("layer %d tile advance %.10g %.10g, dim %" PRId64 " %" PRId64 ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
+    //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, subtile_w, subtile_h, tile_concat, tile_count_divisor);
   }
 
   // load the position map and build up the tiles, using subtiles
@@ -1338,13 +1352,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 &num_jpegs, &jpegs,
 			 quickhash1)) {
     goto FAIL;
-  }
-
-  if (osr) {
-    uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
-    osr->fill_color_r = ((fill >> 16) & 0xFF) / 255.0;
-    osr->fill_color_g = ((fill >> 8) & 0xFF) / 255.0;
-    osr->fill_color_b = (fill & 0xFF) / 255.0;
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);

@@ -36,6 +36,14 @@ static void process(const char *progname, const char *file) {
     return;
   }
 
+  const char *err = openslide_get_error(osr);
+  if (err) {
+    fprintf(stderr, "%s: %s: %s\n", progname, file, err);
+    fflush(stderr);
+    openslide_close(osr);
+    return;
+  }
+
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
   while (*property_names) {

@@ -33,7 +33,7 @@ Makefile.in
 
 /mingw32-config.cache
 
-/src/test
+/test/test
 
 /doc/html
 /doc/latex

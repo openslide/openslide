@@ -68,7 +68,8 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
     size -= value->size;
 
     // remove from hashtable, this will trigger removal from everything
-    g_assert(g_hash_table_remove(cache->hashtable, key));
+    bool result = g_hash_table_remove(cache->hashtable, key);
+    g_assert(result);
   }
 }
 
@@ -81,7 +82,7 @@ static guint hash_func(gconstpointer key) {
 
   // take the top 4 bits for layer, then 14 bits per x and y,
   // xor it all together
-  return (c_key->layer << 28) ^ (c_key->y << 14) ^ (c_key->x);
+  return (guint) ((c_key->layer << 28) ^ (c_key->y << 14) ^ (c_key->x));
 }
 
 static gboolean key_equal_func(gconstpointer a,
@@ -201,7 +202,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t y,
 			   int32_t layer) {
   // create key
-  struct _openslide_cache_key key = { .x = x, .y = y, .layer = layer };
+  struct _openslide_cache_key key = { x, y, layer };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value =

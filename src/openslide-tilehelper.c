@@ -21,11 +21,11 @@
 
 #include <config.h>
 
+#include "openslide-private.h"
 #include "openslide-tilehelper.h"
 
 #include <glib.h>
 #include <string.h>
-#include <inttypes.h>
 #include <math.h>
 #include <cairo.h>
 
@@ -44,15 +44,21 @@ void _openslide_read_tiles(cairo_t *cr,
 					     double translate_x, double translate_y,
 					     struct _openslide_cache *cache)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
-  g_return_if_fail(fabs(offset_x) < advance_x);
-  g_return_if_fail(fabs(offset_y) < advance_y);
+  if (fabs(offset_x) >= advance_x) {
+    _openslide_set_error(osr, "internal error: fabs(offset_x) >= advance_x");
+    return;
+  }
+  if (fabs(offset_y) >= advance_y) {
+    _openslide_set_error(osr, "fabs(offset_y) >= advance_y");
+    return;
+  }
 
   //  cairo_set_source_rgb(cr, 0, 1, 0);
   //  cairo_paint(cr);
   //g_debug("offset: %d %d", offset_x, offset_y);
 
-  //g_debug("start: %" PRId64 " %" PRId64, start_tile_x, start_tile_y);
-  //g_debug("end: %" PRId64 " %" PRId64, end_tile_x, end_tile_y);
+  //g_debug("start: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y);
+  //g_debug("end: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, end_tile_x, end_tile_y);
 
   int64_t tile_y = end_tile_y - 1;
 
@@ -62,7 +68,7 @@ void _openslide_read_tiles(cairo_t *cr,
 
     while (tile_x >= start_tile_x) {
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
-      //      g_debug("read_tiles %" PRId64 " %" PRId64, tile_x, tile_y);
+      //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
       read_tile(osr, cr, layer, tile_x, tile_y, translate_x, translate_y, cache);
       tile_x--;
     }

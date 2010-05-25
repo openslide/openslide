@@ -27,7 +27,9 @@
 #include "openslide.h"
 #include "openslide-cache.h"
 
+#ifndef _MSC_VER
 #include <stdbool.h>
+#endif
 #include <stdint.h>
 #include <cairo.h>
 

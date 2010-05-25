@@ -26,7 +26,8 @@
 #include "openslide-hash.h"
 
 #include <string.h>
-#include <inttypes.h>
+#include <glib.h>
+
 
 #ifdef HAVE_G_CHECKSUM_NEW
 struct _openslide_hash {
@@ -53,63 +54,56 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 		    strlen(str_to_hash) + 1);
 }
 
-void _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
-  if (hash == NULL) {
-    return;
-  }
-
+bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   g_assert(TIFFIsTiled(tiff));
 
   // get tile sizes
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
     g_critical("Cannot get tile size");
-    return;  // ok, haven't allocated anything yet
+    return false;  // ok, haven't allocated anything yet
   }
 
   // get offsets
   toff_t *offsets;
   if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
     g_critical("Cannot get offsets");
-    return;  // ok, haven't allocated anything yet
+    return false;  // ok, haven't allocated anything yet
   }
 
   // hash each tile's raw data
   ttile_t count = TIFFNumberOfTiles(tiff);
   const char *filename = TIFFFileName(tiff);
   for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
-    _openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no]);
+    if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no])) {
+      return false;
+    }
   }
+
+  return true;
 }
 
 
-void _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
-  if (hash == NULL) {
-    return;
-  }
-
-  GChecksum *checksum = hash->checksum;
-
+bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
   gchar *contents;
   gsize length;
 
-  g_return_if_fail(g_file_get_contents(filename, &contents, &length, NULL));
+  g_return_val_if_fail(g_file_get_contents(filename, &contents, &length, NULL), false);
 
-  g_checksum_update(checksum, (guchar *) contents, length);
-  g_free(contents);
-}
-
-void _openslide_hash_file_part(struct _openslide_hash *hash,
-			       const char *filename,
-			       int64_t offset, int size) {
-  if (hash == NULL) {
-    return;
+  if (hash != NULL) {
+    GChecksum *checksum = hash->checksum;
+    g_checksum_update(checksum, (guchar *) contents, length);
   }
 
-  GChecksum *checksum = hash->checksum;
+  g_free(contents);
+  return true;
+}
 
+bool _openslide_hash_file_part(struct _openslide_hash *hash,
+			       const char *filename,
+			       int64_t offset, int size) {
   FILE *f = fopen(filename, "rb");
-  g_return_if_fail(f);
+  g_return_val_if_fail(f, false);
 
   void *buf = g_slice_alloc(size);
 
@@ -117,18 +111,25 @@ void _openslide_hash_file_part(struct _openslide_hash *hash,
     g_critical("Can't seek in %s", filename);
     g_slice_free1(size, buf);
     fclose(f);
+    return false;
   }
 
   if (fread(buf, size, 1, f) != 1) {
     g_critical("Can't read from %s", filename);
     g_slice_free1(size, buf);
     fclose(f);
+    return false;
   }
 
-  //g_debug("hash '%s' %" PRId64 " %d", filename, offset, size);
-  g_checksum_update(checksum, (guchar *) buf, size);
+  //g_debug("hash '%s' %" G_GINT64_FORMAT " %d", filename, offset, size);
+  if (hash != NULL) {
+    GChecksum *checksum = hash->checksum;
+    g_checksum_update(checksum, (guchar *) buf, size);
+  }
+
   g_slice_free1(size, buf);
   fclose(f);
+  return true;
 }
 
 const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
@@ -146,16 +147,16 @@ struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
   return NULL;
 }
 
-void _openslide_hash_tiff_tiles(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-				TIFF *_OPENSLIDE_UNUSED(tiff)) {}
+bool _openslide_hash_tiff_tiles(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+				TIFF *_OPENSLIDE_UNUSED(tiff)) { return true; }
 void _openslide_hash_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
 			    const char *_OPENSLIDE_UNUSED(str)) {}
-void _openslide_hash_file(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-			  const char *_OPENSLIDE_UNUSED(filename)) {}
-void _openslide_hash_file_part(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+bool _openslide_hash_file(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
+			  const char *_OPENSLIDE_UNUSED(filename)) { return true; }
+bool _openslide_hash_file_part(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
 			       const char *_OPENSLIDE_UNUSED(filename),
 			       int64_t _OPENSLIDE_UNUSED(offset),
-			       int _OPENSLIDE_UNUSED(size)) {}
+			       int _OPENSLIDE_UNUSED(size)) { return true; }
 const char *_openslide_hash_get_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash)) {
   return NULL;
 }

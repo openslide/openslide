@@ -44,7 +44,9 @@
 #include "openslide-hash.h"
 
 #include <glib.h>
+#ifndef _MSC_VER
 #include <stdbool.h>
+#endif
 #include <setjmp.h>
 #include <tiffio.h>
 #include <jpeglib.h>
@@ -65,10 +67,6 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
-  double fill_color_r;
-  double fill_color_g;
-  double fill_color_b;
-
   double *downsamples;  // if not specified, then filled in automatically from dimensions
 
   // associated images
@@ -81,6 +79,9 @@ struct _openslide {
 
   // cache
   struct _openslide_cache *cache;
+
+  // error handling, NULL if no error
+  gpointer error; // must use g_atomic_pointer!
 };
 
 /* the function pointer structure for backends */
@@ -94,9 +95,6 @@ struct _openslide_ops {
 		       int32_t w, int32_t h);
   void (*destroy)(openslide_t *osr);
 };
-
-/* DSO constructor */
-void __attribute ((constructor)) _openslide_init(void);
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
@@ -131,7 +129,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1);
 
 /* TIFF support */
-typedef void (*_openslide_tiff_tilereader_fn)(TIFF *tiff,
+typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
+					      TIFF *tiff,
 					      uint32_t *dest,
 					      int64_t x,
 					      int64_t y,
@@ -147,7 +146,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1);
 
-void _openslide_generic_tiff_tilereader(TIFF *tiff,
+void _openslide_generic_tiff_tilereader(openslide_t *osr,
+					TIFF *tiff,
 					uint32_t *dest,
 					int64_t x, int64_t y,
 					int32_t w, int32_t h);
@@ -243,9 +243,13 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 							 jmp_buf *env);
 GHashTable *_openslide_jpeg_create_tiles_table(void);
 
-void _openslide_add_jpeg_associated_image(GHashTable *ht,
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  FILE *f);
+
+
+// error handling
+bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),

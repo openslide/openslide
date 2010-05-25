@@ -32,7 +32,6 @@
 #include "openslide-private.h"
 
 #include <glib.h>
-#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
@@ -79,11 +78,13 @@ static void write_pixel_rgb(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) 
 static void warning_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
   g_warning("%s", msg);
 }
-static void error_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
-  g_critical("%s", msg);
+static void error_callback(const char *msg, void *data) {
+  openslide_t *osr = (openslide_t *) data;
+  _openslide_set_error(osr, "%s", msg);
 }
 
-static void aperio_tiff_tilereader(TIFF *tiff,
+static void aperio_tiff_tilereader(openslide_t *osr,
+				   TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t x, int64_t y,
 				   int32_t w, int32_t h) {
@@ -94,7 +95,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   // not for us? fallback
   if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
       (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
-    _openslide_generic_tiff_tilereader(tiff, dest, x, y, w, h);
+    _openslide_generic_tiff_tilereader(osr, tiff, dest, x, y, w, h);
     return;
   }
 
@@ -111,7 +112,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   // get tile size
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_critical("Cannot get tile size");
+    _openslide_set_error(osr, "Cannot get tile size");
     return;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
@@ -120,7 +121,7 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   tdata_t buf = g_slice_alloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
-    g_critical("Cannot get raw tile");
+    _openslide_set_error(osr, "Cannot get raw tile");
     goto OUT;
   }
 
@@ -131,22 +132,24 @@ static void aperio_tiff_tilereader(TIFF *tiff,
   opj_setup_decoder(dinfo, &parameters);
   stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char *) buf, size);
 
-  opj_event_mgr_t event_callbacks = {
-    .error_handler = error_callback,
-    .warning_handler = warning_callback,
-    /* don't use info_handler, it outputs lots of junk */
-  };
-  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, NULL);
+ // note: don't use info_handler, it outputs lots of junk
+  opj_event_mgr_t event_callbacks = { error_callback, warning_callback, NULL };
+  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
 
 
   // decode
   image = opj_decode(dinfo, stream);
 
+  // check error
+  if (openslide_get_error(osr)) {
+    goto OUT;
+  }
+
   opj_image_comp_t *comps = image->comps;
 
   // sanity check
   if (image->numcomps != 3) {
-    g_critical("image->numcomps != 3");
+    _openslide_set_error(osr, "image->numcomps != 3");
     goto OUT;
   }
 
@@ -227,7 +230,9 @@ static void add_properties(GHashTable *ht, char **props) {
 }
 
 // add the image from the current TIFF directory
-static void add_associated_image(GHashTable *ht, const char *name_if_available,
+// returns false if fatal error
+// true does not necessarily imply an image was added
+static bool add_associated_image(GHashTable *ht, const char *name_if_available,
 				 TIFF *tiff) {
   char *name = NULL;
   if (name_if_available) {
@@ -237,13 +242,13 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 
     // get name
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &val)) {
-      return;
+      return true;
     }
 
     // parse ImageDescription, after newline up to first whitespace -> gives name
     char **lines = g_strsplit_set(val, "\r\n", -1);
     if (!lines) {
-      return;
+      return true;
     }
 
     if (lines[0] && lines[1]) {
@@ -267,13 +272,13 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     // get the dimensions
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
       g_free(name);
-      return;
+      return false;
     }
     int64_t w = tmp;
 
     if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
       g_free(name);
-      return;
+      return false;
     }
     int64_t h = tmp;
 
@@ -282,7 +287,7 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
     if (!TIFFReadRGBAImageOriented(tiff, w, h, img_data, ORIENTATION_TOPLEFT, 0)) {
       g_free(name);
       g_free(img_data);
-      return;
+      return false;
     }
 
     // permute
@@ -295,16 +300,23 @@ static void add_associated_image(GHashTable *ht, const char *name_if_available,
 	| ((val >> 16) & 0xFF);
     }
 
-    // load into struct
-    struct _openslide_associated_image *aimg =
-      g_slice_new(struct _openslide_associated_image);
-    aimg->w = w;
-    aimg->h = h;
-    aimg->argb_data = img_data;
+    // possibly load into struct
+    if (ht) {
+      struct _openslide_associated_image *aimg =
+	g_slice_new(struct _openslide_associated_image);
+      aimg->w = w;
+      aimg->h = h;
+      aimg->argb_data = img_data;
 
-    // save
-    g_hash_table_insert(ht, name, aimg);
+      // save
+      g_hash_table_insert(ht, name, aimg);
+    } else {
+      g_free(name);
+      g_free(img_data);
+    }
   }
+
+  return true;
 }
 
 
@@ -363,9 +375,10 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       //g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
     } else {
       // associated image
-      if (osr) {
-	char *name = (i == 1) ? "thumbnail" : NULL;
-	add_associated_image(osr->associated_images, name, tiff);
+      const char *name = (i == 1) ? "thumbnail" : NULL;
+      if (!add_associated_image(osr ? osr->associated_images : NULL, name, tiff)) {
+	g_warning("Can't read associated image");
+	goto FAIL;
       }
       //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
     }
@@ -386,9 +399,9 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       goto FAIL;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
-	(compression != APERIO_COMPRESSION_JP2K_RGB) &&
-	!TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %" PRIu16, compression);
+        (compression != APERIO_COMPRESSION_JP2K_RGB) &&
+        !TIFFIsCODECConfigured(compression)) {
+      g_warning("Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
   } while (TIFFReadDirectory(tiff));

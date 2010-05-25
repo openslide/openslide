@@ -38,12 +38,10 @@
 #include <string.h>
 #include <jpeglib.h>
 #include <jerror.h>
-#include <inttypes.h>
 #include <math.h>
+#include <sys/types.h> // for off_t
 
 #include <cairo.h>
-
-#include <sys/types.h>   // for off_t ?
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
@@ -51,7 +49,7 @@
 enum restart_marker_thread_state {
   R_M_THREAD_STATE_RUN,
   R_M_THREAD_STATE_PAUSE,
-  R_M_THREAD_STATE_STOP,
+  R_M_THREAD_STATE_STOP
 };
 
 struct one_jpeg {
@@ -148,7 +146,15 @@ static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to be done */
 }
 
-static int fill_input_buffer (j_decompress_ptr cinfo) {
+#ifndef jpeg_boolean
+# ifdef boolean
+#  define jpeg_boolean boolean
+# else
+#  define jpeg_boolean int
+# endif
+#endif
+
+static jpeg_boolean fill_input_buffer (j_decompress_ptr cinfo) {
   /* this should never be called, there is nothing to fill */
   ERREXIT(cinfo, JERR_INPUT_EMPTY);
 
@@ -168,7 +174,8 @@ static void term_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
   /* nothing to do */
 }
 
-static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
+static void jpeg_random_access_src (openslide_t *osr,
+				    j_decompress_ptr cinfo, FILE *infile,
 				    int64_t header_start_position,
 				    int64_t header_stop_position,
 				    int64_t start_position, int64_t stop_position) {
@@ -193,11 +200,11 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
       (header_start_position >= header_stop_position) ||
       (header_stop_position > start_position) ||
       (start_position >= stop_position)) {
-    g_critical("Can't do random access JPEG read: "
-	       "header_start_position: %" PRId64 ", "
-	       "header_stop_position: %" PRId64 ", "
-	       "start_position: %" PRId64 ", "
-	       "stop_position: %" PRId64,
+    _openslide_set_error(osr, "Can't do random access JPEG read: "
+	       "header_start_position: %" G_GINT64_FORMAT ", "
+	       "header_stop_position: %" G_GINT64_FORMAT ", "
+	       "start_position: %" G_GINT64_FORMAT ", "
+	       "stop_position: %" G_GINT64_FORMAT,
 	       header_start_position, header_stop_position,
 	       start_position, stop_position);
 
@@ -218,15 +225,24 @@ static void jpeg_random_access_src (j_decompress_ptr cinfo, FILE *infile,
   src->pub.next_input_byte = src->buffer;
 
   // read in the 2 parts
-  //  g_debug("reading header from %" PRId64, header_start_position);
+  //  g_debug("reading header from %" G_GINT64_FORMAT, header_start_position);
   fseeko(infile, header_start_position, SEEK_SET);
-  g_return_if_fail(fread(src->buffer, header_length, 1, infile));
-  //  g_debug("reading from %" PRId64, start_position);
+  if (!fread(src->buffer, header_length, 1, infile)) {
+    _openslide_set_error(osr, "Cannot read header in JPEG");
+    return;
+  }
+  //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
   fseeko(infile, start_position, SEEK_SET);
-  g_return_if_fail(fread(src->buffer + header_length, data_length, 1, infile));
+  if (!fread(src->buffer + header_length, data_length, 1, infile)) {
+    _openslide_set_error(osr, "Cannot read data in JPEG");
+    return;
+  }
 
   // change the final byte to EOI
-  g_return_if_fail(src->buffer[src->buffer_size - 2] == 0xFF);
+  if (src->buffer[src->buffer_size - 2] != 0xFF) {
+    _openslide_set_error(osr, "Expected 0xFF byte at end of JPEG data");
+    return;
+  }
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
 
@@ -381,7 +397,8 @@ static uint8_t find_next_ff_marker(FILE *f,
   }
 }
 
-static void compute_mcu_start(FILE *f,
+static void compute_mcu_start(openslide_t *osr,
+			      FILE *f,
 			      int64_t *mcu_starts,
 			      int64_t *unreliable_mcu_starts,
 			      int64_t start_in_file,
@@ -404,8 +421,7 @@ static void compute_mcu_start(FILE *f,
       jpeg_start_decompress(&cinfo);
     } else {
       // setjmp returns again
-      g_critical("Error initializing JPEG");
-      // TODO _openslide_convert_to_error_ops
+      _openslide_set_error(osr, "Error initializing JPEG");
     }
 
     // set the first entry
@@ -434,7 +450,7 @@ static void compute_mcu_start(FILE *f,
     size_t result = fread(buf, 2, 1, f);
     if (result == 0 ||
 	buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-      g_critical("Restart marker not found in expected place");
+      _openslide_set_error(osr, "Restart marker not found in expected place");
     } else {
       mcu_starts[target] = offset;
       return;
@@ -463,10 +479,10 @@ static void compute_mcu_start(FILE *f,
 				    &bytes_in_buf);
     g_assert(after_marker_pos > 0 || after_marker_pos == -1);
     if (after_marker_pos == -1) {
-      g_critical("after_marker_pos == -1");
+      _openslide_set_error(osr, "after_marker_pos == -1");
       break;
     }
-    //g_debug("after_marker_pos: %" PRId64, after_marker_pos);
+    //g_debug("after_marker_pos: %" G_GINT64_FORMAT, after_marker_pos);
 
     // EOI?
     if (b == JPEG_EOI) {
@@ -479,35 +495,8 @@ static void compute_mcu_start(FILE *f,
   }
 }
 
-static void draw_red_x(uint32_t *dest, int w, int h) {
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) dest,
-								 CAIRO_FORMAT_RGB24,
-								 w, h,
-								 w * 4);
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
-
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-
-  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-  cairo_set_line_width(cr, 1.0);
-  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0);
-  cairo_rectangle(cr, 0, 0, w, h);
-  cairo_stroke(cr);
-
-  cairo_move_to(cr, 0, 0);
-  cairo_line_to(cr, w, h);
-  cairo_stroke(cr);
-
-  cairo_move_to(cr, w, 0);
-  cairo_line_to(cr, 0, h);
-  cairo_stroke(cr);
-
-  cairo_destroy(cr);
-}
-
-static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
+static uint32_t *read_from_one_jpeg (openslide_t *osr,
+				     struct one_jpeg *jpeg,
 				     int32_t tileno,
 				     int32_t scale_denom,
 				     int w, int h) {
@@ -518,10 +507,9 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
   // open file
   FILE *f = fopen(jpeg->filename, "rb");
   if (f == NULL) {
-    g_critical("Can't open %s", jpeg->filename);
-
     // fail
-    draw_red_x(dest, w, h);
+    _openslide_set_error(osr, "Can't open %s", jpeg->filename);
+    memset(dest, 0, w * h * 4);
     return dest;
   }
 
@@ -537,7 +525,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
     int64_t stop_position;
-    compute_mcu_start(f,
+    compute_mcu_start(osr, f,
 		      jpeg->mcu_starts,
 		      jpeg->unreliable_mcu_starts,
 		      jpeg->start_in_file,
@@ -547,7 +535,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
       // EOF
       stop_position = jpeg->end_in_file;
     } else {
-      compute_mcu_start(f,
+      compute_mcu_start(osr, f,
 			jpeg->mcu_starts,
 			jpeg->unreliable_mcu_starts,
 			jpeg->start_in_file,
@@ -562,7 +550,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     // start decompressing
     jpeg_create_decompress(&cinfo);
 
-    jpeg_random_access_src(&cinfo, f,
+    jpeg_random_access_src(osr, &cinfo, f,
 			   jpeg->start_in_file,
 			   jpeg->mcu_starts[0],
 			   jpeg->mcu_starts[tileno],
@@ -587,8 +575,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     }
 
     if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
-      g_critical("Dimensional mismatch in read_from_one_jpeg");
-      draw_red_x(dest, w, h);
+      _openslide_set_error(osr, "Dimensional mismatch in read_from_one_jpeg");
     } else {
       // decompress
       uint32_t *jpeg_dest = dest;
@@ -618,8 +605,7 @@ static uint32_t *read_from_one_jpeg (struct one_jpeg *jpeg,
     }
   } else {
     // setjmp returns again
-    g_critical("JPEG decompression failed");
-    // TODO _openslide_convert_to_error_ops
+    _openslide_set_error(osr, "JPEG decompression failed");
   }
 
   // free buffers
@@ -654,33 +640,34 @@ static void read_tile(openslide_t *osr,
   }
 
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
-  struct tile *tile = (struct tile *) g_hash_table_lookup(l->tiles, &tileindex);
+  struct tile *requested_tile = (struct tile *) g_hash_table_lookup(l->tiles, &tileindex);
 
   bool cachemiss;
 
-  if (!tile) {
-    //    g_debug("no tile at index %" PRId64, tileindex);
+  if (!requested_tile) {
+    //    g_debug("no tile at index %" G_GINT64_FORMAT, tileindex);
     return;
   }
 
   if (layer <= 3) {
-    //g_debug("jpeg read_tile: %d, %" PRId64 " %" PRId64 ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
+    //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
   }
 
   // get the jpeg data, possibly from cache
   g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
-							 tile->jpegno,
-							 tile->tileno,
+							 requested_tile->jpegno,
+							 requested_tile->tileno,
 							 layer);
   g_mutex_unlock(data->cache_mutex);
-  int tw = tile->jpeg->tile_width / l->scale_denom;
-  int th = tile->jpeg->tile_height / l->scale_denom;
+  int tw = requested_tile->jpeg->tile_width / l->scale_denom;
+  int th = requested_tile->jpeg->tile_height / l->scale_denom;
 
   cachemiss = !tiledata;
   if (!tiledata) {
-    tiledata = read_from_one_jpeg(tile->jpeg,
-				  tile->tileno,
+    tiledata = read_from_one_jpeg(osr,
+				  requested_tile->jpeg,
+				  requested_tile->tileno,
 				  l->scale_denom,
 				  tw, th);
   }
@@ -691,16 +678,16 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  double src_x = tile->src_x / l->scale_denom;
-  double src_y = tile->src_y / l->scale_denom;
+  double src_x = requested_tile->src_x / l->scale_denom;
+  double src_y = requested_tile->src_y / l->scale_denom;
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((tile->jpeg->tile_width > tile->w) ||
-      (tile->jpeg->tile_height > tile->h)) {
+  if ((requested_tile->jpeg->tile_width > requested_tile->w) ||
+      (requested_tile->jpeg->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-							   ceil(tile->w / l->scale_denom),
-							   ceil(tile->h / l->scale_denom));
+							   ceil(requested_tile->w / l->scale_denom),
+							   ceil(requested_tile->h / l->scale_denom));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -src_x, -src_y);
 
@@ -711,16 +698,16 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-		    tile->w / l->scale_denom,
-		    tile->h / l->scale_denom);
+		    requested_tile->w / l->scale_denom,
+		    requested_tile->h / l->scale_denom);
     cairo_fill(cr2);
     cairo_destroy(cr2);
   }
 
   cairo_save(cr);
   cairo_translate(cr,
-		  tile->dest_offset_x / l->scale_denom + translate_x,
-		  tile->dest_offset_y / l->scale_denom + translate_y);
+		  requested_tile->dest_offset_x / l->scale_denom + translate_x,
+		  requested_tile->dest_offset_y / l->scale_denom + translate_y);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
@@ -756,7 +743,7 @@ static void read_tile(openslide_t *osr,
   // put into cache last, because the cache can free this tile
   if (cachemiss) {
     g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, tile->jpegno, tile->tileno, layer,
+    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, layer,
 			 tiledata,
 			 tw * th * 4);
     g_mutex_unlock(data->cache_mutex);
@@ -791,8 +778,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
   int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1;
 
-  //g_debug("ds: % " PRId64 " %" PRId64, ds_x, ds_y);
-  //  g_debug("start tile: %" PRId64 " %" PRId64 ", end tile: %" PRId64 " %" PRId64,
+  //g_debug("ds: % " G_GINT64_FORMAT " %" G_GINT64_FORMAT, ds_x, ds_y);
+  //  g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT,
   //	  start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 
   // accommodate extra tiles being drawn
@@ -881,11 +868,10 @@ static void get_dimensions(openslide_t *osr,
 }
 
 static const struct _openslide_ops jpeg_ops = {
-  .get_dimensions = get_dimensions,
-  .paint_region = paint_region,
-  .destroy = destroy
+  get_dimensions,
+  paint_region,
+  destroy
 };
-
 
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_file *file) {
@@ -968,7 +954,8 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 }
 
 static gpointer restart_marker_thread_func(gpointer d) {
-  struct jpegops_data *data = (struct jpegops_data *) d;
+  openslide_t *osr = (openslide_t *) d;
+  struct jpegops_data *data = (struct jpegops_data *) osr->data;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1033,15 +1020,19 @@ static gpointer restart_marker_thread_func(gpointer d) {
       if (current_file == NULL) {
 	current_file = fopen(oj->filename, "rb");
 	if (current_file == NULL) {
-	  g_critical("Can't open %s", oj->filename);
+	  _openslide_set_error(osr, "Can't open %s", oj->filename);
+	  goto LOCKED_FAIL;
 	}
       }
       if (current_file != NULL) {
-	compute_mcu_start(current_file, oj->mcu_starts,
+	compute_mcu_start(osr, current_file, oj->mcu_starts,
 			  oj->unreliable_mcu_starts,
 			  oj->start_in_file,
 			  oj->end_in_file,
 			  current_mcu_start);
+	if (openslide_get_error(osr)) {
+	  goto LOCKED_FAIL;
+	}
       }
 
       current_mcu_start++;
@@ -1059,6 +1050,10 @@ static gpointer restart_marker_thread_func(gpointer d) {
   }
 
   //  g_debug("restart_marker_thread_func done!");
+  return NULL;
+
+ LOCKED_FAIL:
+  g_mutex_unlock(data->restart_marker_mutex);
   return NULL;
 }
 
@@ -1105,7 +1100,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   for (int32_t i = 0; i < layer_count; i++) {
     struct _openslide_jpeg_layer *l = layers[i];
     g_debug("layer %d", i);
-    g_debug(" size %" PRId64 " %" PRId64, l->layer_w, l->layer_h);
+    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->layer_w, l->layer_h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
     g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
@@ -1276,7 +1271,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   data->restart_marker_cond = g_cond_new();
   data->restart_marker_cond_mutex = g_mutex_new();
   data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
-						data,
+						osr,
 						TRUE,
 						NULL);
 
@@ -1325,9 +1320,10 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 }
 
 
-void _openslide_add_jpeg_associated_image(GHashTable *ht,
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  FILE *f) {
+  bool result;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -1346,7 +1342,7 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       jpeg_destroy_decompress(&cinfo);
-      return;
+      return false;
     }
 
     cinfo.out_color_space = JCS_RGB;
@@ -1391,17 +1387,23 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
     }
 
     // success!
-    struct _openslide_associated_image *aimg =
-      g_slice_new(struct _openslide_associated_image);
-    aimg->w = w;
-    aimg->h = h;
-    aimg->argb_data = argb_data;
+    if (ht) {
+      struct _openslide_associated_image *aimg =
+	g_slice_new(struct _openslide_associated_image);
+      aimg->w = w;
+      aimg->h = h;
+      aimg->argb_data = argb_data;
 
-    g_hash_table_insert(ht, g_strdup(name), aimg);
+      g_hash_table_insert(ht, g_strdup(name), aimg);
+    } else {
+      g_free(argb_data);
+    }
+
+    result = true;
   } else {
     // setjmp has returned again
-    g_critical("Error in decoding associated JPEG image");
     g_free(argb_data);
+    result = false;
   }
 
   // free buffers
@@ -1411,4 +1413,6 @@ void _openslide_add_jpeg_associated_image(GHashTable *ht,
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   jpeg_destroy_decompress(&cinfo);
+
+  return result;
 }
