@@ -436,8 +436,84 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   return success;
 }
 
-static bool hamamatsu_vmu_part2(void) {
-  return false;
+static int32_t read_le_int32_from_file(FILE *f) {
+  int32_t i;
+
+  if (fread(&i, 4, 1, f) != 1) {
+    return -1;
+  }
+
+  i = GINT32_FROM_LE(i);
+  //  g_debug("%d", i);
+
+  return i;
+}
+
+static bool hamamatsu_vmu_part2(openslide_t *osr,
+				int num_files, char **image_filenames) {
+  bool success = false;
+
+  // initialize individual ngr structs
+  struct _openslide_vmu_file **files = g_new0(struct _openslide_vmu_file *,
+					      num_files);
+  for (int i = 0; i < num_files; i++) {
+    files[i] = g_slice_new0(struct _openslide_vmu_file);
+  }
+
+  // open files
+  for (int i = 0; i < num_files; i++) {
+    struct _openslide_vmu_file *ngr = files[i];
+
+    ngr->filename = g_strdup(image_filenames[i]);
+
+    FILE *f;
+    if ((f = fopen(ngr->filename, "rb")) == NULL) {
+      g_warning("Can't open NGR file");
+      goto DONE;
+    }
+
+    // validate magic
+    if ((fgetc(f) != 'G') || (fgetc(f) != 'N')) {
+      g_warning("Bad magic on NGR file");
+      fclose(f);
+      goto DONE;
+    }
+
+    // read w, h, chunksize, headersize
+    fseeko(f, 4, SEEK_SET);
+    ngr->w = read_le_int32_from_file(f);
+    ngr->h = read_le_int32_from_file(f);
+    ngr->chunksize = read_le_int32_from_file(f);
+
+    fseeko(f, 24, SEEK_SET);
+    ngr->start_in_file = read_le_int32_from_file(f);
+
+    // validate
+    if ((ngr->w <= 0) || (ngr->h <= 0) ||
+	(ngr->chunksize <= 0) || (ngr->start_in_file <= 0)) {
+      g_warning("Error processing header");
+      fclose(f);
+      goto DONE;
+    }
+
+    fclose(f);
+  }
+
+  success = true;
+
+ DONE:
+  if (success) {
+    _openslide_add_vmu_ops(osr, num_files, files);
+  } else {
+    // destroy
+    for (int i = 0; i < num_files; i++) {
+      g_slice_free(struct _openslide_vmu_file, files[i]);
+      g_free(files[i]->filename);
+    }
+    g_free(files);
+  }
+
+  return success;
 }
 
 
@@ -691,7 +767,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       fclose(optimisation_file);
     }
   } else if (groupname == GROUP_VMU) {
-    success = hamamatsu_vmu_part2();
+    success = hamamatsu_vmu_part2(osr,
+				  num_images, image_filenames);
   } else {
     g_assert_not_reached();
   }
