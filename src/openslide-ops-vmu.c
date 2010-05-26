@@ -47,7 +47,7 @@ static void destroy_data(struct _openslide_vmuopsdata *data) {
     g_free(data->files[i]->filename);
     g_free(data->files[i]->chunk_table[0]);
     g_free(data->files[i]->chunk_table);
-    g_free(data->files[i]);
+    /* g_free(data->files[i]); */
 
   }
   g_slice_free(struct _openslide_vmuopsdata, data);
@@ -92,29 +92,30 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   unsigned short *buffer = (unsigned short *) g_slice_alloc(chunkbytes);
 
   int64_t ct = -1;
+
   for (int64_t j = y, J = 0; J < h; j++, J++) {
 
     for (int64_t i = x, I = 0; I < w; i++, I++) {
 
-      int64_t cto = chunk_table[j][i / vmu_file->chunksize];
-
-      if (cto != ct) {
-
-	fseek(f, cto, SEEK_SET);
-	fread(buffer, chunkbytes, 1, f);
-	ct = cto;
-
-      }
-      int64_t image_offset = ((J * w) + I) * 4;
-
       if ((0 <= i) && (i < vmu_file->w) && (0 <= j) && (j < vmu_file->h)) {
 
-	int64_t loc = (i % vmu_file->chunksize) * 3;
+	  int64_t cto = chunk_table[j][i / vmu_file->chunksize];
 
-	imagedata[image_offset + 0] = *(buffer + loc + 2) >> 4;
-	imagedata[image_offset + 1] = *(buffer + loc + 1) >> 4;
-	imagedata[image_offset + 2] = *(buffer + loc + 0) >> 4;
-	imagedata[image_offset + 3] = 0xff;
+	  if (cto != ct) {
+	      
+	      fseek(f, cto, SEEK_SET);
+	      fread(buffer, chunkbytes, 1, f);
+	      ct = cto;
+	      
+	  }
+	  int64_t image_offset = ((J * w) + I) * 4;
+	  
+	  int64_t loc = (i % vmu_file->chunksize) * 3;
+	  
+	  imagedata[image_offset + 0] = *(buffer + loc + 2) >> 4;
+	  imagedata[image_offset + 1] = *(buffer + loc + 1) >> 4;
+	  imagedata[image_offset + 2] = *(buffer + loc + 0) >> 4;
+	  imagedata[image_offset + 3] = 0xff;
 
       }
 
