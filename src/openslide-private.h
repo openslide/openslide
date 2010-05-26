@@ -229,9 +229,6 @@ void _openslide_add_vmu_ops(openslide_t *osr,
 			    int32_t file_count,
 			    struct _openslide_vmu_file **files);
 
-bool _openslide_try_hamamatsu_vmu( openslide_t *osr, const char *filename,
-				   struct _openslide_hash *quickhash1 );
-
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {
   struct jpeg_error_mgr pub;      // public fields

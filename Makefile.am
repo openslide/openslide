@@ -23,7 +23,6 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-hash.c src/openslide-error.c \
 	src/openslide-ops-jpeg.c \
 	src/openslide-vendor-hamamatsu.c \
-	src/openslide-vendor-hamamatsu-vmu.c \
 	src/openslide-ops-vmu.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
@@ -68,4 +67,3 @@ if BUILD_HASHPROGS
 endif
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
-
