@@ -32,8 +32,6 @@
 #include <inttypes.h>
 #include <cairo.h>
 
-#include "openslide-hash.h"
-
 
 struct _openslide_vmuopsdata {
   int32_t file_count;
@@ -151,7 +149,6 @@ static const struct _openslide_ops _openslide_vmu_ops = {
 
 
 void _openslide_add_vmu_ops(openslide_t *osr,
-			    struct _openslide_hash *quickhash1,
 			    int32_t file_count,
 			    struct _openslide_vmu_file **files) {
   if (osr == NULL) {
@@ -164,9 +161,6 @@ void _openslide_add_vmu_ops(openslide_t *osr,
 
   data->file_count = file_count;
   data->files = files;
-
-  // generate hash of the smallest layer
-  _openslide_hash_file(quickhash1, files[0]->filename);
 
   // store vmu-specific data into osr
   g_assert(osr->data == NULL);

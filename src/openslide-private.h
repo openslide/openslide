@@ -222,7 +222,6 @@ struct _openslide_vmu_file {
 };
 
 void _openslide_add_vmu_ops(openslide_t *osr,
-			    struct _openslide_hash *quickhash1,
 			    int32_t file_count,
 			    struct _openslide_vmu_file **files);
 
