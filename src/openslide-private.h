@@ -215,13 +215,10 @@ struct _openslide_vmu_file {
     char *filename;
 
     int64_t start_in_file;
-    int64_t end_in_file;
 
     int32_t w;
     int32_t h;
     int32_t chunksize;
-
-    int64_t **chunk_table;
 };
 
 void _openslide_add_vmu_ops(openslide_t *osr,
