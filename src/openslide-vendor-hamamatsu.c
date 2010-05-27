@@ -49,6 +49,8 @@ static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static const char KEY_MACRO_IMAGE[] = "MacroImage";
+static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
+static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
 // returns w and h and tw and th and comment as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
@@ -767,8 +769,26 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       fclose(optimisation_file);
     }
   } else if (groupname == GROUP_VMU) {
-    success = hamamatsu_vmu_part2(osr,
-				  num_images, image_filenames);
+    // verify a few assumptions for VMU
+    int bits_per_pixel = g_key_file_get_integer(key_file,
+						GROUP_VMU,
+						KEY_BITS_PER_PIXEL,
+						NULL);
+    char *pixel_order = g_key_file_get_string(key_file,
+					      GROUP_VMU,
+					      KEY_PIXEL_ORDER,
+					      NULL);
+
+    if (bits_per_pixel != 36) {
+      g_warning("%s must be 36", KEY_BITS_PER_PIXEL);
+    } else if (!pixel_order || (strcmp(pixel_order, "RGB") != 0)) {
+      g_warning("%s must be RGB", KEY_PIXEL_ORDER);
+    } else {
+      // assumptions verified
+      success = hamamatsu_vmu_part2(osr,
+				    num_images, image_filenames);
+    }
+    g_free(pixel_order);
   } else {
     g_assert_not_reached();
   }
