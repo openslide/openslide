@@ -123,10 +123,10 @@ static void read_tile(openslide_t *osr,
     // got the data, now convert to 8-bit xRGB
     tiledata = g_slice_alloc(tilesize);
     for (int i = 0; i < ngr->column_width; i++) {
-      // saturate at 255
-      uint8_t r = MIN(GUINT16_FROM_LE(buf[(i * 3)]), 255);
-      uint8_t g = MIN(GUINT16_FROM_LE(buf[(i * 3) + 1]), 255);
-      uint8_t b = MIN(GUINT16_FROM_LE(buf[(i * 3) + 2]), 255);
+      // scale down from 12 bits
+      uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
+      uint8_t g = GINT16_FROM_LE(buf[(i * 3) + 1]) >> 4;
+      uint8_t b = GINT16_FROM_LE(buf[(i * 3) + 2]) >> 4;
 
       tiledata[i] = (r << 16) | (g << 8) | b;
     }
