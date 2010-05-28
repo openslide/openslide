@@ -223,8 +223,8 @@ struct _openslide_ngr {
 };
 
 void _openslide_add_ngr_ops(openslide_t *osr,
-			    int32_t file_count,
-			    struct _openslide_ngr **files);
+			    int32_t ngr_count,
+			    struct _openslide_ngr **ngrs);
 
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {

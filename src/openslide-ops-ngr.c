@@ -36,26 +36,26 @@
 
 
 struct ngr_data {
-  int32_t file_count;
-  struct _openslide_ngr **files;
+  int32_t ngr_count;
+  struct _openslide_ngr **ngrs;
 
   // cache lock
   GMutex *cache_mutex;
 };
 
 
-static void destroy_files(struct _openslide_ngr **files, int count) {
+static void destroy_ngrs(struct _openslide_ngr **ngrs, int count) {
   for (int i = 0; i < count; i++) {
-    g_free(files[i]->filename);
-    g_slice_free(struct _openslide_ngr, files[i]);
+    g_free(ngrs[i]->filename);
+    g_slice_free(struct _openslide_ngr, ngrs[i]);
   }
-  g_free(files);
+  g_free(ngrs);
 }
 
 static void destroy(openslide_t *osr) {
   struct ngr_data *data = (struct ngr_data *) osr->data;
 
-  destroy_files(data->files, data->file_count);
+  destroy_ngrs(data->ngrs, data->ngr_count);
 
   g_mutex_free(data->cache_mutex);
   g_slice_free(struct ngr_data, data);
@@ -66,7 +66,7 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *w, int64_t *h) {
 
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->files[layer];
+  struct _openslide_ngr *ngr = data->ngrs[layer];
 
   *w = ngr->w;
   *h = ngr->h;
@@ -79,7 +79,7 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->files[layer];
+  struct _openslide_ngr *ngr = data->ngrs[layer];
 
   // check if beyond boundary
   int num_columns = ngr->w / ngr->column_width;
@@ -166,7 +166,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer, int32_t w, int32_t h) {
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->files[layer];
+  struct _openslide_ngr *ngr = data->ngrs[layer];
 
   // compute coordinates
   double ds = openslide_get_layer_downsample(osr, layer);
@@ -198,10 +198,10 @@ static const struct _openslide_ops _openslide_vmu_ops = {
 
 
 void _openslide_add_ngr_ops(openslide_t *osr,
-			    int32_t file_count,
-			    struct _openslide_ngr **files) {
+			    int32_t ngr_count,
+			    struct _openslide_ngr **ngrs) {
   if (osr == NULL) {
-    destroy_files(files, file_count);
+    destroy_ngrs(ngrs, ngr_count);
     return;
   }
 
@@ -209,8 +209,8 @@ void _openslide_add_ngr_ops(openslide_t *osr,
   struct ngr_data *data =
     g_slice_new(struct ngr_data);
 
-  data->file_count = file_count;
-  data->files = files;
+  data->ngr_count = ngr_count;
+  data->ngrs = ngrs;
 
   // init cache lock
   data->cache_mutex = g_mutex_new();
@@ -220,6 +220,6 @@ void _openslide_add_ngr_ops(openslide_t *osr,
   osr->data = data;
 
   // general osr data
-  osr->layer_count = file_count;
+  osr->layer_count = ngr_count;
   osr->ops = &_openslide_vmu_ops;
 }
