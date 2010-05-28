@@ -210,8 +210,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     struct _openslide_jpeg_layer **layers);
 
-/* Hamamatsu VMU "flat file" support */
-struct _openslide_vmu_file {
+// Hamamatsu NGR
+struct _openslide_ngr {
   char *filename;
 
   int64_t start_in_file;
@@ -222,9 +222,9 @@ struct _openslide_vmu_file {
   int32_t column_width;
 };
 
-void _openslide_add_vmu_ops(openslide_t *osr,
+void _openslide_add_ngr_ops(openslide_t *osr,
 			    int32_t file_count,
-			    struct _openslide_vmu_file **files);
+			    struct _openslide_ngr **files);
 
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {

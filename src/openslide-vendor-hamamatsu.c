@@ -456,15 +456,15 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   bool success = false;
 
   // initialize individual ngr structs
-  struct _openslide_vmu_file **files = g_new0(struct _openslide_vmu_file *,
-					      num_files);
+  struct _openslide_ngr **files = g_new0(struct _openslide_ngr *,
+					 num_files);
   for (int i = 0; i < num_files; i++) {
-    files[i] = g_slice_new0(struct _openslide_vmu_file);
+    files[i] = g_slice_new0(struct _openslide_ngr);
   }
 
   // open files
   for (int i = 0; i < num_files; i++) {
-    struct _openslide_vmu_file *ngr = files[i];
+    struct _openslide_ngr *ngr = files[i];
 
     ngr->filename = g_strdup(image_filenames[i]);
 
@@ -512,11 +512,11 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
  DONE:
   if (success) {
-    _openslide_add_vmu_ops(osr, num_files, files);
+    _openslide_add_ngr_ops(osr, num_files, files);
   } else {
     // destroy
     for (int i = 0; i < num_files; i++) {
-      g_slice_free(struct _openslide_vmu_file, files[i]);
+      g_slice_free(struct _openslide_ngr, files[i]);
       g_free(files[i]->filename);
     }
     g_free(files);

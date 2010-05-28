@@ -35,9 +35,9 @@
 #include <cairo.h>
 
 
-struct _openslide_vmuopsdata {
+struct ngr_data {
   int32_t file_count;
-  struct _openslide_vmu_file **files;
+  struct _openslide_ngr **files;
 
   // cache lock
   GMutex *cache_mutex;
@@ -45,25 +45,25 @@ struct _openslide_vmuopsdata {
 
 
 static void destroy(openslide_t *osr) {
-  struct _openslide_vmuopsdata *data = osr->data;
+  struct ngr_data *data = osr->data;
 
   for (int i = 0; i < data->file_count; i++) {
     g_free(data->files[i]->filename);
   }
 
   g_mutex_free(data->cache_mutex);
-  g_slice_free(struct _openslide_vmuopsdata, data);
+  g_slice_free(struct ngr_data, data);
 }
 
 
 static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *w, int64_t *h) {
 
-  struct _openslide_vmuopsdata *data = osr->data;
-  struct _openslide_vmu_file *vmu_file = data->files[layer];
+  struct ngr_data *data = osr->data;
+  struct _openslide_ngr *ngr = data->files[layer];
 
-  *w = vmu_file->w;
-  *h = vmu_file->h;
+  *w = ngr->w;
+  *h = ngr->h;
 }
 
 static void read_tile(openslide_t *osr,
@@ -72,16 +72,16 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
-  struct _openslide_vmuopsdata *data = osr->data;
-  struct _openslide_vmu_file *vmu_file = data->files[layer];
+  struct ngr_data *data = osr->data;
+  struct _openslide_ngr *ngr = data->files[layer];
 
   // check if beyond boundary
-  int num_columns = vmu_file->w / vmu_file->column_width;
-  if ((tile_x >= num_columns) || (tile_y >= vmu_file->h)) {
+  int num_columns = ngr->w / ngr->column_width;
+  if ((tile_x >= num_columns) || (tile_y >= ngr->h)) {
     return;
   }
 
-  int tilesize = vmu_file->column_width * 4;
+  int tilesize = ngr->column_width * 4;
   // look up tile in cache
   g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
@@ -93,27 +93,27 @@ static void read_tile(openslide_t *osr,
   bool cachemiss = !tiledata;
   if (cachemiss) {
     // read the tile data
-    FILE *f = fopen(vmu_file->filename, "rb");
+    FILE *f = fopen(ngr->filename, "rb");
     if (!f) {
-      _openslide_set_error(osr, "Cannot open file %s", vmu_file->filename);
+      _openslide_set_error(osr, "Cannot open file %s", ngr->filename);
       return;
     }
 
     // compute offset to read
-    int64_t offset = vmu_file->start_in_file +
-      (tile_y * vmu_file->column_width * 6) +
-      (tile_x * vmu_file->h * vmu_file->column_width * 6);
+    int64_t offset = ngr->start_in_file +
+      (tile_y * ngr->column_width * 6) +
+      (tile_x * ngr->h * ngr->column_width * 6);
     //    g_debug("tile_x: %" G_GINT64_FORMAT ", "
     //	    "tile_y: %" G_GINT64_FORMAT ", "
     //	    "seeking to %" G_GINT64_FORMAT, tile_x, tile_y, offset);
     fseeko(f, offset, SEEK_SET);
 
     // alloc and read
-    int buf_size = vmu_file->column_width * 6;
+    int buf_size = ngr->column_width * 6;
     uint16_t *buf = g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
-      _openslide_set_error(osr, "Cannot read file %s", vmu_file->filename);
+      _openslide_set_error(osr, "Cannot read file %s", ngr->filename);
       fclose(f);
       g_slice_free1(buf_size, buf);
       return;
@@ -122,7 +122,7 @@ static void read_tile(openslide_t *osr,
 
     // got the data, now convert to 8-bit xRGB
     tiledata = g_slice_alloc(tilesize);
-    for (int i = 0; i < vmu_file->column_width; i++) {
+    for (int i = 0; i < ngr->column_width; i++) {
       // saturate at 255
       uint8_t r = MIN(GUINT16_FROM_LE(buf[(i * 3)]), 255);
       uint8_t g = MIN(GUINT16_FROM_LE(buf[(i * 3) + 1]), 255);
@@ -134,7 +134,7 @@ static void read_tile(openslide_t *osr,
   }
 
   // draw it
-  int64_t tw = vmu_file->column_width;
+  int64_t tw = ngr->column_width;
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
 								 CAIRO_FORMAT_RGB24,
 								 tw, 1,
@@ -159,26 +159,26 @@ static void read_tile(openslide_t *osr,
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer, int32_t w, int32_t h) {
-  struct _openslide_vmuopsdata *data = osr->data;
-  struct _openslide_vmu_file *vmu_file = data->files[layer];
+  struct ngr_data *data = osr->data;
+  struct _openslide_ngr *ngr = data->files[layer];
 
   // compute coordinates
   double ds = openslide_get_layer_downsample(osr, layer);
   int64_t ds_x = x / ds;
   int64_t ds_y = y / ds;
-  int64_t start_tile_x = ds_x / vmu_file->column_width;
-  int64_t end_tile_x = ((ds_x + w) / vmu_file->column_width) + 1;
+  int64_t start_tile_x = ds_x / ngr->column_width;
+  int64_t end_tile_x = ((ds_x + w) / ngr->column_width) + 1;
   int64_t start_tile_y = ds_y;
   int64_t end_tile_y = ds_y + h + 1;
 
-  int64_t offset_x = ds_x - (start_tile_x * vmu_file->column_width);
+  int64_t offset_x = ds_x - (start_tile_x * ngr->column_width);
 
   _openslide_read_tiles(cr,
 			layer,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, 0,
-			vmu_file->column_width, 1,
+			ngr->column_width, 1,
 			osr, osr->cache,
 			read_tile);
 }
@@ -191,9 +191,9 @@ static const struct _openslide_ops _openslide_vmu_ops = {
 };
 
 
-void _openslide_add_vmu_ops(openslide_t *osr,
+void _openslide_add_ngr_ops(openslide_t *osr,
 			    int32_t file_count,
-			    struct _openslide_vmu_file **files) {
+			    struct _openslide_ngr **files) {
   if (osr == NULL) {
     // free files and return
     for (int32_t i = 0; i < file_count; i++) {
@@ -205,8 +205,8 @@ void _openslide_add_vmu_ops(openslide_t *osr,
   }
 
   // allocate private data
-  struct _openslide_vmuopsdata *data =
-    g_slice_new(struct _openslide_vmuopsdata);
+  struct ngr_data *data =
+    g_slice_new(struct ngr_data);
 
   data->file_count = file_count;
   data->files = files;
