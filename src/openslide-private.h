@@ -212,13 +212,14 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
 /* Hamamatsu VMU "flat file" support */
 struct _openslide_vmu_file {
-    char *filename;
+  char *filename;
 
-    int64_t start_in_file;
+  int64_t start_in_file;
 
-    int32_t w;
-    int32_t h;
-    int32_t chunksize;
+  int32_t w;
+  int32_t h;
+
+  int32_t column_width;
 };
 
 void _openslide_add_vmu_ops(openslide_t *osr,

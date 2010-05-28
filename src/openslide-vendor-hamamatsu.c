@@ -481,18 +481,18 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       goto DONE;
     }
 
-    // read w, h, chunksize, headersize
+    // read w, h, column width, headersize
     fseeko(f, 4, SEEK_SET);
     ngr->w = read_le_int32_from_file(f);
     ngr->h = read_le_int32_from_file(f);
-    ngr->chunksize = read_le_int32_from_file(f);
+    ngr->column_width = read_le_int32_from_file(f);
 
     fseeko(f, 24, SEEK_SET);
     ngr->start_in_file = read_le_int32_from_file(f);
 
     // validate
     if ((ngr->w <= 0) || (ngr->h <= 0) ||
-	(ngr->chunksize <= 0) || (ngr->start_in_file <= 0)) {
+	(ngr->column_width <= 0) || (ngr->start_in_file <= 0)) {
       g_warning("Error processing header");
       fclose(f);
       goto DONE;
