@@ -44,12 +44,18 @@ struct ngr_data {
 };
 
 
-static void destroy(openslide_t *osr) {
-  struct ngr_data *data = osr->data;
-
-  for (int i = 0; i < data->file_count; i++) {
-    g_free(data->files[i]->filename);
+static void destroy_files(struct _openslide_ngr **files, int count) {
+  for (int i = 0; i < count; i++) {
+    g_free(files[i]->filename);
+    g_slice_free(struct _openslide_ngr, files[i]);
   }
+  g_free(files);
+}
+
+static void destroy(openslide_t *osr) {
+  struct ngr_data *data = (struct ngr_data *) osr->data;
+
+  destroy_files(data->files, data->file_count);
 
   g_mutex_free(data->cache_mutex);
   g_slice_free(struct ngr_data, data);
@@ -59,7 +65,7 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr, int32_t layer,
 			   int64_t *w, int64_t *h) {
 
-  struct ngr_data *data = osr->data;
+  struct ngr_data *data = (struct ngr_data *) osr->data;
   struct _openslide_ngr *ngr = data->files[layer];
 
   *w = ngr->w;
@@ -72,7 +78,7 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
-  struct ngr_data *data = osr->data;
+  struct ngr_data *data = (struct ngr_data *) osr->data;
   struct _openslide_ngr *ngr = data->files[layer];
 
   // check if beyond boundary
@@ -110,7 +116,7 @@ static void read_tile(openslide_t *osr,
 
     // alloc and read
     int buf_size = ngr->column_width * 6;
-    uint16_t *buf = g_slice_alloc(buf_size);
+    uint16_t *buf = (uint16_t *) g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
       _openslide_set_error(osr, "Cannot read file %s", ngr->filename);
@@ -121,7 +127,7 @@ static void read_tile(openslide_t *osr,
     fclose(f);
 
     // got the data, now convert to 8-bit xRGB
-    tiledata = g_slice_alloc(tilesize);
+    tiledata = (uint32_t *) g_slice_alloc(tilesize);
     for (int i = 0; i < ngr->column_width; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -159,7 +165,7 @@ static void read_tile(openslide_t *osr,
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t layer, int32_t w, int32_t h) {
-  struct ngr_data *data = osr->data;
+  struct ngr_data *data = (struct ngr_data *) osr->data;
   struct _openslide_ngr *ngr = data->files[layer];
 
   // compute coordinates
@@ -195,12 +201,7 @@ void _openslide_add_ngr_ops(openslide_t *osr,
 			    int32_t file_count,
 			    struct _openslide_ngr **files) {
   if (osr == NULL) {
-    // free files and return
-    for (int32_t i = 0; i < file_count; i++) {
-      g_free(files[i]->filename);
-    }
-    g_free(files);
-
+    destroy_files(files, file_count);
     return;
   }
 
