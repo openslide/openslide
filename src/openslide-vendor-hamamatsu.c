@@ -498,6 +498,13 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       goto DONE;
     }
 
+    // ensure no remainder on columns
+    if ((ngr->w % ngr->column_width) != 0) {
+      g_warning("Width not multiple of column width");
+      fclose(f);
+      goto DONE;
+    }
+
     fclose(f);
   }
 
@@ -779,8 +786,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 					      KEY_PIXEL_ORDER,
 					      NULL);
 
-    if (bits_per_pixel != 36) {
-      g_warning("%s must be 36", KEY_BITS_PER_PIXEL);
+    if ((bits_per_pixel < (9*3)) || (bits_per_pixel > (16*3)) {
+      g_warning("%s must be within 27-48 inclusive", KEY_BITS_PER_PIXEL);
     } else if (!pixel_order || (strcmp(pixel_order, "RGB") != 0)) {
       g_warning("%s must be RGB", KEY_PIXEL_ORDER);
     } else {
