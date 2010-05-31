@@ -276,7 +276,7 @@ static void read_tile(openslide_t *osr,
       cairo_rectangle(cr2, 0, ry, tw, th - ry);
       cairo_fill(cr2);
 
-
+      _openslide_check_cairo_status_possibly_set_error(osr, cr2);
       cairo_destroy(cr2);
     }
   }
