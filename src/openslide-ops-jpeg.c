@@ -704,7 +704,8 @@ static void read_tile(openslide_t *osr,
     cairo_destroy(cr2);
   }
 
-  cairo_save(cr);
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
   cairo_translate(cr,
 		  requested_tile->dest_offset_x / l->scale_denom + translate_x,
 		  requested_tile->dest_offset_y / l->scale_denom + translate_y);
@@ -712,8 +713,10 @@ static void read_tile(openslide_t *osr,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
+  cairo_set_matrix(cr, &matrix);
 
   /*
+  cairo_save(cr);
   cairo_set_source_rgba(cr, 1.0, 0, 0, 0.2);
   cairo_rectangle(cr, 0, 0, 4, 4);
   cairo_fill(cr);
@@ -736,9 +739,9 @@ static void read_tile(openslide_t *osr,
   cairo_move_to(cr, 0, tile->h/l->scale_denom);
   cairo_show_text(cr, yt);
   g_free(yt);
+  cairo_restore(cr);
   */
 
-  cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
   if (cachemiss) {

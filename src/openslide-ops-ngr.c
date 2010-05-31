@@ -144,12 +144,13 @@ static void read_tile(openslide_t *osr,
 								 CAIRO_FORMAT_RGB24,
 								 tw, 1,
 								 tw * 4);
-  cairo_save(cr);
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, translate_x, translate_y);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-  cairo_restore(cr);
+  cairo_set_matrix(cr, &matrix);
 
   // put into cache last, because the cache can free this tile
   if (cachemiss) {
