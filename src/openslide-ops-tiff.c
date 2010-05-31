@@ -276,7 +276,7 @@ static void read_tile(openslide_t *osr,
       cairo_rectangle(cr2, 0, ry, tw, th - ry);
       cairo_fill(cr2);
 
-
+      _openslide_check_cairo_status_possibly_set_error(osr, cr2);
       cairo_destroy(cr2);
     }
   }
@@ -286,13 +286,16 @@ static void read_tile(openslide_t *osr,
 								 CAIRO_FORMAT_ARGB32,
 								 tw, th,
 								 tw * 4);
-  cairo_save(cr);
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, translate_x, translate_y);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
+  cairo_set_matrix(cr, &matrix);
 
   /*
+  cairo_save(cr);
   int z = 4;
   int64_t tiles_across = (iw / tw) + !!(iw % tw);
   char *zz = g_strdup_printf("%" G_GINT64_FORMAT ",%" G_GINT64_FORMAT " (%" G_GINT64_FORMAT ")",
@@ -310,9 +313,9 @@ static void read_tile(openslide_t *osr,
   cairo_rectangle(cr, tw-z, th-z, z, z);
   cairo_fill(cr);
   g_free(zz);
+  cairo_restore(cr);
   */
 
-  cairo_restore(cr);
 
   // put into cache last, because the cache can free this tile
   if (cachemiss) {

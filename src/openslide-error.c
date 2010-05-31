@@ -56,3 +56,14 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
     return true;
   }
 }
+
+bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr, cairo_t *cr) {
+  cairo_status_t status = cairo_status(cr);
+  if (!status) {
+    return false;
+  }
+
+  // cairo has error, let's set our error from it
+  return _openslide_set_error(osr, "cairo error: %s",
+			      cairo_status_to_string(status));
+}

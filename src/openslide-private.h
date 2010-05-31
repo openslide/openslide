@@ -210,6 +210,22 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     struct _openslide_jpeg_layer **layers);
 
+// Hamamatsu NGR
+struct _openslide_ngr {
+  char *filename;
+
+  int64_t start_in_file;
+
+  int32_t w;
+  int32_t h;
+
+  int32_t column_width;
+};
+
+void _openslide_add_ngr_ops(openslide_t *osr,
+			    int32_t ngr_count,
+			    struct _openslide_ngr **ngrs);
+
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {
   struct jpeg_error_mgr pub;      // public fields
@@ -228,7 +244,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 
 // error handling
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
-
+bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
+						      cairo_t *cr);
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat

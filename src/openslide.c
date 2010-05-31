@@ -467,6 +467,7 @@ void openslide_read_region(openslide_t *osr,
   //  cairo_paint(cr);
 
   // clear if an error occurred during paint_region
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
   if (openslide_get_error(osr)) {
     cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
     cairo_paint(cr);
