@@ -43,4 +43,30 @@
 #endif
 
 
+#ifndef __cplusplus
+#if defined(HAVE_STDBOOL_H)
+/*
+The C language implementation does correctly provide the standard header
+file "stdbool.h".
+ */
+#include <stdbool.h>
+#else
+/*
+The C language implementation does not provide the standard header file
+"stdbool.h" as required by ISO/IEC 9899:1999.  Try to compensate for this
+braindamage below.
+*/
+#if !defined(bool)
+#define	bool	int
+#endif
+#if !defined(true)
+#define true	1
+#endif
+#if !defined(false)
+#define	false	0
+#endif
+#endif
+#endif /* __cplusplus */
+
+
 #endif
