@@ -244,7 +244,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 
 // error handling
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
-
+bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
+						      cairo_t *cr);
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat
