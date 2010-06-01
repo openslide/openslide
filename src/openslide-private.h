@@ -247,6 +247,12 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 						      cairo_t *cr);
 
+
+// private properties, for now
+#define _OPENSLIDE_PROPERTY_NAME_LAYER_COUNT "openslide.layer-count"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH "openslide.layer[%d].width"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT "openslide.layer[%d].height"
+
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat
 // TODO: remove if soname bump
