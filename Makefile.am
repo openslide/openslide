@@ -67,3 +67,8 @@ if BUILD_HASHPROGS
 endif
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
+
+# write-png
+bin_PROGRAMS += tools/openslide-write-png
+tools_openslide_write_png_CPPFLAGS = -I$(top_srcdir)/src $(LIBPNG_CFLAGS) $(GLIB2_CFLAGS)
+tools_openslide_write_png_LDADD = src/libopenslide.la $(LIBPNG_LIBS) $(GLIB2_LIBS)

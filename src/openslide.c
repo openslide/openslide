@@ -291,6 +291,22 @@ openslide_t *openslide_open(const char *filename) {
     _openslide_hash_destroy(quickhash1);
   }
 
+  // set other properties
+  g_hash_table_insert(osr->properties,
+		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LAYER_COUNT),
+		      g_strdup_printf("%d", osr->layer_count));
+  for (int32_t i = 0; i < osr->layer_count; i++) {
+    int64_t w, h;
+    openslide_get_layer_dimensions(osr, i, &w, &h);
+
+    g_hash_table_insert(osr->properties,
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH, i),
+			g_strdup_printf("%" G_GINT64_FORMAT, w));
+    g_hash_table_insert(osr->properties,
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT, i),
+			g_strdup_printf("%" G_GINT64_FORMAT, h));
+  }
+
   // fill in names
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
   osr->property_names = strv_from_hashtable_keys(osr->properties);
