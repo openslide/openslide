@@ -224,11 +224,18 @@ static void add_key_to_strv(gpointer key,
   d->strv[d->i++] = (const char *) key;
 }
 
+static int cmpstring(const void *p1, const void *p2) {
+  return strcmp(* (char * const *) p1, * (char * const *) p2);
+}
+
 static const char **strv_from_hashtable_keys(GHashTable *h) {
-  const char **result = g_new0(const char *, g_hash_table_size(h) + 1);
+  int size = g_hash_table_size(h);
+  const char **result = g_new0(const char *, size + 1);
 
   struct add_key_to_strv_data data = { 0, result };
   g_hash_table_foreach(h, add_key_to_strv, &data);
+
+  qsort(result, size, sizeof(char *), cmpstring);
 
   return result;
 }
