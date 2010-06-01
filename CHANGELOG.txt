@@ -1,6 +1,14 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.0, 2010-06-01
+ * Add experimental CMake support and fixes for building with MSVC
+   (thanks to Hauke Heibel!)
+ * Enable detecting runtime errors
+ * Add initial Hamamatsu Nanozoomer VMU support
+   (thanks to Steve Lamont)
+ * Add "openslide-write-png" tool
+
 Version 3.1.1, 2010-04-27
  * Fix a crash when reading an invalid VMS file
  * Fix memory leaks when reading an invalid VMS file
