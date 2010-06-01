@@ -125,7 +125,7 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 						double downsample);
 
 /**
- * Copy ARGB data from a whole slide image.
+ * Copy pre-multiplied ARGB data from a whole slide image.
  *
  * This function reads and decompresses a region of a whole slide
  * image into the specified memory location. @p dest must be a valid
@@ -319,7 +319,7 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
 
 
 /**
- * Copy ARGB data from an associated image.
+ * Copy pre-multiplied ARGB data from an associated image.
  *
  * This function reads and decompresses an associated image associated
  * with a whole slide image. @p dest must be a valid pointer to enough
