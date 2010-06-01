@@ -559,7 +559,10 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
     }
 
     if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
-      _openslide_set_error(osr, "Dimensional mismatch in read_from_one_jpeg");
+      _openslide_set_error(osr,
+			   "Dimensional mismatch in read_from_one_jpeg, "
+			   "expected %dx%d, got %dx%d",
+			   w, h, cinfo.output_width, cinfo.output_height);
     } else {
       // decompress
       uint32_t *jpeg_dest = dest;
