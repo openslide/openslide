@@ -102,8 +102,6 @@ static void write_png(openslide_t *osr, FILE *f,
 
   png_set_text(png_ptr, info_ptr, text_ptr, 1);
 
-  png_set_bgr(png_ptr); // XXX ?
-
   // start writing
   png_write_info(png_ptr, info_ptr);
 
@@ -120,8 +118,32 @@ static void write_png(openslide_t *osr, FILE *f,
       fail("%s", err);
     }
 
-    // correct endian
-    
+    // un-premultiply alpha and pack into expected format
+    for (int i = 0; i < w; i++) {
+      uint32_t p = dest[i];
+      uint8_t *p8 = (uint8_t *) (dest + i);
+
+      uint8_t a = (p >> 24) & 0xFF;
+      uint8_t r = (p >> 16) & 0xFF;
+      uint8_t g = (p >> 8) & 0xFF;
+      uint8_t b = p & 0xFF;
+
+      if (a) {
+	r = (r * 255 + a / 2) / a;
+	g = (g * 255 + a / 2) / a;
+	b = (b * 255 + a / 2) / a;
+      } else {
+	r = 0;
+	b = 0;
+	g = 0;
+      }
+
+      // write back
+      p8[0] = r;
+      p8[1] = g;
+      p8[2] = b;
+      p8[3] = a;
+    }
 
     png_write_row(png_ptr, (png_bytep) dest);
     yy++;
