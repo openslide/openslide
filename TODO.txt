@@ -1,7 +1,3 @@
-* Error handling
-
-* Ship docs
-
 * Lockless concurrency (long term)
   - JPEG backend now should have this (except for the cache)
   - TIFF backend will likely never be lockless as long as we use libtiff
