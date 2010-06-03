@@ -1,6 +1,11 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.1, 2010-06-03
+ * Fix crashes on Windows when trying to read Hamamatsu files
+ * Fix jpeg 7 problems in read_from_one_jpeg
+ * Quiet the error handling system after the first error
+
 Version 3.2.0, 2010-06-01
  * Add experimental CMake support and fixes for building with MSVC
    (thanks to Hauke Heibel!)
