@@ -541,6 +541,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 			   stop_position);
 
     jpeg_read_header(&cinfo, TRUE);
+    cinfo.scale_num = 1;
     cinfo.scale_denom = scale_denom;
     cinfo.image_width = jpeg->tile_width;  // cunning
     cinfo.image_height = jpeg->tile_height;
