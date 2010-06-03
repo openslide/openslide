@@ -400,7 +400,7 @@ static void compute_mcu_start(openslide_t *osr,
     if (setjmp(env) == 0) {
       cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
       jpeg_create_decompress(&cinfo);
-      jpeg_stdio_src(&cinfo, f);
+      _openslide_jpeg_stdio_src(&cinfo, f);
       jpeg_read_header(&cinfo, TRUE);
       jpeg_start_decompress(&cinfo);
     } else {
@@ -1328,7 +1328,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 
     int header_result;
 
-    jpeg_stdio_src(&cinfo, f);
+    _openslide_jpeg_stdio_src(&cinfo, f);
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {

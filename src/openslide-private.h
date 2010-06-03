@@ -210,6 +210,28 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t layer_count,
 			     struct _openslide_jpeg_layer **layers);
 
+GHashTable *_openslide_jpeg_create_tiles_table(void);
+
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+					  const char *name,
+					  FILE *f);
+
+/*
+ * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
+ * So we need to compile all our freading into the OpenSlide DLL directly.
+ */
+void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo, FILE *infile);
+
+// error function for libjpeg
+struct _openslide_jpeg_error_mgr {
+  struct jpeg_error_mgr pub;      // public fields
+
+  jmp_buf *env;
+};
+
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+							 jmp_buf *env);
+
 // Hamamatsu NGR
 struct _openslide_ngr {
   char *filename;
@@ -225,21 +247,6 @@ struct _openslide_ngr {
 void _openslide_add_ngr_ops(openslide_t *osr,
 			    int32_t ngr_count,
 			    struct _openslide_ngr **ngrs);
-
-// error function for libjpeg
-struct _openslide_jpeg_error_mgr {
-  struct jpeg_error_mgr pub;      // public fields
-
-  jmp_buf *env;
-};
-
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
-							 jmp_buf *env);
-GHashTable *_openslide_jpeg_create_tiles_table(void);
-
-bool _openslide_add_jpeg_associated_image(GHashTable *ht,
-					  const char *name,
-					  FILE *f);
 
 
 // error handling

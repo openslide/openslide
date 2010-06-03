@@ -72,7 +72,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
-    jpeg_stdio_src(&cinfo, f);
+    _openslide_jpeg_stdio_src(&cinfo, f);
 
     int header_result;
 
