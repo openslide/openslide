@@ -37,14 +37,9 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
 
   va_list args;
 
-  // log it
-  va_start(args, format);
-  g_logv(G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL, format, args);
-  va_end(args);
-
   // format it for us
   va_start(args, format);
-  gpointer newmsg = g_strdup_vprintf(format, args);
+  char *newmsg = g_strdup_vprintf(format, args);
   va_end(args);
 
   if (!g_atomic_pointer_compare_and_exchange(&osr->error, NULL, newmsg)) {
@@ -52,7 +47,8 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
     g_free(newmsg);
     return false;
   } else {
-    // error was set
+    // error was set, log it
+    g_critical("%s", newmsg);
     return true;
   }
 }
