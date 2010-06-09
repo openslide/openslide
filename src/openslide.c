@@ -434,33 +434,14 @@ void openslide_cancel_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
   g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
 }
 
-void openslide_read_region(openslide_t *osr,
-			   uint32_t *dest,
-			   int64_t x, int64_t y,
-			   int32_t layer,
-			   int64_t w, int64_t h) {
-  //g_debug("openslide_read_region: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT " %d %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, x, y, layer, w, h);
-
-  if (w <= 0 || h <= 0) {
-    //g_debug("%" G_GINT64_FORMAT " %" G_GINT64_FORMAT, w, h);
-    return;
-  }
-
-  // create the cairo surface for the dest
-  cairo_surface_t *surface;
-  if (dest) {
-    surface = cairo_image_surface_create_for_data((unsigned char *) dest,
-						  CAIRO_FORMAT_ARGB32,
-						  w, h, w * 4);
-  } else {
-    // nil surface
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
-  }
-
-
-  // create the cairo context
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
+static void read_region(openslide_t *osr,
+			cairo_t *cr,
+			int64_t x, int64_t y,
+			int32_t layer,
+			int64_t w, int64_t h) {
+  // clip
+  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_clip(cr);
 
   // clear
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
@@ -468,7 +449,6 @@ void openslide_read_region(openslide_t *osr,
 
   // do nothing else if error
   if (openslide_get_error(osr)) {
-    cairo_destroy(cr);
     return;
   }
 
@@ -495,6 +475,36 @@ void openslide_read_region(openslide_t *osr,
     cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
     cairo_paint(cr);
   }
+}
+
+
+void openslide_read_region(openslide_t *osr,
+			   uint32_t *dest,
+			   int64_t x, int64_t y,
+			   int32_t layer,
+			   int64_t w, int64_t h) {
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+
+  // create the cairo surface for the dest
+  cairo_surface_t *surface;
+  if (dest) {
+    surface = cairo_image_surface_create_for_data((unsigned char *) dest,
+						  CAIRO_FORMAT_ARGB32,
+						  w, h, w * 4);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  }
+
+
+  // create the cairo context
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+
+  // paint
+  read_region(osr, cr, x, y, layer, w, h);
 
   // done
   cairo_destroy(cr);
