@@ -51,8 +51,8 @@ noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-til
 
 noinst_PROGRAMS = test/test
 
-test_test_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
-test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+test_test_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -I$(top_srcdir)/src
+test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 
 # tools

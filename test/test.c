@@ -36,6 +36,13 @@
 #endif
 
 #include <glib.h>
+#include <cairo.h>
+#include <cairo-pdf.h>
+
+#include <math.h>
+
+#include "openslide-cairo.h"
+
 
 static void print_downsamples(openslide_t *osr) {
   for (int32_t layer = 0; layer < openslide_get_layer_count(osr); layer++) {
@@ -188,6 +195,35 @@ static void dump_as_tiles(openslide_t *osr, const char *name,
 }
 
 
+static void test_pdf(openslide_t *osr, const char *filename) {
+  printf("test_pdf: %s\n", filename);
+  cairo_surface_t *pdf = cairo_pdf_surface_create(filename, 0, 0);
+  cairo_t *cr = cairo_create(pdf);
+
+  for (int i = 0; i < openslide_get_layer_count(osr); i++) {
+    int64_t orig_w, orig_h;
+    openslide_get_layer_dimensions(osr, i, &orig_w, &orig_h);
+    int64_t w = MIN(orig_w, 2000);
+    int64_t h = MIN(orig_h, 2000);
+
+    printf(" layer %d (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ").",
+	   i, w, h);
+    fflush(stdout);
+    cairo_pdf_surface_set_size(pdf, w, h);
+    printf(".");
+    fflush(stdout);
+    openslide_cairo_read_region(osr, cr, (orig_w - w) / 2, (orig_h - h) / 2, i, w, h);
+    printf(".");
+    fflush(stdout);
+    cairo_show_page(cr);
+    printf(" done\n");
+  }
+
+  cairo_surface_destroy(pdf);
+  cairo_destroy(cr);
+  printf(" done with pdf\n");
+}
+
 int main(int argc, char **argv) {
   if (argc != 2) {
     printf("give file!\n");
@@ -248,6 +284,14 @@ int main(int argc, char **argv) {
 
   // test NULL dest
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
+
+  // test empty surface
+  cairo_surface_t *surface =
+    cairo_image_surface_create(CAIRO_FORMAT_RGB24, 0, 0);
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+  openslide_cairo_read_region(osr, cr, 0, 0, 0, 1000, 1000);
+  cairo_destroy(cr);
 
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
@@ -315,6 +359,8 @@ int main(int argc, char **argv) {
   //test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
   //test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
   test_image_fetch(osr, "test7", 0, 0, 200, 200, skip);
+
+  test_pdf(osr, "test0.pdf");
 
   CALLGRIND_STOP_INSTRUMENTATION
 
