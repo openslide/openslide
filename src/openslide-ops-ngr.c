@@ -25,10 +25,8 @@
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 
-#include <unistd.h>
 #include <string.h>
 #include <stdint.h>
-#include <fcntl.h>
 #include <glib.h>
 #include <inttypes.h>
 #include <cairo.h>
