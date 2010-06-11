@@ -96,8 +96,6 @@ AC_SEARCH_LIBS([_fseeki64], [msvcr80], AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80])
 LIBS="$old_LIBS"
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
-AC_SUBST(GLIB2_CFLAGS)
-AC_SUBST(GLIB2_LIBS)
 
 old_LIBS="$LIBS"
 LIBS="$GLIB2_LIBS $LIBS"
@@ -106,12 +104,7 @@ LIBS="$old_LIBS"
 AM_CONDITIONAL([BUILD_HASHPROGS], [test x$build_hashprogs = xyes])
 
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
-AC_SUBST(CAIRO_CFLAGS)
-AC_SUBST(CAIRO_LIBS)
-
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
-AC_SUBST(LIBPNG_CFLAGS)
-AC_SUBST(LIBPNG_LIBS)
 
 AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat -fvisibility=hidden -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -fno-common'])
 
