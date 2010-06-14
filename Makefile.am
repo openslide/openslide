@@ -43,7 +43,7 @@ src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAG
 src_libopenslide_la_LDFLAGS = -version-info 2:1:2 -no-undefined -Wl,$(WIN32_DLL_TRICKERY)
 
 
-pkginclude_HEADERS = src/openslide.h src/openslide-features.h
+pkginclude_HEADERS = src/openslide.h src/openslide-features.h src/openslide-cairo.h
 
 noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h
 
