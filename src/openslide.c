@@ -567,6 +567,11 @@ void openslide_cairo_read_region(openslide_t *osr,
 
   cairo_push_group(cr);
 
+  // clear to set the bounds of the group (seems to be a recent cairo bug)
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_fill(cr);
+
   read_region(osr, cr, x, y, layer, w, h);
 
   cairo_pop_group_to_source(cr);
