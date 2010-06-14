@@ -473,7 +473,9 @@ static void read_region(openslide_t *osr,
     cairo_translate(cr, tx, ty);
 
     // paint
-    (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+    if (w > 0 && h > 0) {
+      (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+    }
   }
 
   cairo_pop_group_to_source(cr);
