@@ -451,19 +451,22 @@ static void read_region(openslide_t *osr,
   }
 }
 
+static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
+  if (w < 0 || h < 0) {
+    _openslide_set_error(osr,
+			 "negative width (%" G_GINT64_FORMAT ") or negative height (%"
+			 G_GINT64_FORMAT ") not allowed", w, h);
+    return false;
+  }
+  return true;
+}
 
 void openslide_read_region(openslide_t *osr,
 			   uint32_t *dest,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h) {
-  if (w <= 0 || h <= 0) {
-    return;
-  }
-
-  // clear and return if an error occurred
-  if (openslide_get_error(osr)) {
-    memset(dest, 0, w * h * 4);
+  if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
 
