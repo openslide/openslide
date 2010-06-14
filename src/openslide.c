@@ -461,11 +461,11 @@ static void read_region(openslide_t *osr,
     int64_t tx = 0;
     int64_t ty = 0;
     if (x < 0) {
-      tx = -x / ds;
+      tx = (-x) / ds;
       x = 0;
     }
     if (y < 0) {
-      ty = -y / ds;
+      ty = (-y) / ds;
       y = 0;
     }
     cairo_translate(cr, tx, ty);
