@@ -578,9 +578,11 @@ void openslide_cairo_read_region(openslide_t *osr,
     return;
   }
 
-  cairo_save(cr);
+  cairo_push_group(cr);
 
   read_region(osr, cr, x, y, layer, w, h);
 
-  cairo_restore(cr);
+  cairo_pop_group_to_source(cr);
+
+  cairo_paint(cr);
 }
