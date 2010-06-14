@@ -199,6 +199,7 @@ static void test_pdf(openslide_t *osr, const char *filename) {
   printf("test_pdf: %s\n", filename);
   cairo_surface_t *pdf = cairo_pdf_surface_create(filename, 0, 0);
   cairo_t *cr = cairo_create(pdf);
+  cairo_rotate(cr, M_PI_4);
 
   for (int i = 0; i < openslide_get_layer_count(osr); i++) {
     int64_t orig_w, orig_h;
@@ -209,12 +210,18 @@ static void test_pdf(openslide_t *osr, const char *filename) {
     printf(" layer %d (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ").",
 	   i, w, h);
     fflush(stdout);
+
     cairo_pdf_surface_set_size(pdf, w, h);
     printf(".");
     fflush(stdout);
+
+    cairo_set_source_rgb(cr, 0.0, 0.0, 1.0);
+    cairo_paint(cr);
+
     openslide_cairo_read_region(osr, cr, (orig_w - w) / 2, (orig_h - h) / 2, i, w, h);
     printf(".");
     fflush(stdout);
+
     cairo_show_page(cr);
     printf(" done\n");
   }
