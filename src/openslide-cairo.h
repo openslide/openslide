@@ -43,7 +43,7 @@
  * Draw a region from a whole slide image into a cairo context.
  *
  * This function draws a region of a whole slide image into the given
- * cairo context. @p cr must be a valid cairo context.
+ * cairo context at the origin. @p cr must be a valid cairo context.
  *
  * @param osr The OpenSlide object.
  * @param cr The destination cairo context.
