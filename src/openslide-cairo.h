@@ -47,11 +47,11 @@
  *
  * @param osr The OpenSlide object.
  * @param cr The destination cairo context.
- * @param x The top left x-coordinate. Must be non-negative.
- * @param y The top left y-coordinate. Must be non-negative.
+ * @param x The top left x-coordinate.
+ * @param y The top left y-coordinate.
  * @param layer The desired layer.
- * @param w The width of the region. Must be greater than 0.
- * @param h The height of the region. Must be greater than 0.
+ * @param w The width of the region. Must be non-negative.
+ * @param h The height of the region. Must be non-negative.
  */
 OPENSLIDE_PUBLIC()
 void openslide_cairo_read_region(openslide_t *osr,
