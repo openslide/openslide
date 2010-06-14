@@ -30,6 +30,7 @@
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
+#include "openslide-cairo.h"
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
@@ -439,57 +440,79 @@ static void read_region(openslide_t *osr,
 			int64_t x, int64_t y,
 			int32_t layer,
 			int64_t w, int64_t h) {
-  // clip
-  cairo_rectangle(cr, 0, 0, w, h);
-  cairo_clip(cr);
+  // save the old pattern, it's the only thing push/pop won't restore
+  cairo_pattern_t *old_source = cairo_get_source(cr);
+  cairo_pattern_reference(old_source);
 
-  // clear
+  // push, so that saturate works with all sorts of backends
+  cairo_push_group(cr);
+
+  // clear to set the bounds of the group (seems to be a recent cairo bug)
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-
-  // do nothing else if error
-  if (openslide_get_error(osr)) {
-    return;
-  }
+  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_fill(cr);
 
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-  // check constraints
-  if (layer_in_range(osr, layer) && (x >= 0) && (y >= 0)) {
-    // don't bother checking to see if (x/ds) and (y/ds) are within
-    // the bounds of the layer, we will just draw nothing below
-
-    // now fully within all important bounds, go for it
+  if (layer_in_range(osr, layer)) {
+    // offset if given negative coordinates
+    double ds = openslide_get_layer_downsample(osr, layer);
+    int64_t tx = 0;
+    int64_t ty = 0;
+    if (x < 0) {
+      tx = (-x) / ds;
+      x = 0;
+      w -= tx;
+    }
+    if (y < 0) {
+      ty = (-y) / ds;
+      y = 0;
+      h -= ty;
+    }
+    cairo_translate(cr, tx, ty);
 
     // paint
-    (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+    if (w > 0 && h > 0) {
+      (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+    }
   }
 
-  //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
-  //  cairo_paint(cr);
+  cairo_pop_group_to_source(cr);
 
-  // clear if an error occurred during paint_region
-  _openslide_check_cairo_status_possibly_set_error(osr, cr);
-  if (openslide_get_error(osr)) {
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  if (!openslide_get_error(osr)) {
+    // commit, nothing went wrong
     cairo_paint(cr);
   }
+
+  // restore old source
+  cairo_set_source(cr, old_source);
+  cairo_pattern_destroy(old_source);
 }
 
+static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
+  if (w < 0 || h < 0) {
+    _openslide_set_error(osr,
+			 "negative width (%" G_GINT64_FORMAT ") or negative height (%"
+			 G_GINT64_FORMAT ") not allowed", w, h);
+    return false;
+  }
+  return true;
+}
 
 void openslide_read_region(openslide_t *osr,
 			   uint32_t *dest,
 			   int64_t x, int64_t y,
 			   int32_t layer,
 			   int64_t w, int64_t h) {
-  if (w <= 0 || h <= 0) {
+  if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
 
   // create the cairo surface for the dest
   cairo_surface_t *surface;
   if (dest) {
+    memset(dest, 0, w * h * 4);
     surface = cairo_image_surface_create_for_data((unsigned char *) dest,
 						  CAIRO_FORMAT_ARGB32,
 						  w, h, w * 4);
@@ -498,6 +521,10 @@ void openslide_read_region(openslide_t *osr,
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   }
 
+  // now that it's cleared, return if an error occurred
+  if (openslide_get_error(osr)) {
+    return;
+  }
 
   // create the cairo context
   cairo_t *cr = cairo_create(surface);
@@ -507,7 +534,23 @@ void openslide_read_region(openslide_t *osr,
   read_region(osr, cr, x, y, layer, w, h);
 
   // done
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
   cairo_destroy(cr);
+}
+
+
+void openslide_cairo_read_region(openslide_t *osr,
+				 cairo_t *cr,
+				 int64_t x, int64_t y,
+				 int32_t layer,
+				 int64_t w, int64_t h) {
+  if (!ensure_nonnegative_dimensions(osr, w, h)) {
+    return;
+  }
+
+  read_region(osr, cr, x, y, layer, w, h);
+
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
 }
 
 
