@@ -440,41 +440,14 @@ static void read_region(openslide_t *osr,
 			int64_t x, int64_t y,
 			int32_t layer,
 			int64_t w, int64_t h) {
-  // clip
-  cairo_rectangle(cr, 0, 0, w, h);
-  cairo_clip(cr);
-
-  // clear
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-
-  // do nothing else if error
-  if (openslide_get_error(osr)) {
-    return;
-  }
-
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-  // check constraints
   if (layer_in_range(osr, layer) && (x >= 0) && (y >= 0)) {
     // don't bother checking to see if (x/ds) and (y/ds) are within
     // the bounds of the layer, we will just draw nothing below
 
-    // now fully within all important bounds, go for it
-
-    // paint
     (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
-  }
-
-  //  cairo_set_source_rgb(cr, 1.0, 0.0, 0.0); // red
-  //  cairo_paint(cr);
-
-  // clear if an error occurred during paint_region
-  _openslide_check_cairo_status_possibly_set_error(osr, cr);
-  if (openslide_get_error(osr)) {
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-    cairo_paint(cr);
   }
 }
 
@@ -504,8 +477,19 @@ void openslide_read_region(openslide_t *osr,
   cairo_t *cr = cairo_create(surface);
   cairo_surface_destroy(surface);
 
+  // clear
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+  cairo_paint(cr);
+
   // paint
   read_region(osr, cr, x, y, layer, w, h);
+
+  // clear if an error occurred during read_region
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
+  if (openslide_get_error(osr)) {
+    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+    cairo_paint(cr);
+  }
 
   // done
   cairo_destroy(cr);
@@ -584,5 +568,17 @@ void openslide_cairo_read_region(openslide_t *osr,
 
   cairo_pop_group_to_source(cr);
 
-  cairo_paint(cr);
+  if (!openslide_get_error(osr)) {
+    // commit, nothing went wrong
+    cairo_paint(cr);
+  } else {
+    // oops, let's clear like the original openslide_read_region
+    cairo_save(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+    cairo_rectangle(cr, 0, 0, w, h);
+    cairo_fill(cr);
+    cairo_restore(cr);
+  }
+  // check for cairo errors
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
 }
