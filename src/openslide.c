@@ -461,6 +461,12 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
+  // clear and return if an error occurred
+  if (openslide_get_error(osr)) {
+    memset(dest, 0, w * h * 4);
+    return;
+  }
+
   // create the cairo surface for the dest
   cairo_surface_t *surface;
   if (dest) {
@@ -471,7 +477,6 @@ void openslide_read_region(openslide_t *osr,
     // nil surface
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   }
-
 
   // create the cairo context
   cairo_t *cr = cairo_create(surface);
@@ -484,15 +489,14 @@ void openslide_read_region(openslide_t *osr,
   // paint
   read_region(osr, cr, x, y, layer, w, h);
 
-  // clear if an error occurred during read_region
-  _openslide_check_cairo_status_possibly_set_error(osr, cr);
-  if (openslide_get_error(osr)) {
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-    cairo_paint(cr);
-  }
-
   // done
+  _openslide_check_cairo_status_possibly_set_error(osr, cr);
   cairo_destroy(cr);
+
+  // clear if an error occurred
+  if (openslide_get_error(osr)) {
+    memset(dest, 0, w * h * 4);
+  }
 }
 
 
