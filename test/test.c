@@ -292,6 +292,10 @@ int main(int argc, char **argv) {
   // test NULL dest
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
 
+  // test empty dest
+  uint32_t item[0];
+  openslide_read_region(osr, item, 0, 0, 0, 0, 0);
+
   // test empty surface
   cairo_surface_t *surface =
     cairo_image_surface_create(CAIRO_FORMAT_RGB24, 0, 0);
