@@ -5,20 +5,21 @@ def fill_background(cr):
     cr.set_source_rgb(0, 0, 1)
     cr.paint()
 
-def paint_from_image(cr, src):
+def fill_rectangles(cr):
     cr.set_operator(cairo.OPERATOR_SATURATE)
+    cr.set_source_rgb(1, 1, 1)
 
-    cr.set_source_surface(src, 0, 0)
-    cr.paint()
+    cr.rectangle(0, 0, 100, 100)
+    cr.fill()
 
-    cr.set_source_surface(src, 100, 0)
-    cr.paint()
+    cr.rectangle(100, 0, 100, 100)
+    cr.fill()
 
-    cr.set_source_surface(src, 200, 0)
-    cr.paint()
+    cr.rectangle(200, 0, 100, 100)
+    cr.fill()
 
-    cr.set_source_surface(src, 300, 0)
-    cr.paint()
+    cr.rectangle(300, 0, 100, 100)
+    cr.fill()
 
 def clip(cr):
     cr.rectangle(0, 0, 400, 400)
@@ -29,12 +30,6 @@ def clear(cr):
     cr.paint()
 
 
-# init image
-src = cairo.ImageSurface(cairo.FORMAT_ARGB32, 100, 100)
-cr = cairo.Context(src)
-cr.set_source_rgb(1, 1, 1)
-cr.paint()
-
 # init pdf
 pdf = cairo.PDFSurface("out.pdf", 400, 400)
 cr = cairo.Context(pdf)
@@ -44,7 +39,7 @@ cr.rotate(math.pi / 4)
 fill_background(cr)
 
 cr.push_group()
-paint_from_image(cr, src)
+fill_rectangles(cr)
 cr.pop_group_to_source()
 cr.paint()
 
@@ -55,7 +50,7 @@ fill_background(cr)
 
 cr.push_group()
 clear(cr)
-paint_from_image(cr, src)
+fill_rectangles(cr)
 cr.pop_group_to_source()
 cr.paint()
 
@@ -66,7 +61,7 @@ fill_background(cr)
 
 cr.push_group()
 clip(cr)
-paint_from_image(cr, src)
+fill_rectangles(cr)
 cr.pop_group_to_source()
 cr.paint()
 
@@ -78,7 +73,7 @@ fill_background(cr)
 cr.push_group()
 clip(cr)
 clear(cr)
-paint_from_image(cr, src)
+fill_rectangles(cr)
 cr.pop_group_to_source()
 cr.paint()
 
