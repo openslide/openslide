@@ -190,8 +190,6 @@ int main (int argc, char **argv) {
   }
 
   // validate args
-  ENSURE_NONNEG(x);
-  ENSURE_NONNEG(y);
   ENSURE_NONNEG(layer);
   if (layer > openslide_get_layer_count(osr) - 1) {
     fail("layer %d out of range (layer count %d)",
