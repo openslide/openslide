@@ -53,7 +53,9 @@
  * @param w The width of the region. Must be non-negative.
  * @param h The height of the region. Must be non-negative.
  */
-OPENSLIDE_PUBLIC()
+// too soon to enable this, once we do there's no removing it,
+// have to think about win32 implications with different cairo DLLs
+//OPENSLIDE_PUBLIC()
 void openslide_cairo_read_region(openslide_t *osr,
 				 cairo_t *cr,
 				 int64_t x, int64_t y,
