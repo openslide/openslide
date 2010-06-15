@@ -135,8 +135,8 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
  *
  * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
- * @param x The top left x-coordinate.
- * @param y The top left y-coordinate.
+ * @param x The top left x-coordinate, in the layer 0 reference frame.
+ * @param y The top left y-coordinate, in the layer 0 reference frame.
  * @param layer The desired layer.
  * @param w The width of the region. Must be non-negative.
  * @param h The height of the region. Must be non-negative.

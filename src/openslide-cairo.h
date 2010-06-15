@@ -47,8 +47,8 @@
  *
  * @param osr The OpenSlide object.
  * @param cr The destination cairo context.
- * @param x The top left x-coordinate.
- * @param y The top left y-coordinate.
+ * @param x The top left x-coordinate, in the layer 0 reference frame.
+ * @param y The top left y-coordinate, in the layer 0 reference frame.
  * @param layer The desired layer.
  * @param w The width of the region. Must be non-negative.
  * @param h The height of the region. Must be non-negative.
