@@ -54,7 +54,11 @@
  * @param h The height of the region. Must be non-negative.
  */
 // too soon to enable this, once we do there's no removing it,
-// have to think about win32 implications with different cairo DLLs
+// have to think about win32 implications with different cairo DLLs,
+// with this issue there's no point adding it until we need it, like
+// for ARGB64 or whatever if that gets into cairo
+//
+// to enable this, remove these comments, then update Makefile.am, Doxyfile
 //OPENSLIDE_PUBLIC()
 void openslide_cairo_read_region(openslide_t *osr,
 				 cairo_t *cr,
