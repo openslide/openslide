@@ -86,8 +86,7 @@ static bool layer_in_range(openslide_t *osr, int32_t layer) {
   return true;
 }
 
-// TODO: update when we switch to BigTIFF, or remove entirely
-// if libtiff gets private error/warning callbacks
+// TODO: remove entirely if libtiff gets private error/warning callbacks
 static bool quick_tiff_check(const char *filename) {
   FILE *f = fopen(filename, "rb");
   if (f == NULL) {
@@ -112,11 +111,11 @@ static bool quick_tiff_check(const char *filename) {
   switch (buf[0]) {
   case 'M':
     // big endian
-    return (buf[2] == 0) && (buf[3] == 42);
+    return (buf[2] == 0) && ((buf[3] == 42) || (buf[3] == 43));
 
   case 'I':
     // little endian
-    return (buf[3] == 0) && (buf[2] == 42);
+    return (buf[3] == 0) && ((buf[2] == 42) || (buf[2] == 43));
 
   default:
     return false;
