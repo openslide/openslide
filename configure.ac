@@ -106,7 +106,9 @@ AM_CONDITIONAL([BUILD_HASHPROGS], [test x$build_hashprogs = xyes])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 
-AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat -fvisibility=hidden -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -fno-common'])
+gl_VISIBILITY
+
+AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat $(CFLAG_VISIBILITY) -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -fno-common'])
 
 
 AC_CONFIG_FILES([
