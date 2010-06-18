@@ -5,6 +5,7 @@ AC_PREREQ(2.61)
 AC_INIT([OpenSlide], [3.2.2], [openslide-users@lists.andrew.cmu.edu], [openslide], [http://openslide.cs.cmu.edu])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
+AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
@@ -25,7 +26,7 @@ LT_LANG([Windows Resource])
 AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$WINDRES != x])
 
 # for windows manifest
-AS_CASE([$host],
+AS_CASE([$target],
   [i?86-*-*],   [WINDOWS_PROCESSOR_ARCHITECTURE=x86],
   [x86_64-*-*], [WINDOWS_PROCESSOR_ARCHITECTURE=amd64],
   [WINDOWS_PROCESSOR_ARCHITECTURE=""]
