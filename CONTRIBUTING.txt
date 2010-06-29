@@ -45,6 +45,7 @@ advice.
    except for the cache (which takes locks) and libtiff (which is sort
    of a disaster).
 
- * Avoid the midlayer mistake.
+ * Avoid the midlayer mistake. The tilehelper and cache are there for
+   you.
 
  * Have fun! Graphics are a joy.
