@@ -292,7 +292,7 @@ int main(int argc, char **argv) {
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
 
   // test empty dest
-  uint32_t item[0];
+  uint32_t* item = 0;
   openslide_read_region(osr, item, 0, 0, 0, 0, 0);
 
   /*
