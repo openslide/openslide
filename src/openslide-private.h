@@ -49,13 +49,18 @@
 #endif
 #include <setjmp.h>
 #include <tiffio.h>
-#ifdef __cplusplus 
+
+
+// TODO detect if libjpeg is built as a C++ library?
+#ifdef __cplusplus
 extern "C" {
 #endif
 #include <jpeglib.h>
-#ifdef __cplusplus 
+#ifdef __cplusplus
 };
 #endif
+
+
 #include <cairo.h>
 
 #include <openjpeg.h>
