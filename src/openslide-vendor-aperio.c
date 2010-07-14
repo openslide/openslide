@@ -284,7 +284,7 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
 
     // get the image
     uint32_t *img_data = (uint32_t *) g_malloc(w * h * 4);
-    if (!TIFFReadRGBAImageOriented(tiff, w, h, img_data, ORIENTATION_TOPLEFT, 0)) {
+    if (!TIFFReadRGBAImageOriented(tiff, w, h, (uint32*)img_data, ORIENTATION_TOPLEFT, 0)) {
       g_free(name);
       g_free(img_data);
       return false;

@@ -482,7 +482,7 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
   img.row_offset = y;
 
   // draw it
-  if (TIFFRGBAImageGet(&img, dest, w, h)) {
+  if (TIFFRGBAImageGet(&img, (uint32*)dest, w, h)) {
     // permute
     uint32_t *p = dest;
     uint32_t *end = dest + w * h;
