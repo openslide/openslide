@@ -20,10 +20,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 
-#include <jpeglib.h>
 #include <jerror.h>
+
 
 typedef struct {
   struct jpeg_source_mgr pub;	/* public fields */
