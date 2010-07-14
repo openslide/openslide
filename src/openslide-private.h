@@ -49,7 +49,13 @@
 #endif
 #include <setjmp.h>
 #include <tiffio.h>
+#ifdef __cplusplus 
+extern "C" {
+#endif
 #include <jpeglib.h>
+#ifdef __cplusplus 
+};
+#endif
 #include <cairo.h>
 
 #include <openjpeg.h>
