@@ -21,8 +21,9 @@ FIND_PATH(OPENJPEG_INCLUDE_DIR openjpeg.h #openjpeg-1.0/openjpeg.h
 /openjpeg # happened to happen on cygwin
 )
 
+SET(OPENJPEG_NAMES ${OPENJPEG_NAMES} openjpeg)
 FIND_LIBRARY(OPENJPEG_LIBRARY
-  NAMES openjpeg
+  NAMES ${OPENJPEG_NAMES}
   PATHS /usr/lib /usr/local/lib
   )
 

@@ -7,6 +7,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .lib .a
 # and where they are located
 SET(TIFF_NAMES itktiff)
 set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
+set(ZLIB_NAMES itkzlib)
+set(OPENJPEG_NAMES itkopenjpeg)
 
 find_package(JPEG REQUIRED)
 find_package(OpenJPEG REQUIRED)
@@ -17,7 +19,7 @@ find_package(GTK2 2.6 REQUIRED)
 if(NOT IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} OR 
    NOT IS_DIRECTORY ${GTK2_CAIRO_INCLUDE_DIR} OR 
    NOT IS_DIRECTORY ${GTK2_GLIBCONFIG_INCLUDE_DIR})
-  message(FATAL "Not all required GTK dependencies found.")
+  message(FATAL_ERROR "Not all required GTK dependencies found.")
 endif()
 
 include_directories(${JPEG_INCLUDE_DIR})
