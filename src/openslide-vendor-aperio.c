@@ -122,7 +122,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
     _openslide_set_error(osr, "Cannot get raw tile");
-    goto OUT;
+    goto DONE;
   }
 
   // init decompressor
@@ -142,7 +142,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
 
   // check error
   if (openslide_get_error(osr)) {
-    goto OUT;
+    goto DONE;
   }
 
   opj_image_comp_t *comps = image->comps;
@@ -150,7 +150,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // sanity check
   if (image->numcomps != 3) {
     _openslide_set_error(osr, "image->numcomps != 3");
-    goto OUT;
+    goto DONE;
   }
 
   // TODO more checks?
@@ -194,7 +194,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     break;
   }
 
- OUT:
+ DONE:
   // erase
   g_slice_free1(tile_size, buf);
   if (image) opj_image_destroy(image);

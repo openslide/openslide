@@ -28,7 +28,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <glib.h>
+#ifndef _MSC_VER
 #include <inttypes.h>
+#endif
 #include <cairo.h>
 
 
@@ -189,9 +191,9 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 
 static const struct _openslide_ops _openslide_vmu_ops = {
-  .get_dimensions = get_dimensions,
-  .paint_region = paint_region,
-  .destroy = destroy
+  get_dimensions,
+  paint_region,
+  destroy
 };
 
 

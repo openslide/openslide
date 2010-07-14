@@ -321,36 +321,36 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
     if (fseeko(f, seek_location, SEEK_SET) == -1) {
       g_warning("Cannot seek to zoom level pointer %d", zoom_level + 1);
-      goto OUT;
+      goto DONE;
     }
 
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
       g_warning("Can't read zoom level pointer");
-      goto OUT;
+      goto DONE;
     }
     if (fseeko(f, ptr, SEEK_SET) == -1) {
       g_warning("Cannot seek to start of data pages");
-      goto OUT;
+      goto DONE;
     }
 
     // read initial 0
     if (read_le_int32_from_file(f) != 0) {
       g_warning("Expected 0 value at beginning of data page");
-      goto OUT;
+      goto DONE;
     }
 
     // read pointer
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
       g_warning("Can't read initial data page pointer");
-      goto OUT;
+      goto DONE;
     }
 
     // seek to offset
     if (fseeko(f, ptr, SEEK_SET) == -1) {
       g_warning("Can't seek to initial data page");
-      goto OUT;
+      goto DONE;
     }
 
     int32_t next_ptr;
@@ -359,7 +359,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       int32_t page_len = read_le_int32_from_file(f);
       if (page_len == -1) {
 	g_warning("Can't read page length");
-	goto OUT;
+	goto DONE;
       }
 
       //    g_debug("page_len: %d", page_len);
@@ -368,7 +368,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       next_ptr = read_le_int32_from_file(f);
       if (next_ptr == -1) {
 	g_warning("Cannot read \"next\" pointer");
-	goto OUT;
+	goto DONE;
       }
 
       // read all the data into the list
@@ -380,19 +380,19 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	if (tile_index < 0) {
 	  g_warning("tile_index < 0");
-	  goto OUT;
+	  goto DONE;
 	}
 	if (offset < 0) {
 	  g_warning("offset < 0");
-	  goto OUT;
+	  goto DONE;
 	}
 	if (length < 0) {
 	  g_warning("length < 0");
-	  goto OUT;
+	  goto DONE;
 	}
 	if (fileno < 0) {
 	  g_warning("fileno < 0");
-	  goto OUT;
+	  goto DONE;
 	}
 
 	// we have only encountered images with exactly power-of-two scale
@@ -404,24 +404,24 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	if (y >= tiles_down) {
 	  g_warning("y (%d) outside of bounds for zoom level (%d)",
 		    y, zoom_level);
-	  goto OUT;
+	  goto DONE;
 	}
 
 	if (x % (1 << zoom_level)) {
 	  g_warning("x (%d) not correct multiple for zoom level (%d)",
 		    x, zoom_level);
-	  goto OUT;
+	  goto DONE;
 	}
 	if (y % (1 << zoom_level)) {
 	  g_warning("y (%d) not correct multiple for zoom level (%d)",
 		    y, zoom_level);
-	  goto OUT;
+	  goto DONE;
 	}
 
 	// save filename
 	if (fileno >= datafile_count) {
 	  g_warning("Invalid fileno");
-	  goto OUT;
+	  goto DONE;
 	}
 	char *filename = g_build_filename(dirname, datafile_names[fileno], NULL);
 
@@ -430,7 +430,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  if (!_openslide_hash_file_part(quickhash1, filename, offset, length)) {
 	    g_free(filename);
 	    g_warning("Can't hash tiles");
-	    goto OUT;
+	    goto DONE;
 	  }
 	}
 
@@ -533,7 +533,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
   success = true;
 
- OUT:
+ DONE:
   g_hash_table_unref(active_positions);
 
   return success;
@@ -647,7 +647,7 @@ static bool process_indexfile(const char *slideversion,
   if (!(verify_string_from_file(indexfile, slideversion) &&
 	verify_string_from_file(indexfile, uuid))) {
     g_warning("Indexfile doesn't start with expected values");
-    goto OUT;
+    goto DONE;
   }
 
   // save root positions
@@ -665,13 +665,13 @@ static bool process_indexfile(const char *slideversion,
 			   &slide_position_size,
 			   &slide_position_offset)) {
     g_warning("Cannot read slide position info");
-    goto OUT;
+    goto DONE;
   }
   //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
 
   if (slide_position_size != (9 * (tiles_x / image_divisions) * (tiles_y / image_divisions))) {
     g_warning("Slide position file not of expected size");
-    goto OUT;
+    goto DONE;
   }
 
   // read in the slide positions
@@ -681,7 +681,7 @@ static bool process_indexfile(const char *slideversion,
 					     slide_position_offset);
   if (!slide_positions) {
     g_warning("Cannot read slide positions");
-    goto OUT;
+    goto DONE;
   }
 
 
@@ -702,7 +702,7 @@ static bool process_indexfile(const char *slideversion,
 			      associated_images,
 			      "macro")) {
       g_warning("Cannot read macro associated image");
-      goto OUT;
+      goto DONE;
     }
   }
   if (read_nonhier_record(indexfile,
@@ -717,7 +717,7 @@ static bool process_indexfile(const char *slideversion,
 			      associated_images,
 			      "label")) {
       g_warning("Cannot read label associated image");
-      goto OUT;
+      goto DONE;
     }
   }
   if (read_nonhier_record(indexfile,
@@ -732,27 +732,27 @@ static bool process_indexfile(const char *slideversion,
 			      associated_images,
 			      "thumbnail")) {
       g_warning("Cannot read thumbnail associated image");
-      goto OUT;
+      goto DONE;
     }
   }
 
   // read hierarchical sections
   if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
     g_warning("Cannot seek to hier sections root");
-    goto OUT;
+    goto DONE;
   }
 
   int32_t ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
-    goto OUT;
+    goto DONE;
   }
 
   // jump to start of interesting data
   //  g_debug("seek %d", ptr);
   if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
     g_warning("Cannot seek to start of interesting data");
-    goto OUT;
+    goto DONE;
   }
 
   // read these pages in
@@ -770,12 +770,12 @@ static bool process_indexfile(const char *slideversion,
 					      &jpegs_list,
 					      quickhash1)) {
     g_warning("Cannot read some data pages from indexfile");
-    goto OUT;
+    goto DONE;
   }
 
   success = true;
 
- OUT:
+ DONE:
   // reverse list
   jpegs_list = g_list_reverse(jpegs_list);
 
