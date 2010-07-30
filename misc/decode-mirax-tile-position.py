@@ -2,18 +2,29 @@
 
 import struct, sys, os
 
-f = open(sys.argv[1])
+f = open(sys.argv[1], "rb")
 
-HEADER_OFFSET = 296
+HEADER_SIZE = 296
+STRUCT_SIZE = 9
 
-f.seek(HEADER_OFFSET)
+f.seek(0, 2)
+filesize = f.tell()
 
-try:
-    while True:
-        x = int(struct.unpack("<i", f.read(4))[0]) / 256.0
-        y = int(struct.unpack("<i", f.read(4))[0]) / 256.0
-        zz = f.read(1)
+if (filesize - HEADER_SIZE) % STRUCT_SIZE != 0:
+    raise IOError("file not of expected size")
 
-        print '%25.8f %25.8f' % (x, y)
-except:
-    pass
+f.seek(HEADER_SIZE)
+
+while True:
+    data = f.read(STRUCT_SIZE)
+    if len(data) == 0:
+        break
+
+    unpacked = struct.unpack("<iiB", data)
+
+    x = int(unpacked[0]) / 256.0
+    y = int(unpacked[1]) / 256.0
+    zz = int(unpacked[2])
+
+    print '%25.8f %25.8f %10d' % (x, y, zz)
+
