@@ -80,7 +80,7 @@ static void test_tile_walk(openslide_t *osr,
 
 static void write_as_ppm(const char *filename,
 			 int64_t w, int64_t h, uint32_t *buf) {
-  FILE *f = fopen(filename, "w");
+  FILE *f = fopen(filename, "wb");
   if (f == NULL) {
     perror("Cannot open file");
     return;
