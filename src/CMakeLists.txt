@@ -5,10 +5,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .lib .a
 
 # let's check whether all required dependecies are available
 # and where they are located
-SET(TIFF_NAMES itktiff)
-set(JPEG_NAMES itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
-set(ZLIB_NAMES itkzlib)
-set(OPENJPEG_NAMES itkopenjpeg)
+SET(TIFF_NAMES tiff libtiff itktiff)
+set(JPEG_NAMES jpeg libjpeg itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
+set(ZLIB_NAMES zlib itkzlib)
+set(OPENJPEG_NAMES openjpeg itkopenjpeg)
 
 find_package(JPEG REQUIRED)
 find_package(OpenJPEG REQUIRED)
