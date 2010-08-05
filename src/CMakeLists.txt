@@ -91,10 +91,22 @@ if(MSVC_IDE)
   add_definitions(-DOPJ_STATIC -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-target_link_libraries(openslide ${JPEG_LIBRARY})
-target_link_libraries(openslide ${OPENJPEG_LIBRARY})
-target_link_libraries(openslide ${TIFF_LIBRARY})
-target_link_libraries(openslide ${ZLIB_LIBRARY})
-target_link_libraries(openslide ${GTK2_CAIRO_LIBRARY})
-target_link_libraries(openslide ${GTK2_GLIB_LIBRARY})
-target_link_libraries(openslide ${GTK2_GTHREAD_LIBRARY})
+#check whether we got debug versions of our required libraries and use them for linking if available (windows)
+set( REQUIRED_LIBS
+	${JPEG_LIBRARY}
+	${OPENJPEG_LIBRARY}
+	${TIFF_LIBRARY}
+	${ZLIB_LIBRARY}
+	${GTK2_CAIRO_LIBRARY}
+	${GTK2_GLIB_LIBRARY}
+	${GTK2_GTHREAD_LIBRARY} )
+# loop over all required libs
+foreach(l ${REQUIRED_LIBS})
+	STRING(REGEX REPLACE "[.][lL][iI][bB]" "d.lib" DEBUG_${l} "${l}")
+	IF(NOT EXISTS "${DEBUG_${l}}")
+		SET(DEBUG_${l} ${l})
+	ENDIF()
+	TARGET_LINK_LIBRARIES( openslide 
+		debug     ${DEBUG_${l}}
+		optimized ${l} )
+endforeach(l)
