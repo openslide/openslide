@@ -666,8 +666,9 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  double src_x = requested_tile->src_x / l->scale_denom;
-  double src_y = requested_tile->src_y / l->scale_denom;
+  // casting to int will floor the data, so the code below is normal rounding
+  double src_x = (int)(requested_tile->src_x / l->scale_denom + 0.5);
+  double src_y = (int)(requested_tile->src_y / l->scale_denom + 0.5);
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
@@ -686,8 +687,8 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-		    requested_tile->w / l->scale_denom,
-		    requested_tile->h / l->scale_denom);
+		    ceil(requested_tile->w / l->scale_denom),
+		    ceil(requested_tile->h / l->scale_denom));
     cairo_fill(cr2);
     _openslide_check_cairo_status_possibly_set_error(osr, cr2);
     cairo_destroy(cr2);
@@ -696,8 +697,8 @@ static void read_tile(openslide_t *osr,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr,
-		  requested_tile->dest_offset_x / l->scale_denom + translate_x,
-		  requested_tile->dest_offset_y / l->scale_denom + translate_y);
+		  (int)(requested_tile->dest_offset_x / l->scale_denom + translate_x + 0.5),
+		  (int)(requested_tile->dest_offset_y / l->scale_denom + translate_y + 0.5));
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
@@ -776,8 +777,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
   // accommodate extra tiles being drawn
   cairo_translate(cr,
-		  -l->extra_tiles_left * l->tile_advance_x,
-		  -l->extra_tiles_top * l->tile_advance_y);
+		  - (int)l->extra_tiles_left * l->tile_advance_x,
+		  - (int)l->extra_tiles_top * l->tile_advance_y);
 
   _openslide_read_tiles(cr,
 			layer,
