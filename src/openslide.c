@@ -448,7 +448,7 @@ static void read_region(openslide_t *osr,
 
   // clear to set the bounds of the group (seems to be a recent cairo bug)
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_rectangle(cr, 0, 0, w, h);
+  cairo_rectangle(cr, 0.0, 0.0, (double)w, (double)h);
   cairo_fill(cr);
 
   // saturate those seams away!
@@ -469,7 +469,7 @@ static void read_region(openslide_t *osr,
       y = 0;
       h -= ty;
     }
-    cairo_translate(cr, tx, ty);
+    cairo_translate(cr, (double)tx, (double)ty);
 
     // paint
     if (w > 0 && h > 0) {
@@ -508,10 +508,14 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // create the cairo surface for the dest
+  // create the cairo surface for the dest with a proper background color as long as it is set
+  uint32_t bg_color = 0;
+  const char* bg_color_string = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BG_COLOR);
+  if (bg_color_string) bg_color = g_ascii_strtoull(bg_color_string, 0, 0);
+
   cairo_surface_t *surface;
   if (dest) {
-    memset(dest, 0, w * h * 4);
+    memset(dest, bg_color, w * h * 4);
     surface = cairo_image_surface_create_for_data((unsigned char *) dest,
 						  CAIRO_FORMAT_ARGB32,
 						  w, h, w * 4);

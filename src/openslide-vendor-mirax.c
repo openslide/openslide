@@ -569,7 +569,7 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
     uint8_t zz;
     int fread_result = fread(&zz, 1, 1, f);
 
-    if ((x == -1) || (y == -1) || (zz != 0) || (fread_result != 1)) {
+    if ((x == -1) || (y == -1) || (zz != 0 && zz != 255) || (fread_result != 1)) {
       g_warning("Error while reading slide position file");
       fclose(f);
       g_free(result);
@@ -1365,6 +1365,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       osr->downsamples[i] = downsample;
       downsample *= 2.0;
     }
+  }
+
+  // fill color
+  if (osr) {
+    g_hash_table_insert(osr->properties, g_strdup(OPENSLIDE_PROPERTY_NAME_BG_COLOR), g_strdup_printf("%u", slide_zoom_level_sections->fill_rgb));
   }
 
   success = true;
