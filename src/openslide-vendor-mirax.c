@@ -1369,15 +1369,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // fill color
   if (osr) {
-    osr->default_colors = g_new0(uint32_t, osr->layer_count);
-    // fill in the default colors from mirax for our zoom level layers
-    for (int32_t i = 0; i < zoom_levels; i++) {
-      osr->default_colors[i] = (slide_zoom_level_sections + i)->fill_rgb;
-    }
-    // and propagate the color of our last zoom level to the remaining layers
-    for (int32_t i = zoom_levels; i < osr->layer_count; i++) {
-      osr->default_colors[i] = (slide_zoom_level_sections + zoom_levels - 1)->fill_rgb;
-    }
+    g_hash_table_insert(osr->properties, g_strdup(OPENSLIDE_PROPERTY_NAME_BG_COLOR), g_strdup_printf("%u", slide_zoom_level_sections->fill_rgb));
   }
 
   success = true;

@@ -290,12 +290,6 @@ openslide_t *openslide_open(const char *filename) {
     }
   }
 
-  // set default colors if not done already
-  if (!osr->default_colors) {
-    osr->default_colors = g_new0(uint32_t, osr->layer_count);
-  }
-
-
   // set hash property
   if (quickhash1 != NULL) {
     g_hash_table_insert(osr->properties,
@@ -347,8 +341,6 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->property_names);
 
   g_free(osr->downsamples);
-
-  g_free(osr->default_colors);
 
   if (osr->cache) {
     _openslide_cache_destroy(osr->cache);
@@ -519,7 +511,9 @@ void openslide_read_region(openslide_t *osr,
   // create the cairo surface for the dest
   cairo_surface_t *surface;
   if (dest) {
-    memset(dest, osr->default_colors[layer], w * h * 4);
+    memset(dest,
+      (uint32_t)g_ascii_strtoull(openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BG_COLOR), 0, 0),
+      w * h * 4);
     surface = cairo_image_surface_create_for_data((unsigned char *) dest,
 						  CAIRO_FORMAT_ARGB32,
 						  w, h, w * 4);
