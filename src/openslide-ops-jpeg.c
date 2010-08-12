@@ -686,8 +686,8 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-		    requested_tile->w / l->scale_denom,
-		    requested_tile->h / l->scale_denom);
+		    ceil(requested_tile->w / l->scale_denom),
+		    ceil(requested_tile->h / l->scale_denom));
     cairo_fill(cr2);
     _openslide_check_cairo_status_possibly_set_error(osr, cr2);
     cairo_destroy(cr2);

@@ -86,6 +86,9 @@ struct _openslide {
   // cache
   struct _openslide_cache *cache;
 
+  // default fill colors
+  uint32_t *default_colors;
+
   // error handling, NULL if no error
   gpointer error; // must use g_atomic_pointer!
 };
