@@ -666,7 +666,6 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  // casting to int will floor the data, so the code below is normal rounding
   double src_x = requested_tile->src_x / l->scale_denom;
   double src_y = requested_tile->src_y / l->scale_denom;
 
