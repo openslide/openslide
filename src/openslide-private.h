@@ -266,6 +266,10 @@ bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 						      cairo_t *cr);
 
 
+// background color helper
+void _openslide_set_background_color_property(GHashTable *ht,
+					      uint8_t r, uint8_t g, uint8_t b);
+
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LAYER_COUNT "openslide.layer-count"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH "openslide.layer[%d].width"

@@ -223,6 +223,12 @@ const char *openslide_get_error(openslide_t *osr);
  * The name of the property containing the "quickhash-1" sum.
  */
 #define OPENSLIDE_PROPERTY_NAME_QUICKHASH1 "openslide.quickhash-1"
+
+/**
+ * The name of the property containing a slide's background color, if any.
+ * It is represented as an RGB hex triplet.
+ */
+#define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
 //@}
 
 /**

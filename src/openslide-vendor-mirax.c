@@ -1354,6 +1354,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
+  if (osr) {
+    uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
+    _openslide_set_background_color_property(osr->properties,
+					     (fill >> 16) & 0xFF,
+					     (fill >> 8) & 0xFF,
+					     fill & 0xFF);
+  }
+
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
 
   // override downsamples

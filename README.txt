@@ -60,7 +60,7 @@ on-disk files. New properties can be added over time in subsequent releases
 of OpenSlide. A list of some properties can be found at:
 http://openslide.cs.cmu.edu/wiki/List%20of%20Known%20Properties
 
-OpenSlide itself creates three properties (for now). They are:
+OpenSlide itself creates these properties (for now):
 
  openslide.vendor
    The name of the vendor backend.
@@ -74,6 +74,9 @@ OpenSlide itself creates three properties (for now). They are:
    to detect file corruption or modification. Generation of this property
    requires that OpenSlide be compiled with glib >= 2.16.
 
+ openslide.background-color
+   The background color of the slide, given as an RGB hex triplet. This property
+   is not always present.
 
 Other Documentation
 ===================
