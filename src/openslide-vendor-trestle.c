@@ -111,6 +111,18 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       }
 
       g_strfreev(second_pass);
+    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
+      // found background color
+      errno = 0;
+      uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
+      if (bg || !errno) {
+	if (osr) {
+	  _openslide_set_background_color_property(osr->properties,
+						   (bg >> 16) & 0xFF,
+						   (bg >> 8) & 0xFF,
+						   bg & 0xFF);
+	}
+      }
     }
   }
   g_strfreev(first_pass);
