@@ -232,12 +232,6 @@ const char *openslide_get_error(openslide_t *osr);
 //@}
 
 /**
- * The name of the property containing the default fill color.
- */
-#define OPENSLIDE_PROPERTY_NAME_BG_COLOR "openslide.color"
-//@}
-
-/**
  * @name Properties
  * Querying properties.
  */
