@@ -1375,11 +1375,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     }
   }
 
-  // fill color
-  if (osr) {
-    g_hash_table_insert(osr->properties, g_strdup(OPENSLIDE_PROPERTY_NAME_BG_COLOR), g_strdup_printf("%u", slide_zoom_level_sections->fill_rgb));
-  }
-
   success = true;
   goto DONE;
 
