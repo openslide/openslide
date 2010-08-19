@@ -5,7 +5,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib) # .lib .a
 
 # let's check whether all required dependecies are available
 # and where they are located
-SET(TIFF_NAMES tiff libtiff itktiff)
+set(TIFF_NAMES tiff libtiff itktiff)
 set(JPEG_NAMES jpeg libjpeg itkjpeg itkjpeg8 itkjpeg12 itkjpeg16)
 set(ZLIB_NAMES zlib itkzlib)
 set(OPENJPEG_NAMES openjpeg itkopenjpeg)
@@ -56,8 +56,23 @@ if(MSVC_IDE)
   list(APPEND library_files ${CMAKE_CURRENT_BINARY_DIR}/openslide-cmake-dll.rc)
 endif()
 
+# debug postfix configuration
+# - per default enabled on windows
+# - disabled on non-windows machines
 if(MSVC_IDE)
-  set(CMAKE_DEBUG_POSTFIX d)
+  option(OPENSLIDE_USE_DEBUG_POSTFIX "Use debug postfix" ON)
+else()
+  option(OPENSLIDE_USE_DEBUG_POSTFIX "Use debug postfix" OFF)
+endif()
+
+option(OPENSLIDE_SHOW_CONFIG_WARNINGS "Enable to display warnings during configuration." OFF)
+
+# expose the debug postfix's value, so the user can tweak it
+SET(OPENSLIDE_DEBUG_POSTFIX "d" CACHE TYPE STRING)
+
+# activate the debug postfix in case the user chooses to use it
+if(OPENSLIDE_USE_DEBUG_POSTFIX)
+  set(CMAKE_DEBUG_POSTFIX ${OPENSLIDE_DEBUG_POSTFIX})
 endif()
 
 # finally create the project
@@ -93,20 +108,37 @@ endif()
 
 #check whether we got debug versions of our required libraries and use them for linking if available (windows)
 set( REQUIRED_LIBS
-	${JPEG_LIBRARY}
-	${OPENJPEG_LIBRARY}
-	${TIFF_LIBRARY}
-	${ZLIB_LIBRARY}
-	${GTK2_CAIRO_LIBRARY}
-	${GTK2_GLIB_LIBRARY}
-	${GTK2_GTHREAD_LIBRARY} )
+  ${JPEG_LIBRARY}
+  ${OPENJPEG_LIBRARY}
+  ${TIFF_LIBRARY}
+  ${ZLIB_LIBRARY}
+  ${GTK2_CAIRO_LIBRARY}
+  ${GTK2_GLIB_LIBRARY}
+  ${GTK2_GTHREAD_LIBRARY} )
+
 # loop over all required libs
 foreach(l ${REQUIRED_LIBS})
-	STRING(REGEX REPLACE "[.][lL][iI][bB]" "d.lib" DEBUG_${l} "${l}")
-	IF(NOT EXISTS "${DEBUG_${l}}")
-		SET(DEBUG_${l} ${l})
-	ENDIF()
-	TARGET_LINK_LIBRARIES( openslide 
-		debug     ${DEBUG_${l}}
-		optimized ${l} )
+
+  if(OPENSLIDE_USE_DEBUG_POSTFIX)
+    # try to find the library extension and inject the ${CMAKE_DEBUG_POSTFIX}
+    # search for .a or .lib
+    string(REGEX MATCH "[.]([lL][iI][bB]|[aA])" LIB_EXTERNSION "${l}")
+    string(REGEX REPLACE "[.]([lL][iI][bB]|[sS][oO])" "${CMAKE_DEBUG_POSTFIX}${LIB_EXTERNSION}" DEBUG_${l} "${l}")
+
+    # in case it is not there, revert to the initial library name
+    if(NOT EXISTS "${DEBUG_${l}}")
+      if (OPENSLIDE_SHOW_CONFIG_WARNINGS)
+        message(WARNING "Did not find debug library for ${l}, linking against release version.")
+      endif()
+      set(DEBUG_${l} ${l})
+    endif()
+    
+    # set the link libraries accordingly
+    target_link_libraries( openslide 
+      debug     ${DEBUG_${l}}
+      optimized ${l} )
+  else()
+    target_link_libraries( openslide ${l} )
+  endif()
+
 endforeach(l)
