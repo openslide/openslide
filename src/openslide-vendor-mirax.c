@@ -569,7 +569,7 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
     uint8_t zz;
     int fread_result = fread(&zz, 1, 1, f);
 
-    if ((x == -1) || (y == -1) || (zz != 0 && zz != 255) || (fread_result != 1)) {
+    if ((x == -1) || (y == -1) || ((zz != 0) && (zz != 255)) || (fread_result != 1)) {
       g_warning("Error while reading slide position file");
       fclose(f);
       g_free(result);
