@@ -776,8 +776,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
   // accommodate extra tiles being drawn
   cairo_translate(cr,
-		  - l->extra_tiles_left * l->tile_advance_x,
-		  - l->extra_tiles_top * l->tile_advance_y);
+		  -l->extra_tiles_left * l->tile_advance_x,
+		  -l->extra_tiles_top * l->tile_advance_y);
 
   _openslide_read_tiles(cr,
 			layer,
