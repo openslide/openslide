@@ -78,8 +78,16 @@ static void test_tile_walk(openslide_t *osr,
   free(buf);
 }
 
+static uint8_t apply_alpha(uint8_t s, uint8_t a, uint8_t d) {
+  double ss = s / 255.0;
+  double aa = a / 255.0;
+  double dd = d / 255.0;
+  return (uint8_t) round((ss + (1 - aa) * dd) * 255.0);
+}
+
 static void write_as_ppm(const char *filename,
-			 int64_t w, int64_t h, uint32_t *buf) {
+			 int64_t w, int64_t h, uint32_t *buf,
+			 uint8_t br, uint8_t bg, uint8_t bb) {
   FILE *f = fopen(filename, "wb");
   if (f == NULL) {
     perror("Cannot open file");
@@ -89,10 +97,19 @@ static void write_as_ppm(const char *filename,
   fprintf(f, "P6\n%" G_GINT64_FORMAT " %" G_GINT64_FORMAT "\n255\n", w, h);
   for (int64_t i = 0; i < w * h; i++) {
     uint32_t val = buf[i];
-    putc((val >> 16) & 0xFF, f); // R
-    putc((val >> 8) & 0xFF, f);  // G
-    putc((val >> 0) & 0xFF, f);  // B
-    // no A
+    uint8_t a = (val >> 24) & 0xFF;
+    uint8_t r = (val >> 16) & 0xFF;
+    uint8_t g = (val >> 8) & 0xFF;
+    uint8_t b = (val >> 0) & 0xFF;
+
+    // composite against background with OVER
+    r = apply_alpha(r, a, br);
+    g = apply_alpha(g, a, bg);
+    b = apply_alpha(b, a, bb);
+
+    putc(r, f);
+    putc(g, f);
+    putc(b, f);
   }
 
   fclose(f);
@@ -104,6 +121,16 @@ static void test_image_fetch(openslide_t *osr,
 			     int64_t w, int64_t h,
 			     bool skip_write) {
   char *filename;
+
+  uint8_t bg_r = 0xFF;
+  uint8_t bg_g = 0xFF;
+  uint8_t bg_b = 0xFF;
+
+  const char *bgcolor = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
+  if (bgcolor) {
+    sscanf(bgcolor, "%2hhx%2hhx%2hhx", &bg_r, &bg_g, &bg_b);
+    printf("background: (%d, %d, %d)\n", bg_r, bg_g, bg_b);
+  }
 
   printf("test image fetch %s\n", name);
   //  for (int32_t layer = 0; layer < 1; layer++) {
@@ -118,7 +145,7 @@ static void test_image_fetch(openslide_t *osr,
 
     // write as PPM
     if (!skip_write) {
-      write_as_ppm(filename, w, h, buf);
+      write_as_ppm(filename, w, h, buf, bg_r, bg_g, bg_b);
     }
 
     free(buf);
@@ -163,30 +190,6 @@ static void test_vertical_walk(openslide_t *osr,
     openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
     printf("%" G_GINT64_FORMAT "\r", y);
     fflush(stdout);
-  }
-
-  free(buf);
-}
-
-static void dump_as_tiles(openslide_t *osr, const char *name,
-			  int64_t tile_w, int64_t tile_h) {
-  int64_t w, h;
-  openslide_get_layer0_dimensions(osr, &w, &h);
-
-  uint32_t *buf = (uint32_t *) malloc(tile_w * tile_h * 4);
-
-  for (int64_t y = 0; y < h; y += tile_h) {
-    for (int64_t x = 0; x < w; x += tile_w) {
-      char *filename;
-      filename = g_strdup_printf("%s-%.10" G_GINT64_FORMAT "-%.10" G_GINT64_FORMAT ".ppm",
-				 name, x, y);
-
-      printf("%s\n", filename);
-
-      openslide_read_region(osr, buf, x, y, 0, tile_w, tile_h);
-      write_as_ppm(filename, tile_w, tile_h, buf);
-      g_free(filename);
-    }
   }
 
   free(buf);
@@ -352,8 +355,6 @@ int main(int argc, char **argv) {
   printf("test_vertical_walk end: %d\n", elapsed);
 
   */
-
-  //  dump_as_tiles(osr, "file1", 512, 512);
 
   //  return 0;
 
