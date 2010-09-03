@@ -128,14 +128,22 @@ static void write_png(openslide_t *osr, FILE *f,
       uint8_t g = (p >> 8) & 0xFF;
       uint8_t b = p & 0xFF;
 
-      if (a) {
-	r = (r * 255 + a / 2) / a;
-	g = (g * 255 + a / 2) / a;
-	b = (b * 255 + a / 2) / a;
-      } else {
+      switch (a) {
+      case 0:
 	r = 0;
 	b = 0;
 	g = 0;
+	break;
+
+      case 255:
+	// no action
+	break;
+
+      default:
+	r = (r * 255 + a / 2) / a;
+	g = (g * 255 + a / 2) / a;
+	b = (b * 255 + a / 2) / a;
+	break;
       }
 
       // write back
