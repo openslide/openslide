@@ -378,12 +378,20 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
     offset_x = ds_x - (start_tile_x * (tw - ox));
     advance_x = tw;
     end_tile_x = start_tile_x + 1;
+
+    if (offset_x >= advance_x) {
+      return;
+    }
   }
   if (oy && (start_tile_y >= tiles_down - 1)) {
     start_tile_y = tiles_down - 1;
     offset_y = ds_y - (start_tile_y * (th - oy));
     advance_y = th;
     end_tile_y = start_tile_y + 1;
+
+    if (offset_y >= advance_y) {
+      return;
+    }
   }
 
   _openslide_read_tiles(cr, layer,
