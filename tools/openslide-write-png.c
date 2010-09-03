@@ -102,6 +102,17 @@ static void write_png(openslide_t *osr, FILE *f,
 
   png_set_text(png_ptr, info_ptr, text_ptr, 1);
 
+  // background
+  const char *bgcolor = openslide_get_property_value(osr,
+						     OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
+  if (bgcolor) {
+    int r, g, b;
+    sscanf(bgcolor, "%2x%2x%2x", &r, &g, &b);
+
+    png_color_16 background = { 0, r, g, b, 0 };
+    png_set_bKGD(png_ptr, info_ptr, &background);
+  }
+
   // start writing
   png_write_info(png_ptr, info_ptr);
 
