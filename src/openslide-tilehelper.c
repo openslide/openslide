@@ -49,7 +49,7 @@ void _openslide_read_tiles(cairo_t *cr,
     return;
   }
   if (fabs(offset_y) >= advance_y) {
-    _openslide_set_error(osr, "fabs(offset_y) >= advance_y");
+    _openslide_set_error(osr, "internal error: fabs(offset_y) >= advance_y");
     return;
   }
 
