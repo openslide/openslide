@@ -85,49 +85,53 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
 
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
-  gchar *contents;
-  gsize length;
+  // determine size of file
+  FILE *f = fopen(filename, "rb");
+  g_return_val_if_fail(f, false);
+  fseeko(f, 0, SEEK_END);
+  int64_t size = ftello(f);
+  fclose(f);
 
-  g_return_val_if_fail(g_file_get_contents(filename, &contents, &length, NULL), false);
+  g_return_val_if_fail(size != -1, false);
 
-  if (hash != NULL) {
-    GChecksum *checksum = hash->checksum;
-    g_checksum_update(checksum, (guchar *) contents, length);
-  }
-
-  g_free(contents);
-  return true;
+  return _openslide_hash_file_part(hash, filename, 0, size);
 }
 
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
-			       int64_t offset, int size) {
+			       int64_t offset, int64_t size) {
   FILE *f = fopen(filename, "rb");
   g_return_val_if_fail(f, false);
 
-  void *buf = g_slice_alloc(size);
+  uint8_t buf[4096];
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_critical("Can't seek in %s", filename);
-    g_slice_free1(size, buf);
     fclose(f);
     return false;
   }
 
-  if (fread(buf, size, 1, f) != 1) {
-    g_critical("Can't read from %s", filename);
-    g_slice_free1(size, buf);
-    fclose(f);
-    return false;
+  int64_t bytes_left = size;
+  while (bytes_left > 0) {
+    size_t bytes_to_read = MIN(sizeof buf, bytes_left);
+    size_t bytes_read = fread(buf, 1, bytes_to_read, f);
+
+    if (bytes_read != bytes_to_read) {
+      g_critical("Can't read from %s", filename);
+      fclose(f);
+      return false;
+    }
+
+    //    g_debug("hash '%s' %" G_GINT64_FORMAT " %d", filename, offset + (size - bytes_left), bytes_to_read);
+
+    bytes_left -= bytes_read;
+
+    if (hash != NULL) {
+      GChecksum *checksum = hash->checksum;
+      g_checksum_update(checksum, (guchar *) buf, bytes_read);
+    }
   }
 
-  //g_debug("hash '%s' %" G_GINT64_FORMAT " %d", filename, offset, size);
-  if (hash != NULL) {
-    GChecksum *checksum = hash->checksum;
-    g_checksum_update(checksum, (guchar *) buf, size);
-  }
-
-  g_slice_free1(size, buf);
   fclose(f);
   return true;
 }

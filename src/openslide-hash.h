@@ -44,7 +44,7 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str);
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename);
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
-			       int64_t offset, int size);
+			       int64_t offset, int64_t size);
 
 // accessor
 const char *_openslide_hash_get_string(struct _openslide_hash *hash);
