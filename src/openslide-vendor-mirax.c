@@ -142,15 +142,24 @@ static bool verify_string_from_file(FILE *f, const char *str) {
   return result;
 }
 
+static bool read_le_int32_from_file_with_result(FILE *f, int32_t *OUT) {
+  if (fread(OUT, 4, 1, f) != 1) {
+    return false;
+  }
+
+  *OUT = GINT32_FROM_LE(*OUT);
+  //  g_debug("%d", i);
+
+  return true;
+}
+
 static int32_t read_le_int32_from_file(FILE *f) {
   int32_t i;
 
-  if (fread(&i, 4, 1, f) != 1) {
-    return -1;
+  if (!read_le_int32_from_file_with_result(f, &i)) {
+    // -1 means error
+    i = -1;
   }
-
-  i = GINT32_FROM_LE(i);
-  //  g_debug("%d", i);
 
   return i;
 }
