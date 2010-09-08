@@ -113,8 +113,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   int64_t bytes_left = size;
   while (bytes_left > 0) {
-    size_t bytes_to_read = MIN(sizeof buf, bytes_left);
-    size_t bytes_read = fread(buf, 1, bytes_to_read, f);
+    int64_t bytes_to_read = MIN((int64_t) sizeof buf, bytes_left);
+    int64_t bytes_read = fread(buf, 1, bytes_to_read, f);
 
     if (bytes_read != bytes_to_read) {
       g_critical("Can't read from %s", filename);
