@@ -1,6 +1,4 @@
 /*
- *  OpenSlide, a library for reading whole slide image files
- *
  *  This code is based on the code in liblzma, which is derived from
  *  7-Zip, which has a modified //  version of the SHA-256 found from
  *  Crypto++ <http://www.cryptopp.com/>.
