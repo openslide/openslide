@@ -361,7 +361,7 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
  *
  * OpenSlide is a C library that provides a simple interface to read
  * whole-slide images (also known as virtual slides). See
- * http://openslide.cs.cmu.edu/ for more details.
+ * http://openslide.org/ for more details.
  */
 
 #endif

@@ -1,11 +1,9 @@
 OpenSlide
 
-Carnegie Mellon University
+Carnegie Mellon University and others
 
-http://openslide.cs.cmu.edu/
+http://openslide.org/
 
-
-2010-02-17
 
 ==========================
 
@@ -82,7 +80,7 @@ Other Documentation
 ===================
 
 The website:
-http://openslide.cs.cmu.edu/
+http://openslide.org/
 
 See the Carnegie Mellon SCS Technical Report:
 

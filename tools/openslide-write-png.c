@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 static const char SOFTWARE[] = "Software";
-static const char OPENSLIDE[] = "OpenSlide <http://openslide.cs.cmu.edu/>";
+static const char OPENSLIDE[] = "OpenSlide <http://openslide.org/>";
 
 static const char *progname;
 
