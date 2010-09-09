@@ -1,6 +1,18 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.3, 2010-09-09
+ * Support MIRAX files that use a variant format for tile
+   positions (thanks, Hauke Heibel and Marco Feuerstein)
+ * Update location of website
+ * Add background color property, for slides that have it
+ * Update CMake scripts and other Windows fixes
+   (thanks Hauke and Marco)
+ * Fix some test.c bugs
+ * Fix incorrect MIRAX drawing at certain resolutions
+   (thanks Hauke and Marco)
+ * Support quickhash-1 on older systems (thanks, Jan Harkes)
+
 Version 3.2.2, 2010-06-16
  * Rework some internals of openslide_read_region
  * Support negative coordinates and zero-sized dimensions
