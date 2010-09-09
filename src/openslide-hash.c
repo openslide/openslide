@@ -49,7 +49,7 @@ static void g_checksum_update(GChecksum *ctx, const guchar *data, gssize length)
   SHA256_Update(ctx, data, length);
 }
 
-static gchar *_tohex = "0123456789abcdef";
+static const gchar _tohex[] = "0123456789abcdef";
 static gchar *g_checksum_get_string(GChecksum *ctx)
 {
   static gchar hexdigest[SHA256_DIGEST_LENGTH*2+1];
