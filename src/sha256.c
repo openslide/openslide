@@ -14,11 +14,6 @@
 
 #include <config.h>
 
-// Avoid bogus warnings in transform().
-#if (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __GNUC__ > 4
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#endif
-
 #include <glib.h>
 #include <string.h>
 #include "sha256.h"
