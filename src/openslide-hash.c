@@ -29,28 +29,38 @@
 #include <glib.h>
 
 
-// no GChecksum? just fake it
-#ifndef HAVE_G_CHECKSUM_NEW
+#ifdef HAVE_G_CHECKSUM_NEW
+
+// use GChecksum
+#define Checksum GChecksum
+#define checksum_new g_checksum_new
+#define checksum_update g_checksum_update
+#define checksum_get_string g_checksum_get_string
+#define checksum_free g_checksum_free
+#define CHECKSUM_SHA256 G_CHECKSUM_SHA256
+
+#else
+
+// fallback
 #include "sha256.h"
 
-#define G_CHECKSUM_SHA256 0
-#define GChecksumType gint
-#define GChecksum SHA256_CTX
+#define Checksum SHA256_CTX
+#define CHECKSUM_SHA256
 
-static GChecksum *g_checksum_new(GChecksumType _OPENSLIDE_UNUSED(type))
+static SHA256_CTX *checksum_new(void)
 {
-  GChecksum *ctx = g_slice_new(GChecksum);
+  SHA256_CTX *ctx = g_slice_new(SHA256_CTX);
   SHA256_Init(ctx);
   return ctx;
 }
 
-static void g_checksum_update(GChecksum *ctx, const guchar *data, gssize length)
+static void checksum_update(SHA256_CTX *ctx, const guchar *data, gssize length)
 {
   SHA256_Update(ctx, data, length);
 }
 
 static const gchar _tohex[] = "0123456789abcdef";
-static gchar *g_checksum_get_string(GChecksum *ctx)
+static gchar *checksum_get_string(SHA256_CTX *ctx)
 {
   static gchar hexdigest[SHA256_DIGEST_LENGTH*2+1];
   guchar digest[SHA256_DIGEST_LENGTH];
@@ -63,20 +73,20 @@ static gchar *g_checksum_get_string(GChecksum *ctx)
   return hexdigest;
 }
 
-static void g_checksum_free(GChecksum *ctx)
+static void checksum_free(SHA256_CTX *ctx)
 {
-  g_slice_free(GChecksum, ctx);
+  g_slice_free(SHA256_CTX, ctx);
 }
 
 #endif
 
 struct _openslide_hash {
-  GChecksum *checksum;
+  Checksum *checksum;
 };
 
 struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
   struct _openslide_hash *hash = g_slice_new(struct _openslide_hash);
-  hash->checksum = g_checksum_new(G_CHECKSUM_SHA256);
+  hash->checksum = checksum_new(CHECKSUM_SHA256);
 
   return hash;
 }
@@ -86,12 +96,12 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
     return;
   }
 
-  GChecksum *checksum = hash->checksum;
+  Checksum *checksum = hash->checksum;
 
   const char *str_to_hash = str ? str : "";
-  g_checksum_update(checksum,
-		    (const guchar *) str_to_hash,
-		    strlen(str_to_hash) + 1);
+  checksum_update(checksum,
+		  (const guchar *) str_to_hash,
+		  strlen(str_to_hash) + 1);
 }
 
 bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
@@ -167,8 +177,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     bytes_left -= bytes_read;
 
     if (hash != NULL) {
-      GChecksum *checksum = hash->checksum;
-      g_checksum_update(checksum, (guchar *) buf, bytes_read);
+      Checksum *checksum = hash->checksum;
+      checksum_update(checksum, (guchar *) buf, bytes_read);
     }
   }
 
@@ -177,10 +187,10 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 }
 
 const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
-  return g_checksum_get_string(hash->checksum);
+  return checksum_get_string(hash->checksum);
 }
 
 void _openslide_hash_destroy(struct _openslide_hash *hash) {
-  g_checksum_free(hash->checksum);
+  checksum_free(hash->checksum);
   g_slice_free(struct _openslide_hash, hash);
 }
