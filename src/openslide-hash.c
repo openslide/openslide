@@ -31,14 +31,42 @@
 
 // no GChecksum? just fake it
 #ifndef HAVE_G_CHECKSUM_NEW
+#include "sha256.h"
 
 #define G_CHECKSUM_SHA256 0
+#define GChecksumType gint
+#define GChecksum SHA256_CTX
 
-#define GChecksum void
-#define g_checksum_new(x) NULL
-#define g_checksum_update(x, y, z)
-#define g_checksum_get_string(x) NULL
-#define g_checksum_free(x)
+static GChecksum *g_checksum_new(GChecksumType _OPENSLIDE_UNUSED(type))
+{
+  GChecksum *ctx = g_slice_new(GChecksum);
+  SHA256_Init(ctx);
+  return ctx;
+}
+
+static void g_checksum_update(GChecksum *ctx, const guchar *data, gssize length)
+{
+  SHA256_Update(ctx, data, length);
+}
+
+static gchar *_tohex = "0123456789abcdef";
+static gchar *g_checksum_get_string(GChecksum *ctx)
+{
+  static gchar hexdigest[SHA256_DIGEST_LENGTH*2+1];
+  guchar digest[SHA256_DIGEST_LENGTH];
+  SHA256_Final(digest, ctx);
+  for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+    hexdigest[i*2] = _tohex[(digest[i] & 0xf0) >> 4];
+    hexdigest[i*2+1] = _tohex[(digest[i] & 0x0f)];
+  }
+  hexdigest[SHA256_DIGEST_LENGTH*2] = '\0';
+  return hexdigest;
+}
+
+static void g_checksum_free(GChecksum *ctx)
+{
+  g_slice_free(GChecksum, ctx);
+}
 
 #endif
 

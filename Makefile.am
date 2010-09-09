@@ -37,6 +37,9 @@ endif
 .rc.lo:
 	$(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --tag=RC --mode=compile $(RC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) -i "$<" -o "$@"
 
+if NEED_SHA256
+src_libopenslide_la_SOURCES += src/sha256.c src/sha256.h
+endif
 
 src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
@@ -63,9 +66,7 @@ tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_show_properties_LDADD = src/libopenslide.la
 
 # quickhash1sum
-if BUILD_HASHPROGS
-  bin_PROGRAMS += tools/openslide-quickhash1sum
-endif
+bin_PROGRAMS += tools/openslide-quickhash1sum
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
 

@@ -99,9 +99,9 @@ PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.12, gthread-2.0])
 
 old_LIBS="$LIBS"
 LIBS="$GLIB2_LIBS $LIBS"
-AC_CHECK_FUNCS([g_checksum_new], build_hashprogs="yes", build_hashprogs="no")
+AC_CHECK_FUNCS([g_checksum_new], need_sha256="no", need_sha256="yes")
 LIBS="$old_LIBS"
-AM_CONDITIONAL([BUILD_HASHPROGS], [test x$build_hashprogs = xyes])
+AM_CONDITIONAL([NEED_SHA256], [test x$need_sha256 = xyes])
 
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
