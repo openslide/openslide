@@ -29,7 +29,19 @@
 #include <glib.h>
 
 
-#ifdef HAVE_G_CHECKSUM_NEW
+// no GChecksum? just fake it
+#ifndef HAVE_G_CHECKSUM_NEW
+
+#define G_CHECKSUM_SHA256 0
+
+#define GChecksum void
+#define g_checksum_new(x) NULL
+#define g_checksum_update(x, y, z)
+#define g_checksum_get_string(x) NULL
+#define g_checksum_free(x)
+
+#endif
+
 struct _openslide_hash {
   GChecksum *checksum;
 };
@@ -144,27 +156,3 @@ void _openslide_hash_destroy(struct _openslide_hash *hash) {
   g_checksum_free(hash->checksum);
   g_slice_free(struct _openslide_hash, hash);
 }
-
-#else
-
-struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
-  return NULL;
-}
-
-bool _openslide_hash_tiff_tiles(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-				TIFF *_OPENSLIDE_UNUSED(tiff)) { return true; }
-void _openslide_hash_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-			    const char *_OPENSLIDE_UNUSED(str)) {}
-bool _openslide_hash_file(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-			  const char *_OPENSLIDE_UNUSED(filename)) { return true; }
-bool _openslide_hash_file_part(struct _openslide_hash *_OPENSLIDE_UNUSED(hash),
-			       const char *_OPENSLIDE_UNUSED(filename),
-			       int64_t _OPENSLIDE_UNUSED(offset),
-			       int _OPENSLIDE_UNUSED(size)) { return true; }
-const char *_openslide_hash_get_string(struct _openslide_hash *_OPENSLIDE_UNUSED(hash)) {
-  return NULL;
-}
-
-void _openslide_hash_destroy(struct _openslide_hash *_OPENSLIDE_UNUSED(hash)) {}
-
-#endif
