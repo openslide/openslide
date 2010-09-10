@@ -27,8 +27,7 @@ Requirements
 ============
 
 This library requires libjpeg, libtiff, openjpeg, cairo >= 1.2,
-and glib >= 2.12. If glib >= 2.16 is available, then OpenSlide will
-generate the "openslide.quickhash-1" property.
+and glib >= 2.12.
 
 
 Features
@@ -69,12 +68,12 @@ OpenSlide itself creates these properties (for now):
  openslide.quickhash-1
    A non-cryptographic hash of a subset of the slide data. It can be used
    to uniquely identify a particular virtual slide, but cannot be used
-   to detect file corruption or modification. Generation of this property
-   requires that OpenSlide be compiled with glib >= 2.16.
+   to detect file corruption or modification.
 
  openslide.background-color
    The background color of the slide, given as an RGB hex triplet. This property
    is not always present.
+
 
 Other Documentation
 ===================
