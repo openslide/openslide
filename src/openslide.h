@@ -40,7 +40,9 @@ typedef struct _openslide openslide_t;
 
 /**
  * @name Basic Usage
- * Opening, reading, and closing.
+ * Opening, reading, and closing. Note that the terminology used by
+ * OpenSlide is slightly different from DICOM and others: notably,
+ * a DICOM "level" is known as a "layer" in OpenSlide.
  */
 //@{
 
