@@ -959,6 +959,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   bool success = false;
   char *tmp = NULL;
+  gchar *tmpbuf = NULL;
+  gsize tmplen = 0;
 
   // info about this slide
   char *slide_version = NULL;
@@ -1005,10 +1007,23 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     goto FAIL;
   }
   slidedat = g_key_file_new();
-  if (!g_key_file_load_from_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
+
+  /* We load the whole Slidedat.ini file into memory and parse it with
+   * g_key_file_load_from_data instead of using g_key_file_load_from_file
+   * because the load_from_file function incorrectly parses a value when
+   * the terminating '\r\n' falls across a 4KB boundary.
+   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
+  if (!g_file_get_contents(tmp, &tmpbuf, &tmplen, NULL)) {
     g_warning("Can't load Slidedat file");
     goto FAIL;
   }
+  if (!g_key_file_load_from_data(slidedat, tmpbuf, tmplen,
+				 G_KEY_FILE_NONE, NULL)) {
+    g_warning("Can't parse Slidedat file");
+    g_free(tmpbuf);
+    goto FAIL;
+  }
+  g_free(tmpbuf);
   g_free(tmp);
   tmp = NULL;
 
