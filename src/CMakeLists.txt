@@ -122,8 +122,8 @@ foreach(l ${REQUIRED_LIBS})
   if(OPENSLIDE_USE_DEBUG_POSTFIX)
     # try to find the library extension and inject the ${CMAKE_DEBUG_POSTFIX}
     # search for .a or .lib
-    string(REGEX MATCH "[.]([lL][iI][bB]|[aA])" LIB_EXTERNSION "${l}")
-    string(REGEX REPLACE "[.]([lL][iI][bB]|[sS][oO])" "${CMAKE_DEBUG_POSTFIX}${LIB_EXTERNSION}" DEBUG_${l} "${l}")
+    string(REGEX MATCH "[.]([lL][iI][bB]|[aA])" LIB_EXTENSION "${l}")
+    string(REGEX REPLACE "[.]([lL][iI][bB]|[sS][oO])" "${CMAKE_DEBUG_POSTFIX}${LIB_EXTENSION}" DEBUG_${l} "${l}")
 
     # in case it is not there, revert to the initial library name
     if(NOT EXISTS "${DEBUG_${l}}")
