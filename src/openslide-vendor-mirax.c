@@ -169,6 +169,9 @@ static bool read_nonhier_record(FILE *f,
 				int64_t nonhier_root_position,
 				int recordno,
 				int *fileno, int64_t *size, int64_t *position) {
+  if (recordno == -1)
+    return false;
+
   if (fseeko(f, nonhier_root_position, SEEK_SET) == -1) {
     g_warning("Cannot seek to nonhier root");
     return false;
