@@ -664,31 +664,46 @@ static bool process_indexfile(const char *slideversion,
   int64_t hier_root = ftello(indexfile);
   int64_t nonhier_root = hier_root + 4;
 
-  // read in the slide position info
-  int slide_position_fileno;
-  int64_t slide_position_size;
-  int64_t slide_position_offset;
-  if (!read_nonhier_record(indexfile,
-			   nonhier_root,
-			   slide_position_record,
-			   &slide_position_fileno,
-			   &slide_position_size,
-			   &slide_position_offset)) {
-    g_warning("Cannot read slide position info");
-    goto DONE;
-  }
-  //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
+  int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
 
-  if (slide_position_size != (9 * (tiles_x / image_divisions) * (tiles_y / image_divisions))) {
-    g_warning("Slide position file not of expected size");
-    goto DONE;
-  }
+  if (slide_position_record != -1) {
+    // read in the slide position info
+    int slide_position_fileno;
+    int64_t slide_position_size;
+    int64_t slide_position_offset;
+    if (!read_nonhier_record(indexfile,
+			     nonhier_root,
+			     slide_position_record,
+			     &slide_position_fileno,
+			     &slide_position_size,
+			     &slide_position_offset)) {
+      g_warning("Cannot read slide position info");
+      goto DONE;
+    }
+    //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
 
-  // read in the slide positions
-  slide_positions = read_slide_position_file(dirname,
-					     datafile_names[slide_position_fileno],
-					     slide_position_size,
-					     slide_position_offset);
+    if (slide_position_size != (9 * ntiles)) {
+      g_warning("Slide position file not of expected size");
+      goto DONE;
+    }
+
+    // read in the slide positions
+    slide_positions = read_slide_position_file(dirname,
+					       datafile_names[slide_position_fileno],
+					       slide_position_size,
+					       slide_position_offset);
+  } else {
+    // no position map available and we know overlap is 0, fill in our own
+    // values based on the known tile size.
+    const int tile0_w = layers[0]->raw_tile_width;
+    const int tile0_h = layers[0]->raw_tile_height;
+
+    slide_positions = g_new(int, ntiles * 2);
+    for (int i = 0; i < ntiles; i++) {
+      slide_positions[(i * 2)]     = (i % tiles_x) * tile0_w * 256;
+      slide_positions[(i * 2) + 1] = (i / tiles_x) * tile0_h * 256;
+    }
+  }
   if (!slide_positions) {
     g_warning("Cannot read slide positions");
     goto DONE;
@@ -1046,9 +1061,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_IMAGENUMBER_X, integer, "Can't read tiles across");
   READ_KEY_OR_FAIL(tiles_y, slidedat, GROUP_GENERAL,
 		   KEY_IMAGENUMBER_Y, integer, "Can't read tiles down");
-  READ_KEY_OR_FAIL(image_divisions, slidedat, GROUP_GENERAL,
-		   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE, integer,
-		   "Can't read camera image divisions per side");
+
+  image_divisions = g_key_file_get_integer(slidedat, GROUP_GENERAL,
+					   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE,
+					   NULL);
+  if (image_divisions == 0)
+    image_divisions = 1;
 
   // ensure positive values
   POSITIVE_OR_FAIL(tiles_x);
@@ -1067,7 +1085,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_NONHIER_COUNT, integer, "Can't read nonhier count");
 
   POSITIVE_OR_FAIL(hier_count);
-  POSITIVE_OR_FAIL(nonhier_count);
+
+  if (nonhier_count < 0) {
+    g_warning("nonhier_count < 0: %d", nonhier_count);
+    goto FAIL;
+  }
 
   // find key for slide zoom level
   for (int i = 0; i < hier_count; i++) {
@@ -1205,7 +1227,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 						    nonhier_count,
 						    GROUP_HIERARCHICAL,
 						    VALUE_VIMSLIDE_POSITION_BUFFER);
-  if (position_nonhier_offset == -1) {
+  if ((slide_zoom_level_sections[0].overlap_x ||
+       slide_zoom_level_sections[0].overlap_y)
+      && position_nonhier_offset == -1) {
     g_warning("Can't figure out where the position file is");
     goto FAIL;
   }
