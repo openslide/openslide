@@ -676,8 +676,9 @@ static bool process_indexfile(const char *slideversion,
 
   int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
 
+  // If we have individual tile positioning information as part of the
+  // non-hier data, read the position information.
   if (slide_position_record != -1) {
-    // read in the slide position info
     int slide_position_fileno;
     int64_t slide_position_size;
     int64_t slide_position_offset;
