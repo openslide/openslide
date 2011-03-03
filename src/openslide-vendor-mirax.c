@@ -1238,6 +1238,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 						    nonhier_count,
 						    GROUP_HIERARCHICAL,
 						    VALUE_VIMSLIDE_POSITION_BUFFER);
+  // When the position map is missing we calculate it ourselves based on the
+  // known tile width and height but do not take tile overlap into account.
   if ((slide_zoom_level_sections[0].overlap_x ||
        slide_zoom_level_sections[0].overlap_y)
       && position_nonhier_offset == -1) {
