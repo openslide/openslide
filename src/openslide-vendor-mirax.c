@@ -981,6 +981,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char *dirname = NULL;
 
   GKeyFile *slidedat = NULL;
+  GError *err = NULL;
 
   bool success = false;
   char *tmp = NULL;
@@ -1074,9 +1075,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   image_divisions = g_key_file_get_integer(slidedat, GROUP_GENERAL,
 					   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE,
-					   NULL);
-  if (image_divisions == 0)
+					   &err);
+  if (err != NULL) {
     image_divisions = 1;
+    g_error_free(err);
+    err = NULL;
+  }
 
   // ensure positive values
   POSITIVE_OR_FAIL(tiles_x);
