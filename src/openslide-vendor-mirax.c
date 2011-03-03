@@ -101,6 +101,13 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
     }								\
   } while(0)
 
+#define NON_NEGATIVE_OR_FAIL(N)					\
+  do {								\
+    if (N < 0) {						\
+      g_warning(#N " < 0: %d", N); goto FAIL;			\
+    }								\
+  } while(0)
+
 struct slide_zoom_level_section {
   double overlap_x;
   double overlap_y;
@@ -1088,11 +1095,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_NONHIER_COUNT, integer, "Can't read nonhier count");
 
   POSITIVE_OR_FAIL(hier_count);
-
-  if (nonhier_count < 0) {
-    g_warning("nonhier_count < 0: %d", nonhier_count);
-    goto FAIL;
-  }
+  NON_NEGATIVE_OR_FAIL(nonhier_count);
 
   // find key for slide zoom level
   for (int i = 0; i < hier_count; i++) {
