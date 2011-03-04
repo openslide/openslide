@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -83,88 +84,17 @@ static void error_callback(const char *msg, void *data) {
   _openslide_set_error(osr, "%s", msg);
 }
 
-static void aperio_tiff_tilereader(openslide_t *osr,
-				   TIFF *tiff,
-				   uint32_t *dest,
-				   int64_t x, int64_t y,
-				   int32_t w, int32_t h) {
-  // which compression?
-  uint16_t compression_mode;
-  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
-
-  // not for us? fallback
-  if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
-      (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
-    _openslide_generic_tiff_tilereader(osr, tiff, dest, x, y, w, h);
-    return;
-  }
-
-  // else, JPEG 2000!
-  opj_cio_t *stream = NULL;
-  opj_dinfo_t *dinfo = NULL;
-  opj_image_t *image = NULL;
-
-  // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);
-
-  //  g_debug("aperio reading tile_no: %d", tile_no);
-
-  // get tile size
-  toff_t *sizes;
-  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    _openslide_set_error(osr, "Cannot get tile size");
-    return;  // ok, haven't allocated anything yet
-  }
-  tsize_t tile_size = sizes[tile_no];
-
-  // get raw tile
-  tdata_t buf = g_slice_alloc(tile_size);
-  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
-  if (size == -1) {
-    _openslide_set_error(osr, "Cannot get raw tile");
-    goto DONE;
-  }
-
-  // init decompressor
-  opj_dparameters_t parameters;
-  dinfo = opj_create_decompress(CODEC_J2K);
-  opj_set_default_decoder_parameters(&parameters);
-  opj_setup_decoder(dinfo, &parameters);
-  stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char *) buf, size);
-
- // note: don't use info_handler, it outputs lots of junk
-  opj_event_mgr_t event_callbacks = { error_callback, warning_callback, NULL };
-  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
-
-
-  // decode
-  image = opj_decode(dinfo, stream);
-
-  // check error
-  if (openslide_get_error(osr)) {
-    goto DONE;
-  }
-
-  opj_image_comp_t *comps = image->comps;
-
-  // sanity check
-  if (image->numcomps != 3) {
-    _openslide_set_error(osr, "image->numcomps != 3");
-    goto DONE;
-  }
-
-  // TODO more checks?
-
-  // copy
-  int c0_sub_x = w / comps[0].w;
-  int c0_sub_y = h / comps[0].h;
-  int c1_sub_x = w / comps[1].w;
-  int c1_sub_y = h / comps[1].h;
-  int c2_sub_x = w / comps[2].w;
-  int c2_sub_y = h / comps[2].h;
-
+static void copy_aperio_tile(uint16_t compression_mode,
+			     opj_image_comp_t *comps,
+			     uint32_t *dest,
+			     int32_t w, int32_t h,
+			     int c0_sub_x, int c0_sub_y,
+			     int c1_sub_x, int c1_sub_y,
+			     int c2_sub_x, int c2_sub_y) {
   // TODO: too slow, and with duplicated code!
+
   int i = 0;
+
   switch (compression_mode) {
   case APERIO_COMPRESSION_JP2K_YCBCR:
     for (int y = 0; y < h; y++) {
@@ -193,6 +123,86 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     }
     break;
   }
+}
+
+static void aperio_tiff_tilereader(openslide_t *osr,
+				   TIFF *tiff,
+				   uint32_t *dest,
+				   int64_t x, int64_t y,
+				   int32_t w, int32_t h) {
+  // which compression?
+  uint16_t compression_mode;
+  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
+
+  // not for us? fallback
+  if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
+      (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
+    _openslide_generic_tiff_tilereader(osr, tiff, dest, x, y, w, h);
+    return;
+  }
+
+  // else, JPEG 2000!
+  opj_cio_t *stream = NULL;
+  opj_dinfo_t *dinfo = NULL;
+  opj_image_t *image = NULL;
+  opj_image_comp_t *comps = NULL;
+
+  // note: don't use info_handler, it outputs lots of junk
+  opj_event_mgr_t event_callbacks = { error_callback, warning_callback, NULL };
+
+  // get tile number
+  ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);
+
+  //  g_debug("aperio reading tile_no: %d", tile_no);
+
+  // get tile size
+  toff_t *sizes;
+  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
+    _openslide_set_error(osr, "Cannot get tile size");
+    return;  // ok, haven't allocated anything yet
+  }
+  tsize_t tile_size = sizes[tile_no];
+
+  // get raw tile
+  tdata_t buf = g_slice_alloc(tile_size);
+  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
+  if (size == -1) {
+    _openslide_set_error(osr, "Cannot get raw tile");
+    goto DONE;
+  }
+
+  // init decompressor
+  opj_dparameters_t parameters;
+  dinfo = opj_create_decompress(CODEC_J2K);
+  opj_set_default_decoder_parameters(&parameters);
+  opj_setup_decoder(dinfo, &parameters);
+  stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char *) buf, size);
+  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
+
+
+  // decode
+  image = opj_decode(dinfo, stream);
+
+  // check error
+  if (openslide_get_error(osr)) {
+    goto DONE;
+  }
+
+  comps = image->comps;
+
+  // sanity check
+  if (image->numcomps != 3) {
+    _openslide_set_error(osr, "image->numcomps != 3");
+    goto DONE;
+  }
+
+  // TODO more checks?
+
+  copy_aperio_tile(compression_mode, comps, dest,
+		   w, h,
+		   w / comps[0].w, h / comps[0].h,
+		   w / comps[1].w, h / comps[1].h,
+		   w / comps[2].w, h / comps[2].h);
 
  DONE:
   // erase
@@ -324,6 +334,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1) {
   int32_t layer_count = 0;
   int32_t *layers = NULL;
+  int32_t i = 0;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL;
@@ -368,7 +379,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   layers = g_new(int32_t, layer_count);
 
   TIFFSetDirectory(tiff, 0);
-  int32_t i = 0;
+  i = 0;
   do {
     if (TIFFIsTiled(tiff)) {
       layers[i++] = TIFFCurrentDirectory(tiff);

@@ -257,6 +257,9 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   int64_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
+  int64_t *key = NULL;
+  int64_t nextdiroff = -1;
+  int dircount = -1;
 
   //  g_debug("diroff: %" PRId64, off);
 
@@ -271,7 +274,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     g_warning("Loop detected");
     goto FAIL;
   }
-  int64_t *key = g_slice_new(int64_t);
+  key = g_slice_new(int64_t);
   *key = off;
   g_hash_table_insert(loop_detector, key, NULL);
 
@@ -282,7 +285,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read directory count
-  int dircount = read_uint16(f, endian);
+  dircount = read_uint16(f, endian);
   if (dircount == -1) {
     g_warning("Cannot read dircount");
     goto FAIL;
@@ -376,7 +379,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read the next dir offset
-  int64_t nextdiroff = read_uint32(f, endian);
+  nextdiroff = read_uint32(f, endian);
   if (nextdiroff == -1) {
     g_warning("Cannot read next directory offset");
     goto FAIL;
