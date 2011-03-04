@@ -20,14 +20,14 @@ src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-cache.c src/openslide-tilehelper.c \
-	src/openslide-hash.c src/openslide-error.c \
+	src/openslide-hash.c src/openslide-error.c src/openslide-util.c \
 	src/openslide-ops-jpeg.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-ops-ngr.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
 	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c \
-	src/openslide-jdatasrc.c
+	src/openslide-jdatasrc.c src/openslide-tiffdump.c
 
 if WINDOWS_RESOURCES
 src_libopenslide_la_SOURCES += src/openslide-dll.rc

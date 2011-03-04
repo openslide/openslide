@@ -30,6 +30,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-tiffdump.h"
 
 #include <glib.h>
 #include <stdlib.h>
@@ -812,4 +813,19 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   g_key_file_free(key_file);
 
   return success;
+}
+
+bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
+				   struct _openslide_hash *quickhash1) {
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    return false;
+  }
+
+  GSList *dump = _openslide_tiffdump_create(f);
+  _openslide_tiffdump_print(dump);
+  _openslide_tiffdump_destroy(dump);
+  fclose(f);
+
+  return false;
 }
