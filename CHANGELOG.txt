@@ -1,6 +1,12 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.4, 2011-03-07
+ * Support MIRAX files that do not have non-hierarchical data
+   (thanks, Jan Harkes)
+ * Fix compilation on Windows (thanks Hauke Heibel)
+ * Work around a bug in GKeyFile parser (thanks, Jan)
+
 Version 3.2.3, 2010-09-09
  * Support MIRAX files that use a variant format for tile
    positions (thanks, Hauke Heibel and Marco Feuerstein)
