@@ -761,8 +761,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
   // compute coordinates
   double ds = openslide_get_layer_downsample(osr, layer);
-  int64_t ds_x = x / ds;
-  int64_t ds_y = y / ds;
+  double ds_x = x / ds;
+  double ds_y = y / ds;
   int64_t start_tile_x = ds_x / l->tile_advance_x;
   double offset_x = ds_x - (start_tile_x * l->tile_advance_x);
   int64_t end_tile_x = ((ds_x + w) / l->tile_advance_x) + 1;
