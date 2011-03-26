@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -61,34 +62,14 @@ static void add_properties(GHashTable *ht, char **tags) {
   }
 }
 
-bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
-			    struct _openslide_hash *quickhash1) {
+static void parse_trestle_image_description(openslide_t *osr,
+					    const char *description,
+					    int32_t *overlap_count_OUT,
+					    int32_t **overlaps_OUT) {
+  char **first_pass = g_strsplit(description, ";", -1);
+
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
-
-  if (!TIFFIsTiled(tiff)) {
-    goto FAIL;
-  }
-
-  char *tagval;
-  int tiff_result;
-  tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
-  if (!tiff_result ||
-      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
-    // not trestle
-    goto FAIL;
-  }
-
-  // parse
-  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-  if (!tiff_result) {
-    // no description, not trestle
-    goto FAIL;
-  }
-
-  char **first_pass = g_strsplit(tagval, ";", -1);
 
   if (osr) {
     add_properties(osr->properties, first_pass);
@@ -126,6 +107,38 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     }
   }
   g_strfreev(first_pass);
+
+  *overlap_count_OUT = overlap_count;
+  *overlaps_OUT = overlaps;
+}
+
+bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
+			    struct _openslide_hash *quickhash1) {
+  int32_t overlap_count = 0;
+  int32_t *overlaps = NULL;
+  int32_t layer_count = 0;
+  int32_t *layers = NULL;
+
+  if (!TIFFIsTiled(tiff)) {
+    goto FAIL;
+  }
+
+  char *tagval;
+  int tiff_result;
+  tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
+  if (!tiff_result ||
+      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
+    // not trestle
+    goto FAIL;
+  }
+
+  // parse
+  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+  if (!tiff_result) {
+    // no description, not trestle
+    goto FAIL;
+  }
+  parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
 
   // count and validate layers
   do {

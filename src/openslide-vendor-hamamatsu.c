@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -30,6 +31,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-tiffdump.h"
 
 #include <glib.h>
 #include <stdlib.h>
@@ -536,6 +538,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   int num_images = 0;
   char **image_filenames = NULL;
 
+  int num_cols = -1;
+  int num_rows = -1;
+
+  char **all_keys = NULL;
+
+  int num_layers = -1;
 
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
@@ -543,9 +551,6 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     //    g_debug("Can't load VMS file");
     goto DONE;
   }
-
-  int num_cols;
-  int num_rows;
 
   // select group or fail, then read dimensions
   const char *groupname;
@@ -588,8 +593,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   }
 
   // make sure values are within known bounds
-  int num_layers = g_key_file_get_integer(key_file, groupname, KEY_NUM_LAYERS,
-					  NULL);
+  num_layers = g_key_file_get_integer(key_file, groupname, KEY_NUM_LAYERS,
+				      NULL);
   if (num_layers < 1) {
     g_warning("Cannot handle Hamamatsu files with NoLayers < 1");
     goto DONE;
@@ -623,7 +628,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   }
 
   // now each ImageFile
-  char **all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
+  all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
   for (char **tmp = all_keys; *tmp != NULL; tmp++) {
     char *key = *tmp;
     char *value = g_key_file_get_string(key_file, groupname, key, NULL);
@@ -812,4 +817,19 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   g_key_file_free(key_file);
 
   return success;
+}
+
+bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
+				   struct _openslide_hash *quickhash1) {
+  FILE *f = fopen(filename, "rb");
+  if (!f) {
+    return false;
+  }
+
+  GSList *dump = _openslide_tiffdump_create(f);
+  _openslide_tiffdump_print(dump);
+  _openslide_tiffdump_destroy(dump);
+  fclose(f);
+
+  return false;
 }

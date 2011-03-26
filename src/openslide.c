@@ -37,6 +37,7 @@ static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 static const _openslide_vendor_fn non_tiff_formats[] = {
   _openslide_try_mirax,
   _openslide_try_hamamatsu,
+  //_openslide_try_hamamatsu_ndpi, // it is a tiff format? but not to libtiff
   NULL
 };
 

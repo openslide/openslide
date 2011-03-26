@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -57,6 +58,9 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1) {
   GList *layer_list = NULL;
+  int32_t layer_count = 0;
+  int32_t *layers = NULL;
+  int32_t current_layer = 0;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL; // not tiled
@@ -69,8 +73,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   }
 
   // accumulate tiled layers
-  int current_layer = 0;
-  int layer_count = 0;
+  current_layer = 0;
+  layer_count = 0;
   do {
     if (TIFFIsTiled(tiff)) {
       // get width
@@ -117,7 +121,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   layer_list = g_list_sort(layer_list, width_compare);
 
   // copy layers in, while deleting the list
-  int32_t *layers = g_new(int32_t, layer_count);
+  layers = g_new(int32_t, layer_count);
   for (int i = 0; i < layer_count; i++) {
     struct layer *l = (struct layer *)layer_list->data;
     layer_list = g_list_delete_link(layer_list, layer_list);

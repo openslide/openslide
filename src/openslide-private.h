@@ -134,10 +134,18 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
 			      struct _openslide_hash *quickhash1);
+bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char* filename,
+				   struct _openslide_hash *quickhash1);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
 			  struct _openslide_hash *quickhash1);
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1);
+
+
+/* GHashTable utils */
+guint _openslide_int64_hash(gconstpointer v);
+gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
+void _openslide_int64_free(gpointer data);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
