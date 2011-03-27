@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -655,6 +656,11 @@ static bool process_indexfile(const char *slideversion,
   *file_count_out = 0;
   *files_out = NULL;
 
+  // init tmp parameters
+  int32_t ptr = -1;
+
+  const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
+
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
 
@@ -663,18 +669,16 @@ static bool process_indexfile(const char *slideversion,
 
   rewind(indexfile);
 
+  // save root positions
+  const int64_t hier_root = strlen(slideversion) + strlen(uuid);
+  const int64_t nonhier_root = hier_root + 4;
+
   // verify slideversion and uuid
   if (!(verify_string_from_file(indexfile, slideversion) &&
 	verify_string_from_file(indexfile, uuid))) {
     g_warning("Indexfile doesn't start with expected values");
     goto DONE;
   }
-
-  // save root positions
-  int64_t hier_root = ftello(indexfile);
-  int64_t nonhier_root = hier_root + 4;
-
-  int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
 
   // If we have individual tile positioning information as part of the
   // non-hier data, read the position information.
@@ -778,7 +782,7 @@ static bool process_indexfile(const char *slideversion,
     goto DONE;
   }
 
-  int32_t ptr = read_le_int32_from_file(indexfile);
+  ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
     goto DONE;
@@ -1015,6 +1019,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char **datafile_names = NULL;
 
   FILE *indexfile = NULL;
+
+  GHashTable *associated_images = NULL;
+
+  int64_t base_w = 0;
+  int64_t base_h = 0;
 
   // start reading
 
@@ -1319,8 +1328,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // subtiles. This significantly complicates the code.
 
   // compute dimensions base_w and base_h in stupid but clear way
-  int64_t base_w = 0;
-  int64_t base_h = 0;
+  base_w = 0;
+  base_h = 0;
 
   for (int i = 0; i < tiles_x; i++) {
     if (((i % image_divisions) != (image_divisions - 1))
@@ -1394,7 +1403,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // load the position map and build up the tiles, using subtiles
-  GHashTable *associated_images = NULL;
   if (osr) {
     associated_images = osr->associated_images;
   }
