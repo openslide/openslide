@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -358,15 +359,15 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
   }
 
   double ds = openslide_get_layer_downsample(osr, layer);
-  int64_t ds_x = x / ds;
-  int64_t ds_y = y / ds;
+  double ds_x = x / ds;
+  double ds_y = y / ds;
   int64_t start_tile_x = ds_x / (tw - ox);
   int64_t end_tile_x = ((ds_x + w) / (tw - ox)) + 1;
   int64_t start_tile_y = ds_y / (th - oy);
   int64_t end_tile_y = ((ds_y + h) / (th - oy)) + 1;
 
-  int32_t offset_x = ds_x % (tw - ox);
-  int32_t offset_y = ds_y % (th - oy);
+  double offset_x = ds_x - (start_tile_x * (tw - ox));
+  double offset_y = ds_y - (start_tile_y * (th - oy));
 
   int32_t advance_x = tw - ox;
   int32_t advance_y = th - oy;
