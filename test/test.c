@@ -82,7 +82,7 @@ static uint8_t apply_alpha(uint8_t s, uint8_t a, uint8_t d) {
   double ss = s / 255.0;
   double aa = a / 255.0;
   double dd = d / 255.0;
-  return (uint8_t) round((ss + (1 - aa) * dd) * 255.0);
+  return (uint8_t) ((ss + (1 - aa) * dd) * 255.0 + 0.5);
 }
 
 static void write_as_ppm(const char *filename,
