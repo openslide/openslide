@@ -75,12 +75,12 @@ static int64_t read_uint32(FILE *f, uint16_t endian) {
 static bool read_tiff_tag(FILE *f, int64_t size, void *dest,
 			  int64_t offset, uint8_t value[]) {
   //  g_debug(" reading tiff tag: size: %d, value/offset %u", (int) size, (int) offset);
-
+	toff_t old_off;
   if (size <= 4) {
     // inline
     memcpy(dest, value, size);
   } else {
-    off_t old_off = ftello(f);
+    old_off = ftello(f);
     if (fseeko(f, offset, SEEK_SET) != 0) {
       return false;
     }
