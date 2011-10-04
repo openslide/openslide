@@ -998,9 +998,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   bool success = false;
   char *tmp = NULL;
-  gchar *tmpbuf = NULL;
-  gsize tmplen = 0;
-  int offset = 0;
 
   // info about this slide
   char *slide_version = NULL;
@@ -1051,31 +1048,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_warning("Can't hash Slidedat file");
     goto FAIL;
   }
+
   slidedat = g_key_file_new();
-
-  /* We load the whole Slidedat.ini file into memory and parse it with
-   * g_key_file_load_from_data instead of using g_key_file_load_from_file
-   * because the load_from_file function incorrectly parses a value when
-   * the terminating '\r\n' falls across a 4KB boundary.
-   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
-  if (!g_file_get_contents(tmp, &tmpbuf, &tmplen, NULL)) {
-    g_warning("Can't load Slidedat file");
+  if (!_openslide_read_key_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
+    g_warning("Can't load Slidedat.ini file");
     goto FAIL;
   }
-
-  /* Mirax slide version 01.03 SlideIni.dat starts with a UTF-8 BOM
-   * which makes the g_key_file parser cry. */
-  if (memcmp(tmpbuf, "\xef\xbb\xbf", 3) == 0) {
-    offset = 3;
-  }
-
-  if (!g_key_file_load_from_data(slidedat, tmpbuf + offset, tmplen - offset,
-				 G_KEY_FILE_NONE, NULL)) {
-    g_warning("Can't parse Slidedat file");
-    g_free(tmpbuf);
-    goto FAIL;
-  }
-  g_free(tmpbuf);
   g_free(tmp);
   tmp = NULL;
 

@@ -24,6 +24,7 @@
 #include "openslide-private.h"
 
 #include <stdint.h>
+#include <string.h>
 #include <glib.h>
 
 
@@ -38,4 +39,38 @@ gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2) {
 
 void _openslide_int64_free(gpointer data) {
   g_slice_free(int64_t, data);
+}
+
+gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
+                                  GKeyFileFlags flags, GError **error)
+{
+  gchar *tmpbuf = NULL;
+  gsize tmplen = 0;
+  int offset = 0;
+  gboolean result = false;
+
+  /* We load the whole key file into memory and parse it with
+   * g_key_file_load_from_data instead of using g_key_file_load_from_file
+   * because the load_from_file function incorrectly parses a value when
+   * the terminating '\r\n' falls across a 4KB boundary.
+   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
+
+  /* this also allows us to skip a UTF-8 BOM which the g_key_file parser
+   * does not expect to find. */
+
+  if (!g_file_get_contents(filename, &tmpbuf, &tmplen, error)) {
+    g_warning("Can't load key file");
+    goto FAIL;
+  }
+
+  /* skip the UTF-8 BOM if it is present. */
+  if (memcmp(tmpbuf, "\xef\xbb\xbf", 3) == 0) {
+    offset = 3;
+  }
+
+  result = g_key_file_load_from_data(key_file, tmpbuf + offset, tmplen - offset,
+                                     flags, error);
+FAIL:
+  g_free(tmpbuf);
+  return result;
 }
