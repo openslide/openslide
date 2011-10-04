@@ -134,20 +134,15 @@ struct mirax_nonhier_page_entry {
   int32_t fileno;
 };
 
-static bool verify_string_from_file(FILE *f, const char *str) {
-  bool result;
-  int len = strlen(str);
+static char *read_string_from_file(FILE *f, int len) {
+  char *str = (char *) g_malloc(len + 1);
+  str[len] = '\0';
 
-  char *possible_str = (char *) g_malloc(len + 1);
-  possible_str[len] = '\0';
-  size_t size = fread(possible_str, len, 1, f);
-
-  //  g_debug("\"%s\" == \"%s\" ?", str, possible_str);
-
-  result = (size == 1) && (strcmp(str, possible_str) == 0);
-
-  g_free(possible_str);
-  return result;
+  if (fread(str, len, 1, f) != 1) {
+    g_free(str);
+    return NULL;
+  }
+  return str;
 }
 
 static bool read_le_int32_from_file_with_result(FILE *f, int32_t *OUT) {
@@ -633,8 +628,7 @@ static bool add_associated_image(const char *dirname,
 
 
 
-static bool process_indexfile(const char *slideversion,
-			      const char *uuid,
+static bool process_indexfile(const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
 			      char **datafile_names,
@@ -656,6 +650,10 @@ static bool process_indexfile(const char *slideversion,
   *file_count_out = 0;
   *files_out = NULL;
 
+#define INDEX_VERSION "01.02"
+  char *teststr = NULL;
+  bool match;
+
   // init tmp parameters
   int32_t ptr = -1;
 
@@ -670,13 +668,23 @@ static bool process_indexfile(const char *slideversion,
   rewind(indexfile);
 
   // save root positions
-  const int64_t hier_root = strlen(slideversion) + strlen(uuid);
+  const int64_t hier_root = strlen(INDEX_VERSION) + strlen(uuid);
   const int64_t nonhier_root = hier_root + 4;
 
-  // verify slideversion and uuid
-  if (!(verify_string_from_file(indexfile, slideversion) &&
-	verify_string_from_file(indexfile, uuid))) {
-    g_warning("Indexfile doesn't start with expected values");
+  // verify version and uuid
+  teststr = read_string_from_file(indexfile, strlen(INDEX_VERSION));
+  match = (teststr != NULL) && (strcmp(teststr, INDEX_VERSION) == 0);
+  g_free(teststr);
+  if (!match) {
+    g_warning("Index.dat doesn't have expected version");
+    goto DONE;
+  }
+
+  teststr = read_string_from_file(indexfile, strlen(uuid));
+  match = (teststr != NULL) && (strcmp(teststr, uuid) == 0);
+  g_free(teststr);
+  if (!match) {
+    g_warning("Index.dat doesn't have a matching slide identifier");
     goto DONE;
   }
 
@@ -992,6 +1000,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char *tmp = NULL;
   gchar *tmpbuf = NULL;
   gsize tmplen = 0;
+  int offset = 0;
 
   // info about this slide
   char *slide_version = NULL;
@@ -1053,7 +1062,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_warning("Can't load Slidedat file");
     goto FAIL;
   }
-  if (!g_key_file_load_from_data(slidedat, tmpbuf, tmplen,
+
+  /* Mirax slide version 01.03 SlideIni.dat starts with a UTF-8 BOM
+   * which makes the g_key_file parser cry. */
+  if (memcmp(tmpbuf, "\xef\xbb\xbf", 3) == 0) {
+    offset = 3;
+  }
+
+  if (!g_key_file_load_from_data(slidedat, tmpbuf + offset, tmplen - offset,
 				 G_KEY_FILE_NONE, NULL)) {
     g_warning("Can't parse Slidedat file");
     g_free(tmpbuf);
@@ -1406,7 +1422,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   if (osr) {
     associated_images = osr->associated_images;
   }
-  if (!process_indexfile(slide_version, slide_id,
+  if (!process_indexfile(slide_id,
 			 dirname,
 			 datafile_count, datafile_names,
 			 position_nonhier_offset,
