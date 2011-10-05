@@ -56,6 +56,7 @@ static const char GROUP_HIERARCHICAL[] = "HIERARCHICAL";
 static const char KEY_HIER_COUNT[] = "HIER_COUNT";
 static const char KEY_NONHIER_COUNT[] = "NONHIER_COUNT";
 static const char KEY_INDEXFILE[] = "INDEXFILE";
+static const char INDEX_VERSION[] = "01.02";
 static const char KEY_HIER_d_NAME[] = "HIER_%d_NAME";
 static const char KEY_HIER_d_COUNT[] = "HIER_%d_COUNT";
 static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
@@ -650,7 +651,6 @@ static bool process_indexfile(const char *uuid,
   *file_count_out = 0;
   *files_out = NULL;
 
-  static const char INDEX_VERSION[] = "01.02";
   char *teststr = NULL;
   bool match;
 
