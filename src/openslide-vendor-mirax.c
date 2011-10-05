@@ -650,7 +650,7 @@ static bool process_indexfile(const char *uuid,
   *file_count_out = 0;
   *files_out = NULL;
 
-#define INDEX_VERSION "01.02"
+  static const char INDEX_VERSION[] = "01.02";
   char *teststr = NULL;
   bool match;
 
