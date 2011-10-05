@@ -47,7 +47,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   gchar *tmpbuf = NULL;
   gsize tmplen = 0;
   int offset = 0;
-  gboolean result = false;
+  gboolean result;
 
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
@@ -59,8 +59,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
    * does not expect to find. */
 
   if (!g_file_get_contents(filename, &tmpbuf, &tmplen, error)) {
-    g_warning("Can't load key file");
-    goto FAIL;
+    return false;
   }
 
   /* skip the UTF-8 BOM if it is present. */
@@ -70,7 +69,6 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 
   result = g_key_file_load_from_data(key_file, tmpbuf + offset, tmplen - offset,
                                      flags, error);
-FAIL:
   g_free(tmpbuf);
   return result;
 }
