@@ -56,6 +56,7 @@ static const char GROUP_HIERARCHICAL[] = "HIERARCHICAL";
 static const char KEY_HIER_COUNT[] = "HIER_COUNT";
 static const char KEY_NONHIER_COUNT[] = "NONHIER_COUNT";
 static const char KEY_INDEXFILE[] = "INDEXFILE";
+static const char INDEX_VERSION[] = "01.02";
 static const char KEY_HIER_d_NAME[] = "HIER_%d_NAME";
 static const char KEY_HIER_d_COUNT[] = "HIER_%d_COUNT";
 static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
@@ -134,20 +135,15 @@ struct mirax_nonhier_page_entry {
   int32_t fileno;
 };
 
-static bool verify_string_from_file(FILE *f, const char *str) {
-  bool result;
-  int len = strlen(str);
+static char *read_string_from_file(FILE *f, int len) {
+  char *str = (char *) g_malloc(len + 1);
+  str[len] = '\0';
 
-  char *possible_str = (char *) g_malloc(len + 1);
-  possible_str[len] = '\0';
-  size_t size = fread(possible_str, len, 1, f);
-
-  //  g_debug("\"%s\" == \"%s\" ?", str, possible_str);
-
-  result = (size == 1) && (strcmp(str, possible_str) == 0);
-
-  g_free(possible_str);
-  return result;
+  if (fread(str, len, 1, f) != 1) {
+    g_free(str);
+    return NULL;
+  }
+  return str;
 }
 
 static bool read_le_int32_from_file_with_result(FILE *f, int32_t *OUT) {
@@ -633,8 +629,7 @@ static bool add_associated_image(const char *dirname,
 
 
 
-static bool process_indexfile(const char *slideversion,
-			      const char *uuid,
+static bool process_indexfile(const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
 			      char **datafile_names,
@@ -656,6 +651,9 @@ static bool process_indexfile(const char *slideversion,
   *file_count_out = 0;
   *files_out = NULL;
 
+  char *teststr = NULL;
+  bool match;
+
   // init tmp parameters
   int32_t ptr = -1;
 
@@ -670,13 +668,23 @@ static bool process_indexfile(const char *slideversion,
   rewind(indexfile);
 
   // save root positions
-  const int64_t hier_root = strlen(slideversion) + strlen(uuid);
+  const int64_t hier_root = strlen(INDEX_VERSION) + strlen(uuid);
   const int64_t nonhier_root = hier_root + 4;
 
-  // verify slideversion and uuid
-  if (!(verify_string_from_file(indexfile, slideversion) &&
-	verify_string_from_file(indexfile, uuid))) {
-    g_warning("Indexfile doesn't start with expected values");
+  // verify version and uuid
+  teststr = read_string_from_file(indexfile, strlen(INDEX_VERSION));
+  match = (teststr != NULL) && (strcmp(teststr, INDEX_VERSION) == 0);
+  g_free(teststr);
+  if (!match) {
+    g_warning("Index.dat doesn't have expected version");
+    goto DONE;
+  }
+
+  teststr = read_string_from_file(indexfile, strlen(uuid));
+  match = (teststr != NULL) && (strcmp(teststr, uuid) == 0);
+  g_free(teststr);
+  if (!match) {
+    g_warning("Index.dat doesn't have a matching slide identifier");
     goto DONE;
   }
 
@@ -990,8 +998,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   bool success = false;
   char *tmp = NULL;
-  gchar *tmpbuf = NULL;
-  gsize tmplen = 0;
 
   // info about this slide
   char *slide_version = NULL;
@@ -1042,24 +1048,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_warning("Can't hash Slidedat file");
     goto FAIL;
   }
-  slidedat = g_key_file_new();
 
-  /* We load the whole Slidedat.ini file into memory and parse it with
-   * g_key_file_load_from_data instead of using g_key_file_load_from_file
-   * because the load_from_file function incorrectly parses a value when
-   * the terminating '\r\n' falls across a 4KB boundary.
-   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
-  if (!g_file_get_contents(tmp, &tmpbuf, &tmplen, NULL)) {
-    g_warning("Can't load Slidedat file");
+  slidedat = g_key_file_new();
+  if (!_openslide_read_key_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
+    g_warning("Can't load Slidedat.ini file");
     goto FAIL;
   }
-  if (!g_key_file_load_from_data(slidedat, tmpbuf, tmplen,
-				 G_KEY_FILE_NONE, NULL)) {
-    g_warning("Can't parse Slidedat file");
-    g_free(tmpbuf);
-    goto FAIL;
-  }
-  g_free(tmpbuf);
   g_free(tmp);
   tmp = NULL;
 
@@ -1406,7 +1400,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   if (osr) {
     associated_images = osr->associated_images;
   }
-  if (!process_indexfile(slide_version, slide_id,
+  if (!process_indexfile(slide_id,
 			 dirname,
 			 datafile_count, datafile_names,
 			 position_nonhier_offset,

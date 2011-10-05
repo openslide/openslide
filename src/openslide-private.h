@@ -147,6 +147,10 @@ guint _openslide_int64_hash(gconstpointer v);
 gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
 void _openslide_int64_free(gpointer data);
 
+/* g_key_file_load_from_file wrapper */
+gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
+                                  GKeyFileFlags flags, GError **error);
+
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      TIFF *tiff,

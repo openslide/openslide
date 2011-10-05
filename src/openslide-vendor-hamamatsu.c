@@ -547,7 +547,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
-  if (!g_key_file_load_from_file(key_file, filename, G_KEY_FILE_NONE, NULL)) {
+  if (!_openslide_read_key_file(key_file, filename, G_KEY_FILE_NONE, NULL)) {
     //    g_debug("Can't load VMS file");
     goto DONE;
   }
