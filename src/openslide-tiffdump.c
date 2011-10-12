@@ -31,7 +31,7 @@
 #include <stdbool.h>
 #include <glib.h>
 #include <inttypes.h>
-
+#include <sys/types.h> // for off_t
 
 #include <tiffio.h>
 
