@@ -19,7 +19,7 @@ check_include_files("stdbool.h" HAVE_STDBOOL_H)
 
 if(CMAKE_COMPILER_IS_GNUCXX) # also true when the code is compiled as c-code
   add_definitions(-DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat -fvisibility=hidden -fno-common")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat -fvisibility=hidden -fno-common")
 endif()
 
 # definine the library version
