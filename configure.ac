@@ -22,7 +22,7 @@ AC_FUNC_FSEEKO
 LT_PREREQ([2.2.5])
 LT_INIT([win32-dll disable-static])
 LT_LANG([Windows Resource])
-AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$WINDRES != x])
+AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$RC != x])
 
 # for windows manifest
 AS_CASE([$host],
