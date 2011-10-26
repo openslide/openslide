@@ -509,21 +509,25 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
+  // clear the dest
+  if (dest) {
+    memset(dest, 0, w * h * 4);
+  }
+
+  // now that it's cleared, return if an error occurred
+  if (openslide_get_error(osr)) {
+    return;
+  }
+
   // create the cairo surface for the dest
   cairo_surface_t *surface;
   if (dest) {
-    memset(dest, 0, w * h * 4);
     surface = cairo_image_surface_create_for_data((unsigned char *) dest,
 						  CAIRO_FORMAT_ARGB32,
 						  w, h, w * 4);
   } else {
     // nil surface
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
-  }
-
-  // now that it's cleared, return if an error occurred
-  if (openslide_get_error(osr)) {
-    return;
   }
 
   // create the cairo context
