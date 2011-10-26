@@ -32,7 +32,12 @@
 #include "openslide-tilehelper.h"
 #include "openslide-cairo.h"
 
-#define MAX_CAIRO_DIMENSION 32767
+// Cairo will not allow surfaces larger than 32767 pixels on a side.
+// In addition, cairo_push_group() creates an intermediate surface backed
+// by a pixman_image_t, and Pixman requires that every byte of that image
+// be addressable in 31 bits.  Assume the worst case, which is that both
+// dimensions are large.
+#define MAX_CAIRO_DIMENSION 23169
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
