@@ -32,13 +32,6 @@
 #include "openslide-tilehelper.h"
 #include "openslide-cairo.h"
 
-// Cairo will not allow surfaces larger than 32767 pixels on a side.
-// In addition, cairo_push_group() creates an intermediate surface backed
-// by a pixman_image_t, and Pixman requires that every byte of that image
-// be addressable in 31 bits.  Assume the worst case, which is that both
-// dimensions are large.
-#define MAX_CAIRO_DIMENSION 23169
-
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
 static const _openslide_vendor_fn non_tiff_formats[] = {
@@ -526,9 +519,14 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // cairo imposes a maximum surface size, so break the work into smaller
-  // pieces if necessary
-  int64_t d = MAX_CAIRO_DIMENSION;
+  // Break the work into smaller pieces if the region is large, because:
+  // 1. Cairo will not allow surfaces larger than 32767 pixels on a side.
+  // 2. cairo_push_group() creates an intermediate surface backed by a
+  //    pixman_image_t, and Pixman requires that every byte of that image
+  //    be addressable in 31 bits.
+  // 3. We would like to constrain the intermediate surface to a reasonable
+  //    amount of RAM.
+  const int64_t d = 4096;
   for (int64_t row = 0; !openslide_get_error(osr) && row < (h + d - 1) / d;
           row++) {
     for (int64_t col = 0; !openslide_get_error(osr) && col < (w + d - 1) / d;
