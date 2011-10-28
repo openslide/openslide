@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2011 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -509,16 +509,9 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // create the cairo surface for the dest
-  cairo_surface_t *surface;
+  // clear the dest
   if (dest) {
     memset(dest, 0, w * h * 4);
-    surface = cairo_image_surface_create_for_data((unsigned char *) dest,
-						  CAIRO_FORMAT_ARGB32,
-						  w, h, w * 4);
-  } else {
-    // nil surface
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
   }
 
   // now that it's cleared, return if an error occurred
@@ -526,16 +519,52 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
-  // create the cairo context
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
+  // Break the work into smaller pieces if the region is large, because:
+  // 1. Cairo will not allow surfaces larger than 32767 pixels on a side.
+  // 2. cairo_push_group() creates an intermediate surface backed by a
+  //    pixman_image_t, and Pixman requires that every byte of that image
+  //    be addressable in 31 bits.
+  // 3. We would like to constrain the intermediate surface to a reasonable
+  //    amount of RAM.
+  const int64_t d = 4096;
+  for (int64_t row = 0; !openslide_get_error(osr) && row < (h + d - 1) / d;
+          row++) {
+    for (int64_t col = 0; !openslide_get_error(osr) && col < (w + d - 1) / d;
+            col++) {
+      // calculate surface coordinates and size
+      int64_t sx = x + col * d;
+      int64_t sy = y + row * d;
+      int64_t sw = MIN(x + w - sx, d);
+      int64_t sh = MIN(y + h - sy, d);
 
-  // paint
-  read_region(osr, cr, x, y, layer, w, h);
+      // create the cairo surface for the dest
+      cairo_surface_t *surface;
+      if (dest) {
+        surface = cairo_image_surface_create_for_data(
+                (unsigned char *) (dest + w * (sy - y) + (sx - x)),
+                CAIRO_FORMAT_ARGB32, sw, sh, w * 4);
+      } else {
+        // nil surface
+        surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+      }
 
-  // done
-  _openslide_check_cairo_status_possibly_set_error(osr, cr);
-  cairo_destroy(cr);
+      // create the cairo context
+      cairo_t *cr = cairo_create(surface);
+      cairo_surface_destroy(surface);
+
+      // paint
+      read_region(osr, cr, sx, sy, layer, sw, sh);
+
+      // done
+      _openslide_check_cairo_status_possibly_set_error(osr, cr);
+      cairo_destroy(cr);
+    }
+  }
+
+  // ensure we don't return a partial result
+  if (openslide_get_error(osr)) {
+    memset(dest, 0, w * h * 4);
+  }
 }
 
 
