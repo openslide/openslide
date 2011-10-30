@@ -48,7 +48,7 @@ src_libopenslide_la_LDFLAGS = -version-info 2:4:2 -no-undefined -Wl,$(WIN32_DLL_
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h
 
-noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h src/openslide-cairo.h
+noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h src/openslide-cairo.h src/openslide-tiffdump.h
 
 
 
