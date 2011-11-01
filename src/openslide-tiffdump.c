@@ -35,6 +35,11 @@
 
 #include <tiffio.h>
 
+#ifndef TIFF_VERSION
+// renamed in libtiff 4
+#define TIFF_VERSION TIFF_VERSION_CLASSIC
+#endif
+
 
 static int64_t read_uint16(FILE *f, uint16_t endian) {
   uint16_t result;
