@@ -128,7 +128,10 @@ static void test_image_fetch(openslide_t *osr,
 
   const char *bgcolor = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
   if (bgcolor) {
-    sscanf(bgcolor, "%2hhx%2hhx%2hhx", &bg_r, &bg_g, &bg_b);
+    uint64_t bg = g_ascii_strtoull(bgcolor, NULL, 16);
+    bg_r = (bg >> 16) & 0xFF;
+    bg_g = (bg >> 8) & 0xFF;
+    bg_b = bg & 0xFF;
     printf("background: (%d, %d, %d)\n", bg_r, bg_g, bg_b);
   }
 
