@@ -548,7 +548,7 @@ static int int_compare(const void *a, const void *b) {
   }
 }
 
-static void save_key(gpointer key, gpointer _OPENSLIDE_UNUSED(value),
+static void save_key(gpointer key, gpointer value G_GNUC_UNUSED,
 		     gpointer user_data) {
   int tag = *((int *) key);
   struct hash_key_helper *h = (struct hash_key_helper *) user_data;

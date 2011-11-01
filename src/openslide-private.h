@@ -32,12 +32,6 @@
 #define ftello(stream) _ftelli64(stream)
 #endif
 
-#if defined(__GNUC__)
-#define _OPENSLIDE_UNUSED(x) x __attribute__ ((unused))
-#else
-#define _OPENSLIDE_UNUSED(x) x
-#endif
-
 #include <config.h>
 
 #include "openslide.h"

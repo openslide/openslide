@@ -143,7 +143,7 @@ struct my_src_mgr {
   int buffer_size;
 };
 
-static void init_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
+static void init_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
   /* nothing to be done */
 }
 
@@ -155,7 +155,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
 }
 
 
-static void term_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo)) {
+static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
   /* nothing to do */
 }
 
@@ -891,7 +891,7 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
 }
 
 static void get_keys(gpointer key,
-		     gpointer _OPENSLIDE_UNUSED(value),
+		     gpointer value G_GNUC_UNUSED,
 		     gpointer user_data) {
   GList *keys = *((GList **) user_data);
   keys = g_list_prepend(keys, key);

@@ -170,7 +170,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes)
  * for error exit.
  */
 
-static void term_source (j_decompress_ptr _OPENSLIDE_UNUSED(cinfo))
+static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
 {
   /* no work necessary here */
 }

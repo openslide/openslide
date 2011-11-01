@@ -218,7 +218,7 @@ struct add_key_to_strv_data {
 };
 
 static void add_key_to_strv(gpointer key,
-			    gpointer _OPENSLIDE_UNUSED(value),
+			    gpointer value G_GNUC_UNUSED,
 			    gpointer user_data) {
   struct add_key_to_strv_data *d = (struct add_key_to_strv_data *) user_data;
 
@@ -420,18 +420,18 @@ double openslide_get_layer_downsample(openslide_t *osr, int32_t layer) {
 }
 
 
-int openslide_give_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
-				 int64_t _OPENSLIDE_UNUSED(x),
-				 int64_t _OPENSLIDE_UNUSED(y),
-				 int32_t _OPENSLIDE_UNUSED(layer),
-				 int64_t _OPENSLIDE_UNUSED(w),
-				 int64_t _OPENSLIDE_UNUSED(h)) {
+int openslide_give_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
+				 int64_t x G_GNUC_UNUSED,
+				 int64_t y G_GNUC_UNUSED,
+				 int32_t layer G_GNUC_UNUSED,
+				 int64_t w G_GNUC_UNUSED,
+				 int64_t h G_GNUC_UNUSED) {
   g_warning("openslide_give_prefetch_hint has never been implemented and should not be called");
   return 0;
 }
 
-void openslide_cancel_prefetch_hint(openslide_t *_OPENSLIDE_UNUSED(osr),
-				    int _OPENSLIDE_UNUSED(prefetch_id)) {
+void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
+				    int prefetch_id G_GNUC_UNUSED) {
   g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
 }
 

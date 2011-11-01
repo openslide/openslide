@@ -76,7 +76,7 @@ static void write_pixel_rgb(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) 
   *dest = 255 << 24 | c0 << 16 | c1 << 8 | c2;
 }
 
-static void warning_callback(const char *msg, void *_OPENSLIDE_UNUSED(data)) {
+static void warning_callback(const char *msg, void *data G_GNUC_UNUSED) {
   g_warning("%s", msg);
 }
 static void error_callback(const char *msg, void *data) {
