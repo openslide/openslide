@@ -831,5 +831,9 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
   _openslide_tiffdump_destroy(dump);
   fclose(f);
 
+  /* XXX function is incomplete */
+  (void) osr;
+  (void) quickhash1;
+
   return false;
 }
