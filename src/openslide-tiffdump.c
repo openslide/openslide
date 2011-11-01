@@ -28,9 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <glib.h>
-#include <inttypes.h>
 #include <sys/types.h> // for off_t
 
 #include <tiffio.h>
@@ -463,7 +461,7 @@ void _openslide_tiffdump_destroy(GSList *tiffdump) {
 }
 
 static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
-  printf(" %d: type: %d, count: %" PRId64 "\n ", tag, item->type, item->count);
+  printf(" %d: type: %d, count: %" G_GINT64_FORMAT "\n ", tag, item->type, item->count);
 
   if (item->type == TIFF_ASCII) {
     // will only print first string if there are multiple
@@ -477,31 +475,31 @@ static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
     for (int64_t i = 0; i < item->count; i++) {
       switch (item->type) {
       case TIFF_BYTE:
-	printf(" %" PRIu8, _openslide_tiffdump_get_byte(item, i));
+	printf(" %u", _openslide_tiffdump_get_byte(item, i));
 	break;
 
       case TIFF_SBYTE:
-	printf(" %" PRId8, _openslide_tiffdump_get_sbyte(item, i));
+	printf(" %d", _openslide_tiffdump_get_sbyte(item, i));
 	break;
 
       case TIFF_UNDEFINED:
-	printf(" %.2" PRIx8, _openslide_tiffdump_get_undefined(item, i));
+	printf(" %.2x", _openslide_tiffdump_get_undefined(item, i));
 	break;
 
       case TIFF_SHORT:
-	printf(" %" PRIu16, _openslide_tiffdump_get_short(item, i));
+	printf(" %" G_GUINT16_FORMAT, _openslide_tiffdump_get_short(item, i));
 	break;
 
       case TIFF_SSHORT:
-	printf(" %" PRId16, _openslide_tiffdump_get_sshort(item, i));
+	printf(" %" G_GINT16_FORMAT, _openslide_tiffdump_get_sshort(item, i));
 	break;
 
       case TIFF_LONG:
-	printf(" %" PRIu32, _openslide_tiffdump_get_long(item, i));
+	printf(" %" G_GUINT32_FORMAT, _openslide_tiffdump_get_long(item, i));
 	break;
 
       case TIFF_SLONG:
-	printf(" %" PRId32, _openslide_tiffdump_get_slong(item, i));
+	printf(" %" G_GINT32_FORMAT, _openslide_tiffdump_get_slong(item, i));
 	break;
 
       case TIFF_FLOAT:
@@ -509,7 +507,7 @@ static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
 	break;
 
       case TIFF_IFD:
-	printf(" %.8" PRIx64, _openslide_tiffdump_get_ifd(item, i));
+	printf(" %.8" G_GINT64_MODIFIER "x", _openslide_tiffdump_get_ifd(item, i));
 	break;
 
       case TIFF_RATIONAL:
