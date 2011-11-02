@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/types.h> // for off_t
 
 #include <jpeglib.h>
 
@@ -309,7 +308,7 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
 }
 
 static bool process_hier_data_pages_from_indexfile(FILE *f,
-						   off_t seek_location,
+						   int64_t seek_location,
 						   int datafile_count,
 						   char **datafile_names,
 						   const char *dirname,

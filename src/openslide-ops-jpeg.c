@@ -40,7 +40,6 @@
 #include <jpeglib.h>
 #include <jerror.h>
 #include <math.h>
-#include <sys/types.h> // for off_t
 
 #include <cairo.h>
 

@@ -29,7 +29,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <glib.h>
-#include <sys/types.h> // for off_t
 
 #include <tiffio.h>
 
@@ -83,7 +82,7 @@ static bool read_tiff_tag(FILE *f, int64_t size, void *dest,
     // inline
     memcpy(dest, value, size);
   } else {
-    off_t old_off = ftello(f);
+    int64_t old_off = ftello(f);
     if (fseeko(f, offset, SEEK_SET) != 0) {
       return false;
     }
