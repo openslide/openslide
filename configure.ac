@@ -108,7 +108,15 @@ PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 
 gl_VISIBILITY
 
-AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat $(CFLAG_VISIBILITY) -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -fno-common'])
+# Only enable this on MinGW, since otherwise gcc will complain about an
+# unknown option whenever it produces any *other* warnings
+AS_CASE([$host],
+  [*-*-mingw32],   [CFLAG_MS_FORMAT=-Wno-pedantic-ms-format],
+  [CFLAG_MS_FORMAT=""]
+)
+AC_SUBST([CFLAG_MS_FORMAT])
+
+AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Wc++-compat $(CFLAG_MS_FORMAT) $(CFLAG_VISIBILITY) -DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES -fno-common'])
 
 
 AC_CONFIG_FILES([
