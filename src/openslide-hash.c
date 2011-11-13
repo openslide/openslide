@@ -136,7 +136,7 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
   // determine size of file
-  FILE *f = fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb");
   g_return_val_if_fail(f, false);
   fseeko(f, 0, SEEK_END);
   int64_t size = ftello(f);
@@ -150,7 +150,7 @@ bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size) {
-  FILE *f = fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb");
   g_return_val_if_fail(f, false);
 
   uint8_t buf[4096];

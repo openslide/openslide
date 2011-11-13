@@ -557,7 +557,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 static int32_t *read_slide_position_file(const char *dirname, const char *name,
 					 int64_t size, int64_t offset) {
   char *tmp = g_build_filename(dirname, name, NULL);
-  FILE *f = fopen(tmp, "rb");
+  FILE *f = _openslide_fopen(tmp, "rb");
   g_free(tmp);
 
   if (!f) {
@@ -606,7 +606,7 @@ static bool add_associated_image(const char *dirname,
 				 GHashTable *ht,
 				 const char *name) {
   char *tmp = g_build_filename(dirname, filename, NULL);
-  FILE *f = fopen(tmp, "rb");
+  FILE *f = _openslide_fopen(tmp, "rb");
   g_free(tmp);
 
   if (!f) {
@@ -1291,7 +1291,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
-  indexfile = fopen(tmp, "rb");
+  indexfile = _openslide_fopen(tmp, "rb");
   g_free(tmp);
   tmp = NULL;
 

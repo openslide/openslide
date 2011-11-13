@@ -476,7 +476,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
   uint32_t *dest = (uint32_t *) g_slice_alloc(w * h * 4);
 
   // open file
-  FILE *f = fopen(jpeg->filename, "rb");
+  FILE *f = _openslide_fopen(jpeg->filename, "rb");
   if (f == NULL) {
     // fail
     _openslide_set_error(osr, "Can't open %s", jpeg->filename);
@@ -914,7 +914,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     if (current_mcu_start > 0) {
       int64_t offset = oj->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
-      FILE *f = fopen(oj->filename, "rb");
+      FILE *f = _openslide_fopen(oj->filename, "rb");
       g_assert(f);
       fseeko(f, offset - 2, SEEK_SET);
       g_assert(getc(f) == 0xFF);
@@ -997,7 +997,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
     if (oj->filename) {
       if (current_file == NULL) {
-	current_file = fopen(oj->filename, "rb");
+	current_file = _openslide_fopen(oj->filename, "rb");
 	if (current_file == NULL) {
 	  _openslide_set_error(osr, "Can't open %s", oj->filename);
 	  goto LOCKED_FAIL;

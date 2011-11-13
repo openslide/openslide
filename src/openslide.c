@@ -89,7 +89,7 @@ static bool layer_in_range(openslide_t *osr, int32_t layer) {
 
 // TODO: remove entirely if libtiff gets private error/warning callbacks
 static bool quick_tiff_check(const char *filename) {
-  FILE *f = fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb");
   if (f == NULL) {
     return false;
   }

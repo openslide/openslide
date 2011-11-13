@@ -258,7 +258,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = fopen(jp->filename, "rb")) == NULL) {
+    if ((f = _openslide_fopen(jp->filename, "rb")) == NULL) {
       g_warning("Can't open JPEG %d", i);
       goto DONE;
     }
@@ -471,7 +471,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     ngr->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = fopen(ngr->filename, "rb")) == NULL) {
+    if ((f = _openslide_fopen(ngr->filename, "rb")) == NULL) {
       g_warning("Can't open NGR file");
       goto DONE;
     }
@@ -730,7 +730,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      NULL);
   if (tmp) {
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
-    FILE *macro_f = fopen(macro_filename, "rb");
+    FILE *macro_f = _openslide_fopen(macro_filename, "rb");
     bool result;
 
     if (macro_f) {
@@ -760,7 +760,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       char *optimisation_filename = g_build_filename(dirname, tmp, NULL);
       g_free(tmp);
 
-      optimisation_file = fopen(optimisation_filename, "rb");
+      optimisation_file = _openslide_fopen(optimisation_filename, "rb");
 
       if (optimisation_file == NULL) {
 	g_warning("Can't use optimisation file");
@@ -821,7 +821,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 				   struct _openslide_hash *quickhash1) {
-  FILE *f = fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb");
   if (!f) {
     return false;
   }

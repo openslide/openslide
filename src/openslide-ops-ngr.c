@@ -99,7 +99,7 @@ static void read_tile(openslide_t *osr,
   bool cachemiss = !tiledata;
   if (cachemiss) {
     // read the tile data
-    FILE *f = fopen(ngr->filename, "rb");
+    FILE *f = _openslide_fopen(ngr->filename, "rb");
     if (!f) {
       _openslide_set_error(osr, "Cannot open file %s", ngr->filename);
       return;

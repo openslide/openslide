@@ -28,6 +28,11 @@
 #include <glib.h>
 #include <errno.h>
 
+#ifdef HAVE_FCNTL
+#include <unistd.h>
+#include <fcntl.h>
+#endif
+
 
 guint _openslide_int64_hash(gconstpointer v) {
   int64_t i = *((const int64_t *) v);
@@ -65,7 +70,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
 
-  f = fopen(filename, "rb");
+  f = _openslide_fopen(filename, "rb");
   if (f == NULL) {
     g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
                 "Couldn't open key file %s: %s", filename, g_strerror(errno));
@@ -112,4 +117,32 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
                                      flags, error);
   g_free(buf);
   return result;
+}
+
+FILE *_openslide_fopen(const char *path, const char *mode)
+{
+  char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
+  FILE *f = fopen(path, m);
+  g_free(m);
+
+  /* Redundant if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
+#ifdef HAVE_FCNTL
+  if (f != NULL) {
+    int fd = fileno(f);
+    if (fd != -1) {
+      long flags = fcntl(fd, F_GETFD);
+      if (flags != -1) {
+        if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
+          g_warning("_openslide_fopen couldn't F_SETFD");
+        }
+      } else {
+        g_warning("_openslide_fopen couldn't F_GETFD");
+      }
+    } else {
+      g_warning("_openslide_fopen couldn't fileno()");
+    }
+  }
+#endif
+
+  return f;
 }
