@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2011 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -29,6 +29,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+#ifndef WIN32
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 
 #ifndef _MSC_VER
 #include <sys/time.h>
@@ -236,10 +241,92 @@ static void test_pdf(openslide_t *osr, const char *filename) {
 }
 */
 
+#ifndef WIN32
+static gint leak_test_running;  /* atomic ops only */
+
+static gpointer cloexec_thread(const gpointer prog) {
+  GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal,
+        g_free, NULL);
+  gchar *argv[] = {(gchar *) prog, "--leak-check--", NULL};
+
+  while (g_atomic_int_get(&leak_test_running)) {
+    gchar *out;
+    if (!g_spawn_sync(NULL, argv, NULL, (GSpawnFlags)
+          (G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_SEARCH_PATH |
+          G_SPAWN_STDERR_TO_DEV_NULL), NULL, NULL,
+          &out, NULL, NULL, NULL)) {
+      g_assert_not_reached();
+    }
+
+    gchar **lines = g_strsplit(out, "\n", 0);
+    for (gchar **line = lines; *line != NULL; line++) {
+      if (**line == 0) {
+        continue;
+      }
+      if (g_hash_table_lookup(seen, *line) == NULL) {
+        printf("Exec child received leaked fd to %s\n", *line);
+        g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
+      }
+    }
+    g_strfreev(lines);
+    g_free(out);
+  }
+
+  g_hash_table_destroy(seen);
+  return NULL;
+}
+
+static void child_check_open_fds(void) {
+  for (int i = 3; i < 128; i++) {
+    gchar *proc = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
+    gchar *link = g_file_read_link(proc, NULL);
+    g_free(proc);
+    if (link != NULL) {
+      printf("%s\n", link);
+      g_free(link);
+    }
+  }
+}
+
+static void check_cloexec_leaks(const char *slide, void *prog)
+{
+  g_atomic_int_set(&leak_test_running, 1);
+  GThread *thr = g_thread_create(cloexec_thread, prog, TRUE, NULL);
+  g_assert(thr != NULL);
+  guint32 buf[512 * 512];
+  GTimer *timer = g_timer_new();
+  while (g_timer_elapsed(timer, NULL) < 2) {
+    openslide_t *osr = openslide_open(slide);
+    openslide_read_region(osr, buf, 0, 0, 0, 512, 512);
+    openslide_close(osr);
+  }
+  g_timer_destroy(timer);
+  g_atomic_int_set(&leak_test_running, 0);
+  g_thread_join(thr);
+}
+#else /* WIN32 */
+static void child_check_open_fds(void) {}
+
+static void check_cloexec_leaks(const char *slide, void *prog) {
+  (void) slide;
+  (void) prog;
+}
+#endif /* WIN32 */
+
+
 int main(int argc, char **argv) {
+  if (!g_thread_supported()) {
+    g_thread_init(NULL);
+  }
+
   if (argc != 2) {
     printf("give file!\n");
     return 1;
+  }
+
+  if (g_str_equal(argv[1], "--leak-check--")) {
+    child_check_open_fds();
+    return 0;
   }
 
   //  struct timeval start_tv;
@@ -381,6 +468,8 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION
 
   openslide_close(osr);
+
+  check_cloexec_leaks(argv[1], argv[0]);
 
   return 0;
 }
