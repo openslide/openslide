@@ -14,8 +14,17 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 # add modules for config.h setup
 include(CheckIncludeFiles)
+include(CheckFunctionExists)
 
 check_include_files("stdbool.h" HAVE_STDBOOL_H)
+check_function_exists(fcntl HAVE_FCNTL)
+
+if(WIN32)
+  set(FOPEN_CLOEXEC_FLAG "\"N\"")
+else()
+  # XXX: should be setting FOPEN_CLOEXEC_FLAG to "e" on newer glibc
+  set(FOPEN_CLOEXEC_FLAG "\"\"")
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX) # also true when the code is compiled as c-code
   add_definitions(-DG_DISABLE_DEPRECATED -DG_DISABLE_SINGLE_INCLUDES)
