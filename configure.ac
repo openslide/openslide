@@ -80,7 +80,6 @@ main ()
 LIBS="$old_LIBS"
 
 if test "$openjpeg_ok" = yes; then
-  AC_DEFINE(HAVE_OPENJPEG, 1, [Is OpenJPEG available and enabled])
   OPENJPEG_LIBS="-lopenjpeg"
   LIBS="$OPENJPEG_LIBS $LIBS"
   AC_MSG_RESULT($openjpeg_ok)
