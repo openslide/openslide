@@ -82,17 +82,19 @@ static void checksum_free(SHA256_CTX *ctx)
 
 struct _openslide_hash {
   Checksum *checksum;
+  bool enabled;
 };
 
 struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
   struct _openslide_hash *hash = g_slice_new(struct _openslide_hash);
   hash->checksum = checksum_new(CHECKSUM_SHA256);
+  hash->enabled = true;
 
   return hash;
 }
 
 void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
-  if (hash == NULL) {
+  if (hash == NULL || !hash->enabled) {
     return;
   }
 
@@ -107,11 +109,25 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   g_assert(TIFFIsTiled(tiff));
 
+  // get tile count
+  ttile_t count = TIFFNumberOfTiles(tiff);
+
   // get tile sizes
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
     g_critical("Cannot get tile size");
     return false;  // ok, haven't allocated anything yet
+  }
+  toff_t total = 0;
+  for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
+    total += sizes[tile_no];
+    if (total > (5 << 20)) {
+      // This is a non-pyramidal image or one with a very large top layer.
+      // Refuse to calculate a quickhash for it to keep openslide_open()
+      // from taking an arbitrary amount of time.  (#79)
+      hash->enabled = false;
+      return true;  // ok, haven't allocated anything yet
+    }
   }
 
   // get offsets
@@ -122,7 +138,6 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   }
 
   // hash each tile's raw data
-  ttile_t count = TIFFNumberOfTiles(tiff);
   const char *filename = TIFFFileName(tiff);
   for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
     if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no])) {
@@ -187,7 +202,11 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 }
 
 const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
-  return checksum_get_string(hash->checksum);
+  if (hash->enabled) {
+    return checksum_get_string(hash->checksum);
+  } else {
+    return NULL;
+  }
 }
 
 void _openslide_hash_destroy(struct _openslide_hash *hash) {
