@@ -292,12 +292,10 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // set hash property
-  if (quickhash1 != NULL) {
-    g_hash_table_insert(osr->properties,
-			g_strdup(OPENSLIDE_PROPERTY_NAME_QUICKHASH1),
-			g_strdup(_openslide_hash_get_string(quickhash1)));
-    _openslide_hash_destroy(quickhash1);
-  }
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_QUICKHASH1),
+                      g_strdup(_openslide_hash_get_string(quickhash1)));
+  _openslide_hash_destroy(quickhash1);
 
   // set other properties
   g_hash_table_insert(osr->properties,
