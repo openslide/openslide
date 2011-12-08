@@ -44,9 +44,15 @@ static void process(const char *progname, const char *file) {
     return;
   }
 
-  printf("%s  %s\n",
-	 openslide_get_property_value(osr, "openslide.quickhash-1"),
-	 file);
+  const char *hash = openslide_get_property_value(osr,
+        "openslide.quickhash-1");
+  if (hash != NULL) {
+    printf("%s  %s\n", hash, file);
+  } else {
+    fprintf(stderr, "%s: %s: No quickhash-1 available\n", progname, file);
+    fflush(stderr);
+  }
+
   openslide_close(osr);
 }
 
