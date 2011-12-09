@@ -1325,6 +1325,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       jpeg_destroy_decompress(&cinfo);
+      g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
       return false;
     }
 
