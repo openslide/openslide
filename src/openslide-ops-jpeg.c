@@ -1305,11 +1305,24 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
-					  FILE *f) {
+					  const char *filename,
+					  int64_t offset) {
   bool result;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
+  FILE *f;
   jmp_buf env;
+
+  // open file
+  f = _openslide_fopen(filename, "rb");
+  if (f == NULL) {
+    return false;
+  }
+  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+    g_warning("Cannot seek to offset");
+    fclose(f);
+    return false;
+  }
 
   uint32_t *argb_data = NULL;
   JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
@@ -1326,6 +1339,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       jpeg_destroy_decompress(&cinfo);
       g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
+      fclose(f);
       return false;
     }
 
@@ -1397,6 +1411,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   jpeg_destroy_decompress(&cinfo);
+
+  fclose(f);
 
   return result;
 }

@@ -606,23 +606,10 @@ static bool add_associated_image(const char *dirname,
 				 GHashTable *ht,
 				 const char *name) {
   char *tmp = g_build_filename(dirname, filename, NULL);
-  FILE *f = _openslide_fopen(tmp, "rb");
+
+  bool result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset);
+
   g_free(tmp);
-
-  if (!f) {
-    g_warning("Cannot open associated image file");
-    return false;
-  }
-
-  if (fseeko(f, offset, SEEK_SET) == -1) {
-    g_warning("Cannot seek to offset");
-    fclose(f);
-    return false;
-  }
-
-  bool result = _openslide_add_jpeg_associated_image(ht, name, f);
-
-  fclose(f);
   return result;
 }
 
