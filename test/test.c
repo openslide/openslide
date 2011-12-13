@@ -418,6 +418,10 @@ int main(int argc, char **argv) {
 
     printf("associated image: %s -> (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ")\n", name, w, h);
 
+    uint32_t *buf = g_new(uint32_t, w * h);
+    openslide_read_associated_image(osr, name, buf);
+    g_free(buf);
+
     associated_image_names++;
   }
 

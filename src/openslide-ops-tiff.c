@@ -45,6 +45,10 @@ struct _openslide_tiffopsdata {
   _openslide_tiff_tilereader_fn tileread;
 };
 
+struct tiff_associated_image_ctx {
+  tdir_t directory;
+};
+
 #define SET_DIR_OR_FAIL(osr, tiff, i)				\
   if (!TIFFSetDirectory(tiff, i)) {				\
     _openslide_set_error(osr, "Cannot set TIFF directory");	\
@@ -508,4 +512,90 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
 
   // done
   TIFFRGBAImageEnd(&img);
+}
+
+static void tiff_get_associated_image_data_unlocked(openslide_t *osr,
+                                                    void *_ctx,
+                                                    uint32_t *dest,
+                                                    int64_t w, int64_t h) {
+  struct _openslide_tiffopsdata *data =
+    (struct _openslide_tiffopsdata *) osr->data;
+  struct tiff_associated_image_ctx *ctx =
+    (struct tiff_associated_image_ctx *) _ctx;
+  TIFF *tiff = data->tiff;
+  uint32_t tmp;
+  int64_t width, height;
+
+  // g_debug("read TIFF associated image: %d", ctx->directory);
+
+  SET_DIR_OR_FAIL(osr, tiff, ctx->directory);
+
+  // ensure dimensions have not changed
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, width);
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, height);
+  if (w != width || h != height) {
+    _openslide_set_error(osr, "Unexpected associated image size");
+    return;
+  }
+
+  // load the image
+  _openslide_generic_tiff_tilereader(osr, tiff, dest, 0, 0, w, h);
+}
+
+static void tiff_get_associated_image_data(openslide_t *osr, void *ctx,
+                                           uint32_t *dest,
+                                           int64_t w, int64_t h)
+{
+  struct _openslide_tiffopsdata *data =
+    (struct _openslide_tiffopsdata *) osr->data;
+
+  g_mutex_lock(data->tiff_mutex);
+  tiff_get_associated_image_data_unlocked(osr, ctx, dest, w, h);
+  g_mutex_unlock(data->tiff_mutex);
+}
+
+static void tiff_destroy_associated_image_ctx(void *_ctx) {
+  struct tiff_associated_image_ctx *ctx =
+    (struct tiff_associated_image_ctx *) _ctx;
+
+  g_slice_free(struct tiff_associated_image_ctx, ctx);
+}
+
+bool _openslide_add_tiff_associated_image(GHashTable *ht,
+					  const char *name,
+					  TIFF *tiff) {
+  uint32_t tmp;
+
+  // get the dimensions
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
+    g_warning("Cannot get associated image width");
+    return false;
+  }
+  int64_t w = tmp;
+
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
+    g_warning("Cannot get associated image height");
+    return false;
+  }
+  int64_t h = tmp;
+
+  // possibly load into struct
+  if (ht) {
+    struct tiff_associated_image_ctx *ctx =
+      g_slice_new(struct tiff_associated_image_ctx);
+    ctx->directory = TIFFCurrentDirectory(tiff);
+
+    struct _openslide_associated_image *aimg =
+      g_slice_new(struct _openslide_associated_image);
+    aimg->w = w;
+    aimg->h = h;
+    aimg->ctx = ctx;
+    aimg->get_argb_data = tiff_get_associated_image_data;
+    aimg->destroy_ctx = tiff_destroy_associated_image_ctx;
+
+    // save
+    g_hash_table_insert(ht, g_strdup(name), aimg);
+  }
+
+  return true;
 }

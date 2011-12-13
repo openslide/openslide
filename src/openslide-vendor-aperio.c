@@ -274,59 +274,13 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
     g_strfreev(lines);
   }
 
-
-  // if we have a name, this is probably valid
-  if (name) {
-    uint32_t tmp;
-
-    // get the dimensions
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
-      g_free(name);
-      return false;
-    }
-    int64_t w = tmp;
-
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
-      g_free(name);
-      return false;
-    }
-    int64_t h = tmp;
-
-    // get the image
-    uint32_t *img_data = (uint32_t *) g_malloc(w * h * 4);
-    if (!TIFFReadRGBAImageOriented(tiff, w, h, (uint32*)img_data, ORIENTATION_TOPLEFT, 0)) {
-      g_free(name);
-      g_free(img_data);
-      return false;
-    }
-
-    // permute
-    uint32_t *p = img_data;
-    uint32_t *end = img_data + (w * h);
-    while (p < end) {
-      uint32_t val = *p;
-      *p++ = (val & 0xFF00FF00)
-	| ((val << 16) & 0xFF0000)
-	| ((val >> 16) & 0xFF);
-    }
-
-    // possibly load into struct
-    if (ht) {
-      struct _openslide_associated_image *aimg =
-	g_slice_new(struct _openslide_associated_image);
-      aimg->w = w;
-      aimg->h = h;
-      aimg->argb_data = img_data;
-
-      // save
-      g_hash_table_insert(ht, name, aimg);
-    } else {
-      g_free(name);
-      g_free(img_data);
-    }
+  if (!name) {
+    return true;
   }
 
-  return true;
+  bool result = _openslide_add_tiff_associated_image(ht, name, tiff);
+  g_free(name);
+  return result;
 }
 
 
