@@ -71,7 +71,9 @@ INITIALIZER(_openslide_init) {
 static void destroy_associated_image(gpointer data) {
   struct _openslide_associated_image *img = (struct _openslide_associated_image *) data;
 
-  g_free(img->argb_data);
+  if (img->destroy_ctx != NULL && img->ctx != NULL) {
+    img->destroy_ctx(img->ctx);
+  }
   g_slice_free(struct _openslide_associated_image, img);
 }
 
@@ -636,8 +638,18 @@ void openslide_read_associated_image(openslide_t *osr,
   struct _openslide_associated_image *img =
     (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
 							       name);
-  if (img && dest) {
-    memcpy(dest, img->argb_data, img->w * img->h * 4);
+  if (img) {
+    // this function is documented to do nothing on failure, so we need an
+    // extra memcpy
+    size_t pixels = img->w * img->h;
+    uint32_t *buf = g_new(uint32_t, pixels);
+
+    img->get_argb_data(osr, img->ctx, buf, img->w, img->h);
+    if (dest && !openslide_get_error(osr)) {
+      memcpy(dest, buf, pixels * sizeof(uint32_t));
+    }
+
+    g_free(buf);
   }
 }
 

@@ -130,6 +130,11 @@ struct jpegops_data {
   enum restart_marker_thread_state restart_marker_thread_state;
 };
 
+struct jpeg_associated_image_ctx {
+  char *filename;
+  int64_t offset;
+};
+
 
 /*
  * Source manager for doing fancy things with libjpeg and restart markers,
@@ -1302,29 +1307,31 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 			       struct_openslide_jpeg_tile_free);
 }
 
-
-bool _openslide_add_jpeg_associated_image(GHashTable *ht,
-					  const char *name,
-					  const char *filename,
-					  int64_t offset) {
-  bool result;
+static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
+                                           uint32_t *_dest,
+                                           int64_t w, int64_t h) {
+  struct jpeg_associated_image_ctx *ctx =
+    (struct jpeg_associated_image_ctx *) _ctx;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   FILE *f;
   jmp_buf env;
 
+  // g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, ctx->filename,
+  //         ctx->offset);
+
   // open file
-  f = _openslide_fopen(filename, "rb");
+  f = _openslide_fopen(ctx->filename, "rb");
   if (f == NULL) {
-    return false;
+    _openslide_set_error(osr, "Cannot open file %s", ctx->filename);
+    return;
   }
-  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
-    g_warning("Cannot seek to offset");
+  if (ctx->offset && fseeko(f, ctx->offset, SEEK_SET) == -1) {
+    _openslide_set_error(osr, "Cannot seek file %s", ctx->filename);
     fclose(f);
-    return false;
+    return;
   }
 
-  uint32_t *argb_data = NULL;
   JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
@@ -1333,19 +1340,26 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 
     int header_result;
 
+    // read header
     _openslide_jpeg_stdio_src(&cinfo, f);
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
-      jpeg_destroy_decompress(&cinfo);
-      g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
-      fclose(f);
-      return false;
+      _openslide_set_error(osr, "Cannot read associated image header");
+      goto DONE;
     }
 
     cinfo.out_color_space = JCS_RGB;
 
     jpeg_start_decompress(&cinfo);
+
+    // ensure dimensions have not changed
+    int32_t width = cinfo.output_width;
+    int32_t height = cinfo.output_height;
+    if (w != width || h != height) {
+      _openslide_set_error(osr, "Unexpected associated image size");
+      goto DONE;
+    }
 
     // allocate scanline buffers
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
@@ -1354,14 +1368,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 				      * cinfo.output_components);
     }
 
-    JDIMENSION w = cinfo.output_width;
-    JDIMENSION h = cinfo.output_height;
-
-    // allocate dest
-    argb_data = (uint32_t *) g_malloc(w * h * 4);
-    uint32_t *dest = argb_data;
-
     // decompress
+    uint32_t *dest = _dest;
     while (cinfo.output_scanline < cinfo.output_height) {
       JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
 						 buffer,
@@ -1383,35 +1391,91 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 	dest += cinfo.output_width;
       }
     }
-
-    // success!
-    if (ht) {
-      struct _openslide_associated_image *aimg =
-	g_slice_new(struct _openslide_associated_image);
-      aimg->w = w;
-      aimg->h = h;
-      aimg->argb_data = argb_data;
-
-      g_hash_table_insert(ht, g_strdup(name), aimg);
-    } else {
-      g_free(argb_data);
-    }
-
-    result = true;
   } else {
     // setjmp has returned again
-    g_free(argb_data);
-    result = false;
+    _openslide_set_error(osr, "Cannot read associated image");
   }
 
+DONE:
   // free buffers
   for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
     g_free(buffer[i]);
   }
+
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   jpeg_destroy_decompress(&cinfo);
 
+  fclose(f);
+}
+
+static void jpeg_destroy_associated_image_ctx(void *_ctx) {
+  struct jpeg_associated_image_ctx *ctx =
+    (struct jpeg_associated_image_ctx *) _ctx;
+
+  g_free(ctx->filename);
+  g_slice_free(struct jpeg_associated_image_ctx, ctx);
+}
+
+bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+					  const char *name,
+					  const char *filename,
+					  int64_t offset) {
+  bool result = false;
+  struct jpeg_decompress_struct cinfo;
+  struct _openslide_jpeg_error_mgr jerr;
+  FILE *f;
+  jmp_buf env;
+
+  // open file
+  f = _openslide_fopen(filename, "rb");
+  if (f == NULL) {
+    return false;
+  }
+  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+    g_warning("Cannot seek to offset");
+    fclose(f);
+    return false;
+  }
+
+  if (setjmp(env) == 0) {
+    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
+    jpeg_create_decompress(&cinfo);
+
+    int header_result;
+
+    _openslide_jpeg_stdio_src(&cinfo, f);
+    header_result = jpeg_read_header(&cinfo, TRUE);
+    if ((header_result != JPEG_HEADER_OK
+	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+      goto DONE;
+    }
+
+    jpeg_calc_output_dimensions(&cinfo);
+
+    if (ht) {
+      struct jpeg_associated_image_ctx *ctx =
+        g_slice_new(struct jpeg_associated_image_ctx);
+      ctx->filename = g_strdup(filename);
+      ctx->offset = offset;
+
+      struct _openslide_associated_image *aimg =
+	g_slice_new(struct _openslide_associated_image);
+      aimg->w = cinfo.output_width;
+      aimg->h = cinfo.output_height;
+      aimg->ctx = ctx;
+      aimg->get_argb_data = jpeg_get_associated_image_data;
+      aimg->destroy_ctx = jpeg_destroy_associated_image_ctx;
+
+      g_hash_table_insert(ht, g_strdup(name), aimg);
+    }
+
+    result = true;
+  }
+
+DONE:
+  // free buffers
+  jpeg_destroy_decompress(&cinfo);
   fclose(f);
 
   return result;

@@ -63,7 +63,12 @@ extern "C" {
 struct _openslide_associated_image {
   int64_t w;
   int64_t h;
-  uint32_t *argb_data;
+  void *ctx;
+
+  // must fail if width or height doesn't match the image
+  void (*get_argb_data)(openslide_t *osr, void *ctx, uint32_t *dest,
+                        int64_t w, int64_t h);
+  void (*destroy_ctx)(void *ctx);
 };
 
 /* the main structure */
@@ -172,6 +177,9 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
 					int64_t x, int64_t y,
 					int32_t w, int32_t h);
 
+bool _openslide_add_tiff_associated_image(GHashTable *ht,
+					  const char *name,
+					  TIFF *tiff);
 
 /* JPEG support */
 struct _openslide_jpeg_file {
