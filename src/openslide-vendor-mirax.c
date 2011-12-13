@@ -1033,7 +1033,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // start reading
 
   // verify filename
-  if (!g_str_has_suffix(filename, MRXS_EXT)) {
+  if (!g_str_has_suffix(filename, MRXS_EXT) ||
+      !g_file_test(filename, G_FILE_TEST_EXISTS)) {
     goto FAIL;
   }
 
