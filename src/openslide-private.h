@@ -292,6 +292,7 @@ void _openslide_set_background_color_property(GHashTable *ht,
 #define _OPENSLIDE_PROPERTY_NAME_LAYER_COUNT "openslide.layer-count"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH "openslide.layer[%d].width"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT "openslide.layer[%d].height"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_DOWNSAMPLE "openslide.layer[%d].downsample"
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat

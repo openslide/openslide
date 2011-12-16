@@ -310,12 +310,18 @@ openslide_t *openslide_open(const char *filename) {
     int64_t w, h;
     openslide_get_layer_dimensions(osr, i, &w, &h);
 
+    char downsample[G_ASCII_DTOSTR_BUF_SIZE];
+    g_ascii_dtostr(downsample, sizeof(downsample), osr->downsamples[i]);
+
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH, i),
 			g_strdup_printf("%" G_GINT64_FORMAT, w));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT, i),
 			g_strdup_printf("%" G_GINT64_FORMAT, h));
+    g_hash_table_insert(osr->properties,
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_DOWNSAMPLE, i),
+			g_strdup(downsample));
   }
 
   // fill in names
