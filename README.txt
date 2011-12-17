@@ -120,6 +120,5 @@ How to build?
 make
 make install
 
-Use `autoreconf -i` to generate the 'configure' file
 
 Good luck!
