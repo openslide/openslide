@@ -1,6 +1,16 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.5, 2011-12-16
+ * Support MIRAX 1.03 files (thanks, Jan Harkes)
+ * Fix openslide_read_region for large dimensions
+ * Use subpixel precision in all backends
+ * Don't keep associated images in memory
+ * Disable quickhash-1 for TIFF files with very large top layer
+ * Various build fixes (thanks, Jan, Marco Feuerstein, and
+   Mathieu Malaterre)
+ * Fix some unlikely memory leaks
+
 Version 3.2.4, 2011-03-07
  * Support MIRAX files that do not have non-hierarchical data
    (thanks, Jan Harkes)
