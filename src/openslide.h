@@ -199,6 +199,7 @@ void openslide_close(openslide_t *osr);
  * @param osr The OpenSlide object.
  * @return A string describing the original error that caused
  * the problem, or NULL if no error has occurred.
+ * @since 3.2.0
  *
  */
 OPENSLIDE_PUBLIC()
@@ -229,6 +230,8 @@ const char *openslide_get_error(openslide_t *osr);
 /**
  * The name of the property containing a slide's background color, if any.
  * It is represented as an RGB hex triplet.
+ *
+ * @since 3.2.3
  */
 #define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
 //@}
