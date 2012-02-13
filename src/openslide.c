@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -536,21 +536,22 @@ void openslide_read_region(openslide_t *osr,
   // 3. We would like to constrain the intermediate surface to a reasonable
   //    amount of RAM.
   const int64_t d = 4096;
+  double ds = openslide_get_layer_downsample(osr, layer);
   for (int64_t row = 0; !openslide_get_error(osr) && row < (h + d - 1) / d;
           row++) {
     for (int64_t col = 0; !openslide_get_error(osr) && col < (w + d - 1) / d;
             col++) {
       // calculate surface coordinates and size
-      int64_t sx = x + col * d;
-      int64_t sy = y + row * d;
-      int64_t sw = MIN(x + w - sx, d);
-      int64_t sh = MIN(y + h - sy, d);
+      int64_t sx = x + col * d * ds;     // layer 0 plane
+      int64_t sy = y + row * d * ds;     // layer 0 plane
+      int64_t sw = MIN(w - col * d, d);  // layer plane
+      int64_t sh = MIN(h - row * d, d);  // layer plane
 
       // create the cairo surface for the dest
       cairo_surface_t *surface;
       if (dest) {
         surface = cairo_image_surface_create_for_data(
-                (unsigned char *) (dest + w * (sy - y) + (sx - x)),
+                (unsigned char *) (dest + w * row * d + col * d),
                 CAIRO_FORMAT_ARGB32, sw, sh, w * 4);
       } else {
         // nil surface
