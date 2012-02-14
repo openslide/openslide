@@ -119,21 +119,6 @@ struct slide_zoom_level_section {
   int tile_h;
 };
 
-struct mirax_hier_page_entry {
-  int32_t x;
-  int32_t y;
-  int32_t offset;
-  int32_t length;
-  int32_t fileno;
-  int zoom_level;
-};
-
-struct mirax_nonhier_page_entry {
-  int32_t offset;
-  int32_t length;
-  int32_t fileno;
-};
-
 static char *read_string_from_file(FILE *f, int len) {
   char *str = (char *) g_malloc(len + 1);
   str[len] = '\0';
