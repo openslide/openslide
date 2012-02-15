@@ -171,15 +171,8 @@ static bool read_nonhier_record(FILE *f,
     return false;
   }
 
-  // jump to start of interesting data
-  //  g_debug("seek %d", ptr);
-  if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_warning("Cannot seek to start of nonhier data");
-    return false;
-  }
-
   // seek to record pointer
-  if (fseeko(f, recordno * 4, SEEK_CUR) == -1) {
+  if (fseeko(f, ptr + 4 * recordno, SEEK_SET) == -1) {
     g_warning("Cannot seek to nonhier record pointer %d", recordno);
     return false;
   }
@@ -764,13 +757,6 @@ static bool process_indexfile(const char *uuid,
   ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
     g_warning("Can't read initial pointer");
-    goto DONE;
-  }
-
-  // jump to start of interesting data
-  //  g_debug("seek %d", ptr);
-  if (fseeko(indexfile, ptr, SEEK_SET) == -1) {
-    g_warning("Cannot seek to start of interesting data");
     goto DONE;
   }
 
