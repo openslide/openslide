@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -476,7 +476,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    // xx and yy are the tile coordinates in level0 space
 
-	    // look up the tile position, stored in 24.8 fixed point
+	    // look up the tile position
 	    int xp = xx / image_divisions;
 	    int yp = yy / image_divisions;
 	    int tp = yp * (tiles_across / image_divisions) + xp;
@@ -495,16 +495,16 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    }
 
 	    // position in layer 0
-	    const double pos0_x = ((double) tile_positions[tp * 2]) / 256.0 +
+	    const int pos0_x = tile_positions[tp * 2] +
 	      tile0_w * (xx - xp * image_divisions);
-	    const double pos0_y = ((double) tile_positions[(tp * 2) + 1]) / 256.0 +
+	    const int pos0_y = tile_positions[(tp * 2) + 1] +
 	      tile0_h * (yy - yp * image_divisions);
 
 	    // position in this layer
-	    const double pos_x = pos0_x / tile_concat;
-	    const double pos_y = pos0_y / tile_concat;
+	    const double pos_x = ((double) pos0_x) / tile_concat;
+	    const double pos_y = ((double) pos0_y) / tile_concat;
 
-	    //g_debug("pos0: %g %g, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
+	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
 	    insert_subtile(l->tiles, jpeg_number,
 			   pos_x, pos_y,
@@ -563,15 +563,17 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
 
     int zz = getc(f);
 
-    if (!x_ok || !y_ok || (zz == EOF) || ((zz != 0) && (zz != 255))) {
+    if (!x_ok || !y_ok || (zz == EOF) || ((zz != 0) && (zz != 255)) ||
+        (x & 0xfe) != 0 || (y & 0xfe) != 0) {
       g_warning("Error while reading slide position file");
       fclose(f);
       g_free(result);
       return NULL;
     }
 
-    result[i * 2] = x;
-    result[(i * 2) + 1] = y;
+    // the low byte contains flags, and is always 0 or 1
+    result[i * 2] = ((uint32_t) x) >> 8;
+    result[(i * 2) + 1] = ((uint32_t) y) >> 8;
   }
 
   fclose(f);
@@ -687,8 +689,8 @@ static bool process_indexfile(const char *uuid,
 
     slide_positions = g_new(int, ntiles * 2);
     for (int i = 0; i < ntiles; i++) {
-      slide_positions[(i * 2)]     = (i % tiles_x) * tile0_w * 256;
-      slide_positions[(i * 2) + 1] = (i / tiles_x) * tile0_h * 256;
+      slide_positions[(i * 2)]     = (i % tiles_x) * tile0_w;
+      slide_positions[(i * 2) + 1] = (i / tiles_x) * tile0_h;
     }
   }
   if (!slide_positions) {
