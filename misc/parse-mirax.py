@@ -228,6 +228,10 @@ def dump_mirax(path, r=None):
     tiles_y = dat.getint('GENERAL', 'IMAGENUMBER_Y')
     slide_id = dat.get('GENERAL', 'SLIDE_ID')
     try:
+        slide_type = dat.get('GENERAL', 'SLIDE_TYPE')
+    except NoOptionError:
+        slide_type = 'unknown'
+    try:
         image_divisions = dat.getint('GENERAL', 'CameraImageDivisionsPerSide')
     except NoOptionError:
         image_divisions = 1
@@ -235,7 +239,7 @@ def dump_mirax(path, r=None):
             for i in range(dat.getint('DATAFILE', 'FILE_COUNT'))]
     r('Slide version', dat.get('GENERAL', 'SLIDE_VERSION'))
     r('Slide ID', slide_id)
-    r('Slide type', dat.get('GENERAL', 'SLIDE_TYPE'))
+    r('Slide type', slide_type)
     r('Tiles in X', tiles_x)
     r('Tiles in Y', tiles_y)
     r('Image divisions per side', image_divisions)
