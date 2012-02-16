@@ -450,25 +450,21 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	const int tile0_w = layers[0]->raw_tile_width;
 	const int tile0_h = layers[0]->raw_tile_height;
 
-	// subtile_count: how many subtiles in a JPEG tile (one dimension)? this is constant
-	//                for the first few levels, depending on image_divisions
-	const int subtile_count = MAX(1, tile_concat / image_divisions);
-
 	/*
-	g_debug("tile_concat: %d, subtile_count: %d",
-		tile_concat, subtile_count);
+	g_debug("tile_concat: %d, subtiles_per_jpeg_tile: %d",
+		tile_concat, subtiles_per_jpeg_tile);
 	g_debug("found %d %d from file", x, y);
 	*/
 
 
-	// start processing 1 JPEG tile into subtile_count^2 subtiles
-	for (int yi = 0; yi < subtile_count; yi++) {
+	// start processing 1 JPEG tile into subtiles_per_jpeg_tile^2 subtiles
+	for (int yi = 0; yi < subtiles_per_jpeg_tile; yi++) {
 	  int yy = y + (yi * image_divisions);
 	  if (yy >= tiles_down) {
 	    break;
 	  }
 
-	  for (int xi = 0; xi < subtile_count; xi++) {
+	  for (int xi = 0; xi < subtiles_per_jpeg_tile; xi++) {
 	    int xx = x + (xi * image_divisions);
 	    if (xx >= tiles_across) {
 	      break;
@@ -480,7 +476,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    int xp = xx / image_divisions;
 	    int yp = yy / image_divisions;
 	    int tp = yp * (tiles_across / image_divisions) + xp;
-	    //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, subtile_count, tile0_w, tile0_h, subtile_w, subtile_h);
+	    //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, subtiles_per_jpeg_tile, tile0_w, tile0_h, subtile_w, subtile_h);
 
 	    if (zoom_level == 0) {
 	      // if the zoom level is 0, then mark this position as active
@@ -1331,6 +1327,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     const int tile_count_divisor = MIN(tile_concat, image_divisions);
 
     // subtiles_per_jpeg_tile: for this zoom, how many subtiles in a JPEG tile?
+    //                         this is constant for the first few levels,
+    //                         depending on image_divisions
     const int subtiles_per_jpeg_tile = MAX(1, tile_concat / image_divisions);
 
     l->tiles = _openslide_jpeg_create_tiles_table();
