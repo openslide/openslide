@@ -294,6 +294,49 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
   }
 }
 
+// given the coordinates of a subtile, compute its layer 0 pixel coordinates.
+// return false if the camera position is not active.
+static bool get_subtile_position(int32_t *tile_positions,
+                                 GHashTable *active_positions,
+                                 struct _openslide_jpeg_layer **layers,
+                                 int tiles_across,
+                                 int image_divisions,
+                                 int zoom_level, int xx, int yy,
+                                 int *pos0_x, int *pos0_y)
+{
+  const int tile0_w = layers[0]->raw_tile_width;
+  const int tile0_h = layers[0]->raw_tile_height;
+
+  // camera position coordinates
+  int xp = xx / image_divisions;
+  int yp = yy / image_divisions;
+  int tp = yp * (tiles_across / image_divisions) + xp;
+  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_jpeg_tile, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
+
+  *pos0_x = tile_positions[tp * 2] +
+      tile0_w * (xx - xp * image_divisions);
+  *pos0_y = tile_positions[(tp * 2) + 1] +
+      tile0_h * (yy - yp * image_divisions);
+
+  if (zoom_level == 0) {
+    // if the zoom level is 0, then mark this position as active
+    int *key = g_new(int, 1);
+    *key = tp;
+    g_hash_table_insert(active_positions, key, NULL);
+    return true;
+
+  } else {
+    // make sure this position is active
+    if (g_hash_table_lookup_extended(active_positions, &tp, NULL, NULL)) {
+      //g_debug("accept tile: level %d xp %d yp %d", zoom_level, xp, yp);
+      return true;
+    }
+
+    //g_debug("skip tile: level %d xp %d yp %d", zoom_level, xp, yp);
+    return false;
+  }
+}
+
 static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int64_t seek_location,
 						   int datafile_count,
@@ -451,9 +494,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
 
-	const int tile0_w = layers[0]->raw_tile_width;
-	const int tile0_h = layers[0]->raw_tile_height;
-
 	/*
 	g_debug("tile_concat: %d, subtiles_per_jpeg_tile: %d",
 		lp->tile_concat, lp->subtiles_per_jpeg_tile);
@@ -476,29 +516,20 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    // xx and yy are the tile coordinates in level0 space
 
-	    // look up the tile position
-	    int xp = xx / image_divisions;
-	    int yp = yy / image_divisions;
-	    int tp = yp * (tiles_across / image_divisions) + xp;
-	    //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_jpeg_tile, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
-
-	    if (zoom_level == 0) {
-	      // if the zoom level is 0, then mark this position as active
-	      int *key = g_new(int, 1);
-	      *key = tp;
-	      g_hash_table_insert(active_positions, key, NULL);
-	    } else {
-	      // make sure we have an active position for this tile
-	      if (!g_hash_table_lookup_extended(active_positions, &tp, NULL, NULL)) {
-		continue;
-	      }
-	    }
-
 	    // position in layer 0
-	    const int pos0_x = tile_positions[tp * 2] +
-	      tile0_w * (xx - xp * image_divisions);
-	    const int pos0_y = tile_positions[(tp * 2) + 1] +
-	      tile0_h * (yy - yp * image_divisions);
+            int pos0_x;
+            int pos0_y;
+            if (!get_subtile_position(tile_positions,
+                                      active_positions,
+                                      layers,
+                                      tiles_across,
+                                      image_divisions,
+                                      zoom_level,
+                                      xx, yy,
+                                      &pos0_x, &pos0_y)) {
+              // no such position
+              continue;
+            }
 
 	    // position in this layer
 	    const double pos_x = ((double) pos0_x) / lp->tile_concat;
