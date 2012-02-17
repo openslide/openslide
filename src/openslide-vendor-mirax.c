@@ -124,6 +124,7 @@ struct slide_zoom_level_params {
   int tile_concat;
   int tile_count_divisor;
   int subtiles_per_jpeg_tile;
+  int positions_per_subtile;
   double subtile_w;
   double subtile_h;
 };
@@ -295,15 +296,20 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
 }
 
 // given the coordinates of a subtile, compute its layer 0 pixel coordinates.
-// return false if the camera position is not active.
+// return false if none of the camera positions within the subtile are
+// active.
 static bool get_subtile_position(int32_t *tile_positions,
                                  GHashTable *active_positions,
+                                 const struct slide_zoom_level_params *slide_zoom_level_params,
                                  struct _openslide_jpeg_layer **layers,
                                  int tiles_across,
                                  int image_divisions,
                                  int zoom_level, int xx, int yy,
                                  int *pos0_x, int *pos0_y)
 {
+  const struct slide_zoom_level_params *lp = slide_zoom_level_params +
+      zoom_level;
+
   const int tile0_w = layers[0]->raw_tile_width;
   const int tile0_h = layers[0]->raw_tile_height;
 
@@ -326,13 +332,18 @@ static bool get_subtile_position(int32_t *tile_positions,
     return true;
 
   } else {
-    // make sure this position is active
-    if (g_hash_table_lookup_extended(active_positions, &tp, NULL, NULL)) {
-      //g_debug("accept tile: level %d xp %d yp %d", zoom_level, xp, yp);
-      return true;
+    // make sure at least one of the positions within this subtile is active
+    for (int ypp = yp; ypp < yp + lp->positions_per_subtile; ypp++) {
+      for (int xpp = xp; xpp < xp + lp->positions_per_subtile; xpp++) {
+        int tpp = ypp * (tiles_across / image_divisions) + xpp;
+        if (g_hash_table_lookup_extended(active_positions, &tpp, NULL, NULL)) {
+          //g_debug("accept tile: level %d xp %d yp %d xpp %d ypp %d", zoom_level, xp, yp, xpp, ypp);
+          return true;
+        }
+      }
     }
 
-    //g_debug("skip tile: level %d xp %d yp %d", zoom_level, xp, yp);
+    //g_debug("skip tile: level %d positions %d xp %d yp %d", zoom_level, lp->positions_per_subtile, xp, yp);
     return false;
   }
 }
@@ -521,6 +532,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
             int pos0_y;
             if (!get_subtile_position(tile_positions,
                                       active_positions,
+                                      slide_zoom_level_params,
                                       layers,
                                       tiles_across,
                                       image_divisions,
@@ -1355,18 +1367,38 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     // tile_concat: number of tiles concatenated from the original in one dimension
     lp->tile_concat = 1 << i;
 
-    // tile_count_divisor: as we record levels, we would prefer to shrink the
-    //                     number of tiles, but keep the tile size constant,
-    //                     but this only works until we encounter JPEG tiles
-    //                     with more than one source photo, in which case
-    //                     the tile count bottoms out and we instead shrink
-    //                     the advances
-    lp->tile_count_divisor = MIN(lp->tile_concat, image_divisions);
+    // positions_per_jpeg_tile: for this zoom, how many camera positions
+    //                          are represented in a JPEG tile?
+    //                          this is constant for the first few levels,
+    //                          depending on image_divisions
+    const int positions_per_jpeg_tile = MAX(1, lp->tile_concat / image_divisions);
 
-    // subtiles_per_jpeg_tile: for this zoom, how many subtiles in a JPEG tile?
-    //                         this is constant for the first few levels,
-    //                         depending on image_divisions
-    lp->subtiles_per_jpeg_tile = MAX(1, lp->tile_concat / image_divisions);
+    if (position_nonhier_offset != -1) {
+      // tile_count_divisor: as we record levels, we would prefer to shrink the
+      //                     number of tiles, but keep the tile size constant,
+      //                     but this only works until we encounter JPEG tiles
+      //                     with more than one source photo, in which case
+      //                     the tile count bottoms out and we instead shrink
+      //                     the advances
+      lp->tile_count_divisor = MIN(lp->tile_concat, image_divisions);
+
+      // subtiles_per_jpeg_tile: for this zoom, how many subtiles in a JPEG tile?
+      //                         this is constant for the first few levels,
+      //                         depending on image_divisions
+      lp->subtiles_per_jpeg_tile = positions_per_jpeg_tile;
+
+      // positions_per_subtile: for this zoom, how many camera positions
+      //                        are represented in a subtile?
+      lp->positions_per_subtile = 1;
+
+    } else {
+      // no position file and no overlaps, so we can skip subtile processing
+      // for better performance
+
+      lp->tile_count_divisor = lp->tile_concat;
+      lp->subtiles_per_jpeg_tile = 1;
+      lp->positions_per_subtile = positions_per_jpeg_tile;
+    }
 
     lp->subtile_w = (double) hs->tile_w / lp->subtiles_per_jpeg_tile;
     lp->subtile_h = (double) hs->tile_h / lp->subtiles_per_jpeg_tile;
@@ -1394,7 +1426,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_y = lp->subtile_h - ((double) hs->overlap_y /
         (double) subtiles_per_position);
 
-    //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor);
+    //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_subtile %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_subtile);
   }
 
   // load the position map and build up the tiles, using subtiles
