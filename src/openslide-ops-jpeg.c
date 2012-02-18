@@ -90,6 +90,8 @@ struct layer {
   int32_t tiles_across;
   int32_t tiles_down;
 
+  double downsample;
+
   int32_t scale_denom;
 
   // how much extra we might need to read to get all relevant tiles?
@@ -1148,6 +1150,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct layer *new_l = g_slice_new0(struct layer);
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
+    new_l->downsample = old_l->downsample;
     new_l->scale_denom = 1;
     new_l->pixel_w = old_l->layer_w;
     new_l->pixel_h = old_l->layer_h;
@@ -1181,6 +1184,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->tiles = g_hash_table_ref(new_l->tiles);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
+      sd_l->downsample = new_l->downsample * scale_denom;
       sd_l->extra_tiles_top = new_l->extra_tiles_top;
       sd_l->extra_tiles_bottom = new_l->extra_tiles_bottom;
       sd_l->extra_tiles_left = new_l->extra_tiles_left;
@@ -1221,6 +1225,10 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   // populate the layer_count
   osr->layer_count = g_hash_table_size(expanded_layers);
 
+  // allocate downsample array
+  g_assert(osr->downsamples == NULL);
+  osr->downsamples = g_new(double, osr->layer_count);
+
   // load into data array
   data->layers = g_new(struct layer, g_hash_table_size(expanded_layers));
   GList *tmp_list = layer_keys;
@@ -1235,6 +1243,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     // copy
     struct layer *dest = data->layers + i;
     *dest = *l;    // shallow copy
+
+    // set downsample
+    osr->downsamples[i] = l->downsample;
 
     // manually free some things, because of that shallow copy
     g_hash_table_steal(expanded_layers, tmp_list->data);

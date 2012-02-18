@@ -77,7 +77,7 @@ struct _openslide {
   void *data;
   int32_t layer_count;
 
-  double *downsamples;  // if not specified, then filled in automatically from dimensions
+  double *downsamples;  // zero values or NULL are filled in automatically from dimensions
 
   // associated images
   GHashTable *associated_images;  // created automatically
@@ -230,6 +230,9 @@ struct _openslide_jpeg_layer {
   // standard advance
   double tile_advance_x;
   double tile_advance_y;
+
+  // if zero, calculated automatically
+  double downsample;
 };
 
 void _openslide_add_jpeg_ops(openslide_t *osr,

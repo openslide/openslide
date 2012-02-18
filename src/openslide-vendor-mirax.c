@@ -1424,6 +1424,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_y = lp->subtile_h - ((double) hs->overlap_y /
         (double) subtiles_per_position);
 
+    // override downsample
+    l->downsample = lp->tile_concat;
+
     //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_subtile %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_subtile);
   }
 
@@ -1459,17 +1462,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
-
-  // override downsamples
-  if (osr) {
-    osr->downsamples = g_new(double, osr->layer_count);
-    double downsample = 1.0;
-
-    for (int32_t i = 0; i < osr->layer_count; i++) {
-      osr->downsamples[i] = downsample;
-      downsample *= 2.0;
-    }
-  }
 
   success = true;
   goto DONE;

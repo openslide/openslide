@@ -266,9 +266,13 @@ openslide_t *openslide_open(const char *filename) {
   openslide_get_layer0_dimensions(osr, &blw, &blh);
 
   if (!osr->downsamples) {
-    osr->downsamples = g_new(double, osr->layer_count);
+    osr->downsamples = g_new0(double, osr->layer_count);
+  }
+  if (osr->downsamples[0] == 0) {
     osr->downsamples[0] = 1.0;
-    for (int32_t i = 1; i < osr->layer_count; i++) {
+  }
+  for (int32_t i = 1; i < osr->layer_count; i++) {
+    if (osr->downsamples[i] == 0) {
       int64_t w, h;
       openslide_get_layer_dimensions(osr, i, &w, &h);
 
