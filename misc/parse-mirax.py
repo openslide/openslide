@@ -201,17 +201,14 @@ def read_tile_position_map(r, image_divisions, tiles_x, f, offset, len):
     assert(len % 9 == 0)
     f.seek(offset)
     images_x = tiles_x // image_divisions
-    def read_split32(f):
-        v = read_int32(f)
-        return v >> 8, v & 0xff
     for i in range(len // 9):
-        x, z1 = read_split32(f)
-        y, z2 = read_split32(f)
-        z3 = struct.unpack('B', read_len(f, 1))[0]
+        zz = struct.unpack('B', read_len(f, 1))[0]
+        x = read_int32(f)
+        y = read_int32(f)
         if x != 0 or y != 0:
             r('Tile %5d x %5d' % ((i % images_x) * image_divisions,
                     (i // images_x) * image_divisions),
-                    '%8d x %8d  (%3d, %3d, %3d)' % (x, y, z1, z2, z3))
+                    '%8d x %8d  (%3d)' % (x, y, zz))
 
 
 def dump_mirax(path, r=None):

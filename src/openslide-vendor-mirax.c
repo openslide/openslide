@@ -599,25 +599,23 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
   //  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
-    // read 2 numbers, then a null
+    // read flag byte, then 2 numbers
+    int zz = getc(f);
+
     int32_t x;
     int32_t y;
     bool x_ok = read_le_int32_from_file_with_result(f, &x);
     bool y_ok = read_le_int32_from_file_with_result(f, &y);
 
-    int zz = getc(f);
-
-    if (!x_ok || !y_ok || (zz == EOF) || ((zz != 0) && (zz != 255)) ||
-        (x & 0xfe) != 0 || (y & 0xfe) != 0) {
-      g_warning("Error while reading slide position file");
+    if (zz == EOF || !x_ok || !y_ok || (zz & 0xfe)) {
+      g_warning("Error while reading slide position file (%d)", zz);
       fclose(f);
       g_free(result);
       return NULL;
     }
 
-    // the low byte contains flags, and is always 0 or 1
-    result[i * 2] = ((uint32_t) x) >> 8;
-    result[(i * 2) + 1] = ((uint32_t) y) >> 8;
+    result[i * 2] = x;
+    result[(i * 2) + 1] = y;
   }
 
   fclose(f);
