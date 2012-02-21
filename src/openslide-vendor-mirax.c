@@ -110,6 +110,8 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
   } while(0)
 
 struct slide_zoom_level_section {
+  int concat_exponent;
+
   double overlap_x;
   double overlap_y;
 
@@ -324,8 +326,24 @@ static bool get_subtile_position(int32_t *tile_positions,
   *pos0_y = tile_positions[(tp * 2) + 1] +
       tile0_h * (yy - yp * image_divisions);
 
+  // ensure only active positions (those present at zoom level 0) are
+  // processed at higher zoom levels
   if (zoom_level == 0) {
-    // if the zoom level is 0, then mark this position as active
+    // If the layer 0 concat factor <= image_divisions, we can simply mark
+    // active any position with a corresponding level 0 tile.
+    //
+    // If the concat factor is larger, then active and inactive positions
+    // can be merged into the same tile, and we can no longer tell which
+    // subtiles can be skipped at higher zoom levels.  Sometimes such
+    // positions have coordinates (0, 0) in the tile_positions map; we can
+    // at least filter out these, and we must because such positions break
+    // the JPEG backend's range search.  Assume that only position (0, 0)
+    // can be at pixel (0, 0).
+    if (tile_positions[tp * 2] == 0 && tile_positions[tp * 2 + 1] == 0 &&
+        (xp != 0 || yp != 0)) {
+      return false;
+    }
+
     int *key = g_new(int, 1);
     *key = tp;
     g_hash_table_insert(active_positions, key, NULL);
@@ -577,7 +595,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 }
 
 static int32_t *read_slide_position_file(const char *dirname, const char *name,
-					 int64_t size, int64_t offset) {
+					 int64_t size, int64_t offset,
+					 int level_0_tile_concat) {
   char *tmp = g_build_filename(dirname, name, NULL);
   FILE *f = _openslide_fopen(tmp, "rb");
   g_free(tmp);
@@ -614,8 +633,8 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
       return NULL;
     }
 
-    result[i * 2] = x;
-    result[(i * 2) + 1] = y;
+    result[i * 2] = x * level_0_tile_concat;
+    result[(i * 2) + 1] = y * level_0_tile_concat;
   }
 
   fclose(f);
@@ -723,7 +742,8 @@ static bool process_indexfile(const char *uuid,
     slide_positions = read_slide_position_file(dirname,
 					       datafile_names[slide_position_fileno],
 					       slide_position_size,
-					       slide_position_offset);
+					       slide_position_offset,
+					       slide_zoom_level_params[0].tile_concat);
   } else {
     // no position map available and we know overlap is 0, fill in our own
     // values based on the known tile size.
@@ -1035,6 +1055,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   int64_t base_w = 0;
   int64_t base_h = 0;
 
+  int total_concat_exponent = 0;
+
   // start reading
 
   // verify filename
@@ -1195,6 +1217,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       goto FAIL;
     }
 
+    READ_KEY_OR_FAIL(hs->concat_exponent, slidedat, group,
+		     KEY_IMAGE_CONCAT_FACTOR,
+		     integer, "Can't read image concat exponent");
     READ_KEY_OR_FAIL(hs->overlap_x, slidedat, group, KEY_OVERLAP_X,
 		     double, "Can't read overlap X");
     READ_KEY_OR_FAIL(hs->overlap_y, slidedat, group, KEY_OVERLAP_Y,
@@ -1206,6 +1231,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     READ_KEY_OR_FAIL(hs->tile_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
 		     integer, "Can't read tile height");
 
+    if (i == 0) {
+      NON_NEGATIVE_OR_FAIL(hs->concat_exponent);
+    } else {
+      POSITIVE_OR_FAIL(hs->concat_exponent);
+    }
     POSITIVE_OR_FAIL(hs->tile_w);
     POSITIVE_OR_FAIL(hs->tile_h);
 
@@ -1224,19 +1254,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     }
     g_free(tmp);
     tmp = NULL;
-
-    // verify IMAGE_CONCAT_FACTOR == 1 for all but the first layer
-    int ic_factor;
-    READ_KEY_OR_FAIL(ic_factor, slidedat, group, KEY_IMAGE_CONCAT_FACTOR,
-		     integer, "Can't read image concat factor");
-    if ((i == 0) && (ic_factor != 0)) {
-      g_warning("Level 0 has non-zero image concat factor: %d", ic_factor);
-      goto FAIL;
-    }
-    if ((i != 0) && (ic_factor != 1)) {
-      g_warning("Level %d has non-unity image concat factor: %d", i, ic_factor);
-      goto FAIL;
-    }
   }
 
 
@@ -1355,6 +1372,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // set up layer dimensions and such
   layers = g_new(struct _openslide_jpeg_layer *, zoom_levels);
   slide_zoom_level_params = g_new(struct slide_zoom_level_params, zoom_levels);
+  total_concat_exponent = 0;
   for (int i = 0; i < zoom_levels; i++) {
     // one jpeg layer per zoom level
     struct _openslide_jpeg_layer *l = g_slice_new0(struct _openslide_jpeg_layer);
@@ -1363,7 +1381,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     struct slide_zoom_level_params *lp = slide_zoom_level_params + i;
 
     // tile_concat: number of tiles concatenated from the original in one dimension
-    lp->tile_concat = 1 << i;
+    total_concat_exponent += hs->concat_exponent;
+    lp->tile_concat = 1 << total_concat_exponent;
 
     // positions_per_jpeg_tile: for this zoom, how many camera positions
     //                          are represented in a JPEG tile?
@@ -1424,6 +1443,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tile_advance_y = lp->subtile_h - ((double) hs->overlap_y /
         (double) subtiles_per_position);
 
+    // override downsample.  layer 0 is defined to have a downsample of 1.0,
+    // irrespective of its concat_exponent
+    l->downsample = lp->tile_concat / slide_zoom_level_params[0].tile_concat;
+
     //g_debug("layer %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_subtile %d", i, l->tile_advance_x, l->tile_advance_y, l->layer_w, l->layer_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_subtile);
   }
 
@@ -1459,17 +1482,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, layers);
-
-  // override downsamples
-  if (osr) {
-    osr->downsamples = g_new(double, osr->layer_count);
-    double downsample = 1.0;
-
-    for (int32_t i = 0; i < osr->layer_count; i++) {
-      osr->downsamples[i] = downsample;
-      downsample *= 2.0;
-    }
-  }
 
   success = true;
   goto DONE;
