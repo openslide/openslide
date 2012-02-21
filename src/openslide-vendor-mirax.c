@@ -326,8 +326,24 @@ static bool get_subtile_position(int32_t *tile_positions,
   *pos0_y = tile_positions[(tp * 2) + 1] +
       tile0_h * (yy - yp * image_divisions);
 
+  // ensure only active positions (those present at zoom level 0) are
+  // processed at higher zoom levels
   if (zoom_level == 0) {
-    // if the zoom level is 0, then mark this position as active
+    // If the layer 0 concat factor <= image_divisions, we can simply mark
+    // active any position with a corresponding level 0 tile.
+    //
+    // If the concat factor is larger, then active and inactive positions
+    // can be merged into the same tile, and we can no longer tell which
+    // subtiles can be skipped at higher zoom levels.  Sometimes such
+    // positions have coordinates (0, 0) in the tile_positions map; we can
+    // at least filter out these, and we must because such positions break
+    // the JPEG backend's range search.  Assume that only position (0, 0)
+    // can be at pixel (0, 0).
+    if (tile_positions[tp * 2] == 0 && tile_positions[tp * 2 + 1] == 0 &&
+        (xp != 0 || yp != 0)) {
+      return false;
+    }
+
     int *key = g_new(int, 1);
     *key = tp;
     g_hash_table_insert(active_positions, key, NULL);
