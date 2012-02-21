@@ -88,16 +88,17 @@ static void read_tile(openslide_t *osr,
   }
 
   int tilesize = ngr->column_width * 4;
+  struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
   g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 tile_x,
 							 tile_y,
-							 layer);
+							 layer,
+							 &cache_entry);
   g_mutex_unlock(data->cache_mutex);
 
-  bool cachemiss = !tiledata;
-  if (cachemiss) {
+  if (!tiledata) {
     // read the tile data
     FILE *f = _openslide_fopen(ngr->filename, "rb");
     if (!f) {
@@ -137,6 +138,14 @@ static void read_tile(openslide_t *osr,
       tiledata[i] = (r << 16) | (g << 8) | b;
     }
     g_slice_free1(buf_size, buf);
+
+    // put it in the cache
+    g_mutex_lock(data->cache_mutex);
+    _openslide_cache_put(cache, tile_x, tile_y, layer,
+                         tiledata,
+                         ngr->column_width * 1 * 4,
+                         &cache_entry);
+    g_mutex_unlock(data->cache_mutex);
   }
 
   // draw it
@@ -153,14 +162,8 @@ static void read_tile(openslide_t *osr,
   cairo_paint(cr);
   cairo_set_matrix(cr, &matrix);
 
-  // put into cache last, because the cache can free this tile
-  if (cachemiss) {
-    g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, tile_x, tile_y, layer,
-			 tiledata,
-			 tw * 1 * 4);
-    g_mutex_unlock(data->cache_mutex);
-  }
+  // done with the cache entry, release it
+  _openslide_cache_entry_unref(cache_entry);
 }
 
 static void paint_region(openslide_t *osr, cairo_t *cr,

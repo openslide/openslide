@@ -622,8 +622,6 @@ static void read_tile(openslide_t *osr,
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
   struct tile *requested_tile = (struct tile *) g_hash_table_lookup(l->tiles, &tileindex);
 
-  bool cachemiss;
-
   if (!requested_tile) {
     //    g_debug("no tile at index %" G_GINT64_FORMAT, tileindex);
     return;
@@ -634,22 +632,30 @@ static void read_tile(openslide_t *osr,
   }
 
   // get the jpeg data, possibly from cache
+  struct _openslide_cache_entry *cache_entry;
   g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 requested_tile->jpegno,
 							 requested_tile->tileno,
-							 layer);
+							 layer,
+							 &cache_entry);
   g_mutex_unlock(data->cache_mutex);
   int tw = requested_tile->jpeg->tile_width / l->scale_denom;
   int th = requested_tile->jpeg->tile_height / l->scale_denom;
 
-  cachemiss = !tiledata;
   if (!tiledata) {
     tiledata = read_from_one_jpeg(osr,
 				  requested_tile->jpeg,
 				  requested_tile->tileno,
 				  l->scale_denom,
 				  tw, th);
+
+    g_mutex_lock(data->cache_mutex);
+    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, layer,
+			 tiledata,
+			 tw * th * 4,
+			 &cache_entry);
+    g_mutex_unlock(data->cache_mutex);
   }
 
   // draw it
@@ -724,14 +730,8 @@ static void read_tile(openslide_t *osr,
   */
 
 
-  // put into cache last, because the cache can free this tile
-  if (cachemiss) {
-    g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, layer,
-			 tiledata,
-			 tw * th * 4);
-    g_mutex_unlock(data->cache_mutex);
-  }
+  // done with the cache entry, release it
+  _openslide_cache_entry_unref(cache_entry);
 }
 
 

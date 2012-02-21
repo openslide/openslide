@@ -252,12 +252,12 @@ static void read_tile(openslide_t *osr,
   }
 
   // cache
-  bool cachemiss;
+  struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 x,
 							 y,
-							 layer);
-  cachemiss = !tiledata;
+							 layer,
+							 &cache_entry);
   if (!tiledata) {
     tiledata = (uint32_t *) g_slice_alloc(tw * th * 4);
     data->tileread(osr, data->tiff, tiledata, x, y, tw, th);
@@ -284,6 +284,11 @@ static void read_tile(openslide_t *osr,
       _openslide_check_cairo_status_possibly_set_error(osr, cr2);
       cairo_destroy(cr2);
     }
+
+    // put it in the cache
+    _openslide_cache_put(cache, x, y, layer,
+			 tiledata, tw * th * 4,
+			 &cache_entry);
   }
 
   // draw it
@@ -322,11 +327,8 @@ static void read_tile(openslide_t *osr,
   */
 
 
-  // put into cache last, because the cache can free this tile
-  if (cachemiss) {
-    _openslide_cache_put(cache, x, y, layer,
-			 tiledata, tw * th * 4);
-  }
+  // done with the cache entry, release it
+  _openslide_cache_entry_unref(cache_entry);
 }
 
 static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,

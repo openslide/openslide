@@ -24,17 +24,25 @@
 #include <openslide-cache.h>
 #include <glib.h>
 
+// hash table key
 struct _openslide_cache_key {
   int64_t x;
   int64_t y;
   int32_t layer;
 };
 
+// hash table value
 struct _openslide_cache_value {
   GList *link;            // direct pointer to the node in the list
   struct _openslide_cache_key *key; // for removing keys when aged out
   struct _openslide_cache *cache; // sadly, for total_bytes and the list
 
+  struct _openslide_cache_entry *entry;  // may outlive the value
+};
+
+// datum
+struct _openslide_cache_entry {
+  gint refcount;  // atomic ops only
   void *data;
   int size;
 };
@@ -63,9 +71,9 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
     }
     struct _openslide_cache_key *key = value->key;
 
-    //    g_debug("EVICT: size: %d", value->size);
+    //g_debug("EVICT: size: %d", value->entry->size);
 
-    size -= value->size;
+    size -= value->entry->size;
 
     // remove from hashtable, this will trigger removal from everything
     bool result = g_hash_table_remove(cache->hashtable, key);
@@ -104,12 +112,12 @@ static void hash_destroy_value(gpointer data) {
   // remove the item from the list
   g_queue_delete_link(value->cache->list, value->link);
 
-  // free the data
-  g_slice_free1(value->size, value->data);
-
   // decrement the total size
-  value->cache->total_size -= value->size;
+  value->cache->total_size -= value->entry->size;
   g_assert(value->cache->total_size >= 0);
+
+  // unref the entry
+  _openslide_cache_entry_unref(value->entry);
 
   // free the value
   g_slice_free(struct _openslide_cache_value, value);
@@ -158,15 +166,28 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 }
 
 // put and get
+
+// the cache retains one reference, and the caller gets another one.  the
+// entry must be unreffed when the caller is done with it.
 void _openslide_cache_put(struct _openslide_cache *cache,
 			  int64_t x,
 			  int64_t y,
 			  int32_t layer,
 			  void *data,
-			  int size_in_bytes) {
+			  int size_in_bytes,
+			  struct _openslide_cache_entry **_entry) {
+  // always create cache entry for caller's reference
+  struct _openslide_cache_entry *entry =
+      g_slice_new(struct _openslide_cache_entry);
+  // one ref for the caller
+  g_atomic_int_set(&entry->refcount, 1);
+  entry->data = data;
+  entry->size = size_in_bytes;
+  *_entry = entry;
+
   // don't try to put anything in the cache that cannot possibly fit
   if (size_in_bytes > cache->capacity) {
-    g_slice_free1(size_in_bytes, data);
+    //g_debug("refused %p", (void *) entry);
     return;
   }
 
@@ -183,8 +204,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
     g_slice_new(struct _openslide_cache_value);
   value->key = key;
   value->cache = cache;
-  value->data = data;
-  value->size = size_in_bytes;
+  value->entry = entry;
 
   // insert at head of queue
   g_queue_push_head(cache->list, value);
@@ -195,12 +215,19 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 
   // increase size
   cache->total_size += size_in_bytes;
+
+  // another ref for the cache
+  g_atomic_int_inc(&entry->refcount);
+
+  //g_debug("insert %p", (void *) entry);
 }
 
+// entry must be unreffed when the caller is done with the data
 void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
-			   int32_t layer) {
+			   int32_t layer,
+			   struct _openslide_cache_entry **entry) {
   // create key
   struct _openslide_cache_key key = { x, y, layer };
 
@@ -209,6 +236,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
     (struct _openslide_cache_value *) g_hash_table_lookup(cache->hashtable,
 							  &key);
   if (value == NULL) {
+    *entry = NULL;
     return NULL;
   }
 
@@ -217,8 +245,28 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   g_queue_unlink(cache->list, link);
   g_queue_push_head_link(cache->list, link);
 
-  //  g_debug("cache hit! %d %d %d", x, y, layer);
+  // acquire entry reference for the caller
+  g_atomic_int_inc(&value->entry->refcount);
+
+  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", (void *) value->entry, x, y, layer);
 
   // return data
-  return value->data;
+  *entry = value->entry;
+  return value->entry->data;
+}
+
+// value unref
+// calls do not need to be serialized
+void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
+  //g_debug("unref %p, refs %d", (void *) entry, g_atomic_int_get(&entry->refcount));
+
+  if (g_atomic_int_dec_and_test(&entry->refcount)) {
+    // free the data
+    g_slice_free1(entry->size, entry->data);
+
+    // free the entry
+    g_slice_free(struct _openslide_cache_entry, entry);
+
+    //g_debug("free %p", (void *) entry);
+  }
 }

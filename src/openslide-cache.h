@@ -29,6 +29,7 @@
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
 
 struct _openslide_cache;
+struct _openslide_cache_entry;
 
 // constructor/destructor
 struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes);
@@ -48,11 +49,16 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 			  int64_t y,
 			  int32_t layer,
 			  void *data,
-			  int size_in_bytes);
+			  int size_in_bytes,
+			  struct _openslide_cache_entry **entry);
 
 void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
-			   int32_t layer);
+			   int32_t layer,
+			   struct _openslide_cache_entry **entry);
+
+// value unref
+void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
 
 #endif
