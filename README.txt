@@ -27,7 +27,7 @@ Requirements
 ============
 
 This library requires libjpeg, libtiff, openjpeg, cairo >= 1.2,
-and glib >= 2.12.
+and glib >= 2.16.
 
 
 Features
