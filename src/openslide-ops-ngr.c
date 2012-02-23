@@ -62,11 +62,11 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void get_dimensions(openslide_t *osr, int32_t layer,
+static void get_dimensions(openslide_t *osr, int32_t level,
 			   int64_t *w, int64_t *h) {
 
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[layer];
+  struct _openslide_ngr *ngr = data->ngrs[level];
 
   *w = ngr->w;
   *h = ngr->h;
@@ -74,12 +74,12 @@ static void get_dimensions(openslide_t *osr, int32_t layer,
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t layer,
+		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[layer];
+  struct _openslide_ngr *ngr = data->ngrs[level];
 
   // check if beyond boundary
   int num_columns = ngr->w / ngr->column_width;
@@ -94,7 +94,7 @@ static void read_tile(openslide_t *osr,
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 tile_x,
 							 tile_y,
-							 layer,
+							 level,
 							 &cache_entry);
   g_mutex_unlock(data->cache_mutex);
 
@@ -141,7 +141,7 @@ static void read_tile(openslide_t *osr,
 
     // put it in the cache
     g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, tile_x, tile_y, layer,
+    _openslide_cache_put(cache, tile_x, tile_y, level,
                          tiledata,
                          ngr->column_width * 1 * 4,
                          &cache_entry);
@@ -168,12 +168,12 @@ static void read_tile(openslide_t *osr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t layer, int32_t w, int32_t h) {
+			 int32_t level, int32_t w, int32_t h) {
   struct ngr_data *data = (struct ngr_data *) osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[layer];
+  struct _openslide_ngr *ngr = data->ngrs[level];
 
   // compute coordinates
-  double ds = openslide_get_layer_downsample(osr, layer);
+  double ds = openslide_get_level_downsample(osr, level);
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / ngr->column_width;
@@ -184,7 +184,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double offset_x = ds_x - (start_tile_x * ngr->column_width);
 
   _openslide_read_tiles(cr,
-			layer,
+			level,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, 0,
@@ -224,6 +224,6 @@ void _openslide_add_ngr_ops(openslide_t *osr,
   osr->data = data;
 
   // general osr data
-  osr->layer_count = ngr_count;
+  osr->level_count = ngr_count;
   osr->ops = &_openslide_vmu_ops;
 }

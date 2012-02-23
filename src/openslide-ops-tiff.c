@@ -40,7 +40,7 @@ struct _openslide_tiffopsdata {
 
   int32_t overlap_count;
   int32_t *overlaps;
-  int32_t *layers;
+  int32_t *levels;
 
   _openslide_tiff_tilereader_fn tileread;
 };
@@ -154,7 +154,7 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
 static void destroy_data(struct _openslide_tiffopsdata *data) {
   TIFFClose(data->tiff);
   g_mutex_free(data->tiff_mutex);
-  g_free(data->layers);
+  g_free(data->levels);
   g_free(data->overlaps);
   g_slice_free(struct _openslide_tiffopsdata, data);
 }
@@ -165,7 +165,7 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
+static void get_dimensions_unlocked(openslide_t *osr, int32_t level,
 				    int64_t *w, int64_t *h) {
   uint32_t tmp;
 
@@ -174,13 +174,13 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
 
   int32_t ox = 0;
   int32_t oy = 0;
-  if (layer < data->overlap_count) {
-    ox = data->overlaps[layer * 2];
-    oy = data->overlaps[(layer * 2) + 1];
+  if (level < data->overlap_count) {
+    ox = data->overlaps[level * 2];
+    oy = data->overlaps[(level * 2) + 1];
   }
 
-  // set the layer
-  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
+  // set the level
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
 
   // figure out tile size
   int64_t tw, th;
@@ -211,18 +211,18 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t layer,
   *h = ih_minus_o;
 }
 
-static void get_dimensions(openslide_t *osr, int32_t layer,
+static void get_dimensions(openslide_t *osr, int32_t level,
 			   int64_t *w, int64_t *h) {
   struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
 
   g_mutex_lock(data->tiff_mutex);
-  get_dimensions_unlocked(osr, layer, w, h);
+  get_dimensions_unlocked(osr, level, w, h);
   g_mutex_unlock(data->tiff_mutex);
 }
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t layer,
+		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
@@ -231,8 +231,8 @@ static void read_tile(openslide_t *osr,
 
   uint32_t tmp;
 
-  // set the layer
-  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
+  // set the level
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
 
   // figure out tile size
   int64_t tw, th;
@@ -256,7 +256,7 @@ static void read_tile(openslide_t *osr,
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 x,
 							 y,
-							 layer,
+							 level,
 							 &cache_entry);
   if (!tiledata) {
     tiledata = (uint32_t *) g_slice_alloc(tw * th * 4);
@@ -286,7 +286,7 @@ static void read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    _openslide_cache_put(cache, x, y, layer,
+    _openslide_cache_put(cache, x, y, level,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
   }
@@ -333,14 +333,14 @@ static void read_tile(openslide_t *osr,
 
 static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 				  int64_t x, int64_t y,
-				  int32_t layer,
+				  int32_t level,
 				  int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
 
-  // set the layer
-  SET_DIR_OR_FAIL(osr, tiff, data->layers[layer])
+  // set the level
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
 
   // figure out tile size
   int64_t tw, th;
@@ -359,12 +359,12 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
   // compute coordinates
   int32_t ox = 0;
   int32_t oy = 0;
-  if (layer < data->overlap_count) {
-    ox = data->overlaps[layer * 2];
-    oy = data->overlaps[(layer * 2) + 1];
+  if (level < data->overlap_count) {
+    ox = data->overlaps[level * 2];
+    oy = data->overlaps[(level * 2) + 1];
   }
 
-  double ds = openslide_get_layer_downsample(osr, layer);
+  double ds = openslide_get_level_downsample(osr, level);
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / (tw - ox);
@@ -401,7 +401,7 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
     }
   }
 
-  _openslide_read_tiles(cr, layer,
+  _openslide_read_tiles(cr, level,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
@@ -412,12 +412,12 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t layer,
+			 int32_t level,
 			 int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
 
   g_mutex_lock(data->tiff_mutex);
-  paint_region_unlocked(osr, cr, x, y, layer, w, h);
+  paint_region_unlocked(osr, cr, x, y, level, w, h);
   g_mutex_unlock(data->tiff_mutex);
 }
 
@@ -432,16 +432,16 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
 			     int32_t overlap_count,
 			     int32_t *overlaps,
-			     int32_t layer_count,
-			     int32_t *layers,
+			     int32_t level_count,
+			     int32_t *levels,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);
 
-  // store layer info
-  data->layers = layers;
+  // store level info
+  data->levels = levels;
 
   // populate private data
   data->tiff = tiff;
@@ -456,8 +456,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     return;
   }
 
-  // generate hash of the smallest layer
-  TIFFSetDirectory(data->tiff, layers[layer_count - 1]);
+  // generate hash of the smallest level
+  TIFFSetDirectory(data->tiff, levels[level_count - 1]);
   if (!_openslide_hash_tiff_tiles(quickhash1, tiff)) {
     _openslide_set_error(osr, "Cannot hash TIFF tiles");
   }
@@ -470,7 +470,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   g_assert(osr->data == NULL);
 
   // general osr data
-  osr->layer_count = layer_count;
+  osr->level_count = level_count;
   osr->data = data;
   osr->ops = &_openslide_tiff_ops;
 }

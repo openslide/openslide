@@ -116,8 +116,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash *quickhash1) {
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
+  int32_t level_count = 0;
+  int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL;
@@ -140,7 +140,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   }
   parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
 
-  // count and validate layers
+  // count and validate levels
   do {
     if (!TIFFIsTiled(tiff)) {
       goto FAIL;
@@ -157,20 +157,20 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       goto FAIL;
     }
 
-    // layer ok
-    layer_count++;
+    // level ok
+    level_count++;
   } while (TIFFReadDirectory(tiff));
-  layers = g_new(int32_t, layer_count);
+  levels = g_new(int32_t, level_count);
 
   // directories are linear
-  for (int32_t i = 0; i < layer_count; i++) {
-    layers[i] = i;
+  for (int32_t i = 0; i < level_count; i++) {
+    levels[i] = i;
   }
 
   // all set, load up the TIFF-specific ops
   _openslide_add_tiff_ops(osr, tiff,
 			  overlap_count / 2, overlaps,
-			  layer_count, layers,
+			  level_count, levels,
 			  _openslide_generic_tiff_tilereader,
 			  quickhash1);
 
@@ -178,7 +178,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   return true;
 
  FAIL:
-  g_free(layers);
+  g_free(levels);
   g_free(overlaps);
   return false;
 }

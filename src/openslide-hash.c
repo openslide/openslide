@@ -70,7 +70,7 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
     total += sizes[tile_no];
     if (total > (5 << 20)) {
-      // This is a non-pyramidal image or one with a very large top layer.
+      // This is a non-pyramidal image or one with a very large top level.
       // Refuse to calculate a quickhash for it to keep openslide_open()
       // from taking an arbitrary amount of time.  (#79)
       hash->enabled = false;

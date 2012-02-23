@@ -231,13 +231,13 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
   }
 
-  // init layers: base image + map
-  int32_t layer_count = 2;
-  struct _openslide_jpeg_layer **layers =
-    g_new0(struct _openslide_jpeg_layer *, layer_count);
-  for (int32_t i = 0; i < layer_count; i++) {
-    layers[i] = g_slice_new0(struct _openslide_jpeg_layer);
-    layers[i]->tiles = _openslide_jpeg_create_tiles_table();
+  // init levels: base image + map
+  int32_t level_count = 2;
+  struct _openslide_jpeg_level **levels =
+    g_new0(struct _openslide_jpeg_level *, level_count);
+  for (int32_t i = 0; i < level_count; i++) {
+    levels[i] = g_slice_new0(struct _openslide_jpeg_level);
+    levels[i]->tiles = _openslide_jpeg_create_tiles_table();
   }
 
   // process jpegs
@@ -301,7 +301,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       jpeg0_ta = num_tiles_across;
       jpeg0_td = num_tiles_down;
     } else if (i != (num_jpegs - 1)) {
-      // not map file (still within layer 0)
+      // not map file (still within level 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
         g_warning("Tile size not consistent");
@@ -325,29 +325,29 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       optimisation_file = NULL;
     }
 
-    // accumulate into some of the fields of the layers
-    int32_t layer;
+    // accumulate into some of the fields of the levels
+    int32_t level;
     if (i != num_jpegs - 1) {
-      // base (layer 0)
-      layer = 0;
+      // base (level 0)
+      level = 0;
     } else {
-      // map (layer 1)
-      layer = 1;
+      // map (level 1)
+      level = 1;
     }
 
-    struct _openslide_jpeg_layer *l = layers[layer];
+    struct _openslide_jpeg_level *l = levels[level];
     int32_t file_x = 0;
     int32_t file_y = 0;
-    if (layer == 0) {
+    if (level == 0) {
       file_x = i % num_jpeg_cols;
       file_y = i / num_jpeg_cols;
     }
     if (file_y == 0) {
-      l->layer_w += jp->w;
+      l->level_w += jp->w;
       l->tiles_across += num_tiles_across;
     }
     if (file_x == 0) {
-      l->layer_h += jp->h;
+      l->level_h += jp->h;
       l->tiles_down += num_tiles_down;
     }
 
@@ -358,31 +358,31 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     l->tile_advance_y = jp->th;
   }
 
-  // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in layer 0
+  // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
 
   for (int i = 0; i < num_jpegs; i++) {
     struct _openslide_jpeg_file *jp = jpegs[i];
 
-    int32_t layer;
+    int32_t level;
     int32_t file_x;
     int32_t file_y;
     if (i != num_jpegs - 1) {
-      // base (layer 0)
-      layer = 0;
+      // base (level 0)
+      level = 0;
       file_x = i % num_jpeg_cols;
       file_y = i / num_jpeg_cols;
     } else {
-      // map (layer 1)
-      layer = 1;
+      // map (level 1)
+      level = 1;
       file_x = 0;
       file_y = 0;
     }
 
-    //g_debug("processing file %d %d %d", file_x, file_y, layer);
+    //g_debug("processing file %d %d %d", file_x, file_y, level);
 
     int32_t num_tiles_across = jp->w / jp->tw;
 
-    struct _openslide_jpeg_layer *l = layers[layer];
+    struct _openslide_jpeg_level *l = levels[level];
 
     int32_t tile_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
 
@@ -416,7 +416,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
  DONE:
   if (success) {
-    _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, layer_count, layers);
+    _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, level_count, levels);
   } else {
     // destroy
     for (int i = 0; i < num_jpegs; i++) {
@@ -426,11 +426,11 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
     g_free(jpegs);
 
-    for (int32_t i = 0; i < layer_count; i++) {
-      g_hash_table_unref(layers[i]->tiles);
-      g_slice_free(struct _openslide_jpeg_layer, layers[i]);
+    for (int32_t i = 0; i < level_count; i++) {
+      g_hash_table_unref(levels[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_level, levels[i]);
     }
-    g_free(layers);
+    g_free(levels);
   }
 
   return success;

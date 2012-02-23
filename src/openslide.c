@@ -77,12 +77,12 @@ static void destroy_associated_image(gpointer data) {
   g_slice_free(struct _openslide_associated_image, img);
 }
 
-static bool layer_in_range(openslide_t *osr, int32_t layer) {
-  if (layer < 0) {
+static bool level_in_range(openslide_t *osr, int32_t level) {
+  if (level < 0) {
     return false;
   }
 
-  if (layer > osr->layer_count - 1) {
+  if (level > osr->level_count - 1) {
     return false;
   }
 
@@ -263,18 +263,18 @@ openslide_t *openslide_open(const char *filename) {
 
   // compute downsamples if not done already
   int64_t blw, blh;
-  openslide_get_layer0_dimensions(osr, &blw, &blh);
+  openslide_get_level0_dimensions(osr, &blw, &blh);
 
   if (!osr->downsamples) {
-    osr->downsamples = g_new0(double, osr->layer_count);
+    osr->downsamples = g_new0(double, osr->level_count);
   }
   if (osr->downsamples[0] == 0) {
     osr->downsamples[0] = 1.0;
   }
-  for (int32_t i = 1; i < osr->layer_count; i++) {
+  for (int32_t i = 1; i < osr->level_count; i++) {
     if (osr->downsamples[i] == 0) {
       int64_t w, h;
-      openslide_get_layer_dimensions(osr, i, &w, &h);
+      openslide_get_level_dimensions(osr, i, &w, &h);
 
       osr->downsamples[i] =
         (((double) blh / (double) h) +
@@ -283,7 +283,7 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // check downsamples
-  for (int32_t i = 1; i < osr->layer_count; i++) {
+  for (int32_t i = 1; i < osr->level_count; i++) {
     //g_debug("downsample: %g", osr->downsamples[i]);
 
     if (osr->downsamples[i] < osr->downsamples[i - 1]) {
@@ -306,23 +306,23 @@ openslide_t *openslide_open(const char *filename) {
 
   // set other properties
   g_hash_table_insert(osr->properties,
-		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LAYER_COUNT),
-		      g_strdup_printf("%d", osr->layer_count));
-  for (int32_t i = 0; i < osr->layer_count; i++) {
+		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT),
+		      g_strdup_printf("%d", osr->level_count));
+  for (int32_t i = 0; i < osr->level_count; i++) {
     int64_t w, h;
-    openslide_get_layer_dimensions(osr, i, &w, &h);
+    openslide_get_level_dimensions(osr, i, &w, &h);
 
     char downsample[G_ASCII_DTOSTR_BUF_SIZE];
     g_ascii_dtostr(downsample, sizeof(downsample), osr->downsamples[i]);
 
     g_hash_table_insert(osr->properties,
-			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH, i),
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_WIDTH, i),
 			g_strdup_printf("%" G_GINT64_FORMAT, w));
     g_hash_table_insert(osr->properties,
-			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT, i),
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_HEIGHT, i),
 			g_strdup_printf("%" G_GINT64_FORMAT, h));
     g_hash_table_insert(osr->properties,
-			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_DOWNSAMPLE, i),
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE, i),
 			g_strdup(downsample));
   }
 
@@ -378,7 +378,7 @@ void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
     return;
   }
 
-  if (!layer_in_range(osr, level)) {
+  if (!level_in_range(osr, level)) {
     return;
   }
 
@@ -406,7 +406,7 @@ int32_t openslide_get_level_count(openslide_t *osr) {
     return -1;
   }
 
-  return osr->layer_count;
+  return osr->level_count;
 }
 
 int32_t openslide_get_layer_count(openslide_t *osr) {
@@ -426,14 +426,14 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
   }
 
   // find where we are in the middle
-  for (int32_t i = 1; i < osr->layer_count; i++) {
+  for (int32_t i = 1; i < osr->level_count; i++) {
     if (downsample < osr->downsamples[i]) {
       return i - 1;
     }
   }
 
   // too big, return last
-  return osr->layer_count - 1;
+  return osr->level_count - 1;
 }
 
 int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
@@ -443,7 +443,7 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 
 
 double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
-  if (openslide_get_error(osr) || !layer_in_range(osr, level)) {
+  if (openslide_get_error(osr) || !level_in_range(osr, level)) {
     return -1.0;
   }
 
@@ -458,7 +458,7 @@ double openslide_get_layer_downsample(openslide_t *osr, int32_t level) {
 int openslide_give_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
 				 int64_t x G_GNUC_UNUSED,
 				 int64_t y G_GNUC_UNUSED,
-				 int32_t layer G_GNUC_UNUSED,
+				 int32_t level G_GNUC_UNUSED,
 				 int64_t w G_GNUC_UNUSED,
 				 int64_t h G_GNUC_UNUSED) {
   g_warning("openslide_give_prefetch_hint has never been implemented and should not be called");
@@ -473,7 +473,7 @@ void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
 static void read_region(openslide_t *osr,
 			cairo_t *cr,
 			int64_t x, int64_t y,
-			int32_t layer,
+			int32_t level,
 			int64_t w, int64_t h) {
   // save the old pattern, it's the only thing push/pop won't restore
   cairo_pattern_t *old_source = cairo_get_source(cr);
@@ -490,9 +490,9 @@ static void read_region(openslide_t *osr,
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-  if (layer_in_range(osr, layer)) {
+  if (level_in_range(osr, level)) {
     // offset if given negative coordinates
-    double ds = openslide_get_layer_downsample(osr, layer);
+    double ds = openslide_get_level_downsample(osr, level);
     int64_t tx = 0;
     int64_t ty = 0;
     if (x < 0) {
@@ -509,7 +509,7 @@ static void read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      (osr->ops->paint_region)(osr, cr, x, y, layer, w, h);
+      (osr->ops->paint_region)(osr, cr, x, y, level, w, h);
     }
   }
 
@@ -538,7 +538,7 @@ static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h
 void openslide_read_region(openslide_t *osr,
 			   uint32_t *dest,
 			   int64_t x, int64_t y,
-			   int32_t layer,
+			   int32_t level,
 			   int64_t w, int64_t h) {
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
@@ -562,16 +562,16 @@ void openslide_read_region(openslide_t *osr,
   // 3. We would like to constrain the intermediate surface to a reasonable
   //    amount of RAM.
   const int64_t d = 4096;
-  double ds = openslide_get_layer_downsample(osr, layer);
+  double ds = openslide_get_level_downsample(osr, level);
   for (int64_t row = 0; !openslide_get_error(osr) && row < (h + d - 1) / d;
           row++) {
     for (int64_t col = 0; !openslide_get_error(osr) && col < (w + d - 1) / d;
             col++) {
       // calculate surface coordinates and size
-      int64_t sx = x + col * d * ds;     // layer 0 plane
-      int64_t sy = y + row * d * ds;     // layer 0 plane
-      int64_t sw = MIN(w - col * d, d);  // layer plane
-      int64_t sh = MIN(h - row * d, d);  // layer plane
+      int64_t sx = x + col * d * ds;     // level 0 plane
+      int64_t sy = y + row * d * ds;     // level 0 plane
+      int64_t sw = MIN(w - col * d, d);  // level plane
+      int64_t sh = MIN(h - row * d, d);  // level plane
 
       // create the cairo surface for the dest
       cairo_surface_t *surface;
@@ -589,7 +589,7 @@ void openslide_read_region(openslide_t *osr,
       cairo_surface_destroy(surface);
 
       // paint
-      read_region(osr, cr, sx, sy, layer, sw, sh);
+      read_region(osr, cr, sx, sy, level, sw, sh);
 
       // done
       _openslide_check_cairo_status_possibly_set_error(osr, cr);
@@ -607,13 +607,13 @@ void openslide_read_region(openslide_t *osr,
 void openslide_cairo_read_region(openslide_t *osr,
 				 cairo_t *cr,
 				 int64_t x, int64_t y,
-				 int32_t layer,
+				 int32_t level,
 				 int64_t w, int64_t h) {
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
 
-  read_region(osr, cr, x, y, layer, w, h);
+  read_region(osr, cr, x, y, level, w, h);
 
   _openslide_check_cairo_status_possibly_set_error(osr, cr);
 }

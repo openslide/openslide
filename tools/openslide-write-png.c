@@ -46,7 +46,7 @@ static const char *progname;
   }
 
 static void usage(void) {
-  printf("Usage: %s virtual-slide x y layer width height output.png\n"
+  printf("Usage: %s virtual-slide x y level width height output.png\n"
 	 "Write a fragment of a virtual slide to a PNG.\n",
 	 progname);
 }
@@ -66,7 +66,7 @@ static void fail(const char *format, ...) {
 
 
 static void write_png(openslide_t *osr, FILE *f,
-		      int64_t x, int64_t y, int32_t layer,
+		      int64_t x, int64_t y, int32_t level,
 		      int32_t w, int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
 						NULL, NULL, NULL);
@@ -118,11 +118,11 @@ static void write_png(openslide_t *osr, FILE *f,
 
   uint32_t *dest = (uint32_t *) g_malloc(w * 4);
   int32_t lines_to_draw = h;
-  double ds = openslide_get_layer_downsample(osr, layer);
+  double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;
   while (lines_to_draw) {
     openslide_read_region(osr, dest,
-			  x, yy * ds, layer, w, 1);
+			  x, yy * ds, level, w, 1);
 
     const char *err = openslide_get_error(osr);
     if (err) {
@@ -190,7 +190,7 @@ int main (int argc, char **argv) {
   const char *slide = argv[1];
   int64_t x = g_ascii_strtoll(argv[2], NULL, 10);
   int64_t y = g_ascii_strtoll(argv[3], NULL, 10);
-  int32_t layer = strtol(argv[4], NULL, 10);
+  int32_t level = strtol(argv[4], NULL, 10);
   int64_t width = g_ascii_strtoll(argv[5], NULL, 10);
   int64_t height = g_ascii_strtoll(argv[6], NULL, 10);
   const char *output = argv[7];
@@ -209,10 +209,10 @@ int main (int argc, char **argv) {
   }
 
   // validate args
-  ENSURE_NONNEG(layer);
-  if (layer > openslide_get_layer_count(osr) - 1) {
-    fail("layer %d out of range (layer count %d)",
-	 layer, openslide_get_layer_count(osr));
+  ENSURE_NONNEG(level);
+  if (level > openslide_get_level_count(osr) - 1) {
+    fail("level %d out of range (level count %d)",
+	 level, openslide_get_level_count(osr));
   }
   ENSURE_POS(width);
   ENSURE_POS(height);
@@ -230,7 +230,7 @@ int main (int argc, char **argv) {
 	 strerror(errno));
   }
 
-  write_png(osr, png, x, y, layer, width, height);
+  write_png(osr, png, x, y, level, width, height);
 
   fclose(png);
   openslide_close(osr);

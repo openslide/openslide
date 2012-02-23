@@ -286,8 +286,8 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
 
 bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 			   struct _openslide_hash *quickhash1) {
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
+  int32_t level_count = 0;
+  int32_t *levels = NULL;
   int32_t i = 0;
 
   if (!TIFFIsTiled(tiff)) {
@@ -324,20 +324,20 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
    * always stripped.
    */
 
-  // for aperio, the tiled layers are the ones we want
+  // for aperio, the tiled directories are the ones we want
   do {
     if (TIFFIsTiled(tiff)) {
-      layer_count++;
+      level_count++;
     }
   } while (TIFFReadDirectory(tiff));
-  layers = g_new(int32_t, layer_count);
+  levels = g_new(int32_t, level_count);
 
   TIFFSetDirectory(tiff, 0);
   i = 0;
   do {
     if (TIFFIsTiled(tiff)) {
-      layers[i++] = TIFFCurrentDirectory(tiff);
-      //g_debug("tiled layer: %d", TIFFCurrentDirectory(tiff));
+      levels[i++] = TIFFCurrentDirectory(tiff);
+      //g_debug("tiled directory: %d", TIFFCurrentDirectory(tiff));
     } else {
       // associated image
       const char *name = (i == 1) ? "thumbnail" : NULL;
@@ -381,12 +381,12 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   }
 
   // special jpeg 2000 aperio thing (with fallback)
-  _openslide_add_tiff_ops(osr, tiff, 0, NULL, layer_count, layers,
+  _openslide_add_tiff_ops(osr, tiff, 0, NULL, level_count, levels,
 			  aperio_tiff_tilereader,
 			  quickhash1);
   return true;
 
  FAIL:
-  g_free(layers);
+  g_free(levels);
   return false;
 }

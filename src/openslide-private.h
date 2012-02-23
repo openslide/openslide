@@ -75,7 +75,7 @@ struct _openslide_associated_image {
 struct _openslide {
   const struct _openslide_ops *ops;
   void *data;
-  int32_t layer_count;
+  int32_t level_count;
 
   double *downsamples;  // zero values or NULL are filled in automatically from dimensions
 
@@ -97,11 +97,11 @@ struct _openslide {
 /* the function pointer structure for backends */
 struct _openslide_ops {
   void (*get_dimensions)(openslide_t *osr,
-			 int32_t layer,
+			 int32_t level,
 			 int64_t *w, int64_t *h);
   void (*paint_region)(openslide_t *osr, cairo_t *cr,
 		       int64_t x, int64_t y,
-		       int32_t layer,
+		       int32_t level,
 		       int32_t w, int32_t h);
   void (*destroy)(openslide_t *osr);
 };
@@ -166,8 +166,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
 			     int32_t overlap_count,
 			     int32_t *overlaps,
-			     int32_t layer_count,
-			     int32_t *layers,
+			     int32_t level_count,
+			     int32_t *levels,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1);
 
@@ -213,12 +213,12 @@ struct _openslide_jpeg_tile {
   double dest_offset_y;
 };
 
-struct _openslide_jpeg_layer {
+struct _openslide_jpeg_level {
   GHashTable *tiles;
 
   // size of canvas
-  int64_t layer_w;
-  int64_t layer_h;
+  int64_t level_w;
+  int64_t level_h;
 
   int32_t tiles_across;
   int32_t tiles_down;
@@ -238,8 +238,8 @@ struct _openslide_jpeg_layer {
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t file_count,
 			     struct _openslide_jpeg_file **files,
-			     int32_t layer_count,
-			     struct _openslide_jpeg_layer **layers);
+			     int32_t level_count,
+			     struct _openslide_jpeg_level **levels);
 
 GHashTable *_openslide_jpeg_create_tiles_table(void);
 
@@ -292,10 +292,10 @@ void _openslide_set_background_color_property(GHashTable *ht,
 					      uint8_t r, uint8_t g, uint8_t b);
 
 // private properties, for now
-#define _OPENSLIDE_PROPERTY_NAME_LAYER_COUNT "openslide.level-count"
-#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_WIDTH "openslide.level[%d].width"
-#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_HEIGHT "openslide.level[%d].height"
-#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LAYER_DOWNSAMPLE "openslide.level[%d].downsample"
+#define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_WIDTH "openslide.level[%d].width"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_HEIGHT "openslide.level[%d].height"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE "openslide.level[%d].downsample"
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat
@@ -304,7 +304,7 @@ void _openslide_set_background_color_property(GHashTable *ht,
 OPENSLIDE_PUBLIC()
 int openslide_give_prefetch_hint(openslide_t *osr,
 				 int64_t x, int64_t y,
-				 int32_t layer,
+				 int32_t level,
 				 int64_t w, int64_t h);
 #undef openslide_cancel_prefetch_hint
 OPENSLIDE_PUBLIC()

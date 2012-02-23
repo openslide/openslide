@@ -28,7 +28,7 @@
 struct _openslide_cache_key {
   int64_t x;
   int64_t y;
-  int32_t layer;
+  int32_t level;
 };
 
 // hash table value
@@ -88,9 +88,9 @@ static guint hash_func(gconstpointer key) {
 
   // assume 32-bit hash
 
-  // take the top 4 bits for layer, then 14 bits per x and y,
+  // take the top 4 bits for level, then 14 bits per x and y,
   // xor it all together
-  return (guint) ((c_key->layer << 28) ^ (c_key->y << 14) ^ (c_key->x));
+  return (guint) ((c_key->level << 28) ^ (c_key->y << 14) ^ (c_key->x));
 }
 
 static gboolean key_equal_func(gconstpointer a,
@@ -99,7 +99,7 @@ static gboolean key_equal_func(gconstpointer a,
   const struct _openslide_cache_key *c_b = (const struct _openslide_cache_key *) b;
 
   return (c_a->x == c_b->x) && (c_a->y == c_b->y) &&
-    (c_a->layer == c_b->layer);
+    (c_a->level == c_b->level);
 }
 
 static void hash_destroy_key(gpointer data) {
@@ -172,7 +172,7 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 void _openslide_cache_put(struct _openslide_cache *cache,
 			  int64_t x,
 			  int64_t y,
-			  int32_t layer,
+			  int32_t level,
 			  void *data,
 			  int size_in_bytes,
 			  struct _openslide_cache_entry **_entry) {
@@ -197,7 +197,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   struct _openslide_cache_key *key = g_slice_new(struct _openslide_cache_key);
   key->x = x;
   key->y = y;
-  key->layer = layer;
+  key->level = level;
 
   // create value
   struct _openslide_cache_value *value =
@@ -226,10 +226,10 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
-			   int32_t layer,
+			   int32_t level,
 			   struct _openslide_cache_entry **entry) {
   // create key
-  struct _openslide_cache_key key = { x, y, layer };
+  struct _openslide_cache_key key = { x, y, level };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value =
@@ -248,7 +248,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   // acquire entry reference for the caller
   g_atomic_int_inc(&value->entry->refcount);
 
-  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", (void *) value->entry, x, y, layer);
+  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", (void *) value->entry, x, y, level);
 
   // return data
   *entry = value->entry;

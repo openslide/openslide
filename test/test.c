@@ -48,17 +48,17 @@
 
 
 static void print_downsamples(openslide_t *osr) {
-  for (int32_t layer = 0; layer < openslide_get_layer_count(osr); layer++) {
-    printf("layer %d: downsample: %g\n",
-	   layer,
-	   openslide_get_layer_downsample(osr, layer));
+  for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
+    printf("level %d: downsample: %g\n",
+	   level,
+	   openslide_get_level_downsample(osr, level));
   }
 }
 
 static void test_next_biggest(openslide_t *osr, double downsample) {
-  int32_t layer = openslide_get_best_layer_for_downsample(osr, downsample);
-  printf("layer for downsample %g: %d (%g)\n",
-	 downsample, layer, openslide_get_layer_downsample(osr, layer));
+  int32_t level = openslide_get_best_level_for_downsample(osr, downsample);
+  printf("level for downsample %g: %d (%g)\n",
+	 downsample, level, openslide_get_level_downsample(osr, level));
 }
 
 static void test_tile_walk(openslide_t *osr,
@@ -69,7 +69,7 @@ static void test_tile_walk(openslide_t *osr,
   //struct timeval tv, tv2;
 
   int64_t w, h;
-  openslide_get_layer0_dimensions(osr, &w, &h);
+  openslide_get_level0_dimensions(osr, &w, &h);
 
   for (int64_t y = 0; y < h; y += tile_size) {
     for (int64_t x = 0; x < w; x += tile_size) {
@@ -141,15 +141,15 @@ static void test_image_fetch(openslide_t *osr,
   }
 
   printf("test image fetch %s\n", name);
-  //  for (int32_t layer = 0; layer < 1; layer++) {
-  for (int32_t layer = 0; layer < openslide_get_layer_count(osr); layer++) {
-    filename = g_strdup_printf("%s-%.2d.ppm", name, layer);
+  //  for (int32_t level = 0; level < 1; level++) {
+  for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
+    filename = g_strdup_printf("%s-%.2d.ppm", name, level);
     int64_t num_bytes = w * h * 4;
     printf("Going to allocate %" G_GINT64_FORMAT " bytes...\n", num_bytes);
     uint32_t *buf = (uint32_t *) malloc(num_bytes);
 
-    printf("x: %" G_GINT64_FORMAT ", y: %" G_GINT64_FORMAT ", layer: %d, w: %" G_GINT64_FORMAT ", h: %" G_GINT64_FORMAT "\n", x, y, layer, w, h);
-    openslide_read_region(osr, buf, x, y, layer, w, h);
+    printf("x: %" G_GINT64_FORMAT ", y: %" G_GINT64_FORMAT ", level: %d, w: %" G_GINT64_FORMAT ", h: %" G_GINT64_FORMAT "\n", x, y, level, w, h);
+    openslide_read_region(osr, buf, x, y, level, w, h);
 
     // write as PPM
     if (!skip_write) {
@@ -164,17 +164,17 @@ static void test_image_fetch(openslide_t *osr,
 static void test_horizontal_walk(openslide_t *osr,
 				 int64_t start_x,
 				 int64_t y,
-				 int32_t layer,
+				 int32_t level,
 				 int64_t patch_w, int64_t patch_h,
 				 int stride) {
   int64_t w, h;
-  openslide_get_layer_dimensions(osr, layer, &w, &h);
+  openslide_get_level_dimensions(osr, level, &w, &h);
   int64_t d = MIN(w,h);
 
   uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
 
   for (int64_t x = start_x; x < d; x += stride) {
-    openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
+    openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
     printf("%" G_GINT64_FORMAT "\r", x);
     fflush(stdout);
   }
@@ -185,17 +185,17 @@ static void test_horizontal_walk(openslide_t *osr,
 static void test_vertical_walk(openslide_t *osr,
 			       int64_t x,
 			       int64_t start_y,
-			       int32_t layer,
+			       int32_t level,
 			       int64_t patch_w, int64_t patch_h,
 			       int stride) {
   int64_t w, h;
-  openslide_get_layer_dimensions(osr, layer, &w, &h);
+  openslide_get_level_dimensions(osr, level, &w, &h);
   int64_t d = MIN(w,h);
 
   uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
 
   for (int64_t y = start_y; y < d; y += stride) {
-    openslide_read_region(osr, buf, x, y, layer, patch_w, patch_h);
+    openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
     printf("%" G_GINT64_FORMAT "\r", y);
     fflush(stdout);
   }
@@ -210,13 +210,13 @@ static void test_pdf(openslide_t *osr, const char *filename) {
   cairo_t *cr = cairo_create(pdf);
   cairo_rotate(cr, M_PI_4);
 
-  for (int i = 0; i < openslide_get_layer_count(osr); i++) {
+  for (int i = 0; i < openslide_get_level_count(osr); i++) {
     int64_t orig_w, orig_h;
-    openslide_get_layer_dimensions(osr, i, &orig_w, &orig_h);
+    openslide_get_level_dimensions(osr, i, &orig_w, &orig_h);
     int64_t w = MIN(orig_w, 2000);
     int64_t h = MIN(orig_h, 2000);
 
-    printf(" layer %d (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ").",
+    printf(" level %d (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ").",
 	   i, w, h);
     fflush(stdout);
 
@@ -351,17 +351,17 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  openslide_get_layer0_dimensions(osr, &w, &h);
+  openslide_get_level0_dimensions(osr, &w, &h);
   printf("dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", w, h);
   printf("comment: %s\n", openslide_get_comment(osr));
 
-  int32_t layers = openslide_get_layer_count(osr);
-  printf("num layers: %d\n", layers);
+  int32_t levels = openslide_get_level_count(osr);
+  printf("num levels: %d\n", levels);
 
-  for (int32_t i = -1; i < layers + 1; i++) {
+  for (int32_t i = -1; i < levels + 1; i++) {
     int64_t ww, hh;
-    openslide_get_layer_dimensions(osr, i, &ww, &hh);
-    printf(" layer %d dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", i, ww, hh);
+    openslide_get_level_dimensions(osr, i, &ww, &hh);
+    printf(" level %d dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", i, ww, hh);
   }
 
   print_downsamples(osr);

@@ -84,7 +84,7 @@ struct tile {
   double dest_offset_y;
 };
 
-struct layer {
+struct level {
   GHashTable *tiles;
 
   int32_t tiles_across;
@@ -116,8 +116,8 @@ struct jpegops_data {
   int32_t jpeg_count;
   struct one_jpeg **all_jpegs;
 
-  // layer_count is in the osr struct
-  struct layer *layers;
+  // level_count is in the osr struct
+  struct level *levels;
 
   // cache lock
   GMutex *cache_mutex;
@@ -237,14 +237,14 @@ static void jpeg_random_access_src (openslide_t *osr,
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
 
-static void layer_free(gpointer data) {
-  //g_debug("layer_free: %p", data);
+static void level_free(gpointer data) {
+  //g_debug("level_free: %p", data);
 
-  struct layer *l = (struct layer *) data;
+  struct level *l = (struct level *) data;
 
-  //  g_debug("g_free(%p)", (void *) l->layer_jpegs);
+  //  g_debug("g_free(%p)", (void *) l->level_jpegs);
   g_hash_table_unref(l->tiles);
-  g_slice_free(struct layer, l);
+  g_slice_free(struct level, l);
 }
 
 static void tile_free(gpointer data) {
@@ -256,7 +256,7 @@ static void struct_openslide_jpeg_tile_free(gpointer data) {
 }
 
 struct convert_tiles_args {
-  struct layer *new_l;
+  struct level *new_l;
   struct one_jpeg **all_jpegs;
 };
 
@@ -265,7 +265,7 @@ static void convert_tiles(gpointer key,
 			  gpointer user_data) {
   struct convert_tiles_args *args = (struct convert_tiles_args *) user_data;
   struct _openslide_jpeg_tile *old_tile = (struct _openslide_jpeg_tile *) value;
-  struct layer *new_l = args->new_l;
+  struct level *new_l = args->new_l;
 
   // create new tile
   struct tile *new_tile = g_slice_new(struct tile);
@@ -608,13 +608,13 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t layer,
+		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   //g_debug("read_tile");
   struct jpegops_data *data = (struct jpegops_data *) osr->data;
-  struct layer *l = data->layers + layer;
+  struct level *l = data->levels + level;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
     //g_debug("too much");
@@ -629,8 +629,8 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  if (layer <= 3) {
-    //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", layer, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
+  if (level <= 3) {
+    //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
   }
 
   // get the jpeg data, possibly from cache
@@ -639,7 +639,7 @@ static void read_tile(openslide_t *osr,
   uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
 							 requested_tile->jpegno,
 							 requested_tile->tileno,
-							 layer,
+							 level,
 							 &cache_entry);
   g_mutex_unlock(data->cache_mutex);
   int tw = requested_tile->jpeg->tile_width / l->scale_denom;
@@ -653,7 +653,7 @@ static void read_tile(openslide_t *osr,
 				  tw, th);
 
     g_mutex_lock(data->cache_mutex);
-    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, layer,
+    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, level,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
@@ -739,10 +739,10 @@ static void read_tile(openslide_t *osr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t layer,
+			 int32_t level,
 			 int32_t w, int32_t h) {
   struct jpegops_data *data = (struct jpegops_data *) osr->data;
-  struct layer *l = data->layers + layer;
+  struct level *l = data->levels + level;
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -754,7 +754,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_lock(data->restart_marker_mutex);
 
   // compute coordinates
-  double ds = openslide_get_layer_downsample(osr, layer);
+  double ds = openslide_get_level_downsample(osr, level);
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / l->tile_advance_x;
@@ -774,7 +774,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 		  -l->extra_tiles_top * l->tile_advance_y);
 
   _openslide_read_tiles(cr,
-			layer,
+			level,
 			start_tile_x - l->extra_tiles_left,
 			start_tile_y - l->extra_tiles_top,
 			end_tile_x + l->extra_tiles_right,
@@ -816,19 +816,19 @@ static void destroy(openslide_t *osr) {
     g_slice_free(struct one_jpeg, jpeg);
   }
 
-  // each layer in turn
-  for (int32_t i = 0; i < osr->layer_count; i++) {
-    struct layer *l = data->layers + i;
+  // each level in turn
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    struct level *l = data->levels + i;
 
-    //    g_debug("g_free(%p)", (void *) l->layer_jpegs);
+    //    g_debug("g_free(%p)", (void *) l->level_jpegs);
     g_hash_table_unref(l->tiles);
   }
 
   // the JPEG array
   g_free(data->all_jpegs);
 
-  // the layer array
-  g_free(data->layers);
+  // the level array
+  g_free(data->levels);
 
   // the cache lock
   g_mutex_free(data->cache_mutex);
@@ -844,10 +844,10 @@ static void destroy(openslide_t *osr) {
 }
 
 static void get_dimensions(openslide_t *osr,
-			   int32_t layer,
+			   int32_t level,
 			   int64_t *w, int64_t *h) {
   struct jpegops_data *data = (struct jpegops_data *) osr->data;
-  struct layer *l = data->layers + layer;
+  struct level *l = data->levels + level;
 
   *w = l->pixel_w;
   *h = l->pixel_h;
@@ -1080,13 +1080,13 @@ static int one_jpeg_compare(const void *a, const void *b) {
 void _openslide_add_jpeg_ops(openslide_t *osr,
 			     int32_t file_count,
 			     struct _openslide_jpeg_file **files,
-			     int32_t layer_count,
-			     struct _openslide_jpeg_layer **layers) {
+			     int32_t level_count,
+			     struct _openslide_jpeg_level **levels) {
   /*
-  for (int32_t i = 0; i < layer_count; i++) {
-    struct _openslide_jpeg_layer *l = layers[i];
-    g_debug("layer %d", i);
-    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->layer_w, l->layer_h);
+  for (int32_t i = 0; i < level_count; i++) {
+    struct _openslide_jpeg_level *l = levels[i];
+    g_debug("level %d", i);
+    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->level_w, l->level_h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
     g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
@@ -1095,7 +1095,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_debug("file_count: %d", file_count);
   */
 
-  g_assert(layer_count);
+  g_assert(level_count);
   g_assert(file_count);
 
   if (osr == NULL) {
@@ -1109,11 +1109,11 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     }
     g_free(files);
 
-    for (int32_t i = 0; i < layer_count; i++) {
-      g_hash_table_unref(layers[i]->tiles);
-      g_slice_free(struct _openslide_jpeg_layer, layers[i]);
+    for (int32_t i = 0; i < level_count; i++) {
+      g_hash_table_unref(levels[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_level, levels[i]);
     }
-    g_free(layers);
+    g_free(levels);
 
     return;
   }
@@ -1138,22 +1138,22 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_free(files);
   files = NULL;
 
-  // convert all struct _openslide_jpeg_layer into struct layer, and
+  // convert all struct _openslide_jpeg_level into struct level, and
   //  (internally) convert all struct _openslide_jpeg_tile into struct tile
-  GHashTable *expanded_layers = g_hash_table_new_full(_openslide_int64_hash,
+  GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
 						      _openslide_int64_equal,
 						      _openslide_int64_free,
-						      layer_free);
-  for (int32_t i = 0; i < layer_count; i++) {
-    struct _openslide_jpeg_layer *old_l = layers[i];
+						      level_free);
+  for (int32_t i = 0; i < level_count; i++) {
+    struct _openslide_jpeg_level *old_l = levels[i];
 
-    struct layer *new_l = g_slice_new0(struct layer);
+    struct level *new_l = g_slice_new0(struct level);
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
     new_l->downsample = old_l->downsample;
     new_l->scale_denom = 1;
-    new_l->pixel_w = old_l->layer_w;
-    new_l->pixel_h = old_l->layer_h;
+    new_l->pixel_w = old_l->level_w;
+    new_l->pixel_h = old_l->level_h;
     new_l->tile_advance_x = old_l->tile_advance_x;
     new_l->tile_advance_y = old_l->tile_advance_y;
 
@@ -1164,14 +1164,14 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
     g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
-    //g_debug("layer margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
+    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
 
     // now, new_l is all initialized, so add it
     int64_t *key = g_slice_new(int64_t);
     *key = new_l->pixel_w;
-    g_hash_table_insert(expanded_layers, key, new_l);
+    g_hash_table_insert(expanded_levels, key, new_l);
 
-    // try adding scale_denom layers
+    // try adding scale_denom levels
     for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
       // check to make sure we get an even division
       if ((old_l->raw_tile_width % scale_denom) ||
@@ -1179,8 +1179,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 	continue;
       }
 
-      // create a derived layer
-      struct layer *sd_l = g_slice_new0(struct layer);
+      // create a derived level
+      struct level *sd_l = g_slice_new0(struct level);
       sd_l->tiles = g_hash_table_ref(new_l->tiles);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
@@ -1199,15 +1199,15 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       key = g_slice_new(int64_t);
       *key = sd_l->pixel_w;
-      g_hash_table_insert(expanded_layers, key, sd_l);
+      g_hash_table_insert(expanded_levels, key, sd_l);
     }
 
-    // delete the old layer
+    // delete the old level
     g_hash_table_unref(old_l->tiles);
-    g_slice_free(struct _openslide_jpeg_layer, old_l);
+    g_slice_free(struct _openslide_jpeg_level, old_l);
   }
-  g_free(layers);
-  layers = NULL;
+  g_free(levels);
+  levels = NULL;
 
 
   // sort all_jpegs by file and start position, so we can avoid seeks
@@ -1215,48 +1215,48 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   qsort(data->all_jpegs, file_count, sizeof(struct one_jpeg *), one_jpeg_compare);
 
   // get sorted keys
-  GList *layer_keys = NULL;
-  g_hash_table_foreach(expanded_layers, get_keys, &layer_keys);
-  layer_keys = g_list_sort(layer_keys, width_compare);
+  GList *level_keys = NULL;
+  g_hash_table_foreach(expanded_levels, get_keys, &level_keys);
+  level_keys = g_list_sort(level_keys, width_compare);
 
-  //  g_debug("number of keys: %d", g_list_length(layer_keys));
+  //  g_debug("number of keys: %d", g_list_length(level_keys));
 
 
-  // populate the layer_count
-  osr->layer_count = g_hash_table_size(expanded_layers);
+  // populate the level_count
+  osr->level_count = g_hash_table_size(expanded_levels);
 
   // allocate downsample array
   g_assert(osr->downsamples == NULL);
-  osr->downsamples = g_new(double, osr->layer_count);
+  osr->downsamples = g_new(double, osr->level_count);
 
   // load into data array
-  data->layers = g_new(struct layer, g_hash_table_size(expanded_layers));
-  GList *tmp_list = layer_keys;
+  data->levels = g_new(struct level, g_hash_table_size(expanded_levels));
+  GList *tmp_list = level_keys;
 
   int i = 0;
 
-  //  g_debug("copying sorted layers");
+  //  g_debug("copying sorted levels");
   while(tmp_list != NULL) {
     // get a key and value
-    struct layer *l = (struct layer *) g_hash_table_lookup(expanded_layers, tmp_list->data);
+    struct level *l = (struct level *) g_hash_table_lookup(expanded_levels, tmp_list->data);
 
     // copy
-    struct layer *dest = data->layers + i;
+    struct level *dest = data->levels + i;
     *dest = *l;    // shallow copy
 
     // set downsample
     osr->downsamples[i] = l->downsample;
 
     // manually free some things, because of that shallow copy
-    g_hash_table_steal(expanded_layers, tmp_list->data);
+    g_hash_table_steal(expanded_levels, tmp_list->data);
     _openslide_int64_free(tmp_list->data);  // key
-    g_slice_free(struct layer, l); // shallow deletion of layer
+    g_slice_free(struct level, l); // shallow deletion of level
 
     // consume the head and continue
     tmp_list = g_list_delete_link(tmp_list, tmp_list);
     i++;
   }
-  g_hash_table_unref(expanded_layers);
+  g_hash_table_unref(expanded_levels);
 
 
   // init cache lock

@@ -37,14 +37,14 @@
 #include <tiffio.h>
 #include <errno.h>
 
-struct layer {
+struct level {
   int32_t directory;
   int64_t width;
 };
 
 static int width_compare(gconstpointer a, gconstpointer b) {
-  const struct layer *la = (const struct layer *) a;
-  const struct layer *lb = (const struct layer *) b;
+  const struct level *la = (const struct level *) a;
+  const struct level *lb = (const struct level *) b;
 
   if (la->width > lb->width) {
     return -1;
@@ -57,9 +57,9 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 				 struct _openslide_hash *quickhash1) {
-  GList *layer_list = NULL;
-  int32_t layer_count = 0;
-  int32_t *layers = NULL;
+  GList *level_list = NULL;
+  int32_t level_count = 0;
+  int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL; // not tiled
@@ -71,8 +71,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
 			g_strdup("generic-tiff"));
   }
 
-  // accumulate tiled layers
-  layer_count = 0;
+  // accumulate tiled levels
+  level_count = 0;
   do {
     // confirm that this directory is tiled
     if (!TIFFIsTiled(tiff)) {
@@ -110,32 +110,32 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
     }
 
     // push into list
-    struct layer *l = g_slice_new(struct layer);
+    struct level *l = g_slice_new(struct level);
     l->directory = TIFFCurrentDirectory(tiff);
     l->width = width;
-    layer_list = g_list_prepend(layer_list, l);
-    layer_count++;
+    level_list = g_list_prepend(level_list, l);
+    level_count++;
   } while (TIFFReadDirectory(tiff));
 
-  // sort tiled layers
-  layer_list = g_list_sort(layer_list, width_compare);
+  // sort tiled levels
+  level_list = g_list_sort(level_list, width_compare);
 
-  // copy layers in, while deleting the list
-  layers = g_new(int32_t, layer_count);
-  for (int i = 0; i < layer_count; i++) {
-    struct layer *l = (struct layer *)layer_list->data;
-    layer_list = g_list_delete_link(layer_list, layer_list);
+  // copy levels in, while deleting the list
+  levels = g_new(int32_t, level_count);
+  for (int i = 0; i < level_count; i++) {
+    struct level *l = (struct level *)level_list->data;
+    level_list = g_list_delete_link(level_list, level_list);
 
-    layers[i] = l->directory;
-    g_slice_free(struct layer, l);
+    levels[i] = l->directory;
+    g_slice_free(struct level, l);
   }
 
-  g_assert(layer_list == NULL);
+  g_assert(level_list == NULL);
 
   // all set, load up the TIFF-specific ops
   _openslide_add_tiff_ops(osr, tiff,
 			  0, NULL,
-			  layer_count, layers,
+			  level_count, levels,
 			  _openslide_generic_tiff_tilereader,
 			  quickhash1);
 
@@ -143,9 +143,9 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   return true;
 
  FAIL:
-  // free the layer list
-  for (GList *i = layer_list; i != NULL; i = g_list_delete_link(i, i)) {
-    g_slice_free(struct layer, i->data);
+  // free the level list
+  for (GList *i = level_list; i != NULL; i = g_list_delete_link(i, i)) {
+    g_slice_free(struct level, i->data);
   }
 
   return false;
