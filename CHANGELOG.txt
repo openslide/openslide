@@ -1,6 +1,14 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.2.6, 2012-02-23
+ * Support downsampled MIRAX files
+ * Improve performance on MIRAX slides without tile overlaps
+ * Fix openslide_read_region for large dimensions on layer > 0
+   (3.2.5 regression)
+ * Correct subpixel error in MIRAX tile placement
+ * Fix unlikely use-after-free with Hamamatsu VMU
+
 Version 3.2.5, 2011-12-16
  * Support MIRAX 1.03 files (thanks, Jan Harkes)
  * Fix openslide_read_region for large dimensions
