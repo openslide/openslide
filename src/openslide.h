@@ -278,16 +278,6 @@ const char * const *openslide_get_property_names(openslide_t *osr);
 OPENSLIDE_PUBLIC()
 const char *openslide_get_property_value(openslide_t *osr, const char *name);
 
-/**
- * Get the comment (if any) for this image. Exactly equivalent to calling
- * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
- *
- * @param osr The OpenSlide object.
- * @return The comment for this image, or NULL if an error occurred.
- */
-OPENSLIDE_PUBLIC()
-const char *openslide_get_comment(openslide_t *osr);
-
 //@}
 
 /**
@@ -358,7 +348,7 @@ void openslide_read_associated_image(openslide_t *osr,
  * Functions that will be removed in the next major release.
  *
  * Before version 3.3.0, OpenSlide used the term "layer" to refer to a
- * slide level.  These functions use the older terminology.
+ * slide level.  Many of these functions use the older terminology.
  */
 //@{
 
@@ -431,6 +421,19 @@ OPENSLIDE_PUBLIC()
 OPENSLIDE_DEPRECATED_FOR(openslide_get_best_level_for_downsample)
 int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
 						double downsample);
+
+/**
+ * Get the comment (if any) for this image. Exactly equivalent to calling
+ * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
+ *
+ * @param osr The OpenSlide object.
+ * @return The comment for this image, or NULL if an error occurred.
+ * @deprecated Call openslide_get_property_value() with
+ *             #OPENSLIDE_PROPERTY_NAME_COMMENT instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_COMMENT))
+const char *openslide_get_comment(openslide_t *osr);
 
 //@}
 

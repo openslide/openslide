@@ -353,7 +353,6 @@ int main(int argc, char **argv) {
 
   openslide_get_level0_dimensions(osr, &w, &h);
   printf("dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", w, h);
-  printf("comment: %s\n", openslide_get_comment(osr));
 
   int32_t levels = openslide_get_level_count(osr);
   printf("num levels: %d\n", levels);
