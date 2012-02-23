@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -40,9 +40,7 @@ typedef struct _openslide openslide_t;
 
 /**
  * @name Basic Usage
- * Opening, reading, and closing. Note that the terminology used by
- * OpenSlide is slightly different from DICOM and others: notably,
- * a DICOM "level" is known as a "layer" in OpenSlide.
+ * Opening, reading, and closing.
  */
 //@{
 
@@ -67,63 +65,68 @@ openslide_t *openslide_open(const char *filename);
 
 
 /**
- * Get the number of layers in the whole slide image.
+ * Get the number of levels in the whole slide image.
  *
  * @param osr The OpenSlide object.
- * @return The number of layers, or -1 if an error occurred.
+ * @return The number of levels, or -1 if an error occurred.
+ * @since 3.3.0
  */
 OPENSLIDE_PUBLIC()
-int32_t openslide_get_layer_count(openslide_t *osr);
+int32_t openslide_get_level_count(openslide_t *osr);
 
 
 /**
- * Get the dimensions of layer 0 (the largest layer). Exactly
- * equivalent to calling openslide_get_layer_dimensions(osr, 0, w, h).
+ * Get the dimensions of level 0 (the largest level). Exactly
+ * equivalent to calling openslide_get_level_dimensions(osr, 0, w, h).
  *
  * @param osr The OpenSlide object.
  * @param[out] w The width of the image, or -1 if an error occurred.
  * @param[out] h The height of the image, or -1 if an error occurred.
+ * @since 3.3.0
  */
 OPENSLIDE_PUBLIC()
-void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
+void openslide_get_level0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
 
 
 /**
- * Get the dimensions of a layer.
+ * Get the dimensions of a level.
  *
  * @param osr The OpenSlide object.
- * @param layer The desired layer.
+ * @param level The desired level.
  * @param[out] w The width of the image, or -1 if an error occurred
- *               or the layer was out of range.
+ *               or the level was out of range.
  * @param[out] h The height of the image, or -1 if an error occurred
- *               or the layer was out of range.
+ *               or the level was out of range.
+ * @since 3.3.0
  */
 OPENSLIDE_PUBLIC()
-void openslide_get_layer_dimensions(openslide_t *osr, int32_t layer,
+void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
 				    int64_t *w, int64_t *h);
 
 
 /**
- * Get the downsampling factor of a given layer.
+ * Get the downsampling factor of a given level.
  *
  * @param osr The OpenSlide object.
- * @param layer The desired layer.
- * @return The downsampling factor for this layer, or -1.0 if an error occurred
- *         or the layer was out of range.
+ * @param level The desired level.
+ * @return The downsampling factor for this level, or -1.0 if an error occurred
+ *         or the level was out of range.
+ * @since 3.3.0
  */
 OPENSLIDE_PUBLIC()
-double openslide_get_layer_downsample(openslide_t *osr, int32_t layer);
+double openslide_get_level_downsample(openslide_t *osr, int32_t level);
 
 
 /**
- * Get the best layer to use for displaying the given downsample.
+ * Get the best level to use for displaying the given downsample.
  *
  * @param osr The OpenSlide object.
  * @param downsample The downsample factor.
- * @return The layer identifier, or -1 if an error occurred.
+ * @return The level identifier, or -1 if an error occurred.
+ * @since 3.3.0
  */
 OPENSLIDE_PUBLIC()
-int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
+int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
 						double downsample);
 
 /**
@@ -137,9 +140,9 @@ int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
  *
  * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
- * @param x The top left x-coordinate, in the layer 0 reference frame.
- * @param y The top left y-coordinate, in the layer 0 reference frame.
- * @param layer The desired layer.
+ * @param x The top left x-coordinate, in the level 0 reference frame.
+ * @param y The top left y-coordinate, in the level 0 reference frame.
+ * @param level The desired level.
  * @param w The width of the region. Must be non-negative.
  * @param h The height of the region. Must be non-negative.
  */
@@ -147,7 +150,7 @@ OPENSLIDE_PUBLIC()
 void openslide_read_region(openslide_t *osr,
 			   uint32_t *dest,
 			   int64_t x, int64_t y,
-			   int32_t layer,
+			   int32_t level,
 			   int64_t w, int64_t h);
 
 
@@ -350,16 +353,95 @@ void openslide_read_associated_image(openslide_t *osr,
 				     uint32_t *dest);
 //@}
 
+/**
+ * @name Deprecated Functions
+ * Functions that will be removed in the next major release.
+ *
+ * Before version 3.3.0, OpenSlide used the term "layer" to refer to a
+ * slide level.  These functions use the older terminology.
+ */
+//@{
+
+/**
+ * Get the number of levels in the whole slide image.
+ *
+ * @param osr The OpenSlide object.
+ * @return The number of levels, or -1 if an error occurred.
+ * @deprecated Use openslide_get_level_count() instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_level_count)
+int32_t openslide_get_layer_count(openslide_t *osr);
+
+
+/**
+ * Get the dimensions of level 0 (the largest level). Exactly
+ * equivalent to calling openslide_get_level_dimensions(osr, 0, w, h).
+ *
+ * @param osr The OpenSlide object.
+ * @param[out] w The width of the image, or -1 if an error occurred.
+ * @param[out] h The height of the image, or -1 if an error occurred.
+ * @deprecated Use openslide_get_level0_dimensions() instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_level0_dimensions)
+void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
+
+
+/**
+ * Get the dimensions of a level.
+ *
+ * @param osr The OpenSlide object.
+ * @param level The desired level.
+ * @param[out] w The width of the image, or -1 if an error occurred
+ *               or the level was out of range.
+ * @param[out] h The height of the image, or -1 if an error occurred
+ *               or the level was out of range.
+ * @deprecated Use openslide_get_level_dimensions() instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_level_dimensions)
+void openslide_get_layer_dimensions(openslide_t *osr, int32_t level,
+				    int64_t *w, int64_t *h);
+
+
+/**
+ * Get the downsampling factor of a given level.
+ *
+ * @param osr The OpenSlide object.
+ * @param level The desired level.
+ * @return The downsampling factor for this level, or -1.0 if an error occurred
+ *         or the level was out of range.
+ * @deprecated Use openslide_get_level_downsample() instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_level_downsample)
+double openslide_get_layer_downsample(openslide_t *osr, int32_t level);
+
+
+/**
+ * Get the best level to use for displaying the given downsample.
+ *
+ * @param osr The OpenSlide object.
+ * @param downsample The downsample factor.
+ * @return The level identifier, or -1 if an error occurred.
+ * @deprecated Use openslide_get_best_level_for_downsample() instead.
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_get_best_level_for_downsample)
+int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
+						double downsample);
+
+//@}
 
 // these are meant to throw compile- and link-time errors,
 // since the functions they replace were never implemented
 int _openslide_give_prefetch_hint_UNIMPLEMENTED(void);
 void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
-#define openslide_give_prefetch_hint(osr, x, y, layer, w, h)	\
+#define openslide_give_prefetch_hint(osr, x, y, level, w, h)	\
   _openslide_give_prefetch_hint_UNIMPLEMENTED(-1);
 #define openslide_cancel_prefetch_hint(osr, prefetch_id)	\
   _openslide_cancel_prefetch_hint_UNIMPLEMENTED(-1)
-
 
 /**
  * @mainpage OpenSlide
