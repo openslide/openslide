@@ -1,0 +1,82 @@
+.\"
+.\" OpenSlide, a library for reading whole slide image files
+.\"
+.\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" All rights reserved.
+.\"
+.\" OpenSlide is free software: you can redistribute it and/or modify
+.\" it under the terms of the GNU Lesser General Public License as
+.\" published by the Free Software Foundation, version 2.1.
+.\"
+.\" OpenSlide is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+.\" GNU Lesser General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU Lesser General Public
+.\" License along with OpenSlide. If not, see
+.\" <http://www.gnu.org/licenses/>.
+.\"
+
+
+.\" See man-pages(7) for formatting conventions.
+
+
+.TH OPENSLIDE-QUICKHASH1SUM 1 2012-02-24 "OpenSlide @PACKAGE_VERSION@" "User Commands"
+
+.mso www.tmac
+
+.SH NAME
+openslide-quickhash1sum \- Print OpenSlide quickhash-1 checksums
+
+.SH SYNOPSIS
+.BR "openslide-quickhash1sum " [ --help "] [" --version ]
+.IR slide ...
+
+.SH DESCRIPTION
+Print OpenSlide
+.I quickhash-1
+checksums for one or more virtual slide files, in a format similar to
+.BR sha256sum (1).
+
+.I quickhash-1
+is a non-cryptographic, 256-bit hash of a subset of a slide's data.
+It uniquely identifies a particular virtual slide, but cannot be used to
+detect corruption or modification of the slide file.
+
+.SH OPTIONS
+.TP
+.B --help
+Display usage summary.
+
+.TP
+.B --version
+Display version and copyright information.
+
+.SH EXIT STATUS
+.B openslide-quickhash1sum
+returns 0 on success, 1 if a
+.I quickhash-1
+could not be calculated, or 2 if the arguments are invalid.
+
+.SH BUGS
+.I quickhash-1
+is not defined for all slide files supported by OpenSlide.  If a slide
+does not have a
+.IR quickhash-1 ,
+"No quickhash-1 available" will be printed.
+
+.SH COPYRIGHT
+Copyright \(co 2007-2012 Carnegie Mellon University and others
+
+OpenSlide is free software: you can redistribute it and/or modify it under
+the terms of the
+.URL http://gnu.org/licenses/lgpl-2.1.html "GNU Lesser General Public License, version 2.1" .
+
+OpenSlide comes with NO WARRANTY, to the extent permitted by law.  See the
+GNU Lesser General Public License for more details.
+
+.SH SEE ALSO
+.BR openslide-show-properties (1),
+.BR openslide-write-png (1),
+.BR sha256sum (1)

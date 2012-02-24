@@ -58,18 +58,24 @@ test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 # show-properties
 bin_PROGRAMS = tools/openslide-show-properties
+man_MANS = tools/openslide-show-properties.1
 tools_openslide_show_properties_SOURCES = tools/openslide-tools-common.c tools/openslide-show-properties.c
 tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src $(GLIB2_CFLAGS)
 tools_openslide_show_properties_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 # quickhash1sum
 bin_PROGRAMS += tools/openslide-quickhash1sum
+man_MANS += tools/openslide-quickhash1sum.1
 tools_openslide_quickhash1sum_SOURCES = tools/openslide-tools-common.c tools/openslide-quickhash1sum.c
 tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src $(GLIB2_CFLAGS)
 tools_openslide_quickhash1sum_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 # write-png
 bin_PROGRAMS += tools/openslide-write-png
+man_MANS += tools/openslide-write-png.1
 tools_openslide_write_png_SOURCES = tools/openslide-tools-common.c tools/openslide-write-png.c
 tools_openslide_write_png_CPPFLAGS = -I$(top_srcdir)/src $(LIBPNG_CFLAGS) $(GLIB2_CFLAGS)
 tools_openslide_write_png_LDADD = src/libopenslide.la $(LIBPNG_LIBS) $(GLIB2_LIBS)
+
+# man pages
+EXTRA_DIST += $(man_MANS:=.in)

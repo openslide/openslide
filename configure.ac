@@ -161,5 +161,8 @@ AC_CONFIG_FILES([
 Makefile
 openslide.pc
 src/openslide-dll.manifest
+tools/openslide-quickhash1sum.1
+tools/openslide-show-properties.1
+tools/openslide-write-png.1
 ])
 AC_OUTPUT
