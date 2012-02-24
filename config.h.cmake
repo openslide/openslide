@@ -11,4 +11,7 @@
 /* defined if fcntl() exists */
 #cmakedefine HAVE_FCNTL
 
+/* defined to the version number of OpenSlide */
+#define PACKAGE_VERSION "@OPENSLIDE_VERSION_NUMBER@"
+
 #endif

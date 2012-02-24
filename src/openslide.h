@@ -344,6 +344,23 @@ void openslide_read_associated_image(openslide_t *osr,
 //@}
 
 /**
+ * @name Miscellaneous
+ * Utility functions.
+ */
+//@{
+
+/**
+ * Get the version of the OpenSlide library.
+ *
+ * @return A string describing the OpenSlide version.
+ * @since 3.3.0
+ */
+OPENSLIDE_PUBLIC()
+const char *openslide_get_version(void);
+
+//@}
+
+/**
  * @name Deprecated Functions
  * Functions that will be removed in the next major release.
  *

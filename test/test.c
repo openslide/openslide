@@ -332,6 +332,8 @@ int main(int argc, char **argv) {
   //  struct timeval start_tv;
   //  struct timeval end_tv;
 
+  printf("version: %s\n", openslide_get_version());
+
   printf("openslide_can_open returns %s\n", openslide_can_open(argv[1]) ? "true" : "false");
   openslide_t *osr = openslide_open(argv[1]);
 
