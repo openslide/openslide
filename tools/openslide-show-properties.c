@@ -23,7 +23,7 @@
 #include "openslide.h"
 #include "openslide-tools-common.h"
 
-static gboolean process(const char *file) {
+static gboolean process(const char *file, int successes, int total) {
   openslide_t *osr = openslide_open(file);
   if (osr == NULL) {
     fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
@@ -38,6 +38,15 @@ static gboolean process(const char *file) {
     fflush(stderr);
     openslide_close(osr);
     return FALSE;
+  }
+
+  // print header
+  if (successes > 0) {
+    printf("\n");
+  }
+  if (total > 1) {
+    // format inspired by head(1)/tail(1)
+    printf("==> %s <==\n", file);
   }
 
   // read properties
@@ -66,12 +75,12 @@ int main (int argc, char **argv) {
     _openslide_tools_usage(&usage_info);
   }
 
-  int ret = 0;
+  int successes = 0;
   for (int i = 1; i < argc; i++) {
-    if (!process(argv[i])) {
-      ret = 1;
+    if (process(argv[i], successes, argc - 1)) {
+      successes++;
     }
   }
 
-  return ret;
+  return successes != argc - 1;
 }
