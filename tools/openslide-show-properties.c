@@ -19,16 +19,17 @@
  *
  */
 
+#include <glib.h>
 #include "openslide.h"
 #include "openslide-tools-common.h"
 
-static void process(const char *file) {
+static gboolean process(const char *file) {
   openslide_t *osr = openslide_open(file);
   if (osr == NULL) {
     fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
 	    g_get_prgname(), file);
     fflush(stderr);
-    return;
+    return FALSE;
   }
 
   const char *err = openslide_get_error(osr);
@@ -36,7 +37,7 @@ static void process(const char *file) {
     fprintf(stderr, "%s: %s: %s\n", g_get_prgname(), file, err);
     fflush(stderr);
     openslide_close(osr);
-    return;
+    return FALSE;
   }
 
   // read properties
@@ -50,6 +51,7 @@ static void process(const char *file) {
   }
 
   openslide_close(osr);
+  return TRUE;
 }
 
 
@@ -64,9 +66,12 @@ int main (int argc, char **argv) {
     _openslide_tools_usage(&usage_info);
   }
 
+  int ret = 0;
   for (int i = 1; i < argc; i++) {
-    process(argv[i]);
+    if (!process(argv[i])) {
+      ret = 1;
+    }
   }
 
-  return 0;
+  return ret;
 }
