@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -20,6 +20,7 @@
  */
 
 #include "openslide.h"
+#include "openslide-tools-common.h"
 
 #include <png.h>
 #include <inttypes.h>
@@ -33,8 +34,6 @@
 static const char SOFTWARE[] = "Software";
 static const char OPENSLIDE[] = "OpenSlide <http://openslide.org/>";
 
-static const char *progname;
-
 #define ENSURE_NONNEG(i) \
   if (i < 0) {					\
     fail(#i " must be non-negative");	\
@@ -45,12 +44,6 @@ static const char *progname;
     fail(#i " must be positive");	\
   }
 
-static void usage(void) {
-  printf("Usage: %s virtual-slide x y level width height output.png\n"
-	 "Write a fragment of a virtual slide to a PNG.\n",
-	 progname);
-}
-
 static void fail(const char *format, ...) {
   va_list ap;
 
@@ -58,7 +51,7 @@ static void fail(const char *format, ...) {
   char *msg = g_strdup_vprintf(format, ap);
   va_end(ap);
 
-  fprintf(stderr, "%s: %s\n", progname, msg);
+  fprintf(stderr, "%s: %s\n", g_get_prgname(), msg);
   fflush(stderr);
 
   exit(1);
@@ -178,12 +171,15 @@ static void write_png(openslide_t *osr, FILE *f,
 }
 
 
-int main (int argc, char **argv) {
-  progname = argv[0];
+static const struct openslide_tools_usage_info usage_info = {
+  "slide x y level width height output.png",
+  "Write a region of a virtual slide to a PNG.",
+};
 
+int main (int argc, char **argv) {
+  _openslide_tools_parse_commandline(&usage_info, &argc, &argv);
   if (argc != 8) {
-    usage();
-    return 1;
+    _openslide_tools_usage(&usage_info);
   }
 
   // get args

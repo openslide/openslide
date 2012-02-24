@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2010 Carnegie Mellon University
+ *  Copyright (c) 2010-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -20,25 +20,20 @@
  */
 
 #include "openslide.h"
+#include "openslide-tools-common.h"
 
-static void usage(const char *progname) {
-  printf("Usage: %s FILE...\n"
-	 "Print OpenSlide quickhash-1 (256-bit) checksums.\n",
-	 progname);
-}
-
-static void process(const char *progname, const char *file) {
+static void process(const char *file) {
   openslide_t *osr = openslide_open(file);
   if (osr == NULL) {
     fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
-	    progname, file);
+	    g_get_prgname(), file);
     fflush(stderr);
     return;
   }
 
   const char *err = openslide_get_error(osr);
   if (err) {
-    fprintf(stderr, "%s: %s: %s\n", progname, file, err);
+    fprintf(stderr, "%s: %s: %s\n", g_get_prgname(), file, err);
     fflush(stderr);
     openslide_close(osr);
     return;
@@ -49,21 +44,28 @@ static void process(const char *progname, const char *file) {
   if (hash != NULL) {
     printf("%s  %s\n", hash, file);
   } else {
-    fprintf(stderr, "%s: %s: No quickhash-1 available\n", progname, file);
+    fprintf(stderr, "%s: %s: No quickhash-1 available\n", g_get_prgname(),
+            file);
     fflush(stderr);
   }
 
   openslide_close(osr);
 }
 
+
+static const struct openslide_tools_usage_info usage_info = {
+  "FILE...",
+  "Print OpenSlide quickhash-1 (256-bit) checksums.",
+};
+
 int main (int argc, char **argv) {
+  _openslide_tools_parse_commandline(&usage_info, &argc, &argv);
   if (argc < 2) {
-    usage(argv[0]);
-    return 1;
+    _openslide_tools_usage(&usage_info);
   }
 
   for (int i = 1; i < argc; i++) {
-    process(argv[0], argv[i]);
+    process(argv[i]);
   }
 
   return 0;

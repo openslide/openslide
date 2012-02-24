@@ -44,7 +44,7 @@ src_libopenslide_la_LDFLAGS = -version-info 2:6:2 -no-undefined -Wl,$(WIN32_DLL_
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h
 
-noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h src/openslide-cairo.h src/openslide-tiffdump.h
+noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/valgrind.h src/callgrind.h src/openslide-cairo.h src/openslide-tiffdump.h tools/openslide-tools-common.h
 
 
 
@@ -58,15 +58,18 @@ test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 # show-properties
 bin_PROGRAMS = tools/openslide-show-properties
-tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src
-tools_openslide_show_properties_LDADD = src/libopenslide.la
+tools_openslide_show_properties_SOURCES = tools/openslide-tools-common.c tools/openslide-show-properties.c
+tools_openslide_show_properties_CPPFLAGS = -I$(top_srcdir)/src $(GLIB2_CFLAGS)
+tools_openslide_show_properties_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 # quickhash1sum
 bin_PROGRAMS += tools/openslide-quickhash1sum
-tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src
-tools_openslide_quickhash1sum_LDADD = src/libopenslide.la
+tools_openslide_quickhash1sum_SOURCES = tools/openslide-tools-common.c tools/openslide-quickhash1sum.c
+tools_openslide_quickhash1sum_CPPFLAGS = -I$(top_srcdir)/src $(GLIB2_CFLAGS)
+tools_openslide_quickhash1sum_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 # write-png
 bin_PROGRAMS += tools/openslide-write-png
+tools_openslide_write_png_SOURCES = tools/openslide-tools-common.c tools/openslide-write-png.c
 tools_openslide_write_png_CPPFLAGS = -I$(top_srcdir)/src $(LIBPNG_CFLAGS) $(GLIB2_CFLAGS)
 tools_openslide_write_png_LDADD = src/libopenslide.la $(LIBPNG_LIBS) $(GLIB2_LIBS)
