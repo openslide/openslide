@@ -668,6 +668,8 @@ static bool process_indexfile(const char *uuid,
 			      int zoom_levels,
 			      int tiles_x,
 			      int tiles_y,
+			      double overlap_x,
+			      double overlap_y,
 			      int image_divisions,
 			      const struct slide_zoom_level_params *slide_zoom_level_params,
 			      FILE *indexfile,
@@ -745,15 +747,18 @@ static bool process_indexfile(const char *uuid,
 					       slide_position_offset,
 					       slide_zoom_level_params[0].tile_concat);
   } else {
-    // no position map available and we know overlap is 0, fill in our own
-    // values based on the known tile size.
+    // No position map available.  Fill in our own values based on the tile
+    // size and nominal overlap.
     const int tile0_w = levels[0]->raw_tile_width;
     const int tile0_h = levels[0]->raw_tile_height;
+    const int positions_x = tiles_x / image_divisions;
 
     slide_positions = g_new(int, ntiles * 2);
     for (int i = 0; i < ntiles; i++) {
-      slide_positions[(i * 2)]     = (i % tiles_x) * tile0_w;
-      slide_positions[(i * 2) + 1] = (i / tiles_x) * tile0_h;
+      slide_positions[(i * 2)]     = (i % positions_x) *
+                                     (tile0_w * image_divisions - overlap_x);
+      slide_positions[(i * 2) + 1] = (i / positions_x) *
+                                     (tile0_h * image_divisions - overlap_y);
     }
   }
   if (!slide_positions) {
@@ -1258,19 +1263,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
 
   // load position stuff
-  // find key for position
+  // find key for position, if present
   position_nonhier_offset = get_nonhier_name_offset(slidedat,
 						    nonhier_count,
 						    GROUP_HIERARCHICAL,
 						    VALUE_VIMSLIDE_POSITION_BUFFER);
-  // When the position map is missing we calculate it ourselves based on the
-  // known tile width and height but do not take tile overlap into account.
-  if ((slide_zoom_level_sections[0].overlap_x ||
-       slide_zoom_level_sections[0].overlap_y)
-      && position_nonhier_offset == -1) {
-    g_warning("Can't figure out where the position file is");
-    goto FAIL;
-  }
 
   // associated images
   macro_nonhier_offset = get_nonhier_val_offset(slidedat,
@@ -1390,7 +1387,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     //                          depending on image_divisions
     const int positions_per_jpeg_tile = MAX(1, lp->tile_concat / image_divisions);
 
-    if (position_nonhier_offset != -1) {
+    if (position_nonhier_offset != -1
+        || slide_zoom_level_sections[0].overlap_x != 0
+        || slide_zoom_level_sections[0].overlap_y != 0) {
       // tile_count_divisor: as we record levels, we would prefer to shrink the
       //                     number of tiles, but keep the tile size constant,
       //                     but this only works until we encounter JPEG tiles
@@ -1464,6 +1463,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 associated_images,
 			 zoom_levels,
 			 tiles_x, tiles_y,
+			 slide_zoom_level_sections[0].overlap_x,
+			 slide_zoom_level_sections[0].overlap_y,
 			 image_divisions,
 			 slide_zoom_level_params,
 			 indexfile,
