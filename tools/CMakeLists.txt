@@ -9,6 +9,7 @@ include_directories(${GTK2_CAIRO_INCLUDE_DIR})
 include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
 
 find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIRS})
 
 foreach(app ${apps})
 add_executable(${app} ${app}.c openslide-tools-common.c)
