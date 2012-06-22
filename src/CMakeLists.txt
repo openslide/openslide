@@ -15,6 +15,7 @@ find_package(OpenJPEG REQUIRED)
 find_package(TIFF REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(GTK2 2.6 REQUIRED)
+find_package(LibXml2 REQUIRED)
 
 if(NOT IS_DIRECTORY ${GTK2_GLIB_INCLUDE_DIR} OR 
    NOT IS_DIRECTORY ${GTK2_CAIRO_INCLUDE_DIR} OR 
@@ -28,6 +29,7 @@ include_directories(${TIFF_INCLUDE_DIR})
 include_directories(${GTK2_GLIB_INCLUDE_DIR})
 include_directories(${GTK2_CAIRO_INCLUDE_DIR})
 include_directories(${GTK2_GLIBCONFIG_INCLUDE_DIR})
+include_directories(${LIBXML2_INCLUDE_DIR})
 
 # prepare the target library
 file(GLOB source_files "*.c" "*.cpp")
@@ -114,7 +116,8 @@ set( REQUIRED_LIBS
   ${ZLIB_LIBRARY}
   ${GTK2_CAIRO_LIBRARY}
   ${GTK2_GLIB_LIBRARY}
-  ${GTK2_GTHREAD_LIBRARY} )
+  ${GTK2_GTHREAD_LIBRARY}
+  ${LIBXML2_LIBRARIES} )
 
 # loop over all required libs
 foreach(l ${REQUIRED_LIBS})
