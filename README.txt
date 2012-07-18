@@ -120,5 +120,7 @@ How to build?
 make
 make install
 
+(If building from the Git repository, you will first need to install
+autoconf, automake, libtool, and pkg-config and run "autoreconf -i".)
 
 Good luck!
