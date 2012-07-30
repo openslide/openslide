@@ -5,6 +5,7 @@
 *.o
 *.exe
 *.manifest
+*.rc
 
 .dirstamp
 

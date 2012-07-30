@@ -1,0 +1,25 @@
+#include "winuser.h"
+#include "winver.h"
+
+2 RT_MANIFEST openslide-dll.manifest
+
+1 VERSIONINFO
+FILEVERSION @WINDOWS_VERSIONINFO@
+FILEFLAGSMASK 0
+FILETYPE VFT_DLL
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904e4"
+        BEGIN
+            VALUE "FileDescription",  "OpenSlide library"
+            VALUE "FileVersion", "@VERSION@"
+            VALUE "InternalName", "OpenSlide"
+            VALUE "LegalCopyright", "Copyright \251 2007-2012 Carnegie Mellon University and others.  OpenSlide is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License, version 2.1."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04e4
+    END
+END

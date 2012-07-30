@@ -31,6 +31,8 @@ AS_CASE([$host],
   [WINDOWS_PROCESSOR_ARCHITECTURE=""]
 )
 AC_SUBST([WINDOWS_PROCESSOR_ARCHITECTURE])
+WINDOWS_VERSIONINFO=$(echo "${VERSION}.0.0.0" | cut -f1-4 -d. | tr . ,)
+AC_SUBST([WINDOWS_VERSIONINFO])
 
 
 # Check for recent pkg-config which supports Requires.private
@@ -161,6 +163,7 @@ AC_CONFIG_FILES([
 Makefile
 openslide.pc
 src/openslide-dll.manifest
+src/openslide-dll.rc
 tools/openslide-quickhash1sum.1
 tools/openslide-show-properties.1
 tools/openslide-write-png.1
