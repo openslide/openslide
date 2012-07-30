@@ -94,8 +94,12 @@ AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 # for win32 -- why the trickery? to avoid libtool linking the exe files to msvcr80
 old_LIBS="$LIBS"
 AC_SEARCH_LIBS([_fseeki64], [msvcr80], [
-  AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80])
   msvcrt=yes
+  # If we have a libmingwex that natively supports 64-bit fseeko/ftello,
+  # we should skip msvcr80
+  AC_SEARCH_LIBS([fseeko64], [mingwex], [], [
+    AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80])
+  ])
 ], [msvcrt=no])
 LIBS="$old_LIBS"
 
