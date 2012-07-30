@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <glib.h>
+#include <libxml/parser.h>
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
@@ -67,6 +68,7 @@ INITIALIZER(_openslide_init) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
   openslide_was_dynamically_loaded = true;
+  xmlInitParser();
 }
 
 static void destroy_associated_image(gpointer data) {
