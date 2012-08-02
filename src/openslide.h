@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * The main OpenSlide type.

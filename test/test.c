@@ -29,15 +29,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <sys/time.h>
 
 #ifndef WIN32
 #include <sys/types.h>
 #include <unistd.h>
-#endif
-
-#ifndef _MSC_VER
-#include <sys/time.h>
-#include <stdbool.h>
 #endif
 
 #include <glib.h>
