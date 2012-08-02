@@ -4,10 +4,6 @@ EXTRA_DIST = README.txt TODO.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt doc/Doxy
 dist-hook:
 	cd $(distdir)/doc; doxygen
 
-# cmake
-EXTRA_DIST += cmake CMakeLists.txt src/CMakeLists.txt test/CMakeLists.txt \
-	src/openslide-cmake-dll.rc.in config.h.cmake
-
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = openslide.pc
 
