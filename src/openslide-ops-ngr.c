@@ -29,9 +29,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <glib.h>
-#ifndef _MSC_VER
-#include <inttypes.h>
-#endif
 #include <cairo.h>
 
 
