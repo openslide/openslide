@@ -24,7 +24,6 @@
 
 #ifdef _WIN32
 #define WIN32 1
-#define __MSVCRT_VERSION__ 0x0800
 #endif
 
 #include <config.h>
@@ -47,11 +46,6 @@
 
 #include <openjpeg.h>
 
-
-#if !defined(fseeko) && defined(_WIN32)
-#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
-#define ftello(stream) _ftelli64(stream)
-#endif
 
 /* the associated image structure */
 struct _openslide_associated_image {

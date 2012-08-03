@@ -23,12 +23,6 @@ LT_LANG([Windows Resource])
 AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$RC != x])
 
 # for windows manifest
-AS_CASE([$host],
-  [i?86-*-*],   [WINDOWS_PROCESSOR_ARCHITECTURE=x86],
-  [x86_64-*-*], [WINDOWS_PROCESSOR_ARCHITECTURE=amd64],
-  [WINDOWS_PROCESSOR_ARCHITECTURE=""]
-)
-AC_SUBST([WINDOWS_PROCESSOR_ARCHITECTURE])
 WINDOWS_VERSIONINFO=$(echo "${VERSION}.0.0.0" | cut -f1-4 -d. | tr . ,)
 AC_SUBST([WINDOWS_VERSIONINFO])
 
@@ -89,18 +83,6 @@ fi
 
 AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 
-# for win32 -- why the trickery? to avoid libtool linking the exe files to msvcr80
-old_LIBS="$LIBS"
-AC_SEARCH_LIBS([_fseeki64], [msvcr80], [
-  msvcrt=yes
-  # If we have a libmingwex that natively supports 64-bit fseeko/ftello,
-  # we should skip msvcr80
-  AC_SEARCH_LIBS([fseeko64], [mingwex], [], [
-    AC_SUBST(WIN32_DLL_TRICKERY, [-lmsvcr80])
-  ])
-], [msvcrt=no])
-LIBS="$old_LIBS"
-
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
@@ -109,44 +91,47 @@ gl_VISIBILITY
 
 # CLOEXEC
 AC_MSG_CHECKING([fopen() close-on-exec flag])
-if test z$msvcrt = zyes ; then
-  # Assume that if we're using msvcrt, we want to pass N to fopen().
-  # We don't test this directly because we are likely cross-compiling.
-  AC_MSG_RESULT([N])
-  AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["N"], [Set to the fopen() flag string that sets FD_CLOEXEC, or an empty string if not supported.])
-else
-  AC_RUN_IFELSE([
-    AC_LANG_PROGRAM([
-      #include <stdio.h>
-      #include <unistd.h>
-      #include <fcntl.h>
-    ], [
-      FILE *fp = fopen("/dev/null", "re");
-      if (fp != NULL) {
-        int fd = fileno(fp);
-        if (fd != -1) {
-          long ret = fcntl(fd, F_GETFD);
-          if (ret != -1 && (ret & FD_CLOEXEC)) {
-            return 0;
+AS_CASE([$host],
+  [*-*-mingw32], [
+    # Assume that if we're building for Windows, we want to pass N to fopen().
+    AC_MSG_RESULT([N])
+    AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["N"], [Set to the fopen() flag string that sets FD_CLOEXEC, or an empty string if not supported.])
+  ],
+  [
+    # Default
+    AC_RUN_IFELSE([
+      AC_LANG_PROGRAM([
+        #include <stdio.h>
+        #include <unistd.h>
+        #include <fcntl.h>
+      ], [
+        FILE *fp = fopen("/dev/null", "re");
+        if (fp != NULL) {
+          int fd = fileno(fp);
+          if (fd != -1) {
+            long ret = fcntl(fd, F_GETFD);
+            if (ret != -1 && (ret & FD_CLOEXEC)) {
+              return 0;
+            }
           }
         }
-      }
-      return 1;
+        return 1;
+      ])
+    ], [
+      # glibc >= 2.7
+      AC_MSG_RESULT([e])
+      AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["e"])
+    ], [
+      # unknown
+      AC_MSG_RESULT([unknown])
+      AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
+    ], [
+      # cross compile
+      AC_MSG_RESULT([unknown (cross compile)])
+      AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
     ])
-  ], [
-    # glibc >= 2.7
-    AC_MSG_RESULT([e])
-    AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["e"])
-  ], [
-    # unknown
-    AC_MSG_RESULT([unknown])
-    AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
-  ], [
-    # cross compile
-    AC_MSG_RESULT([unknown (cross compile)])
-    AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
-  ])
-fi
+  ]
+)
 # Fallback: racily use fcntl()
 AC_CHECK_FUNCS([fcntl])
 
