@@ -87,13 +87,7 @@ static void init_source (j_decompress_ptr cinfo)
  * the front of the buffer rather than discarding it.
  */
 
-static
-#ifdef HAVE_JPEG_BOOLEAN
-jpeg_boolean
-#else
-boolean
-#endif
-fill_input_buffer (j_decompress_ptr cinfo)
+static boolean fill_input_buffer (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
   size_t nbytes;

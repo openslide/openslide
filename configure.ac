@@ -47,10 +47,6 @@ AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
 
-dnl https://bugzilla.redhat.com/show_bug.cgi?id=497492
-AC_CHECK_TYPES([jpeg_boolean], [], [], [[#include <stdio.h>
-#include <jpeglib.h>]])
-
 AC_MSG_CHECKING([for OpenJPEG])
 dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
 dnl because of the stdcall calling convention which requires
