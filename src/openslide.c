@@ -50,19 +50,8 @@ static const _openslide_tiff_vendor_fn tiff_formats[] = {
 
 static bool openslide_was_dynamically_loaded;
 
-#ifdef _MSC_VER
-  #pragma section(".CRT$XCU",read)
-  #define INITIALIZER(f) \
-  static void __cdecl f(void); \
-  __declspec(allocate(".CRT$XCU")) void (__cdecl*f##_)(void) = f; \
-  static void __cdecl f(void)
-#elif defined(__GNUC__)
-  #define INITIALIZER(f) \
-  static void __attribute__((constructor)) f(void)
-#endif
-
 // called from shared-library constructor!
-INITIALIZER(_openslide_init) {
+static void __attribute__((constructor)) _openslide_init(void) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
   openslide_was_dynamically_loaded = true;
