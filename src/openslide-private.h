@@ -37,20 +37,11 @@
 #include <setjmp.h>
 #include <tiffio.h>
 
-
 // jconfig.h redefines HAVE_STDLIB_H if libjpeg was not built with Autoconf
 #undef HAVE_STDLIB_H
-// TODO detect if libjpeg is built as a C++ library?
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include <jpeglib.h>
-#ifdef __cplusplus
-};
-#endif
 #undef HAVE_STDLIB_H
 #include <config.h>  // again
-
 
 #include <cairo.h>
 
