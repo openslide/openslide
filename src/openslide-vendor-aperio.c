@@ -80,7 +80,7 @@ static void warning_callback(const char *msg, void *data G_GNUC_UNUSED) {
   g_warning("%s", msg);
 }
 static void error_callback(const char *msg, void *data) {
-  openslide_t *osr = (openslide_t *) data;
+  openslide_t *osr = data;
   _openslide_set_error(osr, "%s", msg);
 }
 
@@ -176,7 +176,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   dinfo = opj_create_decompress(CODEC_J2K);
   opj_set_default_decoder_parameters(&parameters);
   opj_setup_decoder(dinfo, &parameters);
-  stream = opj_cio_open((opj_common_ptr) dinfo, (unsigned char *) buf, size);
+  stream = opj_cio_open((opj_common_ptr) dinfo, buf, size);
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
 
 

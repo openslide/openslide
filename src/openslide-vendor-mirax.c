@@ -132,7 +132,7 @@ struct slide_zoom_level_params {
 };
 
 static char *read_string_from_file(FILE *f, int len) {
-  char *str = (char *) g_malloc(len + 1);
+  char *str = g_malloc(len + 1);
   str[len] = '\0';
 
   if (fread(str, len, 1, f) != 1) {
@@ -861,7 +861,7 @@ static bool process_indexfile(const char *uuid,
 
   int cur_file = 0;
   for (GList *iter = jpegs_list; iter != NULL; iter = iter->next) {
-    jpegs[cur_file++] = (struct _openslide_jpeg_file *) iter->data;
+    jpegs[cur_file++] = iter->data;
   }
   g_assert(cur_file == jpeg_count);
 

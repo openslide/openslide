@@ -141,7 +141,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
     if (hash != NULL) {
       GChecksum *checksum = hash->checksum;
-      g_checksum_update(checksum, (guchar *) buf, bytes_read);
+      g_checksum_update(checksum, buf, bytes_read);
     }
   }
 

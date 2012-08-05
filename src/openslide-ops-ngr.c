@@ -50,7 +50,7 @@ static void destroy_ngrs(struct _openslide_ngr **ngrs, int count) {
 }
 
 static void destroy(openslide_t *osr) {
-  struct ngr_data *data = (struct ngr_data *) osr->data;
+  struct ngr_data *data = osr->data;
 
   destroy_ngrs(data->ngrs, data->ngr_count);
 
@@ -62,7 +62,7 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr, int32_t level,
 			   int64_t *w, int64_t *h) {
 
-  struct ngr_data *data = (struct ngr_data *) osr->data;
+  struct ngr_data *data = osr->data;
   struct _openslide_ngr *ngr = data->ngrs[level];
 
   *w = ngr->w;
@@ -75,7 +75,7 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
-  struct ngr_data *data = (struct ngr_data *) osr->data;
+  struct ngr_data *data = osr->data;
   struct _openslide_ngr *ngr = data->ngrs[level];
 
   // check if beyond boundary
@@ -88,11 +88,8 @@ static void read_tile(openslide_t *osr,
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
   g_mutex_lock(data->cache_mutex);
-  uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
-							 tile_x,
-							 tile_y,
-							 level,
-							 &cache_entry);
+  uint32_t *tiledata = _openslide_cache_get(cache, tile_x, tile_y, level,
+                                            &cache_entry);
   g_mutex_unlock(data->cache_mutex);
 
   if (!tiledata) {
@@ -114,7 +111,7 @@ static void read_tile(openslide_t *osr,
 
     // alloc and read
     int buf_size = ngr->column_width * 6;
-    uint16_t *buf = (uint16_t *) g_slice_alloc(buf_size);
+    uint16_t *buf = g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
       _openslide_set_error(osr, "Cannot read file %s", ngr->filename);
@@ -125,7 +122,7 @@ static void read_tile(openslide_t *osr,
     fclose(f);
 
     // got the data, now convert to 8-bit xRGB
-    tiledata = (uint32_t *) g_slice_alloc(tilesize);
+    tiledata = g_slice_alloc(tilesize);
     for (int i = 0; i < ngr->column_width; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -166,7 +163,7 @@ static void read_tile(openslide_t *osr,
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t level, int32_t w, int32_t h) {
-  struct ngr_data *data = (struct ngr_data *) osr->data;
+  struct ngr_data *data = osr->data;
   struct _openslide_ngr *ngr = data->ngrs[level];
 
   // compute coordinates

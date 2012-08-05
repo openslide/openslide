@@ -160,7 +160,7 @@ static void destroy_data(struct _openslide_tiffopsdata *data) {
 }
 
 static void destroy(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
   destroy_data(data);
 }
 
@@ -169,7 +169,7 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t level,
 				    int64_t *w, int64_t *h) {
   uint32_t tmp;
 
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
 
   int32_t ox = 0;
@@ -213,7 +213,7 @@ static void get_dimensions_unlocked(openslide_t *osr, int32_t level,
 
 static void get_dimensions(openslide_t *osr, int32_t level,
 			   int64_t *w, int64_t *h) {
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
 
   g_mutex_lock(data->tiff_mutex);
   get_dimensions_unlocked(osr, level, w, h);
@@ -226,7 +226,7 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
 
   uint32_t tmp;
@@ -253,13 +253,9 @@ static void read_tile(openslide_t *osr,
 
   // cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
-							 x,
-							 y,
-							 level,
-							 &cache_entry);
+  uint32_t *tiledata = _openslide_cache_get(cache, x, y, level, &cache_entry);
   if (!tiledata) {
-    tiledata = (uint32_t *) g_slice_alloc(tw * th * 4);
+    tiledata = g_slice_alloc(tw * th * 4);
     data->tileread(osr, data->tiff, tiledata, x, y, tw, th);
 
     // clip, if necessary
@@ -335,7 +331,7 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 				  int64_t x, int64_t y,
 				  int32_t level,
 				  int32_t w, int32_t h) {
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
 
@@ -414,7 +410,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t level,
 			 int32_t w, int32_t h) {
-  struct _openslide_tiffopsdata *data = (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
 
   g_mutex_lock(data->tiff_mutex);
   paint_region_unlocked(osr, cr, x, y, level, w, h);
@@ -497,7 +493,7 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
   img.row_offset = y;
 
   // draw it
-  if (TIFFRGBAImageGet(&img, (uint32*)dest, w, h)) {
+  if (TIFFRGBAImageGet(&img, dest, w, h)) {
     // permute
     uint32_t *p = dest;
     uint32_t *end = dest + w * h;
@@ -520,10 +516,8 @@ static void tiff_get_associated_image_data_unlocked(openslide_t *osr,
                                                     void *_ctx,
                                                     uint32_t *dest,
                                                     int64_t w, int64_t h) {
-  struct _openslide_tiffopsdata *data =
-    (struct _openslide_tiffopsdata *) osr->data;
-  struct tiff_associated_image_ctx *ctx =
-    (struct tiff_associated_image_ctx *) _ctx;
+  struct _openslide_tiffopsdata *data = osr->data;
+  struct tiff_associated_image_ctx *ctx = _ctx;
   TIFF *tiff = data->tiff;
   uint32_t tmp;
   int64_t width, height;
@@ -548,8 +542,7 @@ static void tiff_get_associated_image_data(openslide_t *osr, void *ctx,
                                            uint32_t *dest,
                                            int64_t w, int64_t h)
 {
-  struct _openslide_tiffopsdata *data =
-    (struct _openslide_tiffopsdata *) osr->data;
+  struct _openslide_tiffopsdata *data = osr->data;
 
   g_mutex_lock(data->tiff_mutex);
   tiff_get_associated_image_data_unlocked(osr, ctx, dest, w, h);
@@ -557,8 +550,7 @@ static void tiff_get_associated_image_data(openslide_t *osr, void *ctx,
 }
 
 static void tiff_destroy_associated_image_ctx(void *_ctx) {
-  struct tiff_associated_image_ctx *ctx =
-    (struct tiff_associated_image_ctx *) _ctx;
+  struct tiff_associated_image_ctx *ctx = _ctx;
 
   g_slice_free(struct tiff_associated_image_ctx, ctx);
 }

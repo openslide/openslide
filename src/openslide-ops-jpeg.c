@@ -173,9 +173,9 @@ static void jpeg_random_access_src (openslide_t *osr,
   struct my_src_mgr *src;
 
   if (cinfo->src == NULL) {     /* first time for this JPEG object? */
-    cinfo->src = (struct jpeg_source_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(struct my_src_mgr));
+    cinfo->src = (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo,
+                                             JPOOL_PERMANENT,
+                                             sizeof(struct my_src_mgr));
   }
 
   src = (struct my_src_mgr *) cinfo->src;
@@ -211,7 +211,7 @@ static void jpeg_random_access_src (openslide_t *osr,
 
   src->buffer_size = header_length + data_length;
   src->pub.bytes_in_buffer = src->buffer_size;
-  src->buffer = (JOCTET *) g_slice_alloc(src->buffer_size);
+  src->buffer = g_slice_alloc(src->buffer_size);
 
   src->pub.next_input_byte = src->buffer;
 
@@ -240,9 +240,9 @@ static void jpeg_random_access_src (openslide_t *osr,
 static void level_free(gpointer data) {
   //g_debug("level_free: %p", data);
 
-  struct level *l = (struct level *) data;
+  struct level *l = data;
 
-  //  g_debug("g_free(%p)", (void *) l->level_jpegs);
+  //  g_debug("g_free(%p)", l->level_jpegs);
   g_hash_table_unref(l->tiles);
   g_slice_free(struct level, l);
 }
@@ -263,8 +263,8 @@ struct convert_tiles_args {
 static void convert_tiles(gpointer key,
 			  gpointer value,
 			  gpointer user_data) {
-  struct convert_tiles_args *args = (struct convert_tiles_args *) user_data;
-  struct _openslide_jpeg_tile *old_tile = (struct _openslide_jpeg_tile *) value;
+  struct convert_tiles_args *args = user_data;
+  struct _openslide_jpeg_tile *old_tile = value;
   struct level *new_l = args->new_l;
 
   // create new tile
@@ -352,7 +352,7 @@ static uint8_t find_next_ff_marker(FILE *f,
     }
 
     // search for ff
-    uint8_t *ff = (uint8_t *) memchr(*buf, 0xFF, *bytes_in_buf);
+    uint8_t *ff = memchr(*buf, 0xFF, *bytes_in_buf);
     if (ff == NULL) {
       // keep searching
       *bytes_in_buf = 0;
@@ -480,7 +480,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     int w, int h) {
   g_assert(jpeg->filename);
 
-  uint32_t *dest = (uint32_t *) g_slice_alloc(w * h * 4);
+  uint32_t *dest = g_slice_alloc(w * h * 4);
 
   // open file
   FILE *f = _openslide_fopen(jpeg->filename, "rb");
@@ -613,7 +613,7 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache) {
   //g_debug("read_tile");
-  struct jpegops_data *data = (struct jpegops_data *) osr->data;
+  struct jpegops_data *data = osr->data;
   struct level *l = data->levels + level;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
@@ -622,7 +622,7 @@ static void read_tile(openslide_t *osr,
   }
 
   int64_t tileindex = tile_y * l->tiles_across + tile_x;
-  struct tile *requested_tile = (struct tile *) g_hash_table_lookup(l->tiles, &tileindex);
+  struct tile *requested_tile = g_hash_table_lookup(l->tiles, &tileindex);
 
   if (!requested_tile) {
     //    g_debug("no tile at index %" G_GINT64_FORMAT, tileindex);
@@ -636,11 +636,11 @@ static void read_tile(openslide_t *osr,
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   g_mutex_lock(data->cache_mutex);
-  uint32_t *tiledata = (uint32_t *) _openslide_cache_get(cache,
-							 requested_tile->jpegno,
-							 requested_tile->tileno,
-							 level,
-							 &cache_entry);
+  uint32_t *tiledata = _openslide_cache_get(cache,
+                                            requested_tile->jpegno,
+                                            requested_tile->tileno,
+                                            level,
+                                            &cache_entry);
   g_mutex_unlock(data->cache_mutex);
   int tw = requested_tile->jpeg->tile_width / l->scale_denom;
   int th = requested_tile->jpeg->tile_height / l->scale_denom;
@@ -741,7 +741,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t level,
 			 int32_t w, int32_t h) {
-  struct jpegops_data *data = (struct jpegops_data *) osr->data;
+  struct jpegops_data *data = osr->data;
   struct level *l = data->levels + level;
 
   // tell the background thread to pause
@@ -798,7 +798,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
-  struct jpegops_data *data = (struct jpegops_data *) osr->data;
+  struct jpegops_data *data = osr->data;
 
   // tell the thread to finish and wait
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -820,7 +820,7 @@ static void destroy(openslide_t *osr) {
   for (int32_t i = 0; i < osr->level_count; i++) {
     struct level *l = data->levels + i;
 
-    //    g_debug("g_free(%p)", (void *) l->level_jpegs);
+    //    g_debug("g_free(%p)", l->level_jpegs);
     g_hash_table_unref(l->tiles);
   }
 
@@ -846,7 +846,7 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr,
 			   int32_t level,
 			   int64_t *w, int64_t *h) {
-  struct jpegops_data *data = (struct jpegops_data *) osr->data;
+  struct jpegops_data *data = osr->data;
   struct level *l = data->levels + level;
 
   *w = l->pixel_w;
@@ -940,8 +940,8 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 }
 
 static gpointer restart_marker_thread_func(gpointer d) {
-  openslide_t *osr = (openslide_t *) d;
-  struct jpegops_data *data = (struct jpegops_data *) osr->data;
+  openslide_t *osr = d;
+  struct jpegops_data *data = osr->data;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1238,7 +1238,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   //  g_debug("copying sorted levels");
   while(tmp_list != NULL) {
     // get a key and value
-    struct level *l = (struct level *) g_hash_table_lookup(expanded_levels, tmp_list->data);
+    struct level *l = g_hash_table_lookup(expanded_levels, tmp_list->data);
 
     // copy
     struct level *dest = data->levels + i;
@@ -1321,8 +1321,7 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
                                            uint32_t *_dest,
                                            int64_t w, int64_t h) {
-  struct jpeg_associated_image_ctx *ctx =
-    (struct jpeg_associated_image_ctx *) _ctx;
+  struct jpeg_associated_image_ctx *ctx = _ctx;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   FILE *f;
@@ -1421,8 +1420,7 @@ DONE:
 }
 
 static void jpeg_destroy_associated_image_ctx(void *_ctx) {
-  struct jpeg_associated_image_ctx *ctx =
-    (struct jpeg_associated_image_ctx *) _ctx;
+  struct jpeg_associated_image_ctx *ctx = _ctx;
 
   g_free(ctx->filename);
   g_slice_free(struct jpeg_associated_image_ctx, ctx);
