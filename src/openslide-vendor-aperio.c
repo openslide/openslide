@@ -148,7 +148,10 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   opj_image_comp_t *comps = NULL;
 
   // note: don't use info_handler, it outputs lots of junk
-  opj_event_mgr_t event_callbacks = { error_callback, warning_callback, NULL };
+  opj_event_mgr_t event_callbacks = {
+    .error_handler = error_callback,
+    .warning_handler = warning_callback,
+  };
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);

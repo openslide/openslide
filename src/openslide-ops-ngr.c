@@ -189,9 +189,9 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 
 static const struct _openslide_ops _openslide_vmu_ops = {
-  get_dimensions,
-  paint_region,
-  destroy
+  .get_dimensions = get_dimensions,
+  .paint_region = paint_region,
+  .destroy = destroy,
 };
 
 

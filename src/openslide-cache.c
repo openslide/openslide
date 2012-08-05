@@ -228,7 +228,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int32_t level,
 			   struct _openslide_cache_entry **entry) {
   // create key
-  struct _openslide_cache_key key = { x, y, level };
+  struct _openslide_cache_key key = { .x = x, .y = y, .level = level };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,

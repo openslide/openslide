@@ -854,9 +854,9 @@ static void get_dimensions(openslide_t *osr,
 }
 
 static const struct _openslide_ops jpeg_ops = {
-  get_dimensions,
-  paint_region,
-  destroy
+  .get_dimensions = get_dimensions,
+  .paint_region = paint_region,
+  .destroy = destroy,
 };
 
 static void init_one_jpeg(struct one_jpeg *onej,
