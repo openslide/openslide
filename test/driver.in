@@ -1,0 +1,291 @@
+#!/usr/bin/env python
+#
+# OpenSlide, a library for reading whole slide image files
+#
+# Copyright (c) 2012 Carnegie Mellon University
+# All rights reserved.
+#
+# OpenSlide is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, version 2.1.
+#
+# OpenSlide is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with OpenSlide. If not, see
+# <http://www.gnu.org/licenses/>.
+#
+
+import filecmp
+import inspect
+import os
+import re
+from shutil import copyfile, copytree, rmtree
+import subprocess
+import sys
+import textwrap
+import yaml
+from zipfile import ZipFile
+
+CASEROOT = '!!SRCDIR!!/cases'
+SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
+WORKROOT = '!!BUILDDIR!!/_slidedata'
+PRISTINE = '!!BUILDDIR!!/_slidedata/_pristine'
+TESTCONF = 'config.yaml'
+
+_commands = []
+_command_funcs = {}
+
+
+def _command(f):
+    '''Decorator to mark the function as a user command.'''
+    _commands.append(f.func_name)
+    _command_funcs[f.func_name] = f
+    return f
+
+
+def _list_tests():
+    '''Return a list of test names.'''
+    return [name for name in sorted(os.listdir(CASEROOT))
+            if os.path.exists(os.path.join(CASEROOT, name, TESTCONF))]
+
+
+def _list_slide_files(slide):
+    '''List relative paths of files within a slide.  slide is e.g.
+    "Mirax/CMU-1.zip".'''
+    def walk(basedir):
+        files = []
+        for name in os.listdir(basedir):
+            path = os.path.join(basedir, name)
+            if os.path.isdir(path):
+                files.extend(os.path.join(name, p) for p in walk(path))
+            else:
+                files.append(name)
+        return files
+    return walk(os.path.join(PRISTINE, slide))
+
+
+def _load_test_config(testname):
+    '''Parse and return the config.yaml for the specified test.'''
+    with open(os.path.join(CASEROOT, testname, TESTCONF)) as fh:
+        return yaml.safe_load(fh)
+
+
+def _try_open_slide(slidefile):
+    '''Try opening the specified slide file.  Return None on success, error
+    message on failure.'''
+    proc = subprocess.Popen(['!!BUILDDIR!!/try_open', slidefile],
+            stderr=subprocess.PIPE)
+    _out, err = proc.communicate()
+    if proc.returncode:
+        return err
+    else:
+        return None
+
+
+@_command
+def initialize(srcdir):
+    '''Unpack the test slides from the specified openslide-testdata
+    directory.'''
+
+    with open(SLIDELIST) as fh:
+        slides = sorted(yaml.safe_load(fh))
+
+    for slide in slides:
+        filename = os.path.basename(slide)
+        filepath = os.path.join(srcdir, slide)
+        destfilepath = os.path.join(PRISTINE, slide)
+
+        if os.path.exists(destfilepath):
+            continue
+        if not os.path.isfile(filepath):
+            raise IOError('No such slide: %s' % slide)
+
+        print 'Unpacking %s...' % slide
+        os.makedirs(destfilepath)
+        if os.path.splitext(filename)[1] == '.zip':
+            with ZipFile(filepath) as zf:
+                zf.extractall(path=destfilepath)
+        else:
+            copyfile(filepath, os.path.join(destfilepath, filename))
+
+
+@_command
+def create(testname, slide):
+    '''Create a new test case with the specified name and base slide (e.g.
+    "Mirax/CMU-1.zip").'''
+
+    srcpath = os.path.join(PRISTINE, slide)
+    testpath = os.path.join(CASEROOT, testname)
+    destpath = os.path.join(testpath, 'slide')
+
+    if os.path.exists(testpath):
+        raise ValueError('A test with that name already exists')
+    if not os.path.exists(srcpath):
+        raise ValueError('No such slide')
+
+    print 'Creating test %s for %s' % (testname, slide)
+
+    for relpath in _list_slide_files(slide):
+        if _try_open_slide(os.path.join(srcpath, relpath)) is None:
+            slidefile = relpath
+            break
+    else:
+        raise IOError('Could not locate readable slide file')
+
+    os.mkdir(testpath)
+    copytree(srcpath, destpath)
+    conf = {
+        'success': False,
+        'error': '^$',
+        'base': slide,
+        'slide': slidefile,
+    }
+    with open(os.path.join(testpath, TESTCONF), 'w') as fh:
+        yaml.safe_dump(conf, fh, default_flow_style=False)
+
+
+@_command
+def pack(testname):
+    '''Pack a newly-created test case for checkin.'''
+
+    if not os.path.exists(os.path.join(CASEROOT, testname, TESTCONF)):
+        raise ValueError('Test does not exist')
+
+    print 'Packing %s...' % testname
+    conf = _load_test_config(testname)
+    slide = conf['base']
+
+    for relpath in _list_slide_files(slide):
+        origpath = os.path.join(PRISTINE, slide, relpath)
+        newpath = os.path.join(CASEROOT, testname, 'slide', relpath)
+        deltapath = os.path.join(CASEROOT, testname,
+                os.path.basename(relpath) + '.xdelta')
+        whiteoutpath = os.path.join(CASEROOT, testname,
+                os.path.basename(relpath) + '.whiteout')
+
+        for path in deltapath, whiteoutpath:
+            if os.path.exists(path):
+                raise IOError('%s already exists' % path)
+
+        if os.path.exists(newpath):
+            if not filecmp.cmp(origpath, newpath, shallow=False):
+                subprocess.check_call(['xdelta', 'encode', '-9', '-s',
+                        origpath, newpath, deltapath])
+        else:
+            open(whiteoutpath, 'w').close()
+
+    rmtree(os.path.join(CASEROOT, testname, 'slide'))
+
+
+def _unpack_one(testname):
+    '''Unpack the specified test.'''
+
+    conf = _load_test_config(testname)
+    slide = conf['base']
+    printed = False
+
+    for relpath in _list_slide_files(slide):
+        origpath = os.path.join(PRISTINE, slide, relpath)
+        newpath = os.path.join(WORKROOT, testname, relpath)
+        deltapath = os.path.join(CASEROOT, testname,
+                os.path.basename(relpath) + '.xdelta')
+        whiteoutpath = os.path.join(CASEROOT, testname,
+                os.path.basename(relpath) + '.whiteout')
+
+        if not os.path.exists(newpath) and not os.path.exists(whiteoutpath):
+            if not printed:
+                print 'Unpacking %s...' % testname
+                printed = True
+
+            newdir = os.path.dirname(newpath)
+            if not os.path.exists(newdir):
+                os.makedirs(newdir)
+
+            if os.path.exists(deltapath):
+                subprocess.check_call(['xdelta', 'decode', '-s',
+                        origpath, deltapath, newpath])
+            else:
+                src = os.path.relpath(origpath, os.path.dirname(newpath))
+                os.symlink(src, newpath)
+
+
+def _run_one(testname):
+    '''Run the specified test.'''
+
+    conf = _load_test_config(testname)
+    slidefile = os.path.join(WORKROOT, testname, conf['slide'])
+    result = _try_open_slide(slidefile)
+
+    if result is None and not conf['success']:
+        print '%s: unexpected success' % testname
+    elif result is not None and conf['success']:
+        print '%s: unexpected failure: %s' % (testname, result)
+    elif result is not None and not re.search(conf['error'], result):
+        print '%s: incorrect error: %s' % (testname, result)
+    else:
+        print '%s: OK' % testname
+        return True
+    return False
+
+
+@_command
+def run():
+    '''Run all tests.'''
+    for testname in _list_tests():
+        _unpack_one(testname)
+    failed = 0
+    for testname in _list_tests():
+        if not _run_one(testname):
+            failed += 1
+    print '\nFailed: %d/%d' % (failed, len(_list_tests()))
+    if failed:
+        sys.exit(1)
+
+
+@_command
+def clean():
+    '''Delete temporary slide data.'''
+    for testname in _list_tests():
+        rmtree(os.path.join(WORKROOT, testname))
+
+
+def _get_arglist(f):
+    '''Return a list of argument names for the specified function.'''
+    args, _va, _kw, _def = inspect.getargspec(f)
+    return args
+
+
+def _usage():
+    '''Print usage message and exit.'''
+    wrapper = textwrap.TextWrapper(width=76, initial_indent=' ' * 8,
+            subsequent_indent=' ' * 8)
+    print 'Usage:'
+    for name in _commands:
+        f = _command_funcs[name]
+        args = _get_arglist(f)
+        print '    %s %s' % (name, ' '.join('<%s>' % a for a in args))
+        print wrapper.fill(f.__doc__ or 'Undocumented.')
+        print
+    sys.exit(2)
+
+
+def _main():
+    try:
+        cmd = sys.argv[1]
+    except IndexError:
+        _usage()
+    try:
+        f = _command_funcs[cmd]
+    except KeyError:
+        _usage()
+    if len(_get_arglist(f)) != len(sys.argv) - 2:
+        _usage()
+    f(*sys.argv[2:])
+
+
+if __name__ == '__main__':
+    _main()

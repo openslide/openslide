@@ -48,10 +48,20 @@ noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-til
 
 
 
-noinst_PROGRAMS = test/test
+noinst_PROGRAMS = test/driver test/test test/try_open
+CLEANFILES  = test/driver
+EXTRA_DIST += test/driver.in
 
 test_test_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -I$(top_srcdir)/src
 test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
+
+test_try_open_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
+test_try_open_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+
+test/driver: test/driver.in Makefile
+	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
+		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' $< > $@ && \
+		chmod +x $@
 
 
 # tools
