@@ -248,9 +248,8 @@ static gpointer cloexec_thread(const gpointer prog) {
 
   while (g_atomic_int_get(&leak_test_running)) {
     gchar *out;
-    if (!g_spawn_sync(NULL, argv, NULL, (GSpawnFlags)
-          (G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_SEARCH_PATH |
-          G_SPAWN_STDERR_TO_DEV_NULL), NULL, NULL,
+    if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+          G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL,
           &out, NULL, NULL, NULL)) {
       g_assert_not_reached();
     }
