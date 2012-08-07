@@ -33,6 +33,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * The main OpenSlide type.
  */
@@ -471,5 +475,9 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
  * whole-slide images (also known as virtual slides). See
  * http://openslide.org/ for more details.
  */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
