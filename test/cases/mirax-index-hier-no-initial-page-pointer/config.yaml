@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: ^Can't read initial data page pointer$
+slide: CMU-1.mrxs
+success: false

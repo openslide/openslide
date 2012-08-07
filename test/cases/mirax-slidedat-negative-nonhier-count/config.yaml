@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: '^nonhier_count < 0: -1$'
+slide: CMU-1.mrxs
+success: false
