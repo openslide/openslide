@@ -711,10 +711,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
       // init the file
       if (image_filenames[i]) {
-        g_warning("Ignoring duplicate image for (%d,%d)", col, row);
-      } else {
-        image_filenames[i] = g_build_filename(dirname, value, NULL);
+        g_warning("Duplicate image for (%d,%d)", col, row);
+        g_free(value);
+        g_strfreev(all_keys);
+        goto DONE;
       }
+      image_filenames[i] = g_build_filename(dirname, value, NULL);
     }
     g_free(value);
   }
