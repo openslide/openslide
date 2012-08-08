@@ -61,6 +61,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
+  bool success = false;
 
   *w = 0;
   *h = 0;
@@ -84,11 +85,18 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     }
 
     header_result = jpeg_read_header(&cinfo, TRUE);
-    if ((header_result != JPEG_HEADER_OK
-	 && header_result != JPEG_HEADER_TABLES_ONLY)
-	|| cinfo.num_components != 3 || cinfo.restart_interval == 0) {
-      jpeg_destroy_decompress(&cinfo);
-      return false;
+    if (header_result != JPEG_HEADER_OK
+        && header_result != JPEG_HEADER_TABLES_ONLY) {
+      g_warning("Couldn't read JPEG header");
+      goto DONE;
+    }
+    if (cinfo.num_components != 3) {
+      g_warning("JPEG color components != 3");
+      goto DONE;
+    }
+    if (cinfo.restart_interval == 0) {
+      g_warning("No restart markers");
+      goto DONE;
     }
 
     jpeg_start_decompress(&cinfo);
@@ -110,16 +118,15 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 
     if (cinfo.restart_interval > cinfo.MCUs_per_row) {
       g_warning("Restart interval greater than MCUs per row");
-      jpeg_destroy_decompress(&cinfo);
-      return false;
+      goto DONE;
     }
 
     *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
     *th = *h / cinfo.MCU_rows_in_scan;
     int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
     if (leftover_mcus != 0) {
-      jpeg_destroy_decompress(&cinfo);
-      return false;
+      g_warning("Inconsistent restart marker spacing within row");
+      goto DONE;
     }
 
 
@@ -132,12 +139,14 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     //	 leftover_mcus);
   } else {
     // setjmp has returned again
-    jpeg_destroy_decompress(&cinfo);
-    return false;
+    goto DONE;
   }
 
+  success = true;
+
+DONE:
   jpeg_destroy_decompress(&cinfo);
-  return true;
+  return success;
 }
 
 static int64_t *extract_one_optimisation(FILE *opt_f,
