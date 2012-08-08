@@ -41,12 +41,19 @@
 #include <libxml/xpathInternals.h>
 
 static const char LEICA_DESCRIPTION[] = "Leica";
-static const char LEICA_COLLECTION_TAG[] = "collection";
-static const char LEICA_BARCODE_TAG[] = "barcode";
-static const char LEICA_IMAGE_TAG[] = "image";
+static const xmlChar LEICA_PROP_SIZE_X[] = "sizeX";
+static const xmlChar LEICA_PROP_SIZE_Y[] = "sizeY";
+static const xmlChar LEICA_PROP_IFD[] = "ifd";
+static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
+
+#define PARSE_INT_PROPERTY_OR_FAIL(NODE, NAME, OUT)		\
+	if (!parse_int_prop(NODE, NAME, &OUT))	{	\
+		g_warning("Property %s not found", NAME);	\
+		goto FAIL;	\
+	}
 
 struct level {
-	int32_t level_number;
+	int64_t directory_number;
 	int64_t width;
 };
 
@@ -63,15 +70,41 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 	}
 }
 
-static gint64 parse_int_prop(xmlNodePtr node, xmlChar *name) {
-	gint64 result = 0;
+static bool parse_int_prop(xmlNodePtr node, const xmlChar *name, int64_t *out) {
 	xmlChar *tmp = xmlGetProp(node, name);
-	result = g_ascii_strtoll((gchar *) tmp, NULL, 0);
+
+	if (tmp == NULL) {
+		return false;
+	}
+
+	*out = g_ascii_strtoll((gchar *) tmp, NULL, 0);
 	xmlFree(tmp);
-	return result;
+	return true;
 }
 
-static bool parse_xml_description(char *xml, openslide_t *osr, 
+static void add_node_content(openslide_t *osr, const char *property_name, 
+			const xmlChar *xpath, xmlXPathContextPtr context) {
+	xmlXPathObjectPtr result = NULL;
+	xmlChar *str = NULL;
+
+	result = xmlXPathEvalExpression(xpath, context);
+	if (result != NULL && result->nodesetval->nodeNr > 0) {
+		str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
+
+		g_hash_table_insert(osr->properties,
+			g_strdup(property_name),
+			g_strdup((char *) str));
+
+		xmlFree(str);
+	}
+
+	if (result != NULL) {
+		xmlXPathFreeObject(result);
+		result = NULL;
+	}
+}
+
+static bool parse_xml_description(const char *xml, openslide_t *osr, 
 	int *out_macro_ifd, GList **out_main_image_ifds, int *level_count) {
 	xmlDocPtr doc = NULL;
 	xmlNode *root_element = NULL;
@@ -81,7 +114,6 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 	xmlNode *macro_image = NULL;
 
 	xmlNode *image = NULL;
-	xmlNode *view = NULL;
 
 	xmlChar *str = NULL;
 
@@ -89,15 +121,17 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 	xmlXPathObjectPtr images_result = NULL;
 	xmlXPathObjectPtr result = NULL;
 
-	gint64 collection_width = 0;
-	gint64 collection_height = 0;
+	int64_t collection_width = 0;
+	int64_t collection_height = 0;
 
-	gint64 macro_width = 0;
-	gint64 macro_height = 0;
+	int64_t macro_width = 0;
+	int64_t macro_height = 0;
 
-	gint64 test_width = 0;
-	gint64 test_height = 0;
-	gint64 test_ifd = 0;
+	int64_t test_width = 0;
+	int64_t test_height = 0;
+	int64_t test_ifd = 0;
+
+	struct level *l = NULL;
 
 	bool success = false;
 
@@ -114,6 +148,10 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 	}
 
 	root_element = xmlDocGetRootElement(doc);
+	if (xmlStrcmp(root_element->ns->href, LEICA_DESCRIPTION_XMLNS) != 0) {
+		g_warning("Unknown namespace");
+		goto FAIL;
+	}
 
 	//create XPATH context to query the document
 	context = xmlXPathNewContext(doc);
@@ -145,27 +183,27 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 	xmlXPathFreeObject(result);
 	result = NULL;
 
+	result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection/new:barcode", context);
+	if (result == NULL || result->nodesetval->nodeNr != 1) {
+		g_warning("Didn't find barcode element");
+		goto FAIL;
+	}
+
+	str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
+
 	if (osr) {
-		result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection/new:barcode", context);
-		if (result == NULL || result->nodesetval->nodeNr != 1) {
-			g_warning("Didn't find barcode element");
-			goto FAIL;
-		}
-
-		str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
 		g_hash_table_insert(osr->properties,
 			g_strdup("leica.barcode"),
 			g_strdup((char *) str));
-
-		xmlFree(str);
-		xmlXPathFreeObject(result);
-		result = NULL;
 	}
 
+	xmlFree(str);
+	xmlXPathFreeObject(result);
+	result = NULL;
+
 	//read collection's size
-	collection_width = parse_int_prop(collection, BAD_CAST "sizeX");
-	collection_height = parse_int_prop(collection, BAD_CAST "sizeY");
+	PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_X, collection_width);
+	PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_Y, collection_height);
 
 	//get the image nodes
 	context->node = collection;
@@ -187,10 +225,8 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 			goto FAIL;
 		}
 
-		test_width = parse_int_prop(result->nodesetval->nodeTab[0], 
-									BAD_CAST "sizeX");
-		test_height = parse_int_prop(result->nodesetval->nodeTab[0], 
-									BAD_CAST "sizeY");
+		PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[0], LEICA_PROP_SIZE_X, test_width);
+		PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[0], LEICA_PROP_SIZE_Y, test_height);
 
 		xmlXPathFreeObject(result);
 		result = NULL;
@@ -198,9 +234,20 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 		//we assume that the macro's dimensions are the same as the collection's
 		if (test_width == collection_width && 
 			test_height == collection_height) {
-			macro_image = image;
+
+			if (macro_image != NULL){
+				g_warning("Macro image has been already assigned");
+				goto FAIL;
+			} else {
+				macro_image = image;
+			}
 		} else {
-			main_image = image;
+			if (main_image != NULL){
+				g_warning("Main image has been already assigned");
+				goto FAIL;
+			} else {
+				main_image = image;
+			}
 		}
 	}
 
@@ -219,15 +266,17 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 
 	//add all the IFDs of the main image to the level list
 	for (i = 0; i < result->nodesetval->nodeNr; i++) {
-		struct level *l = g_slice_new(struct level);
-		l->level_number = parse_int_prop(result->nodesetval->nodeTab[i], 
-									BAD_CAST "ifd");
-		l->width = parse_int_prop(result->nodesetval->nodeTab[i], 
-									BAD_CAST "sizeX");
+		l = g_slice_new(struct level);
+
+		PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i], LEICA_PROP_SIZE_X, l->width);
+		PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i], LEICA_PROP_IFD, l->directory_number);
 
 		*out_main_image_ifds = g_list_append(*out_main_image_ifds, l);
-		(*level_count)++;
 	}
+
+	l = NULL;
+
+	*level_count = result->nodesetval->nodeNr;
 
 	xmlXPathFreeObject(result);
 	result = NULL;
@@ -235,28 +284,12 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 	if (osr != NULL) {
 		//add some more properties from the main image
 
-		result = xmlXPathEvalExpression(BAD_CAST "new:creationDate", context);
-		if (result != NULL && result->nodesetval->nodeNr > 0) {
-			str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
-			g_hash_table_insert(osr->properties,
-				g_strdup("leica.creationDate"),
-				g_strdup((char *) str));
-
-			xmlFree(str);
-		}
-		
-		if (result != NULL) {
-			xmlXPathFreeObject(result);
-			result = NULL;
-		}
-
 		result = xmlXPathEvalExpression(BAD_CAST "new:device", context);
 		if (result != NULL && result->nodesetval->nodeNr > 0) {
 			str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "version");
 
 			g_hash_table_insert(osr->properties,
-				g_strdup("leica.deviceVersion"),
+				g_strdup("leica.device-version"),
 				g_strdup((char *) str));
 
 			xmlFree(str);
@@ -264,64 +297,21 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 			str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "model");
 
 			g_hash_table_insert(osr->properties,
-				g_strdup("leica.deviceModel"),
+				g_strdup("leica.device-model"),
 				g_strdup((char *) str));
 
 			xmlFree(str);
 		}
-		
+
 		if (result != NULL) {
 			xmlXPathFreeObject(result);
 			result = NULL;
 		}
 
-		result = xmlXPathEvalExpression(BAD_CAST "new:scanSettings/new:objectiveSettings/new:objective", context);
-		if (result != NULL && result->nodesetval->nodeNr > 0) {
-			str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
-			g_hash_table_insert(osr->properties,
-				g_strdup("leica.objective"),
-				g_strdup((char *) str));
-
-			xmlFree(str);
-		}
-		
-		if (result != NULL) {
-			xmlXPathFreeObject(result);
-			result = NULL;
-		}
-
-		result = xmlXPathEvalExpression(BAD_CAST "new:scanSettings/new:illuminationSettings/new:numericalAperture", context);
-		if (result != NULL && result->nodesetval->nodeNr > 0) {
-			str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
-			g_hash_table_insert(osr->properties,
-				g_strdup("leica.aperture"),
-				g_strdup((char *) str));
-
-			xmlFree(str);
-		}
-		
-		if (result != NULL) {
-			xmlXPathFreeObject(result);
-			result = NULL;
-		}
-
-		result = xmlXPathEvalExpression(BAD_CAST "new:scanSettings/new:illuminationSettings/new:illuminationSource", context);
-		if (result != NULL && result->nodesetval->nodeNr > 0) {
-			str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
-			g_hash_table_insert(osr->properties,
-				g_strdup("leica.illuminationSource"),
-				g_strdup((char *) str));
-
-			xmlFree(str);
-		}
-		
-		if (result != NULL) {
-			xmlXPathFreeObject(result);
-			result = NULL;
-		}
+		add_node_content(osr, "leica.creation-date", BAD_CAST "new:creationDate", context);
+		add_node_content(osr, "leica.objective", BAD_CAST "new:scanSettings/new:objectiveSettings/new:objective", context);
+		add_node_content(osr, "leica.aperture", BAD_CAST "new:scanSettings/new:illuminationSettings/new:numericalAperture", context);
+		add_node_content(osr, "leica.illumination-source", BAD_CAST "new:scanSettings/new:illuminationSettings/new:illuminationSource", context);
 	}
 
 	if (macro_image != NULL) {
@@ -334,12 +324,10 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 		}
 
 		for (i = 0; i < result->nodesetval->nodeNr; i++) {
-			test_width = parse_int_prop(result->nodesetval->nodeTab[i], 
-										BAD_CAST "sizeX");
-			test_height = parse_int_prop(result->nodesetval->nodeTab[i], 
-										BAD_CAST "sizeY");
-			test_ifd = parse_int_prop(result->nodesetval->nodeTab[i], 
-										BAD_CAST "ifd");
+			PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i], LEICA_PROP_SIZE_X, test_width);
+			PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i], LEICA_PROP_SIZE_Y, test_height);
+			PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i], LEICA_PROP_IFD, test_ifd);
+
 
 			if (test_width >= macro_width && test_height >= macro_height) {
 				macro_width = test_width;
@@ -354,6 +342,10 @@ static bool parse_xml_description(char *xml, openslide_t *osr,
 
 	success = true;
 FAIL:
+	if (l != NULL) {
+		g_slice_free(struct level, l);
+	}
+
 	if (result != NULL) {
 		xmlXPathFreeObject(result);
 	}
@@ -369,19 +361,13 @@ FAIL:
 	if (doc != NULL) {
 		xmlFreeDoc(doc);
 	}
-	
+
 	return success;
 }
 
 static bool check_directory(TIFF *tiff, uint16 dir_num) {
 	if (TIFFSetDirectory(tiff, dir_num) == 0) {
 		g_warning("Can't find directory");
-		return false;
-	}
-
-	// get width
-	uint32_t width;
-	if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width)) {
 		return false;
 	}
 
@@ -409,7 +395,6 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
 	int tiff_result;
 
 	int macroIFD = 0;	//which IFD contains the macro image
-	int mainImageIFDFrom = 0, mainImageIFDTo = 0;	//main image IFD range
 
 	if (!TIFFIsTiled(tiff)) {
 		goto FAIL; // not tiled
@@ -449,12 +434,12 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
 	levels = g_new(int32_t, level_count);
 	for (int i = 0; i < level_count; i++) {
 		struct level *l = (struct level *)level_list->data;
-		if (!check_directory(tiff, l->level_number)) {
+		if (!check_directory(tiff, l->directory_number)) {
 			goto FAIL;
 		}
 		level_list = g_list_delete_link(level_list, level_list);
 
-		levels[i] = l->level_number;
+		levels[i] = l->directory_number;
 		g_slice_free(struct level, l);
 	}
 
@@ -468,7 +453,7 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
 		quickhash1);
 
 	if (osr) {
-		g_hash_table_remove(osr->properties, "openslide.comment");
+		g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
 		g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 	}
 
