@@ -33,6 +33,10 @@
 #include <cairo.h>
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @name Cairo
  * Interface to OpenSlide from cairo.
@@ -66,5 +70,9 @@ void openslide_cairo_read_region(openslide_t *osr,
 				 int32_t level,
 				 int64_t w, int64_t h);
 //@}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

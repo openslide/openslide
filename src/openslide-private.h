@@ -24,7 +24,6 @@
 
 #ifdef _WIN32
 #define WIN32 1
-#define __MSVCRT_VERSION__ 0x0800
 #endif
 
 #include <config.h>
@@ -33,36 +32,20 @@
 #include "openslide-hash.h"
 
 #include <glib.h>
-#ifndef _MSC_VER
 #include <stdbool.h>
-#endif
 #include <setjmp.h>
 #include <tiffio.h>
 
-
 // jconfig.h redefines HAVE_STDLIB_H if libjpeg was not built with Autoconf
 #undef HAVE_STDLIB_H
-// TODO detect if libjpeg is built as a C++ library?
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include <jpeglib.h>
-#ifdef __cplusplus
-};
-#endif
 #undef HAVE_STDLIB_H
 #include <config.h>  // again
-
 
 #include <cairo.h>
 
 #include <openjpeg.h>
 
-
-#if !defined(fseeko) && defined(_WIN32)
-#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
-#define ftello(stream) _ftelli64(stream)
-#endif
 
 /* the associated image structure */
 struct _openslide_associated_image {

@@ -4,10 +4,6 @@ EXTRA_DIST = README.txt TODO.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt doc/Doxy
 dist-hook:
 	cd $(distdir)/doc; doxygen
 
-# cmake
-EXTRA_DIST += cmake CMakeLists.txt src/CMakeLists.txt test/CMakeLists.txt \
-	src/openslide-cmake-dll.rc.in config.h.cmake
-
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = openslide.pc
 
@@ -39,7 +35,7 @@ endif
 
 src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
-src_libopenslide_la_LDFLAGS = -version-info 2:6:2 -no-undefined -Wl,$(WIN32_DLL_TRICKERY)
+src_libopenslide_la_LDFLAGS = -version-info 2:6:2 -no-undefined
 
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h

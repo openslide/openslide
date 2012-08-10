@@ -29,15 +29,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <sys/time.h>
 
 #ifndef WIN32
 #include <sys/types.h>
 #include <unistd.h>
-#endif
-
-#ifndef _MSC_VER
-#include <sys/time.h>
-#include <stdbool.h>
 #endif
 
 #include <glib.h>
@@ -65,7 +62,7 @@ static void test_tile_walk(openslide_t *osr,
 			   int64_t tile_size) {
   printf("test_tile_walk: %" G_GINT64_FORMAT "\n", tile_size);
 
-  uint32_t *buf = (uint32_t *) malloc(tile_size * tile_size * 4);
+  uint32_t *buf = malloc(tile_size * tile_size * 4);
   //struct timeval tv, tv2;
 
   int64_t w, h;
@@ -146,7 +143,7 @@ static void test_image_fetch(openslide_t *osr,
     filename = g_strdup_printf("%s-%.2d.ppm", name, level);
     int64_t num_bytes = w * h * 4;
     printf("Going to allocate %" G_GINT64_FORMAT " bytes...\n", num_bytes);
-    uint32_t *buf = (uint32_t *) malloc(num_bytes);
+    uint32_t *buf = malloc(num_bytes);
 
     printf("x: %" G_GINT64_FORMAT ", y: %" G_GINT64_FORMAT ", level: %d, w: %" G_GINT64_FORMAT ", h: %" G_GINT64_FORMAT "\n", x, y, level, w, h);
     openslide_read_region(osr, buf, x, y, level, w, h);
@@ -171,7 +168,7 @@ static void test_horizontal_walk(openslide_t *osr,
   openslide_get_level_dimensions(osr, level, &w, &h);
   int64_t d = MIN(w,h);
 
-  uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
+  uint32_t *buf = malloc(patch_w * patch_h * 4);
 
   for (int64_t x = start_x; x < d; x += stride) {
     openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
@@ -192,7 +189,7 @@ static void test_vertical_walk(openslide_t *osr,
   openslide_get_level_dimensions(osr, level, &w, &h);
   int64_t d = MIN(w,h);
 
-  uint32_t *buf = (uint32_t *) malloc(patch_w * patch_h * 4);
+  uint32_t *buf = malloc(patch_w * patch_h * 4);
 
   for (int64_t y = start_y; y < d; y += stride) {
     openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
@@ -247,13 +244,12 @@ static gint leak_test_running;  /* atomic ops only */
 static gpointer cloexec_thread(const gpointer prog) {
   GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal,
         g_free, NULL);
-  gchar *argv[] = {(gchar *) prog, "--leak-check--", NULL};
+  gchar *argv[] = {prog, "--leak-check--", NULL};
 
   while (g_atomic_int_get(&leak_test_running)) {
     gchar *out;
-    if (!g_spawn_sync(NULL, argv, NULL, (GSpawnFlags)
-          (G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_SEARCH_PATH |
-          G_SPAWN_STDERR_TO_DEV_NULL), NULL, NULL,
+    if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+          G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL,
           &out, NULL, NULL, NULL)) {
       g_assert_not_reached();
     }

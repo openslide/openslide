@@ -77,7 +77,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     return false;
   }
 
-  buf = (gchar *) g_malloc(alloc_len);
+  buf = g_malloc(alloc_len);
   while ((cur_len = fread(buf + len, 1, alloc_len - len, f)) > 0) {
     len += cur_len;
     if (len == alloc_len) {
@@ -89,7 +89,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
         return false;
       }
       alloc_len *= 2;
-      buf = (gchar *) g_realloc(buf, alloc_len);
+      buf = g_realloc(buf, alloc_len);
     }
   }
 
