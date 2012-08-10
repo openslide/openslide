@@ -700,7 +700,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       }
 
       if (col >= num_cols || row >= num_rows || col < 0 || row < 0) {
-        g_warning("Invalid row or column in Hamamatsu file (%d,%d)", row, col);
+        g_warning("Invalid row or column in Hamamatsu file (%d,%d)", col, row);
         g_free(value);
 	g_strfreev(all_keys);
         goto DONE;
