@@ -1302,11 +1302,19 @@ static void my_output_message(j_common_ptr cinfo) {
   g_critical("%s", buffer);
 }
 
+static void my_emit_message(j_common_ptr cinfo, int msg_level) {
+  if (msg_level < 0) {
+    // Warning message.  Convert to fatal error.
+    (*cinfo->err->error_exit) (cinfo);
+  }
+}
+
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
 							 jmp_buf *env) {
   jpeg_std_error(&(err->pub));
   err->pub.error_exit = my_error_exit;
   err->pub.output_message = my_output_message;
+  err->pub.emit_message = my_emit_message;
   err->env = env;
 
   return (struct jpeg_error_mgr *) err;
