@@ -250,7 +250,9 @@ def run():
 def clean():
     '''Delete temporary slide data.'''
     for testname in _list_tests():
-        rmtree(os.path.join(WORKROOT, testname))
+        path = os.path.join(WORKROOT, testname)
+        if os.path.exists(path):
+            rmtree(path)
 
 
 def _get_arglist(f):
