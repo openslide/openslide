@@ -764,11 +764,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       optimisation_file = _openslide_fopen(optimisation_filename, "rb");
 
       if (optimisation_file == NULL) {
-	g_warning("Can't use optimisation file");
+	// g_debug("Can't open optimisation file");
       }
       g_free(optimisation_filename);
     } else {
-      g_warning("Optimisation file key not present");
+      // g_debug("Optimisation file key not present");
     }
 
     // do all the jpeg stuff
