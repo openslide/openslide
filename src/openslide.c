@@ -32,6 +32,8 @@
 #include "openslide-tilehelper.h"
 #include "openslide-cairo.h"
 
+const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2012 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
+
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
 static const _openslide_vendor_fn non_tiff_formats[] = {
