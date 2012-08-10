@@ -20,6 +20,7 @@
 #
 
 import filecmp
+import fnmatch
 import inspect
 import os
 import re
@@ -47,10 +48,11 @@ def _command(f):
     return f
 
 
-def _list_tests():
-    '''Return a list of test names.'''
+def _list_tests(pattern='*'):
+    '''Return a list of test names matching the specified pattern.'''
     return [name for name in sorted(os.listdir(CASEROOT))
-            if os.path.exists(os.path.join(CASEROOT, name, TESTCONF))]
+            if fnmatch.fnmatch(name, pattern)
+            and os.path.exists(os.path.join(CASEROOT, name, TESTCONF))]
 
 
 def _list_slide_files(slide):
@@ -233,32 +235,38 @@ def _run_one(testname):
 
 
 @_command
-def run():
-    '''Run all tests.'''
-    for testname in _list_tests():
+def run(pattern='*'):
+    '''Run all tests matching the specified pattern.'''
+    tests = _list_tests(pattern)
+    for testname in tests:
         _unpack_one(testname)
     failed = 0
-    for testname in _list_tests():
+    for testname in tests:
         if not _run_one(testname):
             failed += 1
-    print '\nFailed: %d/%d' % (failed, len(_list_tests()))
+    print '\nFailed: %d/%d' % (failed, len(tests))
     if failed:
         sys.exit(1)
 
 
 @_command
-def clean():
-    '''Delete temporary slide data.'''
-    for testname in _list_tests():
+def clean(pattern='*'):
+    '''Delete temporary slide data for tests matching the specified pattern.'''
+    for testname in _list_tests(pattern):
         path = os.path.join(WORKROOT, testname)
         if os.path.exists(path):
             rmtree(path)
 
 
 def _get_arglist(f):
-    '''Return a list of argument names for the specified function.'''
-    args, _va, _kw, _def = inspect.getargspec(f)
-    return args
+    '''Return two lists of argument names for the specified function: the
+    mandatory arguments and the optional ones.'''
+    args, _va, _kw, defs = inspect.getargspec(f)
+    if defs:
+        optcount = len(defs)
+        return args[:-optcount], args[-optcount:]
+    else:
+        return args, []
 
 
 def _usage():
@@ -268,8 +276,9 @@ def _usage():
     print 'Usage:'
     for name in _commands:
         f = _command_funcs[name]
-        args = _get_arglist(f)
-        print '    %s %s' % (name, ' '.join('<%s>' % a for a in args))
+        args, optargs = _get_arglist(f)
+        argspecs = ['<%s>' % a for a in args] + ['[%s]' % a for a in optargs]
+        print '    %s %s' % (name, ' '.join(argspecs))
         print wrapper.fill(f.__doc__ or 'Undocumented.')
         print
     sys.exit(2)
@@ -284,7 +293,9 @@ def _main():
         f = _command_funcs[cmd]
     except KeyError:
         _usage()
-    if len(_get_arglist(f)) != len(sys.argv) - 2:
+    args, optargs = _get_arglist(f)
+    argc = len(sys.argv) - 2
+    if argc < len(args) or argc > len(args) + len(optargs):
         _usage()
     f(*sys.argv[2:])
 
