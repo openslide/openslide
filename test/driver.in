@@ -77,11 +77,20 @@ def _load_test_config(testname):
         return yaml.safe_load(fh)
 
 
-def _try_open_slide(slidefile):
-    '''Try opening the specified slide file.  Return None on success, error
-    message on failure.'''
-    proc = subprocess.Popen(['!!BUILDDIR!!/try_open', slidefile],
-            stderr=subprocess.PIPE)
+def _try_open_slide(slidefile, valgrind=False):
+    '''Try opening the specified slide file, under Valgrind if specified.
+    Return None on success, error message on failure.'''
+    env = os.environ.copy()
+    env.update(
+        G_DEBUG='gc-friendly',
+        G_SLICE='always-malloc,debug-blocks',
+        MALLOC_CHECK_='1',
+    )
+    args = ['!!BUILDDIR!!/try_open', slidefile]
+    if valgrind:
+        args = ['!!BUILDDIR!!/../libtool', '--mode=execute', 'valgrind',
+                '--quiet', '--error-exitcode=3', '--leak-check=full'] + args
+    proc = subprocess.Popen(args, stderr=subprocess.PIPE, env=env)
     _out, err = proc.communicate()
     if proc.returncode:
         return err
@@ -221,12 +230,12 @@ def _unpack_one(testname):
                 os.symlink(src, newpath)
 
 
-def _run_one(testname):
-    '''Run the specified test.'''
+def _run_one(testname, valgrind=False):
+    '''Run the specified test, under Valgrind if specified.'''
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
-    result = _try_open_slide(slidefile)
+    result = _try_open_slide(slidefile, valgrind)
 
     if result is None and not conf['success']:
         print '%s: unexpected success' % testname
@@ -240,19 +249,31 @@ def _run_one(testname):
     return False
 
 
-@_command
-def run(pattern='*'):
-    '''Run all tests matching the specified pattern.'''
+def _run_all(pattern='*', valgrind=False):
+    '''Run all tests matching the specified pattern, under Valgrind if
+    specified.'''
     tests = _list_tests(pattern)
     for testname in tests:
         _unpack_one(testname)
     failed = 0
     for testname in tests:
-        if not _run_one(testname):
+        if not _run_one(testname, valgrind):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
     if failed:
         sys.exit(1)
+
+
+@_command
+def run(pattern='*'):
+    '''Run all tests matching the specified pattern.'''
+    _run_all(pattern)
+
+
+@_command
+def valgrind(pattern='*'):
+    '''Valgrind all tests matching the specified pattern.'''
+    _run_all(pattern, True)
 
 
 @_command
