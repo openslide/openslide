@@ -19,7 +19,10 @@
  *
  */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <glib.h>
 #include "openslide.h"
 
@@ -35,10 +38,23 @@ static void print_log(const gchar *domain G_GNUC_UNUSED,
 int main(int argc, char **argv) {
   openslide_t *osr;
   const char *error;
+  GHashTable *fds;
+  int maxfds;
+  struct stat st;
 
   if (argc != 2) {
     fprintf(stderr, "No slide specified\n");
     return 2;
+  }
+
+  // Record preexisting file descriptors
+  fds = g_hash_table_new(g_direct_hash, g_direct_equal);
+  maxfds = sysconf(_SC_OPEN_MAX);
+  g_assert(maxfds != -1);
+  for (int i = 0; i < maxfds; i++) {
+    if (!fstat(i, &st)) {
+      g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
+    }
   }
 
   g_log_set_handler("Openslide", (GLogLevelFlags)
@@ -58,6 +74,23 @@ int main(int argc, char **argv) {
     // openslide_open returned NULL but logged nothing
     have_error = TRUE;
   }
+
+  // Check for file descriptor leaks
+  for (int i = 0; i < maxfds; i++) {
+    if (!fstat(i, &st) && !g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
+      // leaked
+      char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
+      char *target = g_file_read_link(link_path, NULL);
+      if (target == NULL) {
+        target = g_strdup("<unknown>");
+      }
+      fprintf(stderr, "Leaked file descriptor to %s\n", target);
+      have_error = TRUE;
+      g_free(target);
+      g_free(link_path);
+    }
+  }
+  g_hash_table_destroy(fds);
 
   return have_error ? 1 : 0;
 }
