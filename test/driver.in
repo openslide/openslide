@@ -24,6 +24,7 @@ import fnmatch
 import inspect
 import os
 import re
+import shlex
 from shutil import copyfile, copytree, rmtree
 import subprocess
 import sys
@@ -188,6 +189,7 @@ def _unpack_one(testname):
 
     conf = _load_test_config(testname)
     slide = conf['base']
+    generators = conf.get('generate', {})
     printed = False
 
     for relpath in _list_slide_files(slide):
@@ -207,7 +209,11 @@ def _unpack_one(testname):
             if not os.path.exists(newdir):
                 os.makedirs(newdir)
 
-            if os.path.exists(deltapath):
+            generator = generators.get(os.path.basename(relpath))
+            if generator:
+                subprocess.check_call([a % {'in': origpath, 'out': newpath}
+                        for a in shlex.split(generator)])
+            elif os.path.exists(deltapath):
                 subprocess.check_call(['xdelta', 'decode', '-s',
                         origpath, deltapath, newpath])
             else:
