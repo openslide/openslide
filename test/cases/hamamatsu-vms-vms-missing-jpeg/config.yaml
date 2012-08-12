@@ -1,0 +1,4 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: ^Can't read image filename 2$
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false

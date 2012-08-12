@@ -1,0 +1,7 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: ^Tile size not consistent$
+generate:
+    ? "CMU-1-40x - 2010-01-12 13.24.05(1,1).jpg"
+    : "jpegtran -restart 256B -outfile %(out)s %(in)s"
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false

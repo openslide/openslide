@@ -1,0 +1,4 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: "^Unknown number of image dimensions: 5$"
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
