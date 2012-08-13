@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -74,14 +74,22 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 static bool parse_int_prop(xmlNodePtr node, const xmlChar *name,
                            int64_t *out) {
-  xmlChar *tmp = xmlGetProp(node, name);
+  xmlChar *value = xmlGetProp(node, name);
+  int64_t result;
+  gchar *endptr;
 
-  if (tmp == NULL) {
+  if (value == NULL) {
     return false;
   }
 
-  *out = g_ascii_strtoll((gchar *) tmp, NULL, 0);
-  xmlFree(tmp);
+  result = g_ascii_strtoll((gchar *) value, &endptr, 10);
+  if (value[0] == 0 || endptr[0] != 0) {
+    xmlFree(value);
+    return false;
+  }
+
+  xmlFree(value);
+  *out = result;
   return true;
 }
 
