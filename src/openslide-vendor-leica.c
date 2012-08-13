@@ -196,7 +196,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   // register the document's NS to a shorter name
-  xmlXPathRegisterNs(context, BAD_CAST "new", root_element->ns->href);
+  xmlXPathRegisterNs(context, BAD_CAST "l", root_element->ns->href);
 
   // the recognizable structure is the following:
   /*
@@ -207,7 +207,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
         image
   */
 
-  result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection", context);
+  result = xmlXPathEvalExpression(BAD_CAST "/l:scn/l:collection", context);
   // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
     g_warning("Found multiple collection elements");
@@ -220,7 +220,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // read barcode
   set_prop_from_content(osr, "leica.barcode",
-                        "/new:scn/new:collection/new:barcode", context);
+                        "/l:scn/l:collection/l:barcode", context);
 
   // read collection's size
   PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_X, collection_width);
@@ -228,7 +228,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // get the image nodes
   context->node = collection;
-  images_result = xmlXPathEvalExpression(BAD_CAST "new:image", context);
+  images_result = xmlXPathEvalExpression(BAD_CAST "l:image", context);
   if (images_result == NULL || images_result->nodesetval->nodeNr == 0) {
     g_warning("Can't find any images");
     goto FAIL;
@@ -239,7 +239,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     image = images_result->nodesetval->nodeTab[i];
 
     context->node = image;
-    result = xmlXPathEvalExpression(BAD_CAST "new:view", context);
+    result = xmlXPathEvalExpression(BAD_CAST "l:view", context);
 
     if (result == NULL || result->nodesetval->nodeNr != 1) {
       g_warning("Can't find view node");
@@ -276,7 +276,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   context->node = main_image;
-  result = xmlXPathEvalExpression(BAD_CAST "new:pixels/new:dimension",
+  result = xmlXPathEvalExpression(BAD_CAST "l:pixels/l:dimension",
                                   context);
 
   if (result == NULL || result->nodesetval->nodeNr == 0) {
@@ -305,28 +305,28 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // add some more properties from the main image
   set_prop_from_attribute(osr, "leica.device-model",
-                          "new:device", "model",
+                          "l:device", "model",
                           context);
   set_prop_from_attribute(osr, "leica.device-version",
-                          "new:device", "version",
+                          "l:device", "version",
                           context);
   set_prop_from_content(osr, "leica.creation-date",
-                        "new:creationDate",
+                        "l:creationDate",
                         context);
   set_prop_from_content(osr, "leica.objective",
-                        "new:scanSettings/new:objectiveSettings/new:objective",
+                        "l:scanSettings/l:objectiveSettings/l:objective",
                         context);
   set_prop_from_content(osr, "leica.aperture",
-                        "new:scanSettings/new:illuminationSettings/new:numericalAperture",
+                        "l:scanSettings/l:illuminationSettings/l:numericalAperture",
                         context);
   set_prop_from_content(osr, "leica.illumination-source",
-                        "new:scanSettings/new:illuminationSettings/new:illuminationSource",
+                        "l:scanSettings/l:illuminationSettings/l:illuminationSource",
                         context);
 
   // process macro image
   if (macro_image != NULL) {
     context->node = macro_image;
-    result = xmlXPathEvalExpression(BAD_CAST "new:pixels/new:dimension",
+    result = xmlXPathEvalExpression(BAD_CAST "l:pixels/l:dimension",
                                     context);
 
     if (result == NULL || result->nodesetval->nodeNr == 0) {
