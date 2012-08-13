@@ -23,6 +23,7 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
 	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c \
+	src/openslide-vendor-leica.c \
 	src/openslide-jdatasrc.c src/openslide-tiffdump.c
 
 if WINDOWS_RESOURCES

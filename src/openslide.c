@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <glib.h>
+#include <libxml/parser.h>
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
@@ -46,6 +47,7 @@ static const _openslide_vendor_fn non_tiff_formats[] = {
 static const _openslide_tiff_vendor_fn tiff_formats[] = {
   _openslide_try_trestle,
   _openslide_try_aperio,
+  _openslide_try_leica,
   _openslide_try_generic_tiff,
   NULL
 };
@@ -57,6 +59,7 @@ static void __attribute__((constructor)) _openslide_init(void) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
   openslide_was_dynamically_loaded = true;
+  xmlInitParser();
 }
 
 static void destroy_associated_image(gpointer data) {
