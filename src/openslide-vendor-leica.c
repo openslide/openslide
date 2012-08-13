@@ -115,6 +115,30 @@ static void set_prop_from_content(openslide_t *osr,
   }
 }
 
+static void set_prop_from_attribute(openslide_t *osr,
+                                    const char *property_name,
+                                    const char *xpath,
+                                    const char *attribute_name,
+                                    xmlXPathContextPtr context) {
+  xmlXPathObjectPtr result;
+
+  result = xmlXPathEvalExpression(BAD_CAST xpath, context);
+  if (result != NULL && result->nodesetval->nodeNr > 0) {
+    xmlChar *str = xmlGetProp(result->nodesetval->nodeTab[0],
+                              BAD_CAST attribute_name);
+    if (osr && str) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(property_name),
+                          g_strdup((char *) str));
+    }
+    xmlFree(str);
+  }
+
+  if (result != NULL) {
+    xmlXPathFreeObject(result);
+  }
+}
+
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
                                   int *out_macro_ifd,
                                   GList **out_main_image_ifds,
@@ -127,8 +151,6 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   xmlNode *macro_image = NULL;
 
   xmlNode *image;
-
-  xmlChar *str;
 
   xmlXPathContextPtr context = NULL;
   xmlXPathObjectPtr images_result = NULL;
@@ -281,43 +303,27 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   xmlXPathFreeObject(result);
   result = NULL;
 
-  if (osr != NULL) {
-    // add some more properties from the main image
-
-    result = xmlXPathEvalExpression(BAD_CAST "new:device", context);
-    if (result != NULL && result->nodesetval->nodeNr > 0) {
-      str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "version");
-      g_hash_table_insert(osr->properties,
-                          g_strdup("leica.device-version"),
-                          g_strdup((char *) str));
-      xmlFree(str);
-
-      str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "model");
-      g_hash_table_insert(osr->properties,
-                          g_strdup("leica.device-model"),
-                          g_strdup((char *) str));
-      xmlFree(str);
-    }
-
-    if (result != NULL) {
-      xmlXPathFreeObject(result);
-      result = NULL;
-    }
-
-    set_prop_from_content(osr, "leica.creation-date",
-                          "new:creationDate",
+  // add some more properties from the main image
+  set_prop_from_attribute(osr, "leica.device-model",
+                          "new:device", "model",
                           context);
-    set_prop_from_content(osr, "leica.objective",
-                          "new:scanSettings/new:objectiveSettings/new:objective",
+  set_prop_from_attribute(osr, "leica.device-version",
+                          "new:device", "version",
                           context);
-    set_prop_from_content(osr, "leica.aperture",
-                          "new:scanSettings/new:illuminationSettings/new:numericalAperture",
-                          context);
-    set_prop_from_content(osr, "leica.illumination-source",
-                          "new:scanSettings/new:illuminationSettings/new:illuminationSource",
-                          context);
-  }
+  set_prop_from_content(osr, "leica.creation-date",
+                        "new:creationDate",
+                        context);
+  set_prop_from_content(osr, "leica.objective",
+                        "new:scanSettings/new:objectiveSettings/new:objective",
+                        context);
+  set_prop_from_content(osr, "leica.aperture",
+                        "new:scanSettings/new:illuminationSettings/new:numericalAperture",
+                        context);
+  set_prop_from_content(osr, "leica.illumination-source",
+                        "new:scanSettings/new:illuminationSettings/new:illuminationSource",
+                        context);
 
+  // process macro image
   if (macro_image != NULL) {
     context->node = macro_image;
     result = xmlXPathEvalExpression(BAD_CAST "new:pixels/new:dimension",
