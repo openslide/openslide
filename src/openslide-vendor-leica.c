@@ -196,21 +196,9 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   xmlXPathFreeObject(result);
   result = NULL;
 
-  result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection/new:barcode",
-                                  context);
-  if (result == NULL || result->nodesetval->nodeNr != 1) {
-    g_warning("Can't find barcode element");
-    goto FAIL;
-  }
-  str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-  if (osr) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup("leica.barcode"),
-                        g_strdup((char *) str));
-  }
-  xmlFree(str);
-  xmlXPathFreeObject(result);
-  result = NULL;
+  // read barcode
+  set_prop_from_content(osr, "leica.barcode",
+                        "/new:scn/new:collection/new:barcode", context);
 
   // read collection's size
   PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_X, collection_width);
