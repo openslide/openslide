@@ -42,13 +42,13 @@
 
 static const char LEICA_DESCRIPTION[] = "Leica";
 static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
-static const xmlChar LEICA_PROP_SIZE_X[] = "sizeX";
-static const xmlChar LEICA_PROP_SIZE_Y[] = "sizeY";
-static const xmlChar LEICA_PROP_IFD[] = "ifd";
+static const xmlChar LEICA_ATTR_SIZE_X[] = "sizeX";
+static const xmlChar LEICA_ATTR_SIZE_Y[] = "sizeY";
+static const xmlChar LEICA_ATTR_IFD[] = "ifd";
 
-#define PARSE_INT_PROPERTY_OR_FAIL(NODE, NAME, OUT)	\
+#define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
-    if (!parse_int_prop(NODE, NAME, &OUT))  {		\
+    if (!parse_int_attr(NODE, NAME, &OUT))  {		\
       g_warning("Property %s not found", NAME);		\
       goto FAIL;					\
     }							\
@@ -72,7 +72,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-static bool parse_int_prop(xmlNodePtr node, const xmlChar *name,
+static bool parse_int_attr(xmlNodePtr node, const xmlChar *name,
                            int64_t *out) {
   xmlChar *value = xmlGetProp(node, name);
   int64_t result;
@@ -223,8 +223,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                         "/l:scn/l:collection/l:barcode", context);
 
   // read collection's size
-  PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_X, collection_width);
-  PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_Y, collection_height);
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X, collection_width);
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y, collection_height);
 
   // get the image nodes
   context->node = collection;
@@ -246,10 +246,10 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
       goto FAIL;
     }
 
-    PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[0],
-                               LEICA_PROP_SIZE_X, test_width);
-    PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[0],
-                               LEICA_PROP_SIZE_Y, test_height);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
+                                LEICA_ATTR_SIZE_X, test_width);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
+                                LEICA_ATTR_SIZE_Y, test_height);
 
     xmlXPathFreeObject(result);
     result = NULL;
@@ -288,10 +288,10 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   for (i = 0; i < result->nodesetval->nodeNr; i++) {
     l = g_slice_new(struct level);
 
-    PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
-                               LEICA_PROP_SIZE_X, l->width);
-    PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
-			       LEICA_PROP_IFD, l->directory_number);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
+                                LEICA_ATTR_SIZE_X, l->width);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
+                                LEICA_ATTR_IFD, l->directory_number);
 
     *out_main_image_ifds = g_list_prepend(*out_main_image_ifds, l);
   }
@@ -335,12 +335,12 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     }
 
     for (i = 0; i < result->nodesetval->nodeNr; i++) {
-      PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
-                                 LEICA_PROP_SIZE_X, test_width);
-      PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
-                                 LEICA_PROP_SIZE_Y, test_height);
-      PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
-                                 LEICA_PROP_IFD, test_ifd);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
+                                  LEICA_ATTR_SIZE_X, test_width);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
+                                  LEICA_ATTR_SIZE_Y, test_height);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
+                                  LEICA_ATTR_IFD, test_ifd);
 
       if (test_width >= macro_width && test_height >= macro_height) {
         macro_width = test_width;
