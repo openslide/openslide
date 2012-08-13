@@ -466,6 +466,7 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
     _openslide_generic_tiff_tilereader,
     quickhash1);
 
+  // keep the XML document out of the properties
   if (osr) {
     g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
     g_hash_table_remove(osr->properties, "tiff.ImageDescription");
