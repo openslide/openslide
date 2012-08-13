@@ -88,12 +88,11 @@ static bool parse_int_prop(xmlNodePtr node, const xmlChar *name,
 static void add_node_content(openslide_t *osr, const char *property_name, 
                              const xmlChar *xpath,
                              xmlXPathContextPtr context) {
-  xmlXPathObjectPtr result = NULL;
-  xmlChar *str = NULL;
+  xmlXPathObjectPtr result;
 
   result = xmlXPathEvalExpression(xpath, context);
   if (result != NULL && result->nodesetval->nodeNr > 0) {
-    str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
+    xmlChar *str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
                         g_strdup((char *) str));
@@ -111,29 +110,29 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                   GList **out_main_image_ifds,
                                   int *level_count) {
   xmlDocPtr doc = NULL;
-  xmlNode *root_element = NULL;
-  xmlNode *collection = NULL;
+  xmlNode *root_element;
+  xmlNode *collection;
 
   xmlNode *main_image = NULL;
   xmlNode *macro_image = NULL;
 
-  xmlNode *image = NULL;
+  xmlNode *image;
 
-  xmlChar *str = NULL;
+  xmlChar *str;
 
   xmlXPathContextPtr context = NULL;
   xmlXPathObjectPtr images_result = NULL;
   xmlXPathObjectPtr result = NULL;
 
-  int64_t collection_width = 0;
-  int64_t collection_height = 0;
+  int64_t collection_width;
+  int64_t collection_height;
 
   int64_t macro_width = 0;
   int64_t macro_height = 0;
 
-  int64_t test_width = 0;
-  int64_t test_height = 0;
-  int64_t test_ifd = 0;
+  int64_t test_width;
+  int64_t test_height;
+  int64_t test_ifd;
 
   struct level *l = NULL;
 
@@ -399,12 +398,12 @@ static bool check_directory(TIFF *tiff, uint16 dir_num) {
 bool _openslide_try_leica(openslide_t *osr, TIFF *tiff, 
                           struct _openslide_hash *quickhash1) {
   GList *level_list = NULL;
-  int32_t level_count = 0;
+  int32_t level_count;
   int32_t *levels = NULL;
   char *tagval;
   int tiff_result;
 
-  int macroIFD = 0;  // which IFD contains the macro image
+  int macroIFD;  // which IFD contains the macro image
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL; // not tiled
