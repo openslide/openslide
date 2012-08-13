@@ -93,23 +93,25 @@ static bool parse_int_prop(xmlNodePtr node, const xmlChar *name,
   return true;
 }
 
-static void add_node_content(openslide_t *osr, const char *property_name, 
-                             const xmlChar *xpath,
-                             xmlXPathContextPtr context) {
+static void set_prop_from_content(openslide_t *osr,
+                                  const char *property_name,
+                                  const char *xpath,
+                                  xmlXPathContextPtr context) {
   xmlXPathObjectPtr result;
 
-  result = xmlXPathEvalExpression(xpath, context);
+  result = xmlXPathEvalExpression(BAD_CAST xpath, context);
   if (result != NULL && result->nodesetval->nodeNr > 0) {
     xmlChar *str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-    g_hash_table_insert(osr->properties,
-                        g_strdup(property_name),
-                        g_strdup((char *) str));
+    if (osr && str) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(property_name),
+                          g_strdup((char *) str));
+    }
     xmlFree(str);
   }
 
   if (result != NULL) {
     xmlXPathFreeObject(result);
-    result = NULL;
   }
 }
 
@@ -314,18 +316,18 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
       result = NULL;
     }
 
-    add_node_content(osr, "leica.creation-date",
-                     BAD_CAST "new:creationDate",
-                     context);
-    add_node_content(osr, "leica.objective",
-                     BAD_CAST "new:scanSettings/new:objectiveSettings/new:objective",
-                     context);
-    add_node_content(osr, "leica.aperture",
-                     BAD_CAST "new:scanSettings/new:illuminationSettings/new:numericalAperture",
-                     context);
-    add_node_content(osr, "leica.illumination-source",
-                     BAD_CAST "new:scanSettings/new:illuminationSettings/new:illuminationSource",
-                     context);
+    set_prop_from_content(osr, "leica.creation-date",
+                          "new:creationDate",
+                          context);
+    set_prop_from_content(osr, "leica.objective",
+                          "new:scanSettings/new:objectiveSettings/new:objective",
+                          context);
+    set_prop_from_content(osr, "leica.aperture",
+                          "new:scanSettings/new:illuminationSettings/new:numericalAperture",
+                          context);
+    set_prop_from_content(osr, "leica.illumination-source",
+                          "new:scanSettings/new:illuminationSettings/new:illuminationSource",
+                          context);
   }
 
   if (macro_image != NULL) {
