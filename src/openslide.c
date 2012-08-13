@@ -58,8 +58,8 @@ static bool openslide_was_dynamically_loaded;
 static void __attribute__((constructor)) _openslide_init(void) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
-  openslide_was_dynamically_loaded = true;
   xmlInitParser();
+  openslide_was_dynamically_loaded = true;
 }
 
 static void destroy_associated_image(gpointer data) {

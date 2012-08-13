@@ -47,10 +47,12 @@ static const xmlChar LEICA_PROP_IFD[] = "ifd";
 static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 
 #define PARSE_INT_PROPERTY_OR_FAIL(NODE, NAME, OUT)	\
-  if (!parse_int_prop(NODE, NAME, &OUT))  {		\
-    g_warning("Property %s not found", NAME);		\
-    goto FAIL;						\
-  }
+  do {							\
+    if (!parse_int_prop(NODE, NAME, &OUT))  {		\
+      g_warning("Property %s not found", NAME);		\
+      goto FAIL;					\
+    }							\
+  } while (0)
 
 struct level {
   int64_t directory_number;
@@ -92,11 +94,9 @@ static void add_node_content(openslide_t *osr, const char *property_name,
   result = xmlXPathEvalExpression(xpath, context);
   if (result != NULL && result->nodesetval->nodeNr > 0) {
     str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
                         g_strdup((char *) str));
-
     xmlFree(str);
   }
 
@@ -144,7 +144,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   *out_macro_ifd = -1;
   *level_count = 0;
 
-  //try to parse the xml
+  // try to parse the xml
   doc = xmlParseMemory(xml, strlen(xml));
   if (doc == NULL) {
     // not leica
@@ -157,17 +157,17 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     goto FAIL;
   }
 
-  //create XPATH context to query the document
+  // create XPATH context to query the document
   context = xmlXPathNewContext(doc);
   if (context == NULL) {
-    g_warning("Error in xmlXPathNewContext");
+    g_warning("xmlXPathNewContext failed");
     goto FAIL;
   }
 
-  //register the document's NS to a shorter name
+  // register the document's NS to a shorter name
   xmlXPathRegisterNs(context, BAD_CAST "new", root_element->ns->href);
 
-  //the recognizable structure is the following:
+  // the recognizable structure is the following:
   /*
     scn (root node)
       collection
@@ -177,9 +177,9 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   */
 
   result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection", context);
-  //the root node should only have one child, named collection, otherwise fail
+  // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
-    g_warning("Didn't expect more than one collection elements");
+    g_warning("Found multiple collection elements");
     goto FAIL;
   }
 
@@ -190,35 +190,32 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = xmlXPathEvalExpression(BAD_CAST "/new:scn/new:collection/new:barcode",
                                   context);
   if (result == NULL || result->nodesetval->nodeNr != 1) {
-    g_warning("Didn't find barcode element");
+    g_warning("Can't find barcode element");
     goto FAIL;
   }
-
   str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-
   if (osr) {
     g_hash_table_insert(osr->properties,
                         g_strdup("leica.barcode"),
                         g_strdup((char *) str));
   }
-
   xmlFree(str);
   xmlXPathFreeObject(result);
   result = NULL;
 
-  //read collection's size
+  // read collection's size
   PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_X, collection_width);
   PARSE_INT_PROPERTY_OR_FAIL(collection, LEICA_PROP_SIZE_Y, collection_height);
 
-  //get the image nodes
+  // get the image nodes
   context->node = collection;
   images_result = xmlXPathEvalExpression(BAD_CAST "new:image", context);
   if (images_result == NULL || images_result->nodesetval->nodeNr == 0) {
-    g_warning("Didn't find any images");
+    g_warning("Can't find any images");
     goto FAIL;
   }
 
-  //loop through all image nodes to find the main image and the macro
+  // loop through all image nodes to find the main image and the macro
   for (i = 0; i < images_result->nodesetval->nodeNr; i++) {
     image = images_result->nodesetval->nodeTab[i];
 
@@ -226,7 +223,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     result = xmlXPathEvalExpression(BAD_CAST "new:view", context);
 
     if (result == NULL || result->nodesetval->nodeNr != 1) {
-      g_warning("Didn't find view node");
+      g_warning("Can't find view node");
       goto FAIL;
     }
 
@@ -238,27 +235,24 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     xmlXPathFreeObject(result);
     result = NULL;
 
-    //we assume that the macro's dimensions are the same as the collection's
+    // we assume that the macro's dimensions are the same as the collection's
     if (test_width == collection_width && test_height == collection_height) {
-
-      if (macro_image != NULL){
-        g_warning("Macro image has been already assigned");
+      if (macro_image != NULL) {
+        g_warning("Found multiple macro images");
         goto FAIL;
-      } else {
-        macro_image = image;
       }
+      macro_image = image;
     } else {
-      if (main_image != NULL){
-        g_warning("Main image has been already assigned");
+      if (main_image != NULL) {
+        g_warning("Found multiple main images");
         goto FAIL;
-      } else {
-        main_image = image;
       }
+      main_image = image;
     }
   }
 
   if (main_image == NULL) {
-    g_warning("Didn't find main image node");
+    g_warning("Can't find main image node");
     goto FAIL;
   }
 
@@ -267,11 +261,11 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                   context);
 
   if (result == NULL || result->nodesetval->nodeNr == 0) {
-    g_warning("Didn't find any dimensions in the main image");
+    g_warning("Can't find any dimensions in the main image");
     goto FAIL;
   }
 
-  //add all the IFDs of the main image to the level list
+  // add all the IFDs of the main image to the level list
   for (i = 0; i < result->nodesetval->nodeNr; i++) {
     l = g_slice_new(struct level);
 
@@ -291,24 +285,20 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = NULL;
 
   if (osr != NULL) {
-    //add some more properties from the main image
+    // add some more properties from the main image
 
     result = xmlXPathEvalExpression(BAD_CAST "new:device", context);
     if (result != NULL && result->nodesetval->nodeNr > 0) {
       str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "version");
-
       g_hash_table_insert(osr->properties,
                           g_strdup("leica.device-version"),
                           g_strdup((char *) str));
-
       xmlFree(str);
 
       str = xmlGetProp(result->nodesetval->nodeTab[0], BAD_CAST "model");
-
       g_hash_table_insert(osr->properties,
                           g_strdup("leica.device-model"),
                           g_strdup((char *) str));
-
       xmlFree(str);
     }
 
@@ -337,7 +327,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                     context);
 
     if (result == NULL || result->nodesetval->nodeNr == 0) {
-      g_warning("Didn't find any dimensions in the macro image");
+      g_warning("Can't find any dimensions in the macro image");
       goto FAIL;
     }
 
@@ -414,16 +404,16 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   char *tagval;
   int tiff_result;
 
-  int macroIFD = 0;  //which IFD contains the macro image
+  int macroIFD = 0;  // which IFD contains the macro image
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL; // not tiled
   }
 
-  //get the xml description
+  // get the xml description
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
 
-  //check if it containes the literal "Leica"
+  // check if it containes the literal "Leica"
   if (!tiff_result || (strstr(tagval, LEICA_DESCRIPTION) == NULL)) {
     // not leica
     goto FAIL;
@@ -441,7 +431,7 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
                         g_strdup("leica"));
   }
 
-  //add macro image if found
+  // add macro image if found
   if (macroIFD != -1 && check_directory(tiff, macroIFD)) {
     _openslide_add_tiff_associated_image(
       osr ? osr->associated_images : NULL, "macro", tiff
