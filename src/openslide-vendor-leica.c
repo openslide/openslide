@@ -274,7 +274,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     PARSE_INT_PROPERTY_OR_FAIL(result->nodesetval->nodeTab[i],
 			       LEICA_PROP_IFD, l->directory_number);
 
-    *out_main_image_ifds = g_list_append(*out_main_image_ifds, l);
+    *out_main_image_ifds = g_list_prepend(*out_main_image_ifds, l);
   }
 
   l = NULL;
