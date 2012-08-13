@@ -82,6 +82,7 @@ AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
+PKG_CHECK_MODULES(LIBXML2, [libxml-2.0])
 
 gl_VISIBILITY
 
