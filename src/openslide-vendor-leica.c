@@ -41,10 +41,10 @@
 #include <libxml/xpathInternals.h>
 
 static const char LEICA_DESCRIPTION[] = "Leica";
+static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 static const xmlChar LEICA_PROP_SIZE_X[] = "sizeX";
 static const xmlChar LEICA_PROP_SIZE_Y[] = "sizeY";
 static const xmlChar LEICA_PROP_IFD[] = "ifd";
-static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 
 #define PARSE_INT_PROPERTY_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
@@ -152,7 +152,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   root_element = xmlDocGetRootElement(doc);
   if (xmlStrcmp(root_element->ns->href, LEICA_DESCRIPTION_XMLNS) != 0) {
-    g_warning("Unknown namespace");
+    // not leica
     goto FAIL;
   }
 
