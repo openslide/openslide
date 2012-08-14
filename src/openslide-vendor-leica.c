@@ -40,8 +40,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 
-static const char LEICA_DESCRIPTION[] = "Leica";
-static const xmlChar LEICA_DESCRIPTION_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
+static const xmlChar LEICA_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 static const xmlChar LEICA_ATTR_SIZE_X[] = "sizeX";
 static const xmlChar LEICA_ATTR_SIZE_Y[] = "sizeY";
 static const xmlChar LEICA_ATTR_IFD[] = "ifd";
@@ -183,7 +182,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   root_element = xmlDocGetRootElement(doc);
-  if (xmlStrcmp(root_element->ns->href, LEICA_DESCRIPTION_XMLNS) != 0) {
+  if (xmlStrcmp(root_element->ns->href, LEICA_XMLNS) != 0) {
     // not leica
     goto FAIL;
   }
@@ -416,8 +415,9 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   // get the xml description
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
 
-  // check if it containes the literal "Leica"
-  if (!tiff_result || (strstr(tagval, LEICA_DESCRIPTION) == NULL)) {
+  // check if it containes the XML namespace string before we invoke
+  // the parser
+  if (!tiff_result || (strstr(tagval, (const char *) LEICA_XMLNS) == NULL)) {
     // not leica
     goto FAIL;
   }
