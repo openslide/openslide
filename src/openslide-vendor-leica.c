@@ -175,7 +175,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   *level_count = 0;
 
   // try to parse the xml
-  doc = xmlParseMemory(xml, strlen(xml));
+  doc = xmlReadMemory(xml, strlen(xml), "/", NULL, XML_PARSE_NOERROR |
+                      XML_PARSE_NOWARNING | XML_PARSE_NONET);
   if (doc == NULL) {
     // not leica
     goto FAIL;
