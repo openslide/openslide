@@ -92,14 +92,28 @@ static bool parse_int_attr(xmlNodePtr node, const xmlChar *name,
   return true;
 }
 
+// returns NULL if no matches
+static xmlXPathObjectPtr eval_xpath(const char *xpath,
+                                    xmlXPathContextPtr context) {
+  xmlXPathObjectPtr result;
+
+  result = xmlXPathEvalExpression(BAD_CAST xpath, context);
+  if (result && (result->nodesetval == NULL ||
+                 result->nodesetval->nodeNr == 0)) {
+    xmlXPathFreeObject(result);
+    result = NULL;
+  }
+  return result;
+}
+
 static void set_prop_from_content(openslide_t *osr,
                                   const char *property_name,
                                   const char *xpath,
                                   xmlXPathContextPtr context) {
   xmlXPathObjectPtr result;
 
-  result = xmlXPathEvalExpression(BAD_CAST xpath, context);
-  if (result != NULL && result->nodesetval->nodeNr > 0) {
+  result = eval_xpath(xpath, context);
+  if (result) {
     xmlChar *str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
     if (osr && str) {
       g_hash_table_insert(osr->properties,
@@ -118,8 +132,8 @@ static void set_prop_from_attribute(openslide_t *osr,
                                     xmlXPathContextPtr context) {
   xmlXPathObjectPtr result;
 
-  result = xmlXPathEvalExpression(BAD_CAST xpath, context);
-  if (result != NULL && result->nodesetval->nodeNr > 0) {
+  result = eval_xpath(xpath, context);
+  if (result) {
     xmlChar *str = xmlGetProp(result->nodesetval->nodeTab[0],
                               BAD_CAST attribute_name);
     if (osr && str) {
@@ -201,7 +215,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
         image
   */
 
-  result = xmlXPathEvalExpression(BAD_CAST "/l:scn/l:collection", context);
+  result = eval_xpath("/l:scn/l:collection", context);
   // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
     g_warning("Can't find collection element");
@@ -222,8 +236,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // get the image nodes
   context->node = collection;
-  images_result = xmlXPathEvalExpression(BAD_CAST "l:image", context);
-  if (images_result == NULL || images_result->nodesetval->nodeNr == 0) {
+  images_result = eval_xpath("l:image", context);
+  if (!images_result) {
     g_warning("Can't find any images");
     goto FAIL;
   }
@@ -233,7 +247,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     image = images_result->nodesetval->nodeTab[i];
 
     context->node = image;
-    result = xmlXPathEvalExpression(BAD_CAST "l:view", context);
+    result = eval_xpath("l:view", context);
 
     if (result == NULL || result->nodesetval->nodeNr != 1) {
       g_warning("Can't find view node");
@@ -270,10 +284,9 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   context->node = main_image;
-  result = xmlXPathEvalExpression(BAD_CAST "l:pixels/l:dimension",
-                                  context);
+  result = eval_xpath("l:pixels/l:dimension", context);
 
-  if (result == NULL || result->nodesetval->nodeNr == 0) {
+  if (!result) {
     g_warning("Can't find any dimensions in the main image");
     goto FAIL;
   }
@@ -320,10 +333,9 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   // process macro image
   if (macro_image != NULL) {
     context->node = macro_image;
-    result = xmlXPathEvalExpression(BAD_CAST "l:pixels/l:dimension",
-                                    context);
+    result = eval_xpath("l:pixels/l:dimension", context);
 
-    if (result == NULL || result->nodesetval->nodeNr == 0) {
+    if (!result) {
       g_warning("Can't find any dimensions in the macro image");
       goto FAIL;
     }
