@@ -1,0 +1,4 @@
+base: Leica/Leica-1.scn
+error: "^Can't find collection element$"
+slide: Leica-1.scn
+success: false

@@ -1,0 +1,4 @@
+base: Leica/Leica-1.scn
+error: ^Found multiple macro images$
+slide: Leica-1.scn
+success: false
