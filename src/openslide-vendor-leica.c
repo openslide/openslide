@@ -49,7 +49,7 @@ static const xmlChar LEICA_ATTR_IFD[] = "ifd";
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
     if (!parse_int_attr(NODE, NAME, &OUT))  {		\
-      g_warning("Can't read property \"%s\"", NAME);	\
+      g_warning("Can't read attribute \"%s\"", NAME);	\
       goto FAIL;					\
     }							\
   } while (0)
