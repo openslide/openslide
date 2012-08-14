@@ -210,7 +210,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = xmlXPathEvalExpression(BAD_CAST "/l:scn/l:collection", context);
   // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
-    g_warning("Found multiple collection elements");
+    g_warning("Can't find collection element");
     goto FAIL;
   }
 
