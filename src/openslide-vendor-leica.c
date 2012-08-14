@@ -108,10 +108,7 @@ static void set_prop_from_content(openslide_t *osr,
     }
     xmlFree(str);
   }
-
-  if (result != NULL) {
-    xmlXPathFreeObject(result);
-  }
+  xmlXPathFreeObject(result);
 }
 
 static void set_prop_from_attribute(openslide_t *osr,
@@ -132,10 +129,7 @@ static void set_prop_from_attribute(openslide_t *osr,
     }
     xmlFree(str);
   }
-
-  if (result != NULL) {
-    xmlXPathFreeObject(result);
-  }
+  xmlXPathFreeObject(result);
 }
 
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
@@ -354,23 +348,13 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   success = true;
+
 FAIL:
-  if (l != NULL) {
-    g_slice_free(struct level, l);
-  }
+  g_slice_free(struct level, l);
 
-  if (result != NULL) {
-    xmlXPathFreeObject(result);
-  }
-
-  if (images_result != NULL) {
-    xmlXPathFreeObject(images_result);
-  }
-
-  if (context != NULL) {
-    xmlXPathFreeContext(context);
-  }
-
+  xmlXPathFreeObject(result);
+  xmlXPathFreeObject(images_result);
+  xmlXPathFreeContext(context);
   if (doc != NULL) {
     xmlFreeDoc(doc);
   }
@@ -481,9 +465,7 @@ FAIL:
     g_slice_free(struct level, i->data);
   }
 
-  if (levels != NULL) {
-    g_free(levels);
-  }
+  g_free(levels);
 
   return false;
 }
