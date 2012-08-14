@@ -90,10 +90,11 @@ def _try_open_slide(slidefile, valgrind=False):
     if valgrind:
         args = ['!!BUILDDIR!!/../libtool', '--mode=execute', 'valgrind',
                 '--quiet', '--error-exitcode=3', '--leak-check=full'] + args
-    proc = subprocess.Popen(args, stderr=subprocess.PIPE, env=env)
-    _out, err = proc.communicate()
-    if proc.returncode:
-        return err
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=env)
+    out, err = proc.communicate()
+    if proc.returncode or out or err:
+        return out + err
     else:
         return None
 
