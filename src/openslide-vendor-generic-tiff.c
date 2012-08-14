@@ -43,8 +43,8 @@ struct level {
 };
 
 static int width_compare(gconstpointer a, gconstpointer b) {
-  const struct level *la = (const struct level *) a;
-  const struct level *lb = (const struct level *) b;
+  const struct level *la = a;
+  const struct level *lb = b;
 
   if (la->width > lb->width) {
     return -1;
@@ -123,7 +123,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   // copy levels in, while deleting the list
   levels = g_new(int32_t, level_count);
   for (int i = 0; i < level_count; i++) {
-    struct level *l = (struct level *)level_list->data;
+    struct level *l = level_list->data;
     level_list = g_list_delete_link(level_list, level_list);
 
     levels[i] = l->directory;

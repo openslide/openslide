@@ -109,7 +109,7 @@ static void write_png(openslide_t *osr, FILE *f,
   // start writing
   png_write_info(png_ptr, info_ptr);
 
-  uint32_t *dest = (uint32_t *) g_malloc(w * 4);
+  uint32_t *dest = g_malloc(w * 4);
   int32_t lines_to_draw = h;
   double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;

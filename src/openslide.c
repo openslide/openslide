@@ -27,10 +27,13 @@
 #include <string.h>
 
 #include <glib.h>
+#include <libxml/parser.h>
 
 #include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 #include "openslide-cairo.h"
+
+const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2012 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
@@ -44,32 +47,23 @@ static const _openslide_vendor_fn non_tiff_formats[] = {
 static const _openslide_tiff_vendor_fn tiff_formats[] = {
   _openslide_try_trestle,
   _openslide_try_aperio,
+  _openslide_try_leica,
   _openslide_try_generic_tiff,
   NULL
 };
 
 static bool openslide_was_dynamically_loaded;
 
-#ifdef _MSC_VER
-  #pragma section(".CRT$XCU",read)
-  #define INITIALIZER(f) \
-  static void __cdecl f(void); \
-  __declspec(allocate(".CRT$XCU")) void (__cdecl*f##_)(void) = f; \
-  static void __cdecl f(void)
-#elif defined(__GNUC__)
-  #define INITIALIZER(f) \
-  static void __attribute__((constructor)) f(void)
-#endif
-
 // called from shared-library constructor!
-INITIALIZER(_openslide_init) {
+static void __attribute__((constructor)) _openslide_init(void) {
   // activate threads
   if (!g_thread_supported ()) g_thread_init (NULL);
+  xmlInitParser();
   openslide_was_dynamically_loaded = true;
 }
 
 static void destroy_associated_image(gpointer data) {
-  struct _openslide_associated_image *img = (struct _openslide_associated_image *) data;
+  struct _openslide_associated_image *img = data;
 
   if (img->destroy_ctx != NULL && img->ctx != NULL) {
     img->destroy_ctx(img->ctx);
@@ -222,9 +216,9 @@ struct add_key_to_strv_data {
 static void add_key_to_strv(gpointer key,
 			    gpointer value G_GNUC_UNUSED,
 			    gpointer user_data) {
-  struct add_key_to_strv_data *d = (struct add_key_to_strv_data *) user_data;
+  struct add_key_to_strv_data *d = user_data;
 
-  d->strv[d->i++] = (const char *) key;
+  d->strv[d->i++] = key;
 }
 
 static int cmpstring(const void *p1, const void *p2) {
@@ -632,7 +626,7 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
     return NULL;
   }
 
-  return (const char *) g_hash_table_lookup(osr->properties, name);
+  return g_hash_table_lookup(osr->properties, name);
 }
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {
@@ -652,9 +646,8 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
     return;
   }
 
-  struct _openslide_associated_image *img =
-    (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
-							      name);
+  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+								name);
   if (img) {
     *w = img->w;
     *h = img->h;
@@ -668,9 +661,8 @@ void openslide_read_associated_image(openslide_t *osr,
     return;
   }
 
-  struct _openslide_associated_image *img =
-    (struct _openslide_associated_image *) g_hash_table_lookup(osr->associated_images,
-							       name);
+  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
+								name);
   if (img) {
     // this function is documented to do nothing on failure, so we need an
     // extra memcpy

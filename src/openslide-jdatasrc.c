@@ -87,13 +87,7 @@ static void init_source (j_decompress_ptr cinfo)
  * the front of the buffer rather than discarding it.
  */
 
-static
-#ifdef HAVE_JPEG_BOOLEAN
-jpeg_boolean
-#else
-boolean
-#endif
-fill_input_buffer (j_decompress_ptr cinfo)
+static boolean fill_input_buffer (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
   size_t nbytes;
@@ -194,13 +188,13 @@ void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo, FILE * infile)
    * manager serially with the same JPEG object.  Caveat programmer.
    */
   if (cinfo->src == NULL) {	/* first time for this JPEG object? */
-    cinfo->src = (struct jpeg_source_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(my_source_mgr));
+    cinfo->src = (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo,
+                                             JPOOL_PERMANENT,
+                                             sizeof(my_source_mgr));
     src = (my_src_ptr) cinfo->src;
-    src->buffer = (JOCTET *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  INPUT_BUF_SIZE * sizeof(JOCTET));
+    src->buffer = (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo,
+                                              JPOOL_PERMANENT,
+                                              INPUT_BUF_SIZE * sizeof(JOCTET));
   }
 
   src = (my_src_ptr) cinfo->src;

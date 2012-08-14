@@ -26,18 +26,14 @@ advice.
    noticed no performance issues with it.
 
  * Make sure things build on Windows, at least with MinGW. Many users
-   of OpenSlide are on Windows. Testing builds with MSVC would be
-   great, but not as critical, since actual users can send patches for
-   that. Keep in mind the differences between ELF and COFF shared
-   libraries, they can get you. This is especially important when an
-   OpenSlide API might consume or return a structure from a DLL that
-   OpenSlide links to, in general this is unsafe on Windows.
+   of OpenSlide are on Windows. Keep in mind the differences between ELF
+   and COFF shared libraries, they can get you. This is especially
+   important when an OpenSlide API might consume or return a structure
+   from a DLL that OpenSlide links to, in general this is unsafe on Windows.
 
  * When making a release, try to carefully follow the libtool
-   and automake versioning rules. Don't forget the cmake stuff as well
-   (not as critical yet, since it's only used for MSVC). Also add a
-   changelog entry, update the website, and post to the announce
-   mailing list.
+   and automake versioning rules. Also add a changelog entry, update
+   the website, and post to the announce mailing list.
 
  * Try to follow the coding style of nearby code.
 

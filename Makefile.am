@@ -4,10 +4,6 @@ EXTRA_DIST = README.txt TODO.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt doc/Doxy
 dist-hook:
 	cd $(distdir)/doc; doxygen
 
-# cmake
-EXTRA_DIST += cmake CMakeLists.txt src/CMakeLists.txt test/CMakeLists.txt \
-	src/openslide-cmake-dll.rc.in config.h.cmake
-
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = openslide.pc
 
@@ -16,7 +12,7 @@ ACLOCAL_AMFLAGS=-I m4
 
 lib_LTLIBRARIES = src/libopenslide.la
 
-src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS)
+src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS) $(LIBXML2_LIBS)
 
 src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-cache.c src/openslide-tilehelper.c \
@@ -27,6 +23,7 @@ src_libopenslide_la_SOURCES = src/openslide.c \
 	src/openslide-ops-tiff.c \
 	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
 	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c \
+	src/openslide-vendor-leica.c \
 	src/openslide-jdatasrc.c src/openslide-tiffdump.c
 
 if WINDOWS_RESOURCES
@@ -37,9 +34,9 @@ endif
 .rc.lo:
 	$(AM_V_GEN)$(LIBTOOL) $(AM_V_lt) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --tag=RC --mode=compile $(RC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) -i "$<" -o "$@"
 
-src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
+src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(LIBXML2_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
-src_libopenslide_la_LDFLAGS = -version-info 2:6:2 -no-undefined -Wl,$(WIN32_DLL_TRICKERY)
+src_libopenslide_la_LDFLAGS = -version-info 2:6:2 -no-undefined
 
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h

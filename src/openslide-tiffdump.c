@@ -247,7 +247,7 @@ static void *read_tiff_tag_8(FILE *f,
 }
 
 static void tiffdump_item_destroy(gpointer data) {
-  struct _openslide_tiffdump_item *td = (struct _openslide_tiffdump_item *) data;
+  struct _openslide_tiffdump_item *td = data;
 
   g_free(td->value);
   g_slice_free(struct _openslide_tiffdump_item, td);
@@ -452,7 +452,7 @@ GSList *_openslide_tiffdump_create(FILE *f) {
 
 void _openslide_tiffdump_destroy(GSList *tiffdump) {
   while (tiffdump != NULL) {
-    GHashTable *ht = (GHashTable *) tiffdump->data;
+    GHashTable *ht = tiffdump->data;
     g_hash_table_unref(ht);
 
     tiffdump = g_slist_delete_link(tiffdump, tiffdump);
@@ -550,7 +550,7 @@ static int int_compare(const void *a, const void *b) {
 static void save_key(gpointer key, gpointer value G_GNUC_UNUSED,
 		     gpointer user_data) {
   int tag = *((int *) key);
-  struct hash_key_helper *h = (struct hash_key_helper *) user_data;
+  struct hash_key_helper *h = user_data;
 
   h->tags[h->i++] = tag;
 }
@@ -563,8 +563,7 @@ static void print_directory(GHashTable *dir) {
   qsort(h.tags, count, sizeof (int), int_compare);
   for (int i = 0; i < count; i++) {
     int tag = h.tags[i];
-    print_tag(tag,
-	      (struct _openslide_tiffdump_item *) g_hash_table_lookup(dir, &tag));
+    print_tag(tag, g_hash_table_lookup(dir, &tag));
   }
   g_free(h.tags);
 
@@ -577,7 +576,7 @@ void _openslide_tiffdump_print(GSList *tiffdump) {
   while (tiffdump != NULL) {
     printf("Directory %d\n", i);
 
-    print_directory((GHashTable *) tiffdump->data);
+    print_directory(tiffdump->data);
 
     i++;
     tiffdump = tiffdump->next;
@@ -600,7 +599,7 @@ uint8_t _openslide_tiffdump_get_byte(struct _openslide_tiffdump_item *item,
 
 const char *_openslide_tiffdump_get_ascii(struct _openslide_tiffdump_item *item) {
   check_assertions(item, TIFF_ASCII, 0);
-  return (const char *) item->value;
+  return item->value;
 }
 
 uint16_t _openslide_tiffdump_get_short(struct _openslide_tiffdump_item *item,
@@ -620,7 +619,7 @@ double _openslide_tiffdump_get_rational(struct _openslide_tiffdump_item *item,
   check_assertions(item, TIFF_RATIONAL, i);
 
   // convert 2 longs into rational
-  uint32_t *value = (uint32_t *) item->value;
+  uint32_t *value = item->value;
   return (double) value[i * 2] / (double) value[i * 2 + 1];
 }
 
@@ -653,7 +652,7 @@ double _openslide_tiffdump_get_srational(struct _openslide_tiffdump_item *item,
   check_assertions(item, TIFF_SRATIONAL, i);
 
   // convert 2 slongs into rational
-  uint32_t *value = (uint32_t *) item->value;
+  uint32_t *value = item->value;
   return (double) ((int32_t) value[i * 2]) /
     (double) ((int32_t) value[i * 2 + 1]);
 }

@@ -28,7 +28,7 @@
 
 // public error functions
 const char *openslide_get_error(openslide_t *osr) {
-  return (const char *) g_atomic_pointer_get(&osr->error);
+  return g_atomic_pointer_get(&osr->error);
 }
 
 // private error functions

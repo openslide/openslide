@@ -64,8 +64,7 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
 
   while(size > target) {
     // get key of last element
-    struct _openslide_cache_value *value =
-      (struct _openslide_cache_value *) g_queue_peek_tail(cache->list);
+    struct _openslide_cache_value *value = g_queue_peek_tail(cache->list);
     if (value == NULL) {
       return; // cache is empty
     }
@@ -84,7 +83,7 @@ static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
 
 // hash function helpers
 static guint hash_func(gconstpointer key) {
-  const struct _openslide_cache_key *c_key = (const struct _openslide_cache_key *) key;
+  const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
 
@@ -95,8 +94,8 @@ static guint hash_func(gconstpointer key) {
 
 static gboolean key_equal_func(gconstpointer a,
 			       gconstpointer b) {
-  const struct _openslide_cache_key *c_a = (const struct _openslide_cache_key *) a;
-  const struct _openslide_cache_key *c_b = (const struct _openslide_cache_key *) b;
+  const struct _openslide_cache_key *c_a = a;
+  const struct _openslide_cache_key *c_b = b;
 
   return (c_a->x == c_b->x) && (c_a->y == c_b->y) &&
     (c_a->level == c_b->level);
@@ -107,7 +106,7 @@ static void hash_destroy_key(gpointer data) {
 }
 
 static void hash_destroy_value(gpointer data) {
-  struct _openslide_cache_value *value = (struct _openslide_cache_value *) data;
+  struct _openslide_cache_value *value = data;
 
   // remove the item from the list
   g_queue_delete_link(value->cache->list, value->link);
@@ -187,7 +186,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 
   // don't try to put anything in the cache that cannot possibly fit
   if (size_in_bytes > cache->capacity) {
-    //g_debug("refused %p", (void *) entry);
+    //g_debug("refused %p", entry);
     return;
   }
 
@@ -219,7 +218,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   // another ref for the cache
   g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("insert %p", (void *) entry);
+  //g_debug("insert %p", entry);
 }
 
 // entry must be unreffed when the caller is done with the data
@@ -229,12 +228,11 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int32_t level,
 			   struct _openslide_cache_entry **entry) {
   // create key
-  struct _openslide_cache_key key = { x, y, level };
+  struct _openslide_cache_key key = { .x = x, .y = y, .level = level };
 
   // lookup key, maybe return NULL
-  struct _openslide_cache_value *value =
-    (struct _openslide_cache_value *) g_hash_table_lookup(cache->hashtable,
-							  &key);
+  struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
+							     &key);
   if (value == NULL) {
     *entry = NULL;
     return NULL;
@@ -248,7 +246,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   // acquire entry reference for the caller
   g_atomic_int_inc(&value->entry->refcount);
 
-  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", (void *) value->entry, x, y, level);
+  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", value->entry, x, y, level);
 
   // return data
   *entry = value->entry;
@@ -258,7 +256,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 // value unref
 // calls do not need to be serialized
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
-  //g_debug("unref %p, refs %d", (void *) entry, g_atomic_int_get(&entry->refcount));
+  //g_debug("unref %p, refs %d", entry, g_atomic_int_get(&entry->refcount));
 
   if (g_atomic_int_dec_and_test(&entry->refcount)) {
     // free the data
@@ -267,6 +265,6 @@ void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
     // free the entry
     g_slice_free(struct _openslide_cache_entry, entry);
 
-    //g_debug("free %p", (void *) entry);
+    //g_debug("free %p", entry);
   }
 }
