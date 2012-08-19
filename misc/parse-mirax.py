@@ -138,6 +138,7 @@ def assert_int32(f, value):
 
 
 def read_nonhier_record(r, datafiles, f, root_position, record):
+    r('Nonhier record', record)
     f.seek(root_position)
     # seek to record
     table_base = read_int32(f)
@@ -146,7 +147,13 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     list_head = read_int32(f)
     f.seek(list_head)
     # seek to data page
-    assert_int32(f, 0)
+    pagesize = read_int32(f)
+    if pagesize == 0x302e3130:
+        # Magic constant indicating an empty section
+        r('File', 'None')
+        return
+    else:
+        assert(pagesize == 0)
     page = read_int32(f)
     f.seek(page)
     # check pagesize
@@ -159,7 +166,6 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     position = read_int32(f)
     size = read_int32(f)
     fileno = read_int32(f)
-    r('Nonhier record', record)
     r('File', os.path.basename(datafiles[fileno]))
     r('Position', position)
     r('Length', size)
