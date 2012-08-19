@@ -166,35 +166,31 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     return (fileno, position, size)
 
 
-def read_hier_data(r, f, root_position, datafiles, levels, tiles_x):
+def read_hier_record(r, f, root_position, datafiles, record, tiles_x):
     # find start of hier table
     f.seek(root_position)
-    record_ptr = read_int32(f)
-
-    for level in range(levels):
-        rr = r.child('Level %d' % level)
-        # seek to record
-        f.seek(record_ptr)
-        # seek to list head
-        list_head = read_int32(f)
-        f.seek(list_head)
-        # get offset of first data page
-        assert_int32(f, 0)
+    # seek to record
+    table_base = read_int32(f)
+    f.seek(table_base + record * 4)
+    # seek to list head
+    list_head = read_int32(f)
+    f.seek(list_head)
+    # get offset of first data page
+    assert_int32(f, 0)
+    data_page = read_int32(f)
+    # read data pages
+    while data_page != 0:
+        f.seek(data_page)
+        entries = read_int32(f)
         data_page = read_int32(f)
-        # read data pages
-        while data_page != 0:
-            f.seek(data_page)
-            entries = read_int32(f)
-            data_page = read_int32(f)
-            for i in range(entries):
-                tile_index = read_int32(f)
-                position = read_int32(f)
-                size = read_int32(f)
-                fileno = read_int32(f)
-                rr('Tile %5d x %5d' % (tile_index % tiles_x,
-                        tile_index // tiles_x), '%s %10d + %10d' % (
-                        os.path.basename(datafiles[fileno]), position, size))
-        record_ptr += 4
+        for i in range(entries):
+            tile_index = read_int32(f)
+            position = read_int32(f)
+            size = read_int32(f)
+            fileno = read_int32(f)
+            r('Tile %5d x %5d' % (tile_index % tiles_x,
+                    tile_index // tiles_x), '%s %10d + %10d' % (
+                    os.path.basename(datafiles[fileno]), position, size))
 
 
 def read_tile_position_map(r, image_divisions, tiles_x, f, offset, len):
@@ -303,8 +299,10 @@ def dump_mirax(path, r=None):
         r('Tile positions', 'None')
 
     # Print tile locations
-    read_hier_data(r.child('Tiles'), index, hier_root, datafiles,
-            slide_zoom_layer.levels, tiles_x)
+    rr = r.child('Tiles')
+    for level in range(slide_zoom_layer.levels):
+        read_hier_record(rr.child('Level %d' % level), index, hier_root,
+                datafiles, level, tiles_x)
 
 
 if __name__ == '__main__':
