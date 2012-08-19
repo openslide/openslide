@@ -44,13 +44,18 @@ class SlidedatHierarchy(object):
     SECTION = 'HIERARCHICAL'
 
     def __init__(self, dat):
+        self._by_id = []
         self._by_name = {}
         self._next_offset = 0
 
         layers = dat.getint(self.SECTION, self.LAYER_COUNT_KEY)
         for layer_id in range(layers):
             layer = HierLayer(self, dat, layer_id)
+            self._by_id.append(layer)
             self._by_name[layer.name] = layer
+
+    def __iter__(self):
+        return iter(self._by_id)
 
     def get_layer_by_name(self, name):
         return self._by_name[name]
@@ -90,6 +95,9 @@ class HierLayer(object):
             level = HierLevel(h, dat, layer_id, level_id)
             self._by_id.append(level)
             self._by_name[level.name] = level
+
+    def __iter__(self):
+        return iter(self._by_id)
 
     def get_level_by_name(self, name):
         return self._by_name[name]
@@ -293,6 +301,14 @@ def dump_mirax(path, r=None):
     for i in range(slide_zoom_layer.levels):
         read_zoom_level(rr.child('Level %d' % i), dat,
                 slide_zoom_layer.get_level_by_id(i).section)
+
+    # Print all nonhier sections
+    rr = r.child('Nonhierarchical sections')
+    for layer in nonhier_tree:
+        rrr = rr.child(layer.name)
+        for level in layer:
+            read_nonhier_record(rrr.child(level.name), datafiles, index,
+                    nonhier_root, level.offset)
 
     # Print tile position map
     if 'index' in nonhier_offsets:
