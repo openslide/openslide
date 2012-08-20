@@ -33,7 +33,7 @@ and glib >= 2.16.
 Features
 ========
 
-The library can read Trestle, Aperio, MIRAX, and Hamamatsu formats,
+The library can read Aperio, Hamamatsu, Leica, MIRAX, and Trestle formats,
 as well as TIFF files that conform to a simple convention. (InterScope
 files tend to be readable as this generic TIFF.)
 
@@ -71,8 +71,8 @@ OpenSlide itself creates these properties (for now):
    to detect file corruption or modification.
 
  openslide.background-color
-   The background color of the slide, given as an RGB hex triplet. This property
-   is not always present.
+   The background color of the slide, given as an RGB hex triplet.
+   This property is not always present.
 
 
 Other Documentation
