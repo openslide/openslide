@@ -426,6 +426,7 @@ static const struct _openslide_ops _openslide_tiff_ops = {
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
+			     int32_t property_dir,
 			     int32_t overlap_count,
 			     int32_t *overlaps,
 			     int32_t level_count,
@@ -459,7 +460,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   }
 
   // load TIFF properties
-  TIFFSetDirectory(data->tiff, 0);    // ignoring return value, but nothing we can do if failed
+  TIFFSetDirectory(data->tiff, property_dir);    // ignoring return value, but nothing we can do if failed
   store_and_hash_properties(data->tiff, osr->properties, quickhash1);
 
   // store tiff-specific data into osr

@@ -457,13 +457,15 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   g_assert(level_list == NULL);
 
   // all set, load up the TIFF-specific ops
-  _openslide_add_tiff_ops(osr, tiff,
+  g_assert(level_count > 0);
+  _openslide_add_tiff_ops(osr, tiff, levels[0],
     0, NULL,
     level_count, levels,
     _openslide_generic_tiff_tilereader,
     quickhash1);
 
   // keep the XML document out of the properties
+  // (in case pyramid level 0 is also directory 0)
   if (osr) {
     g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
     g_hash_table_remove(osr->properties, "tiff.ImageDescription");
