@@ -478,15 +478,18 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     int32_t tileno,
 				     int32_t scale_denom,
 				     int w, int h) {
+  GError *tmp_err = NULL;
+
   g_assert(jpeg->filename);
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
   // open file
-  FILE *f = _openslide_fopen(jpeg->filename, "rb");
+  FILE *f = _openslide_fopen(jpeg->filename, "rb", &tmp_err);
   if (f == NULL) {
     // fail
-    _openslide_set_error(osr, "Can't open %s", jpeg->filename);
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
     memset(dest, 0, w * h * 4);
     return dest;
   }
@@ -921,7 +924,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     if (current_mcu_start > 0) {
       int64_t offset = oj->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
-      FILE *f = _openslide_fopen(oj->filename, "rb");
+      FILE *f = _openslide_fopen(oj->filename, "rb", NULL);
       g_assert(f);
       fseeko(f, offset - 2, SEEK_SET);
       g_assert(getc(f) == 0xFF);
@@ -947,6 +950,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_mcu_start = 0;
 
   FILE *current_file = NULL;
+
+  GError *tmp_err = NULL;
 
   while(current_jpeg < data->jpeg_count) {
     g_mutex_lock(data->restart_marker_cond_mutex);
@@ -1004,9 +1009,10 @@ static gpointer restart_marker_thread_func(gpointer d) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
     if (oj->filename) {
       if (current_file == NULL) {
-	current_file = _openslide_fopen(oj->filename, "rb");
+	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
-	  _openslide_set_error(osr, "Can't open %s", oj->filename);
+	  _openslide_set_error_from_gerror(osr, tmp_err);
+	  g_clear_error(&tmp_err);
 	  goto LOCKED_FAIL;
 	}
       }
@@ -1334,14 +1340,16 @@ static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
   struct _openslide_jpeg_error_mgr jerr;
   FILE *f;
   jmp_buf env;
+  GError *tmp_err = NULL;
 
   // g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, ctx->filename,
   //         ctx->offset);
 
   // open file
-  f = _openslide_fopen(ctx->filename, "rb");
+  f = _openslide_fopen(ctx->filename, "rb", &tmp_err);
   if (f == NULL) {
-    _openslide_set_error(osr, "Cannot open file %s", ctx->filename);
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
     return;
   }
   if (ctx->offset && fseeko(f, ctx->offset, SEEK_SET) == -1) {
@@ -1445,7 +1453,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
   jmp_buf env;
 
   // open file
-  f = _openslide_fopen(filename, "rb");
+  f = _openslide_fopen(filename, "rb", NULL);
   if (f == NULL) {
     return false;
   }

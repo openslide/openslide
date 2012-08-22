@@ -232,6 +232,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpeg_cols,
 				FILE *optimisation_file) {
   bool success = false;
+  GError *tmp_err = NULL;
 
   // initialize individual jpeg structs
   struct _openslide_jpeg_file **jpegs = g_new0(struct _openslide_jpeg_file *,
@@ -263,8 +264,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(jp->filename, "rb")) == NULL) {
-      g_warning("Can't open JPEG %d", i);
+    if ((f = _openslide_fopen(jp->filename, "rb", &tmp_err)) == NULL) {
+      g_warning("Can't open JPEG %d: %s", i, tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
 
@@ -461,6 +463,7 @@ static int32_t read_le_int32_from_file(FILE *f) {
 static bool hamamatsu_vmu_part2(openslide_t *osr,
 				int num_files, char **image_filenames) {
   bool success = false;
+  GError *tmp_err = NULL;
 
   // initialize individual ngr structs
   struct _openslide_ngr **files = g_new0(struct _openslide_ngr *,
@@ -476,8 +479,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     ngr->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(ngr->filename, "rb")) == NULL) {
-      g_warning("Can't open NGR file");
+    if ((f = _openslide_fopen(ngr->filename, "rb", &tmp_err)) == NULL) {
+      _openslide_demote_error(&tmp_err);
       goto DONE;
     }
 
@@ -761,7 +764,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       char *optimisation_filename = g_build_filename(dirname, tmp, NULL);
       g_free(tmp);
 
-      optimisation_file = _openslide_fopen(optimisation_filename, "rb");
+      optimisation_file = _openslide_fopen(optimisation_filename, "rb", NULL);
 
       if (optimisation_file == NULL) {
 	// g_debug("Can't open optimisation file");
@@ -822,7 +825,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 				   struct _openslide_hash *quickhash1) {
-  FILE *f = _openslide_fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb", NULL);
   if (!f) {
     return false;
   }

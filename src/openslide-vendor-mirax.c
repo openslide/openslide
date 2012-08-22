@@ -597,12 +597,14 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 static int32_t *read_slide_position_file(const char *dirname, const char *name,
 					 int64_t size, int64_t offset,
 					 int level_0_tile_concat) {
+  GError *tmp_err = NULL;
   char *tmp = g_build_filename(dirname, name, NULL);
-  FILE *f = _openslide_fopen(tmp, "rb");
+  FILE *f = _openslide_fopen(tmp, "rb", &tmp_err);
   g_free(tmp);
 
   if (!f) {
-    g_warning("Cannot open slide position file");
+    g_warning("Cannot open slide position file: %s", tmp_err->message);
+    g_clear_error(&tmp_err);
     return NULL;
   }
 
@@ -1312,12 +1314,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
-  indexfile = _openslide_fopen(tmp, "rb");
+  indexfile = _openslide_fopen(tmp, "rb", &tmp_err);
   g_free(tmp);
   tmp = NULL;
 
   if (!indexfile) {
-    g_warning("Cannot open index file");
+    _openslide_demote_error(&tmp_err);
     goto FAIL;
   }
 

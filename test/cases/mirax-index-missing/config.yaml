@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Cannot open index file$
+error: "^Couldn't open .*Index.dat: No such file or directory$"
 slide: CMU-1.mrxs
 success: false

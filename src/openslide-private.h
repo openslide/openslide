@@ -141,7 +141,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
                                   GKeyFileFlags flags, GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
-FILE *_openslide_fopen(const char *path, const char *mode);
+FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
