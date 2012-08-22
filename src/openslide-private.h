@@ -251,7 +251,7 @@ struct _openslide_jpeg_error_mgr {
   jmp_buf *env;
 };
 
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env);
 
 // Hamamatsu NGR

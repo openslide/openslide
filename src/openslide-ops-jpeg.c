@@ -1291,13 +1291,13 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
 
 static void my_error_exit(j_common_ptr cinfo) {
-  struct _openslide_jpeg_error_mgr *err =
+  struct _openslide_jpeg_error_mgr *jerr =
     (struct _openslide_jpeg_error_mgr *) cinfo->err;
 
-  (err->pub.output_message) (cinfo);
+  (jerr->pub.output_message) (cinfo);
 
   //  g_debug("JUMP");
-  longjmp(*(err->env), 1);
+  longjmp(*(jerr->env), 1);
 }
 
 static void my_output_message(j_common_ptr cinfo) {
@@ -1315,15 +1315,15 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env) {
-  jpeg_std_error(&(err->pub));
-  err->pub.error_exit = my_error_exit;
-  err->pub.output_message = my_output_message;
-  err->pub.emit_message = my_emit_message;
-  err->env = env;
+  jpeg_std_error(&(jerr->pub));
+  jerr->pub.error_exit = my_error_exit;
+  jerr->pub.output_message = my_output_message;
+  jerr->pub.emit_message = my_emit_message;
+  jerr->env = env;
 
-  return (struct jpeg_error_mgr *) err;
+  return (struct jpeg_error_mgr *) jerr;
 }
 
 GHashTable *_openslide_jpeg_create_tiles_table(void) {
