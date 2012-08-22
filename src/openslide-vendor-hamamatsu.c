@@ -57,7 +57,7 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 // returns w and h and tw and th and comment as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th,
-			char **comment) {
+			char **comment, GError **err) {
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -87,15 +87,18 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if (header_result != JPEG_HEADER_OK
         && header_result != JPEG_HEADER_TABLES_ONLY) {
-      g_warning("Couldn't read JPEG header");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG header");
       goto DONE;
     }
     if (cinfo.num_components != 3) {
-      g_warning("JPEG color components != 3");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "JPEG color components != 3");
       goto DONE;
     }
     if (cinfo.restart_interval == 0) {
-      g_warning("No restart markers");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "No restart markers");
       goto DONE;
     }
 
@@ -117,7 +120,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     *h = cinfo.output_height;
 
     if (cinfo.restart_interval > cinfo.MCUs_per_row) {
-      g_warning("Restart interval greater than MCUs per row");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Restart interval greater than MCUs per row");
       goto DONE;
     }
 
@@ -125,7 +129,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     *th = *h / cinfo.MCU_rows_in_scan;
     int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
     if (leftover_mcus != 0) {
-      g_warning("Inconsistent restart marker spacing within row");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Inconsistent restart marker spacing within row");
       goto DONE;
     }
 
@@ -139,7 +144,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     //	 leftover_mcus);
   } else {
     // setjmp has returned again
-    _openslide_demote_error(&jerr.err);
+    g_propagate_error(err, jerr.err);
     goto DONE;
   }
 
@@ -278,8 +283,10 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr)) {
-      g_warning("Can't verify JPEG %d", i);
+    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr,
+                     &tmp_err)) {
+      g_warning("Can't verify JPEG %d: %s", i, tmp_err->message);
+      g_clear_error(&tmp_err);
       fclose(f);
       goto DONE;
     }
