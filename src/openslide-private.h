@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -271,11 +271,13 @@ void _openslide_add_ngr_ops(openslide_t *osr,
 			    struct _openslide_ngr **ngrs);
 
 
-// error handling
+// external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 						      cairo_t *cr);
 
+// internal error propagation
+void _openslide_io_error(GError **err, const char *fmt, ...);
 
 // background color helper
 void _openslide_set_background_color_property(GHashTable *ht,

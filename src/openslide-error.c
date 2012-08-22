@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 
 #include <glib.h>
 #include <stdarg.h>
+#include <errno.h>
 
 // public error functions
 const char *openslide_get_error(openslide_t *osr) {
@@ -62,4 +63,17 @@ bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr, cairo_t 
   // cairo has error, let's set our error from it
   return _openslide_set_error(osr, "cairo error: %s",
 			      cairo_status_to_string(status));
+}
+
+// internal error propagation
+void _openslide_io_error(GError **err, const char *fmt, ...) {
+  int my_errno = errno;
+  va_list ap;
+
+  va_start(ap, fmt);
+  char *msg = g_strdup_vprintf(fmt, ap);
+  g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(my_errno),
+              "%s: %s", msg, g_strerror(my_errno));
+  g_free(msg);
+  va_end(ap);
 }

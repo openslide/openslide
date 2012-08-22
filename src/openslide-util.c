@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <glib.h>
-#include <errno.h>
 
 #ifdef HAVE_FCNTL
 #include <unistd.h>
@@ -72,8 +71,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 
   f = _openslide_fopen(filename, "rb");
   if (f == NULL) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Couldn't open key file %s: %s", filename, g_strerror(errno));
+    _openslide_io_error(error, "Couldn't open key file %s", filename);
     return false;
   }
 
@@ -94,16 +92,14 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   if (ferror(f)) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Couldn't read key file %s: %s", filename, g_strerror(errno));
+    _openslide_io_error(error, "Couldn't read key file %s", filename);
     g_free(buf);
     fclose(f);
     return false;
   }
 
   if (fclose(f)) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Failed closing key file %s: %s", filename, g_strerror(errno));
+    _openslide_io_error(error, "Failed closing key file %s", filename);
     g_free(buf);
     return false;
   }
