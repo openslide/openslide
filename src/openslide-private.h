@@ -236,7 +236,8 @@ GHashTable *_openslide_jpeg_create_tiles_table(void);
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  const char *filename,
-					  int64_t offset);
+					  int64_t offset,
+					  GError **err);
 
 /*
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.

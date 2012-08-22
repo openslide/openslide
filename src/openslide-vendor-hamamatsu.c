@@ -561,6 +561,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   int num_layers = -1;
 
+  GError *tmp_err = NULL;
+
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, G_KEY_FILE_NONE, NULL)) {
@@ -750,12 +752,14 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
     bool result = _openslide_add_jpeg_associated_image(osr ? osr->associated_images : NULL,
                                                        "macro",
-                                                        macro_filename, 0);
+                                                       macro_filename, 0,
+                                                       &tmp_err);
     g_free(macro_filename);
     g_free(tmp);
 
     if (!result) {
-      g_warning("Could not find macro image");
+      g_warning("Could not read macro image: %s", tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
   }

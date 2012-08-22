@@ -647,10 +647,12 @@ static bool add_associated_image(const char *dirname,
 				 const char *filename,
 				 int64_t offset,
 				 GHashTable *ht,
-				 const char *name) {
+				 const char *name,
+				 GError **err) {
   char *tmp = g_build_filename(dirname, filename, NULL);
 
-  bool result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset);
+  bool result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset,
+                                                     err);
 
   g_free(tmp);
   return result;
@@ -693,6 +695,7 @@ static bool process_indexfile(const char *uuid,
 
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
+  GError *tmp_err = NULL;
 
   int32_t *slide_positions = NULL;
   GList *jpegs_list = NULL;
@@ -784,8 +787,10 @@ static bool process_indexfile(const char *uuid,
 			      datafile_names[tmp_fileno],
 			      tmp_offset,
 			      associated_images,
-			      "macro")) {
-      g_warning("Cannot read macro associated image");
+			      "macro",
+			      &tmp_err)) {
+      g_warning("Cannot read macro associated image: %s", tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
   }
@@ -799,8 +804,10 @@ static bool process_indexfile(const char *uuid,
 			      datafile_names[tmp_fileno],
 			      tmp_offset,
 			      associated_images,
-			      "label")) {
-      g_warning("Cannot read label associated image");
+			      "label",
+			      &tmp_err)) {
+      g_warning("Cannot read label associated image: %s", tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
   }
@@ -814,8 +821,10 @@ static bool process_indexfile(const char *uuid,
 			      datafile_names[tmp_fileno],
 			      tmp_offset,
 			      associated_images,
-			      "thumbnail")) {
-      g_warning("Cannot read thumbnail associated image");
+			      "thumbnail",
+			      &tmp_err)) {
+      g_warning("Cannot read thumbnail associated image: %s", tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
   }

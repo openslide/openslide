@@ -1456,7 +1456,8 @@ static void jpeg_destroy_associated_image_ctx(void *_ctx) {
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  const char *filename,
-					  int64_t offset) {
+					  int64_t offset,
+					  GError **err) {
   bool result = false;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
@@ -1464,12 +1465,12 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
   jmp_buf env;
 
   // open file
-  f = _openslide_fopen(filename, "rb", NULL);
+  f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
     return false;
   }
   if (offset && fseeko(f, offset, SEEK_SET) == -1) {
-    g_warning("Cannot seek to offset");
+    _openslide_io_error(err, "Cannot seek to offset");
     fclose(f);
     return false;
   }
@@ -1484,6 +1485,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG header");
       goto DONE;
     }
 
@@ -1509,7 +1512,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     result = true;
   } else {
     // setjmp returned again
-    g_clear_error(&jerr.err);
+    g_propagate_error(err, jerr.err);
   }
 
 DONE:
