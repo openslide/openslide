@@ -249,6 +249,7 @@ struct _openslide_jpeg_error_mgr {
   struct jpeg_error_mgr pub;      // public fields
 
   jmp_buf *env;
+  GError *err;
 };
 
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,

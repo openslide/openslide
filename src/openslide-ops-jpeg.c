@@ -399,7 +399,9 @@ static void compute_mcu_start(openslide_t *osr,
       jpeg_start_decompress(&cinfo);
     } else {
       // setjmp returns again
-      _openslide_set_error(osr, "Error initializing JPEG");
+      _openslide_set_error(osr, "Error initializing JPEG: %s",
+                           jerr.err->message);
+      g_clear_error(&jerr.err);
     }
 
     // set the first entry
@@ -590,7 +592,9 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
     }
   } else {
     // setjmp returns again
-    _openslide_set_error(osr, "JPEG decompression failed");
+    _openslide_set_error(osr, "JPEG decompression failed: %s",
+                         jerr.err->message);
+    g_clear_error(&jerr.err);
   }
 
   // free buffers
@@ -1301,11 +1305,14 @@ static void my_error_exit(j_common_ptr cinfo) {
 }
 
 static void my_output_message(j_common_ptr cinfo) {
+  struct _openslide_jpeg_error_mgr *jerr =
+    (struct _openslide_jpeg_error_mgr *) cinfo->err;
   char buffer[JMSG_LENGTH_MAX];
 
   (*cinfo->err->format_message) (cinfo, buffer);
 
-  g_critical("%s", buffer);
+  g_set_error(&jerr->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+              "%s", buffer);
 }
 
 static void my_emit_message(j_common_ptr cinfo, int msg_level) {
@@ -1315,6 +1322,7 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
+// jerr->err will be set when setjmp returns again
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env) {
   jpeg_std_error(&(jerr->pub));
@@ -1322,6 +1330,7 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
   jerr->pub.output_message = my_output_message;
   jerr->pub.emit_message = my_emit_message;
   jerr->env = env;
+  jerr->err = NULL;
 
   return (struct jpeg_error_mgr *) jerr;
 }
@@ -1419,7 +1428,9 @@ static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
     }
   } else {
     // setjmp has returned again
-    _openslide_set_error(osr, "Cannot read associated image");
+    _openslide_set_error(osr, "Cannot read associated image: %s",
+                         jerr.err->message);
+    g_clear_error(&jerr.err);
   }
 
 DONE:
@@ -1496,6 +1507,9 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     }
 
     result = true;
+  } else {
+    // setjmp returned again
+    g_clear_error(&jerr.err);
   }
 
 DONE:
