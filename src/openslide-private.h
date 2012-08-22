@@ -277,7 +277,16 @@ bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 						      cairo_t *cr);
 
 // internal error propagation
+enum OpenSlideError {
+  OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+  OPENSLIDE_ERROR_BAD_DATA,
+};
+#define OPENSLIDE_ERROR _openslide_error_quark()
+GQuark _openslide_error_quark(void);
+
 void _openslide_io_error(GError **err, const char *fmt, ...);
+void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
+bool _openslide_demote_error(GError **err);
 
 // background color helper
 void _openslide_set_background_color_property(GHashTable *ht,
