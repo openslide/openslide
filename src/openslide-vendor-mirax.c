@@ -88,10 +88,10 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
 
 #define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE, FAIL_MSG)	\
   do {									\
-    GError *err = NULL;							\
-    TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, &err);	\
-    if (err != NULL) {							\
-      g_warning(FAIL_MSG); g_error_free(err); goto FAIL;		\
+    GError *tmp_err = NULL;						\
+    TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, &tmp_err);	\
+    if (tmp_err != NULL) {						\
+      g_warning(FAIL_MSG); g_clear_error(&tmp_err); goto FAIL;		\
     }									\
   } while(0)
 
@@ -1024,7 +1024,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char *dirname = NULL;
 
   GKeyFile *slidedat = NULL;
-  GError *err = NULL;
+  GError *tmp_err = NULL;
 
   bool success = false;
   char *tmp = NULL;
@@ -1113,11 +1113,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   image_divisions = g_key_file_get_integer(slidedat, GROUP_GENERAL,
 					   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE,
-					   &err);
-  if (err != NULL) {
+					   &tmp_err);
+  if (tmp_err != NULL) {
     image_divisions = 1;
-    g_error_free(err);
-    err = NULL;
+    g_clear_error(&tmp_err);
   }
 
   // ensure positive values

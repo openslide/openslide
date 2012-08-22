@@ -47,7 +47,7 @@ void _openslide_int64_free(gpointer data) {
 }
 
 gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                                  GKeyFileFlags flags, GError **error)
+                                  GKeyFileFlags flags, GError **err)
 {
   FILE *f;
   gchar *buf;
@@ -71,7 +71,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 
   f = _openslide_fopen(filename, "rb");
   if (f == NULL) {
-    _openslide_io_error(error, "Couldn't open key file %s", filename);
+    _openslide_io_error(err, "Couldn't open key file %s", filename);
     return false;
   }
 
@@ -80,7 +80,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     len += cur_len;
     if (len == alloc_len) {
       if (alloc_len >= (1 << 20)) {
-        g_set_error(error, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
+        g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                     "Key file %s too large", filename);
         g_free(buf);
         fclose(f);
@@ -92,14 +92,14 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   if (ferror(f)) {
-    _openslide_io_error(error, "Couldn't read key file %s", filename);
+    _openslide_io_error(err, "Couldn't read key file %s", filename);
     g_free(buf);
     fclose(f);
     return false;
   }
 
   if (fclose(f)) {
-    _openslide_io_error(error, "Failed closing key file %s", filename);
+    _openslide_io_error(err, "Failed closing key file %s", filename);
     g_free(buf);
     return false;
   }
@@ -110,7 +110,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   result = g_key_file_load_from_data(key_file, buf + offset, len - offset,
-                                     flags, error);
+                                     flags, err);
   g_free(buf);
   return result;
 }
