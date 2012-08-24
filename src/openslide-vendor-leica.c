@@ -434,7 +434,7 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   // add macro image if found
   if (macroIFD != -1 && check_directory(tiff, macroIFD)) {
     _openslide_add_tiff_associated_image(
-      osr ? osr->associated_images : NULL, "macro", tiff
+      osr ? osr->associated_images : NULL, "macro", tiff, NULL
     );
   }
 

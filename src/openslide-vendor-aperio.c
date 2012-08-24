@@ -243,10 +243,10 @@ static void add_properties(GHashTable *ht, char **props) {
 }
 
 // add the image from the current TIFF directory
-// returns false if fatal error
+// returns false and sets GError if fatal error
 // true does not necessarily imply an image was added
 static bool add_associated_image(GHashTable *ht, const char *name_if_available,
-				 TIFF *tiff) {
+				 TIFF *tiff, GError **err) {
   char *name = NULL;
   if (name_if_available) {
     name = g_strdup(name_if_available);
@@ -281,7 +281,7 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
     return true;
   }
 
-  bool result = _openslide_add_tiff_associated_image(ht, name, tiff);
+  bool result = _openslide_add_tiff_associated_image(ht, name, tiff, err);
   g_free(name);
   return result;
 }
@@ -292,6 +292,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   int32_t level_count = 0;
   int32_t *levels = NULL;
   int32_t i = 0;
+  GError *tmp_err = NULL;
 
   if (!TIFFIsTiled(tiff)) {
     goto FAIL;
@@ -344,8 +345,10 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
     } else {
       // associated image
       const char *name = (i == 1) ? "thumbnail" : NULL;
-      if (!add_associated_image(osr ? osr->associated_images : NULL, name, tiff)) {
-	g_warning("Can't read associated image");
+      if (!add_associated_image(osr ? osr->associated_images : NULL,
+                                name, tiff, &tmp_err)) {
+	g_warning("Can't read associated image: %s", tmp_err->message);
+	g_clear_error(&tmp_err);
 	goto FAIL;
       }
       //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));

@@ -169,7 +169,8 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
 
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
-					  TIFF *tiff);
+					  TIFF *tiff,
+					  GError **err);
 
 /* JPEG support */
 struct _openslide_jpeg_file {

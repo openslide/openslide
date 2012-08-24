@@ -557,18 +557,21 @@ static void tiff_destroy_associated_image_ctx(void *_ctx) {
 
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
-					  TIFF *tiff) {
+					  TIFF *tiff,
+					  GError **err) {
   uint32_t tmp;
 
   // get the dimensions
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
-    g_warning("Cannot get associated image width");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get associated image width");
     return false;
   }
   int64_t w = tmp;
 
   if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
-    g_warning("Cannot get associated image height");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get associated image height");
     return false;
   }
   int64_t h = tmp;
