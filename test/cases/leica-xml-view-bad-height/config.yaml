@@ -1,4 +1,4 @@
 base: Leica/Leica-1.scn
-error: "^Can't read attribute \"sizeY\"$"
+error: "^No integer attribute \"sizeY\"$"
 slide: Leica-1.scn
 success: false
