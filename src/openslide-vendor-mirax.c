@@ -91,21 +91,37 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
     GError *tmp_err = NULL;						\
     TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, &tmp_err);	\
     if (tmp_err != NULL) {						\
-      g_warning(FAIL_MSG); g_clear_error(&tmp_err); goto FAIL;		\
+      g_clear_error(&tmp_err);						\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  FAIL_MSG);						\
+      goto FAIL;							\
+    }									\
+  } while(0)
+
+#define HAVE_GROUP_OR_FAIL(KEYFILE, GROUP)				\
+  do {									\
+    if (!g_key_file_has_group(slidedat, GROUP)) {			\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  "Can't find %s group", GROUP);			\
+      goto FAIL;							\
     }									\
   } while(0)
 
 #define POSITIVE_OR_FAIL(N)					\
   do {								\
     if (N <= 0) {						\
-      g_warning(#N " <= 0: %d", N); goto FAIL;			\
+      g_set_error(err, OPENSLIDE_ERROR,				\
+                  OPENSLIDE_ERROR_BAD_DATA, #N " <= 0: %d", N);	\
+      goto FAIL;						\
     }								\
   } while(0)
 
 #define NON_NEGATIVE_OR_FAIL(N)					\
   do {								\
     if (N < 0) {						\
-      g_warning(#N " < 0: %d", N); goto FAIL;			\
+      g_set_error(err, OPENSLIDE_ERROR,				\
+                  OPENSLIDE_ERROR_BAD_DATA, #N " < 0: %d", N);	\
+      goto FAIL;						\
     }								\
   } while(0)
 
@@ -1027,7 +1043,8 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 }
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
-			  struct _openslide_hash *quickhash1) {
+			  struct _openslide_hash *quickhash1,
+			  GError **err) {
   struct _openslide_jpeg_file **jpegs = NULL;
   int num_jpegs = 0;
   struct _openslide_jpeg_level **levels = NULL;
@@ -1080,6 +1097,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // verify filename
   if (!g_str_has_suffix(filename, MRXS_EXT) ||
       !g_file_test(filename, G_FILE_TEST_EXISTS)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a MIRAX slide");
     goto FAIL;
   }
 
@@ -1090,13 +1109,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
   // hash the slidedat
   if (!_openslide_hash_file(quickhash1, tmp)) {
-    g_warning("Can't hash Slidedat file");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't hash Slidedat file");
     goto FAIL;
   }
 
   slidedat = g_key_file_new();
-  if (!_openslide_read_key_file(slidedat, tmp, G_KEY_FILE_NONE, NULL)) {
-    g_warning("Can't load Slidedat.ini file");
+  if (!_openslide_read_key_file(slidedat, tmp, G_KEY_FILE_NONE, err)) {
+    g_prefix_error(err, "Can't load Slidedat.ini file: ");
     goto FAIL;
   }
   g_free(tmp);
@@ -1108,10 +1128,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // load general stuff
-  if (!g_key_file_has_group(slidedat, GROUP_GENERAL)) {
-    g_warning("Can't find %s group", GROUP_GENERAL);
-    goto FAIL;
-  }
+  HAVE_GROUP_OR_FAIL(slidedat, GROUP_GENERAL);
 
   READ_KEY_OR_FAIL(slide_version, slidedat, GROUP_GENERAL,
 		   KEY_SLIDE_VERSION, value, "Can't read slide version");
@@ -1136,10 +1153,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   POSITIVE_OR_FAIL(image_divisions);
 
   // load hierarchical stuff
-  if (!g_key_file_has_group(slidedat, GROUP_HIERARCHICAL)) {
-    g_warning("Can't find %s group", GROUP_HIERARCHICAL);
-    goto FAIL;
-  }
+  HAVE_GROUP_OR_FAIL(slidedat, GROUP_HIERARCHICAL);
 
   READ_KEY_OR_FAIL(hier_count, slidedat, GROUP_HIERARCHICAL,
 		   KEY_HIER_COUNT, integer, "Can't read hier count");
@@ -1157,7 +1171,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_free(key);
 
     if (!value) {
-      g_warning("Can't read value for hier name");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read value for hier name");
       goto FAIL;
     }
 
@@ -1172,13 +1187,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   if (slide_zoom_level_value == -1) {
-    g_warning("Can't find slide zoom level");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find slide zoom level");
     goto FAIL;
   }
 
   // TODO allow slide_zoom_level_value to be at another hierarchy value
   if (slide_zoom_level_value != 0) {
-    g_warning("Slide zoom level not HIER_0");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Slide zoom level not HIER_0");
     goto FAIL;
   }
 
@@ -1201,10 +1218,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // load datafile stuff
-  if (!g_key_file_has_group(slidedat, GROUP_DATAFILE)) {
-    g_warning("Can't find %s group", GROUP_DATAFILE);
-    goto FAIL;
-  }
+  HAVE_GROUP_OR_FAIL(slidedat, GROUP_DATAFILE);
 
   READ_KEY_OR_FAIL(datafile_count, slidedat, GROUP_DATAFILE,
 		   KEY_FILE_COUNT, integer, "Can't read datafile count");
@@ -1229,10 +1243,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     int bgr;
 
     char *group = slide_zoom_level_section_names[i];
-    if (!g_key_file_has_group(slidedat, group)) {
-      g_warning("Can't find %s group", group);
-      goto FAIL;
-    }
+    HAVE_GROUP_OR_FAIL(slidedat, group);
 
     READ_KEY_OR_FAIL(hs->concat_exponent, slidedat, group,
 		     KEY_IMAGE_CONCAT_FACTOR,
@@ -1266,7 +1277,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     READ_KEY_OR_FAIL(tmp, slidedat, group, KEY_IMAGE_FORMAT,
 		     value, "Can't read image format");
     if (strcmp(tmp, "JPEG") != 0) {
-      g_warning("Level %d not JPEG", i);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Level %d not JPEG", i);
       goto FAIL;
     }
     g_free(tmp);
@@ -1323,12 +1335,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
-  indexfile = _openslide_fopen(tmp, "rb", &tmp_err);
+  indexfile = _openslide_fopen(tmp, "rb", err);
   g_free(tmp);
   tmp = NULL;
 
   if (!indexfile) {
-    _openslide_demote_error(&tmp_err);
     goto FAIL;
   }
 

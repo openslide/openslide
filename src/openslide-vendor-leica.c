@@ -396,7 +396,8 @@ static bool check_directory(TIFF *tiff, uint16 dir_num) {
 }
 
 bool _openslide_try_leica(openslide_t *osr, TIFF *tiff, 
-                          struct _openslide_hash *quickhash1) {
+                          struct _openslide_hash *quickhash1,
+                          GError **err) {
   GList *level_list = NULL;
   int32_t level_count;
   int32_t *levels = NULL;
@@ -406,7 +407,9 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   int macroIFD;  // which IFD contains the macro image
 
   if (!TIFFIsTiled(tiff)) {
-    goto FAIL; // not tiled
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    goto FAIL;
   }
 
   // get the xml description
@@ -415,7 +418,8 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   // check if it containes the XML namespace string before we invoke
   // the parser
   if (!tiff_result || (strstr(tagval, (const char *) LEICA_XMLNS) == NULL)) {
-    // not leica
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Leica slide");
     goto FAIL;
   }
 

@@ -143,12 +143,26 @@ static void free_quickhash1_if_failed(bool result,
 static bool try_format(openslide_t *osr, const char *filename,
 		       struct _openslide_hash **quickhash1_OUT,
 		       const _openslide_vendor_fn *format_check) {
+  GError *tmp_err = NULL;
+
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
-  bool result = (*format_check)(osr, filename, quickhash1_OUT ? *quickhash1_OUT : NULL);
+  bool result = (*format_check)(osr, filename,
+                                quickhash1_OUT ? *quickhash1_OUT : NULL,
+                                &tmp_err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
+  // callee may violate GError rules: we don't assume !result implies
+  // tmp_err != NULL
+  if (tmp_err) {
+    if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                        OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
+      g_clear_error(&tmp_err);
+    } else {
+      _openslide_demote_error(&tmp_err);
+    }
+  }
 
   return result;
 }
@@ -156,13 +170,27 @@ static bool try_format(openslide_t *osr, const char *filename,
 static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash **quickhash1_OUT,
 			    const _openslide_tiff_vendor_fn *format_check) {
+  GError *tmp_err = NULL;
+
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);
-  bool result = (*format_check)(osr, tiff, quickhash1_OUT ? *quickhash1_OUT : NULL);
+  bool result = (*format_check)(osr, tiff,
+                                quickhash1_OUT ? *quickhash1_OUT : NULL,
+                                &tmp_err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
+  // callee may violate GError rules: we don't assume !result implies
+  // tmp_err != NULL
+  if (tmp_err) {
+    if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                        OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
+      g_clear_error(&tmp_err);
+    } else {
+      _openslide_demote_error(&tmp_err);
+    }
+  }
 
   return result;
 }

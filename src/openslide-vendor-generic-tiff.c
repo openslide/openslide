@@ -56,13 +56,16 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 }
 
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
-				 struct _openslide_hash *quickhash1) {
+				 struct _openslide_hash *quickhash1,
+				 GError **err) {
   GList *level_list = NULL;
   int32_t level_count = 0;
   int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
-    goto FAIL; // not tiled
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    goto FAIL;
   }
 
   if (osr) {
@@ -101,11 +104,13 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_warning("Can't read compression scheme");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read compression scheme");
       goto FAIL;
     };
     if (!TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %u", compression);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
 

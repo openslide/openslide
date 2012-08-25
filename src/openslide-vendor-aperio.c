@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -288,13 +288,15 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
 
 
 bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
-			   struct _openslide_hash *quickhash1) {
+			   struct _openslide_hash *quickhash1,
+			   GError **err) {
   int32_t level_count = 0;
   int32_t *levels = NULL;
   int32_t i = 0;
-  GError *tmp_err = NULL;
 
   if (!TIFFIsTiled(tiff)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
     goto FAIL;
   }
 
@@ -303,7 +305,8 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result ||
       (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
-    // not aperio
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not an Aperio slide");
     goto FAIL;
   }
 
@@ -346,9 +349,8 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       // associated image
       const char *name = (i == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr ? osr->associated_images : NULL,
-                                name, tiff, &tmp_err)) {
-	g_warning("Can't read associated image: %s", tmp_err->message);
-	g_clear_error(&tmp_err);
+                                name, tiff, err)) {
+	g_prefix_error(err, "Can't read associated image: ");
 	goto FAIL;
       }
       //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
@@ -359,20 +361,23 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
     tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth);
     if (tiff_result && depth != 1) {
       // we can't handle depth != 1
-      g_warning("Cannot handle ImageDepth=%d", depth);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot handle ImageDepth=%d", depth);
       goto FAIL;
     }
 
     // check compression
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_warning("Can't read compression scheme");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read compression scheme");
       goto FAIL;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
         (compression != APERIO_COMPRESSION_JP2K_RGB) &&
         !TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %u", compression);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
   } while (TIFFReadDirectory(tiff));

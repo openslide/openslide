@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -113,13 +113,16 @@ static void parse_trestle_image_description(openslide_t *osr,
 }
 
 bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
-			    struct _openslide_hash *quickhash1) {
+			    struct _openslide_hash *quickhash1,
+			    GError **err) {
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
   int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
     goto FAIL;
   }
 
@@ -128,7 +131,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
   if (!tiff_result ||
       (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
-    // not trestle
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Trestle slide");
     goto FAIL;
   }
 
@@ -136,6 +140,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
   if (!tiff_result) {
     // no description, not trestle
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Trestle slide");
     goto FAIL;
   }
   parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
@@ -143,17 +149,21 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   // count and validate levels
   do {
     if (!TIFFIsTiled(tiff)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                  "TIFF level is not tiled");
       goto FAIL;
     }
 
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_warning("Can't read compression scheme");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read compression scheme");
       goto FAIL;
     };
     if (!TIFFIsCODECConfigured(compression)) {
-      g_warning("Unsupported TIFF compression: %u", compression);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
 
