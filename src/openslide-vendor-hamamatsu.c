@@ -236,9 +236,9 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
 				int num_jpeg_cols,
-				FILE *optimisation_file) {
+				FILE *optimisation_file,
+				GError **err) {
   bool success = false;
-  GError *tmp_err = NULL;
 
   // initialize individual jpeg structs
   struct _openslide_jpeg_file **jpegs = g_new0(struct _openslide_jpeg_file *,
@@ -270,9 +270,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(jp->filename, "rb", &tmp_err)) == NULL) {
-      g_warning("Can't open JPEG %d: %s", i, tmp_err->message);
-      g_clear_error(&tmp_err);
+    if ((f = _openslide_fopen(jp->filename, "rb", err)) == NULL) {
+      g_prefix_error(err, "Can't open JPEG %d: ", i);
       goto DONE;
     }
 
@@ -283,10 +282,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr,
-                     &tmp_err)) {
-      g_warning("Can't verify JPEG %d: %s", i, tmp_err->message);
-      g_clear_error(&tmp_err);
+    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr, err)) {
+      g_prefix_error(err, "Can't verify JPEG %d: ", i);
       fclose(f);
       goto DONE;
     }
@@ -300,9 +297,10 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     fseeko(f, 0, SEEK_END);
     jp->end_in_file = ftello(f);
     if (jp->end_in_file == -1) {
-      g_warning("Can't read file size for JPEG %d", i);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read file size for JPEG %d", i);
       fclose(f);
-      return false;
+      goto DONE;
     }
 
     // file is done now
@@ -323,7 +321,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       // not map file (still within level 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
-        g_warning("Tile size not consistent");
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tile size not consistent");
         goto DONE;
       }
     }
@@ -469,9 +468,9 @@ static int32_t read_le_int32_from_file(FILE *f) {
 }
 
 static bool hamamatsu_vmu_part2(openslide_t *osr,
-				int num_files, char **image_filenames) {
+				int num_files, char **image_filenames,
+				GError **err) {
   bool success = false;
-  GError *tmp_err = NULL;
 
   // initialize individual ngr structs
   struct _openslide_ngr **files = g_new0(struct _openslide_ngr *,
@@ -487,14 +486,14 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     ngr->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(ngr->filename, "rb", &tmp_err)) == NULL) {
-      _openslide_demote_error(&tmp_err);
+    if ((f = _openslide_fopen(ngr->filename, "rb", err)) == NULL) {
       goto DONE;
     }
 
     // validate magic
     if ((fgetc(f) != 'G') || (fgetc(f) != 'N')) {
-      g_warning("Bad magic on NGR file");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Bad magic on NGR file");
       fclose(f);
       goto DONE;
     }
@@ -511,14 +510,16 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // validate
     if ((ngr->w <= 0) || (ngr->h <= 0) ||
 	(ngr->column_width <= 0) || (ngr->start_in_file <= 0)) {
-      g_warning("Error processing header");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Error processing header");
       fclose(f);
       goto DONE;
     }
 
     // ensure no remainder on columns
     if ((ngr->w % ngr->column_width) != 0) {
-      g_warning("Width not multiple of column width");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Width not multiple of column width");
       fclose(f);
       goto DONE;
     }
@@ -804,7 +805,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     success = hamamatsu_vms_part2(osr,
 				  num_images, image_filenames,
 				  num_cols,
-				  optimisation_file);
+				  optimisation_file,
+				  err);
 
     // clean up
     if (optimisation_file) {
@@ -830,7 +832,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     } else {
       // assumptions verified
       success = hamamatsu_vmu_part2(osr,
-				    num_images, image_filenames);
+				    num_images, image_filenames,
+				    err);
     }
     g_free(pixel_order);
   } else {
