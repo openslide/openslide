@@ -560,10 +560,9 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// hash in the lowest-res on-disk tiles
 	if (zoom_level == zoom_levels - 1) {
-	  if (!_openslide_hash_file_part(quickhash1, filename, offset, length)) {
+	  if (!_openslide_hash_file_part(quickhash1, filename, offset, length, err)) {
             g_free(filename);
-            g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                        "Can't hash tiles");
+            g_prefix_error(err, "Can't hash tiles: ");
             goto DONE;
 	  }
 	}
@@ -1154,9 +1153,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // first, check slidedat
   tmp = g_build_filename(dirname, SLIDEDAT_INI, NULL);
   // hash the slidedat
-  if (!_openslide_hash_file(quickhash1, tmp)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't hash Slidedat file");
+  if (!_openslide_hash_file(quickhash1, tmp, err)) {
     goto FAIL;
   }
 

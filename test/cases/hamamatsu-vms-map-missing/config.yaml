@@ -1,4 +1,4 @@
 base: Hamamatsu-vms/CMU-1.zip
-error: ^Can't hash map file$
+error: "^Couldn't open .*_map2.jpg: No such file or directory$"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false

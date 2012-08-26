@@ -612,9 +612,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   image_filenames = g_new0(char *, num_images);
 
   // hash in the key file
-  if (!_openslide_hash_file(quickhash1, filename)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot hash keyfile");
+  if (!_openslide_hash_file(quickhash1, filename, err)) {
     goto DONE;
   }
 
@@ -645,9 +643,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     image_filenames[num_images - 1] = map_filename;
 
     // hash in the map file
-    if (!_openslide_hash_file(quickhash1, map_filename)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't hash map file");
+    if (!_openslide_hash_file(quickhash1, map_filename, err)) {
       goto DONE;
     }
   } else {

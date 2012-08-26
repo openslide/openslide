@@ -436,6 +436,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   struct _openslide_tiffopsdata *data =
     g_slice_new(struct _openslide_tiffopsdata);
 
+  GError *tmp_err = NULL;
+
   // store level info
   data->levels = levels;
 
@@ -454,8 +456,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // generate hash of the smallest level
   TIFFSetDirectory(data->tiff, levels[level_count - 1]);
-  if (!_openslide_hash_tiff_tiles(quickhash1, tiff)) {
-    _openslide_set_error(osr, "Cannot hash TIFF tiles");
+  if (!_openslide_hash_tiff_tiles(quickhash1, tiff, &tmp_err)) {
+    _openslide_set_error(osr, "Cannot hash TIFF tiles: %s", tmp_err->message);
+    g_clear_error(&tmp_err);
   }
 
   // load TIFF properties
