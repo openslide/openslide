@@ -660,17 +660,36 @@ static int32_t *read_slide_position_file(const char *dirname, const char *name,
 }
 
 static bool add_associated_image(const char *dirname,
-				 const char *filename,
-				 int64_t offset,
-				 GHashTable *ht,
-				 const char *name,
-				 GError **err) {
-  char *tmp = g_build_filename(dirname, filename, NULL);
+                                 GHashTable *ht,
+                                 FILE *indexfile,
+                                 int64_t nonhier_root,
+                                 char **datafile_names,
+                                 const char *name,
+                                 int recordno,
+                                 GError **err) {
+  int fileno;
+  int64_t size;
+  int64_t offset;
+  bool result = false;
 
-  bool result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset,
-                                                     err);
+  if (recordno == -1) {
+    // no such image
+    return true;
+  }
 
-  g_free(tmp);
+  if (read_nonhier_record(indexfile, nonhier_root, recordno,
+                          &fileno, &size, &offset)) {
+    char *tmp = g_build_filename(dirname, datafile_names[fileno], NULL);
+    result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset, err);
+    g_free(tmp);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Could not read metadata");
+  }
+
+  if (!result) {
+    g_prefix_error(err, "Cannot read %s associated image: ", name);
+  }
   return result;
 }
 
@@ -789,60 +808,38 @@ static bool process_indexfile(const char *uuid,
 
 
   // read in the associated images
-  int tmp_fileno;
-  int64_t tmp_size;
-  int64_t tmp_offset;
-
-  if (read_nonhier_record(indexfile,
-			  nonhier_root,
-			  macro_record,
-			  &tmp_fileno,
-			  &tmp_size,
-			  &tmp_offset)) {
-    if (!add_associated_image(dirname,
-			      datafile_names[tmp_fileno],
-			      tmp_offset,
-			      associated_images,
-			      "macro",
-			      &tmp_err)) {
-      g_warning("Cannot read macro associated image: %s", tmp_err->message);
-      g_clear_error(&tmp_err);
-      goto DONE;
-    }
+  if (!add_associated_image(dirname,
+                            associated_images,
+                            indexfile,
+                            nonhier_root,
+                            datafile_names,
+                            "macro",
+                            macro_record,
+                            &tmp_err)) {
+    _openslide_demote_error(&tmp_err);
+    goto DONE;
   }
-  if (read_nonhier_record(indexfile,
-			  nonhier_root,
-			  label_record,
-			  &tmp_fileno,
-			  &tmp_size,
-			  &tmp_offset)) {
-    if (!add_associated_image(dirname,
-			      datafile_names[tmp_fileno],
-			      tmp_offset,
-			      associated_images,
-			      "label",
-			      &tmp_err)) {
-      g_warning("Cannot read label associated image: %s", tmp_err->message);
-      g_clear_error(&tmp_err);
-      goto DONE;
-    }
+  if (!add_associated_image(dirname,
+                            associated_images,
+                            indexfile,
+                            nonhier_root,
+                            datafile_names,
+                            "label",
+                            label_record,
+                            &tmp_err)) {
+    _openslide_demote_error(&tmp_err);
+    goto DONE;
   }
-  if (read_nonhier_record(indexfile,
-			  nonhier_root,
-			  thumbnail_record,
-			  &tmp_fileno,
-			  &tmp_size,
-			  &tmp_offset)) {
-    if (!add_associated_image(dirname,
-			      datafile_names[tmp_fileno],
-			      tmp_offset,
-			      associated_images,
-			      "thumbnail",
-			      &tmp_err)) {
-      g_warning("Cannot read thumbnail associated image: %s", tmp_err->message);
-      g_clear_error(&tmp_err);
-      goto DONE;
-    }
+  if (!add_associated_image(dirname,
+                            associated_images,
+                            indexfile,
+                            nonhier_root,
+                            datafile_names,
+                            "thumbnail",
+                            thumbnail_record,
+                            &tmp_err)) {
+    _openslide_demote_error(&tmp_err);
+    goto DONE;
   }
 
   // read hierarchical sections
