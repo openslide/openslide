@@ -635,6 +635,10 @@ void openslide_cairo_read_region(openslide_t *osr,
     return;
   }
 
+  if (openslide_get_error(osr)) {
+    return;
+  }
+
   read_region(osr, cr, x, y, level, w, h);
 
   _openslide_check_cairo_status_possibly_set_error(osr, cr);
