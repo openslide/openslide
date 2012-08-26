@@ -34,7 +34,7 @@ struct _openslide_tiffdump_item {
 };
 
 // returns list of hashtables of (int -> struct _openslide_tiffdump)
-GSList *_openslide_tiffdump_create(FILE *f);
+GSList *_openslide_tiffdump_create(FILE *f, GError **err);
 
 // destructor
 void _openslide_tiffdump_destroy(GSList *tiffdump);

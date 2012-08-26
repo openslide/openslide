@@ -860,7 +860,11 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     return false;
   }
 
-  GSList *dump = _openslide_tiffdump_create(f);
+  GSList *dump = _openslide_tiffdump_create(f, err);
+  if (!dump) {
+    fclose(f);
+    return false;
+  }
   _openslide_tiffdump_print(dump);
   _openslide_tiffdump_destroy(dump);
   fclose(f);
