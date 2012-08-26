@@ -184,93 +184,108 @@ static int32_t read_le_int32_from_file(FILE *f) {
 static bool read_nonhier_record(FILE *f,
 				int64_t nonhier_root_position,
 				int recordno,
-				int *fileno, int64_t *size, int64_t *position) {
-  if (recordno == -1)
-    return false;
+				int *fileno, int64_t *size, int64_t *position,
+				GError **err) {
+  g_return_val_if_fail(recordno >= 0, false);
 
   if (fseeko(f, nonhier_root_position, SEEK_SET) == -1) {
-    g_warning("Cannot seek to nonhier root");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot seek to nonhier root");
     return false;
   }
 
   int32_t ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_warning("Can't read initial nonhier pointer");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read initial nonhier pointer");
     return false;
   }
 
   // seek to record pointer
   if (fseeko(f, ptr + 4 * recordno, SEEK_SET) == -1) {
-    g_warning("Cannot seek to nonhier record pointer %d", recordno);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot seek to nonhier record pointer %d", recordno);
     return false;
   }
 
   // read pointer
   ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_warning("Can't read nonhier record %d", recordno);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read nonhier record %d", recordno);
     return false;
   }
 
   // seek
   if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_warning("Cannot seek to nonhier record %d", recordno);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot seek to nonhier record %d", recordno);
     return false;
   }
 
   // read initial 0
   if (read_le_int32_from_file(f) != 0) {
-    g_warning("Expected 0 value at beginning of data page");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Expected 0 value at beginning of data page");
     return false;
   }
 
   // read pointer
   ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_warning("Can't read initial data page pointer");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read initial data page pointer");
     return false;
   }
 
   // seek to offset
   if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_warning("Can't seek to initial data page");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't seek to initial data page");
     return false;
   }
 
   // read pagesize == 1
   if (read_le_int32_from_file(f) != 1) {
-    g_warning("Expected 1 value");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Expected 1 value");
     return false;
   }
 
   // read 3 zeroes
   if (read_le_int32_from_file(f) != 0) {
-    g_warning("Expected first 0 value");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Expected first 0 value");
     return false;
   }
   if (read_le_int32_from_file(f) != 0) {
-    g_warning("Expected second 0 value");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Expected second 0 value");
     return false;
   }
   if (read_le_int32_from_file(f) != 0) {
-    g_warning("Expected third 0 value");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Expected third 0 value");
     return false;
   }
 
   // finally read offset, size, fileno
   *position = read_le_int32_from_file(f);
   if (*position == -1) {
-    g_warning("Can't read position");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read position");
     return false;
   }
   *size = read_le_int32_from_file(f);
   if (*size == -1) {
-    g_warning("Can't read size");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read size");
     return false;
   }
   *fileno = read_le_int32_from_file(f);
   if (*fileno == -1) {
-    g_warning("Can't read fileno");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read fileno");
     return false;
   }
 
@@ -678,13 +693,10 @@ static bool add_associated_image(const char *dirname,
   }
 
   if (read_nonhier_record(indexfile, nonhier_root, recordno,
-                          &fileno, &size, &offset)) {
+                          &fileno, &size, &offset, err)) {
     char *tmp = g_build_filename(dirname, datafile_names[fileno], NULL);
     result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset, err);
     g_free(tmp);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Could not read metadata");
   }
 
   if (!result) {
@@ -769,8 +781,10 @@ static bool process_indexfile(const char *uuid,
 			     slide_position_record,
 			     &slide_position_fileno,
 			     &slide_position_size,
-			     &slide_position_offset)) {
-      g_warning("Cannot read slide position info");
+			     &slide_position_offset,
+			     &tmp_err)) {
+      g_warning("Cannot read slide position info: %s", tmp_err->message);
+      g_clear_error(&tmp_err);
       goto DONE;
     }
     //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);

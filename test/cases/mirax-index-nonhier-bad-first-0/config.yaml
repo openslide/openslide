@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Expected first 0 value$
+error: "^Cannot read macro associated image: Expected first 0 value$"
 slide: CMU-1.mrxs
 success: false
