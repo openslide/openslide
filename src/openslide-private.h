@@ -287,7 +287,9 @@ bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 
 // internal error propagation
 enum OpenSlideError {
+  // file format unrecognized; try other formats
   OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+  // file corrupt; hard fail
   OPENSLIDE_ERROR_BAD_DATA,
 };
 #define OPENSLIDE_ERROR _openslide_error_quark()

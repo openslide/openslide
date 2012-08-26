@@ -37,6 +37,8 @@ advice.
 
  * Try to follow the coding style of nearby code.
 
+ * Follow the GError rules for reporting errors.
+
  * Maintain thread safety. The openslide_t struct is mostly immutable,
    except for the cache (which takes locks) and libtiff (which is sort
    of a disaster).
