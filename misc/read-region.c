@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
 
   uint32_t *buf = malloc(w * h * 4);
   openslide_t *osr = openslide_open(slide);
-  assert(osr != NULL);
+  assert(osr != NULL && openslide_get_error(osr) == NULL);
   openslide_read_region(osr, buf, x, y, 0, w, h);
   assert(openslide_get_error(osr) == NULL);
   openslide_close(osr);

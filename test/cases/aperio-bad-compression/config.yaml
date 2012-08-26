@@ -1,5 +1,4 @@
 base: Aperio/CMU-1.svs
-# Once for aperio, once for generic-tiff
-error: "^(Unsupported TIFF compression: 200\n?){2}$"
+error: "^Unsupported TIFF compression: 200$"
 slide: CMU-1.svs
 success: false

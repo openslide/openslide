@@ -48,8 +48,7 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
     g_free(newmsg);
     return false;
   } else {
-    // error was set, log it
-    g_critical("%s", newmsg);
+    // error was set
     return true;
   }
 }
@@ -85,14 +84,4 @@ void _openslide_io_error(GError **err, const char *fmt, ...) {
 void _openslide_set_error_from_gerror(openslide_t *osr, GError *err) {
   g_return_if_fail(err);
   _openslide_set_error(osr, "%s", err->message);
-}
-
-bool _openslide_demote_error(GError **err) {
-  g_return_val_if_fail(err, true);
-  if (*err) {
-    g_warning("%s", (*err)->message);
-    g_clear_error(err);
-    return false;
-  }
-  return true;
 }

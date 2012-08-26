@@ -295,7 +295,6 @@ GQuark _openslide_error_quark(void);
 
 void _openslide_io_error(GError **err, const char *fmt, ...);
 void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
-bool _openslide_demote_error(GError **err);
 
 // background color helper
 void _openslide_set_background_color_property(GHashTable *ht,
