@@ -45,7 +45,8 @@ noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-til
 
 
 
-noinst_PROGRAMS = test/driver test/test test/try_open
+noinst_PROGRAMS = test/test test/try_open
+noinst_SCRIPTS = test/driver
 CLEANFILES  = test/driver
 EXTRA_DIST += test/driver.in
 
