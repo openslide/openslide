@@ -58,7 +58,8 @@ test_try_open_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
-		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' $< > $@ && \
+		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
+		-e 's:!!VERSION!!:$(VERSION):g' $< > $@ && \
 		chmod +x $@
 
 

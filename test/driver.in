@@ -28,6 +28,8 @@ import shlex
 from shutil import copyfile, copytree, rmtree
 import subprocess
 import sys
+import tarfile
+from tempfile import mkdtemp
 import textwrap
 import yaml
 from zipfile import ZipFile
@@ -77,19 +79,23 @@ def _load_test_config(testname):
         return yaml.safe_load(fh)
 
 
-def _try_open_slide(slidefile, valgrind=False):
-    '''Try opening the specified slide file, under Valgrind if specified.
-    Return None on success, error message on failure.'''
+def _try_open_slide(slidefile, valgrind=False, testdir=None):
+    '''Try opening the specified slide file, under Valgrind if specified,
+    using the test programs in the testdir directory.  Return None on
+    success, error message on failure.'''
+    if testdir is None:
+        testdir = '!!BUILDDIR!!'
     env = os.environ.copy()
     env.update(
         G_DEBUG='gc-friendly',
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
     )
-    args = ['!!BUILDDIR!!/try_open', slidefile]
+    args = [os.path.join(testdir, 'try_open'), slidefile]
     if valgrind:
-        args = ['!!BUILDDIR!!/../libtool', '--mode=execute', 'valgrind',
-                '--quiet', '--error-exitcode=3', '--leak-check=full'] + args
+        args = [os.path.join(testdir, '../libtool'), '--mode=execute',
+                'valgrind', '--quiet', '--error-exitcode=3',
+                '--leak-check=full'] + args
     proc = subprocess.Popen(args, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, env=env)
     out, err = proc.communicate()
@@ -231,12 +237,12 @@ def _unpack_one(testname):
                 os.symlink(src, newpath)
 
 
-def _run_one(testname, valgrind=False):
+def _run_one(testname, valgrind=False, testdir=None):
     '''Run the specified test, under Valgrind if specified.'''
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
-    result = _try_open_slide(slidefile, valgrind)
+    result = _try_open_slide(slidefile, valgrind, testdir)
 
     if result is None and not conf['success']:
         print '%s: unexpected success' % testname
@@ -250,31 +256,83 @@ def _run_one(testname, valgrind=False):
     return False
 
 
-def _run_all(pattern='*', valgrind=False):
+def _run_all(pattern='*', valgrind=False, testdir=None):
     '''Run all tests matching the specified pattern, under Valgrind if
-    specified.'''
+    specified.  Return the number of failed tests.'''
     tests = _list_tests(pattern)
     for testname in tests:
         _unpack_one(testname)
     failed = 0
     for testname in tests:
-        if not _run_one(testname, valgrind):
+        if not _run_one(testname, valgrind, testdir):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
-    if failed:
-        sys.exit(1)
+    return failed
 
 
 @_command
 def run(pattern='*'):
     '''Run all tests matching the specified pattern.'''
-    _run_all(pattern)
+    if _run_all(pattern):
+        sys.exit(1)
+
+
+@_command
+def coverage(outfile):
+    '''Run all tests and write coverage report to outfile.'''
+    # We have to rebuild the source in order to do profiling.  To minimize
+    # collateral damage, we unpack the dist tarball into a temp directory and
+    # build there.
+
+    top_builddir = os.path.dirname('!!BUILDDIR!!')
+    prevdir = os.getcwd()
+
+    # Make tarball
+    os.chdir(top_builddir)
+    subprocess.check_call(['make', 'dist-gzip'])
+    os.chdir(prevdir)
+    tarpath = os.path.join(top_builddir, 'openslide-!!VERSION!!.tar.gz')
+
+    # Unpack and remove the tarball
+    tempdir = mkdtemp(prefix='build-', dir=prevdir)
+    os.chdir(tempdir)
+    tarfile.open(tarpath, 'r:gz').extractall()
+    os.unlink(tarpath)
+    os.chdir('openslide-!!VERSION!!')
+
+    # Build with profiling enabled
+    subprocess.check_call(['./configure',
+            'CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage'])
+    subprocess.check_call(['make'])
+
+    # Run tests
+    _run_all(testdir='test')
+
+    # Generate coverage reports
+    paths = []
+    for dirpath, dirnames, filenames in os.walk('src'):
+        paths.extend(os.path.join(dirpath, name)
+                for name in fnmatch.filter(sorted(filenames), '*.gcda'))
+    subprocess.check_call(['gcov'] + paths)
+
+    # Record unexecuted lines
+    report = subprocess.check_output(['grep', '-FC', '2', '#####'] +
+            fnmatch.filter(sorted(os.listdir('.')), '*.gcov'))
+    report = '\n'.join(l.replace('.c.gcov', '.c', 1)
+            for l in report.split('\n'))
+    os.chdir(prevdir)
+    with open(outfile, 'w') as fh:
+        fh.write(report)
+
+    # Remove temporary directory
+    rmtree(tempdir)
 
 
 @_command
 def valgrind(pattern='*'):
     '''Valgrind all tests matching the specified pattern.'''
-    _run_all(pattern, True)
+    if _run_all(pattern, True):
+        sys.exit(1)
 
 
 @_command
