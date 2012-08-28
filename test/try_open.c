@@ -37,15 +37,18 @@ static void print_log(const gchar *domain G_GNUC_UNUSED,
 
 int main(int argc, char **argv) {
   openslide_t *osr;
+  const char *filename;
   const char *error;
   GHashTable *fds;
   int maxfds;
   struct stat st;
+  bool can_open;
 
   if (argc != 2) {
     fprintf(stderr, "No slide specified\n");
     return 2;
   }
+  filename = argv[1];
 
   // Record preexisting file descriptors
   fds = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -61,7 +64,8 @@ int main(int argc, char **argv) {
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
       print_log, NULL);
 
-  osr = openslide_open(argv[1]);
+  can_open = openslide_can_open(filename);
+  osr = openslide_open(filename);
 
   if (osr != NULL) {
     error = openslide_get_error(osr);
@@ -73,6 +77,14 @@ int main(int argc, char **argv) {
   } else if (!have_error) {
     // openslide_open returned NULL but logged nothing
     have_error = TRUE;
+  }
+
+  // Make sure openslide_can_open() told the truth.
+  // This may produce false warnings if messages are logged through glib,
+  // but that already indicates a programming error.
+  if (can_open != !have_error) {
+    fprintf(stderr, "openslide_can_open returned %s but openslide_open %s\n",
+            can_open ? "true" : "false", have_error ? "failed" : "succeeded");
   }
 
   // Check for file descriptor leaks
