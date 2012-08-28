@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: ^Slide zoom level not HIER_0$
+slide: CMU-1.mrxs
+success: false

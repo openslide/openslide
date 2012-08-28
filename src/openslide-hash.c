@@ -100,12 +100,18 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
   // determine size of file
   FILE *f = _openslide_fopen(filename, "rb");
-  g_return_val_if_fail(f, false);
+  if (f == NULL) {
+    g_warning("Couldn't open %s", filename);
+    return false;
+  }
   fseeko(f, 0, SEEK_END);
   int64_t size = ftello(f);
   fclose(f);
 
-  g_return_val_if_fail(size != -1, false);
+  if (size == -1) {
+    g_warning("Couldn't get size of %s", filename);
+    return false;
+  }
 
   return _openslide_hash_file_part(hash, filename, 0, size);
 }
@@ -114,7 +120,10 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size) {
   FILE *f = _openslide_fopen(filename, "rb");
-  g_return_val_if_fail(f, false);
+  if (f == NULL) {
+    g_warning("Couldn't open %s", filename);
+    return false;
+  }
 
   uint8_t buf[4096];
 

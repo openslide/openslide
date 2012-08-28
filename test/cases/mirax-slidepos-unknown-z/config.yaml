@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: ^Error while reading slide position file (96)$
+slide: CMU-1.mrxs
+success: false

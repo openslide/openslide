@@ -875,6 +875,7 @@ static bool process_indexfile(const char *uuid,
   } else {
     for (int i = 0; i < jpeg_count; i++) {
       struct _openslide_jpeg_file *jpeg = jpegs[i];
+      g_free(jpeg->filename);
       g_slice_free(struct _openslide_jpeg_file, jpeg);
     }
     g_free(jpegs);
@@ -944,6 +945,7 @@ static int get_nonhier_name_offset_helper(GKeyFile *keyfile,
     g_free(key);
     if (!count) {
       g_warning("Can't read nonhier val count");
+      g_free(value);
       return -1;
     }
     *name_count_out = count;

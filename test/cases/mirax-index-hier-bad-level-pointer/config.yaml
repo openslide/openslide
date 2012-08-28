@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: ^Cannot seek to start of data pages$
+slide: CMU-1.mrxs
+success: false

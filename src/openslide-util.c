@@ -109,7 +109,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   /* skip the UTF-8 BOM if it is present. */
-  if (memcmp(buf, "\xef\xbb\xbf", 3) == 0) {
+  if (len >= 3 && memcmp(buf, "\xef\xbb\xbf", 3) == 0) {
     offset = 3;
   }
 

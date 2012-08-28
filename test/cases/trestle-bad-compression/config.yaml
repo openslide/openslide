@@ -1,0 +1,5 @@
+base: Trestle/CMU-1.zip
+# Once for trestle, once for generic-tiff fallback
+error: '^(Unsupported TIFF compression: 32908\n?){2}$'
+slide: CMU-1.tif
+success: false

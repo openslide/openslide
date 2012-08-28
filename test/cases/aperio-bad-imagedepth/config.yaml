@@ -1,0 +1,4 @@
+base: Aperio/CMU-1.svs
+error: ^Cannot handle ImageDepth=2$
+slide: CMU-1.svs
+success: false

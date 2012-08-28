@@ -1,0 +1,4 @@
+base: Mirax/CMU-1.zip
+error: ^y \(1000\) outside of bounds for zoom level \(0\)$
+slide: CMU-1.mrxs
+success: false

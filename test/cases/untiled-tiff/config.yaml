@@ -1,0 +1,7 @@
+# We really want a TIFF completely unrelated to any of the test data, so
+# this is a bit of a hack.
+
+base: Aperio/CMU-1.svs
+error: ^$
+slide: CMU-1.svs
+success: false
