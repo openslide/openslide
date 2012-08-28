@@ -54,7 +54,8 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 		    strlen(str_to_hash) + 1);
 }
 
-bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
+bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
+                                GError **err) {
   g_assert(TIFFIsTiled(tiff));
 
   // get tile count
@@ -63,7 +64,8 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   // get tile sizes
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_critical("Cannot get tile size");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get tile size");
     return false;  // ok, haven't allocated anything yet
   }
   toff_t total = 0;
@@ -81,14 +83,15 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
   // get offsets
   toff_t *offsets;
   if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
-    g_critical("Cannot get offsets");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get offsets");
     return false;  // ok, haven't allocated anything yet
   }
 
   // hash each tile's raw data
   const char *filename = TIFFFileName(tiff);
   for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
-    if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no])) {
+    if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no], err)) {
       return false;
     }
   }
@@ -97,38 +100,40 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff) {
 }
 
 
-bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename) {
+bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
+                          GError **err) {
   // determine size of file
-  FILE *f = _openslide_fopen(filename, "rb");
+  FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
-    g_warning("Couldn't open %s", filename);
     return false;
   }
+
   fseeko(f, 0, SEEK_END);
   int64_t size = ftello(f);
-  fclose(f);
-
   if (size == -1) {
-    g_warning("Couldn't get size of %s", filename);
+    _openslide_io_error(err, "Couldn't get size of %s", filename);
+    fclose(f);
     return false;
   }
 
-  return _openslide_hash_file_part(hash, filename, 0, size);
+  fclose(f);
+
+  return _openslide_hash_file_part(hash, filename, 0, size, err);
 }
 
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
-			       int64_t offset, int64_t size) {
-  FILE *f = _openslide_fopen(filename, "rb");
+			       int64_t offset, int64_t size,
+			       GError **err) {
+  FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
-    g_warning("Couldn't open %s", filename);
     return false;
   }
 
   uint8_t buf[4096];
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
-    g_critical("Can't seek in %s", filename);
+    _openslide_io_error(err, "Can't seek in %s", filename);
     fclose(f);
     return false;
   }
@@ -139,7 +144,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     int64_t bytes_read = fread(buf, 1, bytes_to_read, f);
 
     if (bytes_read != bytes_to_read) {
-      g_critical("Can't read from %s", filename);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read from %s", filename);
       fclose(f);
       return false;
     }

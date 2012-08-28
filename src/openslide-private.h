@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -96,9 +96,11 @@ struct _openslide_ops {
 
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
-				     struct _openslide_hash *quickhash1);
+				     struct _openslide_hash *quickhash1,
+				     GError **err);
 typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr, TIFF *tiff,
-					  struct _openslide_hash *quickhash1);
+					  struct _openslide_hash *quickhash1,
+					  GError **err);
 /*
  * A note on quickhash1: this should be a hash of data that
  * will not change with revisions to the openslide library. It should
@@ -116,19 +118,23 @@ typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr, TIFF *tiff,
 
 
 bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
-			    struct _openslide_hash *quickhash1);
+			    struct _openslide_hash *quickhash1, GError **err);
 bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
-			   struct _openslide_hash *quickhash1);
+			   struct _openslide_hash *quickhash1, GError **err);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
-			      struct _openslide_hash *quickhash1);
+			      struct _openslide_hash *quickhash1,
+			      GError **err);
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char* filename,
-				   struct _openslide_hash *quickhash1);
+				   struct _openslide_hash *quickhash1,
+				   GError **err);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
-			  struct _openslide_hash *quickhash1);
+			  struct _openslide_hash *quickhash1, GError **err);
 bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
-				 struct _openslide_hash *quickhash1);
+				 struct _openslide_hash *quickhash1,
+				 GError **err);
 bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
-				 struct _openslide_hash *quickhash1);
+				 struct _openslide_hash *quickhash1,
+				 GError **err);
 
 
 /* GHashTable utils */
@@ -138,10 +144,10 @@ void _openslide_int64_free(gpointer data);
 
 /* g_key_file_load_from_file wrapper */
 gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                                  GKeyFileFlags flags, GError **error);
+                                  GKeyFileFlags flags, GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
-FILE *_openslide_fopen(const char *path, const char *mode);
+FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
@@ -170,7 +176,8 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
 
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
-					  TIFF *tiff);
+					  TIFF *tiff,
+					  GError **err);
 
 /* JPEG support */
 struct _openslide_jpeg_file {
@@ -237,7 +244,8 @@ GHashTable *_openslide_jpeg_create_tiles_table(void);
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  const char *filename,
-					  int64_t offset);
+					  int64_t offset,
+					  GError **err);
 
 /*
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
@@ -250,9 +258,10 @@ struct _openslide_jpeg_error_mgr {
   struct jpeg_error_mgr pub;      // public fields
 
   jmp_buf *env;
+  GError *err;
 };
 
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env);
 
 // Hamamatsu NGR
@@ -272,11 +281,23 @@ void _openslide_add_ngr_ops(openslide_t *osr,
 			    struct _openslide_ngr **ngrs);
 
 
-// error handling
+// external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
 						      cairo_t *cr);
 
+// internal error propagation
+enum OpenSlideError {
+  // file format unrecognized; try other formats
+  OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+  // file corrupt; hard fail
+  OPENSLIDE_ERROR_BAD_DATA,
+};
+#define OPENSLIDE_ERROR _openslide_error_quark()
+GQuark _openslide_error_quark(void);
+
+void _openslide_io_error(GError **err, const char *fmt, ...);
+void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
 
 // background color helper
 void _openslide_set_background_color_property(GHashTable *ht,

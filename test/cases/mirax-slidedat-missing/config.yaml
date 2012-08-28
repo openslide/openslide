@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Can't hash Slidedat file$
+error: "^Couldn't open .*/Slidedat.ini: No such file or directory$"
 slide: CMU-1.mrxs
 success: false

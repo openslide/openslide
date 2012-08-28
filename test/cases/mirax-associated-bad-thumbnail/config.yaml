@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Cannot read thumbnail associated image$
+error: "^Cannot read thumbnail associated image: Corrupt JPEG data: 14 extraneous bytes before marker 0xfe$"
 slide: CMU-1.mrxs
 success: false

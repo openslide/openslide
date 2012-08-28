@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Expected 0 value at beginning of data page$
+error: "^Cannot read macro associated image: Expected 0 value at beginning of data page$"
 slide: CMU-1.mrxs
 success: false

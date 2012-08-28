@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -57,7 +57,7 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 // returns w and h and tw and th and comment as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th,
-			char **comment) {
+			char **comment, GError **err) {
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -87,15 +87,18 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if (header_result != JPEG_HEADER_OK
         && header_result != JPEG_HEADER_TABLES_ONLY) {
-      g_warning("Couldn't read JPEG header");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG header");
       goto DONE;
     }
     if (cinfo.num_components != 3) {
-      g_warning("JPEG color components != 3");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "JPEG color components != 3");
       goto DONE;
     }
     if (cinfo.restart_interval == 0) {
-      g_warning("No restart markers");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "No restart markers");
       goto DONE;
     }
 
@@ -117,7 +120,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     *h = cinfo.output_height;
 
     if (cinfo.restart_interval > cinfo.MCUs_per_row) {
-      g_warning("Restart interval greater than MCUs per row");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Restart interval greater than MCUs per row");
       goto DONE;
     }
 
@@ -125,7 +129,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     *th = *h / cinfo.MCU_rows_in_scan;
     int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
     if (leftover_mcus != 0) {
-      g_warning("Inconsistent restart marker spacing within row");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Inconsistent restart marker spacing within row");
       goto DONE;
     }
 
@@ -139,6 +144,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     //	 leftover_mcus);
   } else {
     // setjmp has returned again
+    g_propagate_error(err, jerr.err);
     goto DONE;
   }
 
@@ -230,7 +236,8 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
 				int num_jpeg_cols,
-				FILE *optimisation_file) {
+				FILE *optimisation_file,
+				GError **err) {
   bool success = false;
 
   // initialize individual jpeg structs
@@ -263,8 +270,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(jp->filename, "rb")) == NULL) {
-      g_warning("Can't open JPEG %d", i);
+    if ((f = _openslide_fopen(jp->filename, "rb", err)) == NULL) {
+      g_prefix_error(err, "Can't open JPEG %d: ", i);
       goto DONE;
     }
 
@@ -275,8 +282,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr)) {
-      g_warning("Can't verify JPEG %d", i);
+    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr, err)) {
+      g_prefix_error(err, "Can't verify JPEG %d: ", i);
       fclose(f);
       goto DONE;
     }
@@ -290,9 +297,10 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     fseeko(f, 0, SEEK_END);
     jp->end_in_file = ftello(f);
     if (jp->end_in_file == -1) {
-      g_warning("Can't read file size for JPEG %d", i);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read file size for JPEG %d", i);
       fclose(f);
-      return false;
+      goto DONE;
     }
 
     // file is done now
@@ -313,7 +321,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       // not map file (still within level 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
       if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
-        g_warning("Tile size not consistent");
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tile size not consistent");
         goto DONE;
       }
     }
@@ -459,7 +468,8 @@ static int32_t read_le_int32_from_file(FILE *f) {
 }
 
 static bool hamamatsu_vmu_part2(openslide_t *osr,
-				int num_files, char **image_filenames) {
+				int num_files, char **image_filenames,
+				GError **err) {
   bool success = false;
 
   // initialize individual ngr structs
@@ -476,14 +486,14 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     ngr->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(ngr->filename, "rb")) == NULL) {
-      g_warning("Can't open NGR file");
+    if ((f = _openslide_fopen(ngr->filename, "rb", err)) == NULL) {
       goto DONE;
     }
 
     // validate magic
     if ((fgetc(f) != 'G') || (fgetc(f) != 'N')) {
-      g_warning("Bad magic on NGR file");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Bad magic on NGR file");
       fclose(f);
       goto DONE;
     }
@@ -500,14 +510,16 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // validate
     if ((ngr->w <= 0) || (ngr->h <= 0) ||
 	(ngr->column_width <= 0) || (ngr->start_in_file <= 0)) {
-      g_warning("Error processing header");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Error processing header");
       fclose(f);
       goto DONE;
     }
 
     // ensure no remainder on columns
     if ((ngr->w % ngr->column_width) != 0) {
-      g_warning("Width not multiple of column width");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Width not multiple of column width");
       fclose(f);
       goto DONE;
     }
@@ -534,7 +546,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
 
 bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
-			      struct _openslide_hash *quickhash1) {
+			      struct _openslide_hash *quickhash1,
+			      GError **err) {
   // initialize any variables destroyed/used in DONE
   bool success = false;
 
@@ -553,7 +566,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, G_KEY_FILE_NONE, NULL)) {
-    //    g_debug("Can't load VMS file");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Can't load key file");
     goto DONE;
   }
 
@@ -575,14 +589,20 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     num_cols = 1;  // not specified in file for VMU
     num_rows = 1;
   } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not VMS or VMU file");
     goto DONE;
   }
 
   // validate cols/rows
   if (num_cols < 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "File has no columns");
     goto DONE;
   }
   if (num_rows < 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "File has no rows");
     goto DONE;
   }
 
@@ -592,8 +612,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   image_filenames = g_new0(char *, num_images);
 
   // hash in the key file
-  if (!_openslide_hash_file(quickhash1, filename)) {
-    g_warning("Cannot hash keyfile");
+  if (!_openslide_hash_file(quickhash1, filename, err)) {
     goto DONE;
   }
 
@@ -601,7 +620,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   num_layers = g_key_file_get_integer(key_file, groupname, KEY_NUM_LAYERS,
 				      NULL);
   if (num_layers < 1) {
-    g_warning("Cannot handle Hamamatsu files with NoLayers < 1");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot handle Hamamatsu files with NoLayers < 1");
     goto DONE;
   }
 
@@ -623,12 +643,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     image_filenames[num_images - 1] = map_filename;
 
     // hash in the map file
-    if (!_openslide_hash_file(quickhash1, map_filename)) {
-      g_warning("Can't hash map file");
+    if (!_openslide_hash_file(quickhash1, map_filename, err)) {
       goto DONE;
     }
   } else {
-    g_warning("Can't read map file");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read map file");
     goto DONE;
   }
 
@@ -683,11 +703,13 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
       default:
         // we just don't know
-        g_warning("Unknown number of image dimensions: %d",
-		  g_strv_length(split));
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unknown number of image dimensions: %d",
+                    g_strv_length(split));
         g_free(value);
-	g_strfreev(split);
-        continue;
+        g_strfreev(split);
+        g_strfreev(all_keys);
+        goto DONE;
       }
       g_strfreev(split);
 
@@ -700,7 +722,9 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       }
 
       if (col >= num_cols || row >= num_rows || col < 0 || row < 0) {
-        g_warning("Invalid row or column in Hamamatsu file (%d,%d)", col, row);
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Invalid row or column in Hamamatsu file (%d,%d)",
+                    col, row);
         g_free(value);
 	g_strfreev(all_keys);
         goto DONE;
@@ -711,7 +735,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
       // init the file
       if (image_filenames[i]) {
-        g_warning("Duplicate image for (%d,%d)", col, row);
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Duplicate image for (%d,%d)", col, row);
         g_free(value);
         g_strfreev(all_keys);
         goto DONE;
@@ -725,7 +750,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   // ensure all image filenames are filled
   for (int i = 0; i < num_images; i++) {
     if (!image_filenames[i]) {
-      g_warning("Can't read image filename %d", i);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read image filename %d", i);
       goto DONE;
     }
   }
@@ -739,12 +765,12 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
     bool result = _openslide_add_jpeg_associated_image(osr ? osr->associated_images : NULL,
                                                        "macro",
-                                                        macro_filename, 0);
+                                                       macro_filename, 0, err);
     g_free(macro_filename);
     g_free(tmp);
 
     if (!result) {
-      g_warning("Could not find macro image");
+      g_prefix_error(err, "Could not read macro image: ");
       goto DONE;
     }
   }
@@ -761,7 +787,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
       char *optimisation_filename = g_build_filename(dirname, tmp, NULL);
       g_free(tmp);
 
-      optimisation_file = _openslide_fopen(optimisation_filename, "rb");
+      optimisation_file = _openslide_fopen(optimisation_filename, "rb", NULL);
 
       if (optimisation_file == NULL) {
 	// g_debug("Can't open optimisation file");
@@ -775,7 +801,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     success = hamamatsu_vms_part2(osr,
 				  num_images, image_filenames,
 				  num_cols,
-				  optimisation_file);
+				  optimisation_file,
+				  err);
 
     // clean up
     if (optimisation_file) {
@@ -793,13 +820,16 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 					      NULL);
 
     if (bits_per_pixel != 36) {
-      g_warning("%s must be 36", KEY_BITS_PER_PIXEL);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "%s must be 36", KEY_BITS_PER_PIXEL);
     } else if (!pixel_order || (strcmp(pixel_order, "RGB") != 0)) {
-      g_warning("%s must be RGB", KEY_PIXEL_ORDER);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "%s must be RGB", KEY_PIXEL_ORDER);
     } else {
       // assumptions verified
       success = hamamatsu_vmu_part2(osr,
-				    num_images, image_filenames);
+				    num_images, image_filenames,
+				    err);
     }
     g_free(pixel_order);
   } else {
@@ -821,13 +851,20 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 }
 
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
-				   struct _openslide_hash *quickhash1) {
-  FILE *f = _openslide_fopen(filename, "rb");
+				   struct _openslide_hash *quickhash1,
+				   GError **err) {
+  FILE *f = _openslide_fopen(filename, "rb", NULL);
   if (!f) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Can't open file");
     return false;
   }
 
-  GSList *dump = _openslide_tiffdump_create(f);
+  GSList *dump = _openslide_tiffdump_create(f, err);
+  if (!dump) {
+    fclose(f);
+    return false;
+  }
   _openslide_tiffdump_print(dump);
   _openslide_tiffdump_destroy(dump);
   fclose(f);
@@ -836,5 +873,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
   (void) osr;
   (void) quickhash1;
 
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+              "NDPI not supported");
   return false;
 }

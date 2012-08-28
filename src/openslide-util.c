@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <glib.h>
-#include <errno.h>
 
 #ifdef HAVE_FCNTL
 #include <unistd.h>
@@ -48,7 +47,7 @@ void _openslide_int64_free(gpointer data) {
 }
 
 gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                                  GKeyFileFlags flags, GError **error)
+                                  GKeyFileFlags flags, GError **err)
 {
   FILE *f;
   gchar *buf;
@@ -70,10 +69,8 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
 
-  f = _openslide_fopen(filename, "rb");
+  f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Couldn't open key file %s: %s", filename, g_strerror(errno));
     return false;
   }
 
@@ -82,7 +79,7 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     len += cur_len;
     if (len == alloc_len) {
       if (alloc_len >= (1 << 20)) {
-        g_set_error(error, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
+        g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                     "Key file %s too large", filename);
         g_free(buf);
         fclose(f);
@@ -94,16 +91,14 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   if (ferror(f)) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Couldn't read key file %s: %s", filename, g_strerror(errno));
+    _openslide_io_error(err, "Couldn't read key file %s", filename);
     g_free(buf);
     fclose(f);
     return false;
   }
 
   if (fclose(f)) {
-    g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "Failed closing key file %s: %s", filename, g_strerror(errno));
+    _openslide_io_error(err, "Failed closing key file %s", filename);
     g_free(buf);
     return false;
   }
@@ -114,33 +109,40 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   result = g_key_file_load_from_data(key_file, buf + offset, len - offset,
-                                     flags, error);
+                                     flags, err);
   g_free(buf);
   return result;
 }
 
-FILE *_openslide_fopen(const char *path, const char *mode)
+FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
 {
   char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
   FILE *f = fopen(path, m);
   g_free(m);
 
+  if (f == NULL) {
+    _openslide_io_error(err, "Couldn't open %s", path);
+    return NULL;
+  }
+
   /* Redundant if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
 #ifdef HAVE_FCNTL
-  if (f != NULL) {
-    int fd = fileno(f);
-    if (fd != -1) {
-      long flags = fcntl(fd, F_GETFD);
-      if (flags != -1) {
-        if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
-          g_warning("_openslide_fopen couldn't F_SETFD");
-        }
-      } else {
-        g_warning("_openslide_fopen couldn't F_GETFD");
-      }
-    } else {
-      g_warning("_openslide_fopen couldn't fileno()");
-    }
+  int fd = fileno(f);
+  if (fd == -1) {
+    _openslide_io_error(err, "Couldn't fileno() %s", path);
+    fclose(f);
+    return NULL;
+  }
+  long flags = fcntl(fd, F_GETFD);
+  if (flags == -1) {
+    _openslide_io_error(err, "Couldn't F_GETFD %s", path);
+    fclose(f);
+    return NULL;
+  }
+  if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
+    _openslide_io_error(err, "Couldn't F_SETFD %s", path);
+    fclose(f);
+    return NULL;
   }
 #endif
 

@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
 
   int64_t w, h;
 
-  if (osr == NULL) {
+  if (osr == NULL || openslide_get_error(osr) != NULL) {
     printf("oh no\n");
     exit(1);
   }
@@ -344,7 +344,7 @@ int main(int argc, char **argv) {
 
   osr = openslide_open(argv[1]);
 
-  if (osr == NULL) {
+  if (osr == NULL || openslide_get_error(osr) != NULL) {
     printf("oh no\n");
     exit(1);
   }

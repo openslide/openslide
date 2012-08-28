@@ -77,6 +77,7 @@ static void read_tile(openslide_t *osr,
 		      struct _openslide_cache *cache) {
   struct ngr_data *data = osr->data;
   struct _openslide_ngr *ngr = data->ngrs[level];
+  GError *tmp_err = NULL;
 
   // check if beyond boundary
   int num_columns = ngr->w / ngr->column_width;
@@ -94,9 +95,10 @@ static void read_tile(openslide_t *osr,
 
   if (!tiledata) {
     // read the tile data
-    FILE *f = _openslide_fopen(ngr->filename, "rb");
+    FILE *f = _openslide_fopen(ngr->filename, "rb", &tmp_err);
     if (!f) {
-      _openslide_set_error(osr, "Cannot open file %s", ngr->filename);
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
       return;
     }
 

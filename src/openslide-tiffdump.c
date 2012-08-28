@@ -255,7 +255,8 @@ static void tiffdump_item_destroy(gpointer data) {
 
 static GHashTable *read_directory(FILE *f, int64_t *diroff,
 				  GHashTable *loop_detector,
-				  uint16_t endian) {
+				  uint16_t endian,
+				  GError **err) {
   int64_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
@@ -266,14 +267,16 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   //  g_debug("diroff: %" PRId64, off);
 
   if (off <= 0) {
-    g_warning("Bad offset");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Bad offset");
     goto FAIL;
   }
 
   // loop detection
   if (g_hash_table_lookup_extended(loop_detector, &off, NULL, NULL)) {
     // loop
-    g_warning("Loop detected");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Loop detected");
     goto FAIL;
   }
   key = g_slice_new(int64_t);
@@ -282,14 +285,15 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
   // no loop, let's seek
   if (fseeko(f, off, SEEK_SET) != 0) {
-    g_warning("Cannot seek to offset");
+    _openslide_io_error(err, "Cannot seek to offset");
     goto FAIL;
   }
 
   // read directory count
   dircount = read_uint16(f, endian);
   if (dircount == -1) {
-    g_warning("Cannot read dircount");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot read dircount");
     goto FAIL;
   }
 
@@ -307,7 +311,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     int64_t count = read_uint32(f, endian);
 
     if ((tag == -1) || (type == -1) || (count == -1)) {
-      g_warning("Cannot read tag, type, and count");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read tag, type, and count");
       goto FAIL;
     }
 
@@ -316,7 +321,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     // read in the value/offset
     uint8_t value[4];
     if (fread(value, 1, 4, f) != 4) {
-      g_warning("Cannot read value/offset");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read value/offset");
       goto FAIL;
     }
 
@@ -365,12 +371,14 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       break;
 
     default:
-      g_warning("Unknown type encountered: %d", type);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unknown type encountered: %d", type);
       goto FAIL;
     }
 
     if (data->value == NULL) {
-      g_warning("Cannot read value");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read value");
       goto FAIL;
     }
 
@@ -383,7 +391,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   // read the next dir offset
   nextdiroff = read_uint32(f, endian);
   if (nextdiroff == -1) {
-    g_warning("Cannot read next directory offset");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot read next directory offset");
     goto FAIL;
   }
   *diroff = nextdiroff;
@@ -400,14 +409,18 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 }
 
 // returns list of hashtables of (int -> struct _openslide_tiffdump_item)
-GSList *_openslide_tiffdump_create(FILE *f) {
+GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
   // read and check magic
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Can't read TIFF magic number");
     return NULL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unrecognized TIFF magic number");
     return NULL;
   }
 
@@ -419,6 +432,8 @@ GSList *_openslide_tiffdump_create(FILE *f) {
   //  g_debug("version: %d", version);
 
   if (version != TIFF_VERSION) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unrecognized TIFF version");
     return NULL;
   }
 
@@ -431,7 +446,7 @@ GSList *_openslide_tiffdump_create(FILE *f) {
   GSList *result = NULL;
   while (diroff != 0) {
     // read a directory
-    GHashTable *ht = read_directory(f, &diroff, loop_detector, magic);
+    GHashTable *ht = read_directory(f, &diroff, loop_detector, magic, err);
 
     // was the directory successfully read?
     if (ht == NULL) {
@@ -465,11 +480,10 @@ static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
   if (item->type == TIFF_ASCII) {
     // will only print first string if there are multiple
     const char *str = _openslide_tiffdump_get_ascii(item);
-    if (str[item->count - 1] == '\0') {
-      printf(" %s", str);
-    } else {
-      g_warning("ASCII value not null-terminated");
+    if (str[item->count - 1] != '\0') {
+      str = "<not null-terminated>";
     }
+    printf(" %s", str);
   } else {
     for (int64_t i = 0; i < item->count; i++) {
       switch (item->type) {

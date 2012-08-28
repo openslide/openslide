@@ -399,7 +399,9 @@ static void compute_mcu_start(openslide_t *osr,
       jpeg_start_decompress(&cinfo);
     } else {
       // setjmp returns again
-      _openslide_set_error(osr, "Error initializing JPEG");
+      _openslide_set_error(osr, "Error initializing JPEG: %s",
+                           jerr.err->message);
+      g_clear_error(&jerr.err);
     }
 
     // set the first entry
@@ -478,15 +480,18 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     int32_t tileno,
 				     int32_t scale_denom,
 				     int w, int h) {
+  GError *tmp_err = NULL;
+
   g_assert(jpeg->filename);
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
   // open file
-  FILE *f = _openslide_fopen(jpeg->filename, "rb");
+  FILE *f = _openslide_fopen(jpeg->filename, "rb", &tmp_err);
   if (f == NULL) {
     // fail
-    _openslide_set_error(osr, "Can't open %s", jpeg->filename);
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
     memset(dest, 0, w * h * 4);
     return dest;
   }
@@ -587,7 +592,9 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
     }
   } else {
     // setjmp returns again
-    _openslide_set_error(osr, "JPEG decompression failed");
+    _openslide_set_error(osr, "JPEG decompression failed: %s",
+                         jerr.err->message);
+    g_clear_error(&jerr.err);
   }
 
   // free buffers
@@ -921,7 +928,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     if (current_mcu_start > 0) {
       int64_t offset = oj->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
-      FILE *f = _openslide_fopen(oj->filename, "rb");
+      FILE *f = _openslide_fopen(oj->filename, "rb", NULL);
       g_assert(f);
       fseeko(f, offset - 2, SEEK_SET);
       g_assert(getc(f) == 0xFF);
@@ -947,6 +954,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_mcu_start = 0;
 
   FILE *current_file = NULL;
+
+  GError *tmp_err = NULL;
 
   while(current_jpeg < data->jpeg_count) {
     g_mutex_lock(data->restart_marker_cond_mutex);
@@ -1004,9 +1013,10 @@ static gpointer restart_marker_thread_func(gpointer d) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
     if (oj->filename) {
       if (current_file == NULL) {
-	current_file = _openslide_fopen(oj->filename, "rb");
+	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
-	  _openslide_set_error(osr, "Can't open %s", oj->filename);
+	  _openslide_set_error_from_gerror(osr, tmp_err);
+	  g_clear_error(&tmp_err);
 	  goto LOCKED_FAIL;
 	}
       }
@@ -1285,21 +1295,24 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
 
 static void my_error_exit(j_common_ptr cinfo) {
-  struct _openslide_jpeg_error_mgr *err =
+  struct _openslide_jpeg_error_mgr *jerr =
     (struct _openslide_jpeg_error_mgr *) cinfo->err;
 
-  (err->pub.output_message) (cinfo);
+  (jerr->pub.output_message) (cinfo);
 
   //  g_debug("JUMP");
-  longjmp(*(err->env), 1);
+  longjmp(*(jerr->env), 1);
 }
 
 static void my_output_message(j_common_ptr cinfo) {
+  struct _openslide_jpeg_error_mgr *jerr =
+    (struct _openslide_jpeg_error_mgr *) cinfo->err;
   char buffer[JMSG_LENGTH_MAX];
 
   (*cinfo->err->format_message) (cinfo, buffer);
 
-  g_critical("%s", buffer);
+  g_set_error(&jerr->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+              "%s", buffer);
 }
 
 static void my_emit_message(j_common_ptr cinfo, int msg_level) {
@@ -1309,15 +1322,17 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *err,
+// jerr->err will be set when setjmp returns again
+struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env) {
-  jpeg_std_error(&(err->pub));
-  err->pub.error_exit = my_error_exit;
-  err->pub.output_message = my_output_message;
-  err->pub.emit_message = my_emit_message;
-  err->env = env;
+  jpeg_std_error(&(jerr->pub));
+  jerr->pub.error_exit = my_error_exit;
+  jerr->pub.output_message = my_output_message;
+  jerr->pub.emit_message = my_emit_message;
+  jerr->env = env;
+  jerr->err = NULL;
 
-  return (struct jpeg_error_mgr *) err;
+  return (struct jpeg_error_mgr *) jerr;
 }
 
 GHashTable *_openslide_jpeg_create_tiles_table(void) {
@@ -1334,14 +1349,16 @@ static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
   struct _openslide_jpeg_error_mgr jerr;
   FILE *f;
   jmp_buf env;
+  GError *tmp_err = NULL;
 
   // g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, ctx->filename,
   //         ctx->offset);
 
   // open file
-  f = _openslide_fopen(ctx->filename, "rb");
+  f = _openslide_fopen(ctx->filename, "rb", &tmp_err);
   if (f == NULL) {
-    _openslide_set_error(osr, "Cannot open file %s", ctx->filename);
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
     return;
   }
   if (ctx->offset && fseeko(f, ctx->offset, SEEK_SET) == -1) {
@@ -1411,7 +1428,9 @@ static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
     }
   } else {
     // setjmp has returned again
-    _openslide_set_error(osr, "Cannot read associated image");
+    _openslide_set_error(osr, "Cannot read associated image: %s",
+                         jerr.err->message);
+    g_clear_error(&jerr.err);
   }
 
 DONE:
@@ -1437,7 +1456,8 @@ static void jpeg_destroy_associated_image_ctx(void *_ctx) {
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  const char *filename,
-					  int64_t offset) {
+					  int64_t offset,
+					  GError **err) {
   bool result = false;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
@@ -1445,12 +1465,12 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
   jmp_buf env;
 
   // open file
-  f = _openslide_fopen(filename, "rb");
+  f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
     return false;
   }
   if (offset && fseeko(f, offset, SEEK_SET) == -1) {
-    g_warning("Cannot seek to offset");
+    _openslide_io_error(err, "Cannot seek to offset");
     fclose(f);
     return false;
   }
@@ -1465,6 +1485,8 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG header");
       goto DONE;
     }
 
@@ -1488,6 +1510,9 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     }
 
     result = true;
+  } else {
+    // setjmp returned again
+    g_propagate_error(err, jerr.err);
   }
 
 DONE:

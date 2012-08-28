@@ -47,8 +47,7 @@ static const xmlChar LEICA_ATTR_IFD[] = "ifd";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
-    if (!parse_int_attr(NODE, NAME, &OUT))  {		\
-      g_warning("Can't read attribute \"%s\"", NAME);	\
+    if (!parse_int_attr(NODE, NAME, &OUT, err))  {	\
       goto FAIL;					\
     }							\
   } while (0)
@@ -72,17 +71,21 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 }
 
 static bool parse_int_attr(xmlNodePtr node, const xmlChar *name,
-                           int64_t *out) {
+                           int64_t *out, GError **err) {
   xmlChar *value = xmlGetProp(node, name);
   int64_t result;
   gchar *endptr;
 
   if (value == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "No integer attribute \"%s\"", name);
     return false;
   }
 
   result = g_ascii_strtoll((gchar *) value, &endptr, 10);
   if (value[0] == 0 || endptr[0] != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid integer attribute \"%s\"", name);
     xmlFree(value);
     return false;
   }
@@ -149,7 +152,7 @@ static void set_prop_from_attribute(openslide_t *osr,
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
                                   int *out_macro_ifd,
                                   GList **out_main_image_ifds,
-                                  int *level_count) {
+                                  int *level_count, GError **err) {
   xmlDocPtr doc = NULL;
   xmlNode *root_element;
   xmlNode *collection;
@@ -187,20 +190,25 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                       XML_PARSE_NOWARNING | XML_PARSE_NONET);
   if (doc == NULL) {
     // not leica
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Could not parse XML");
     goto FAIL;
   }
 
   root_element = xmlDocGetRootElement(doc);
   if (xmlStrcmp(root_element->ns->href, LEICA_XMLNS) != 0) {
     // not leica
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unexpected XML namespace");
     goto FAIL;
   }
 
   // create XPATH context to query the document
   context = xmlXPathNewContext(doc);
   if (context == NULL) {
-    g_warning("xmlXPathNewContext failed");
-    goto FAIL;
+    // allocation error, abort
+    g_error("xmlXPathNewContext failed");
+    // not reached
   }
 
   // register the document's NS to a shorter name
@@ -218,7 +226,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = eval_xpath("/l:scn/l:collection", context);
   // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
-    g_warning("Can't find collection element");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find collection element");
     goto FAIL;
   }
 
@@ -238,7 +247,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   context->node = collection;
   images_result = eval_xpath("l:image", context);
   if (!images_result) {
-    g_warning("Can't find any images");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find any images");
     goto FAIL;
   }
 
@@ -250,7 +260,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     result = eval_xpath("l:view", context);
 
     if (result == NULL || result->nodesetval->nodeNr != 1) {
-      g_warning("Can't find view node");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't find view node");
       goto FAIL;
     }
 
@@ -265,13 +276,15 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     // we assume that the macro's dimensions are the same as the collection's
     if (test_width == collection_width && test_height == collection_height) {
       if (macro_image != NULL) {
-        g_warning("Found multiple macro images");
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Found multiple macro images");
         goto FAIL;
       }
       macro_image = image;
     } else {
       if (main_image != NULL) {
-        g_warning("Found multiple main images");
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Found multiple main images");
         goto FAIL;
       }
       main_image = image;
@@ -279,7 +292,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   if (main_image == NULL) {
-    g_warning("Can't find main image node");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find main image node");
     goto FAIL;
   }
 
@@ -287,7 +301,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = eval_xpath("l:pixels/l:dimension", context);
 
   if (!result) {
-    g_warning("Can't find any dimensions in the main image");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find any dimensions in the main image");
     goto FAIL;
   }
 
@@ -336,7 +351,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     result = eval_xpath("l:pixels/l:dimension", context);
 
     if (!result) {
-      g_warning("Can't find any dimensions in the macro image");
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't find any dimensions in the macro image");
       goto FAIL;
     }
 
@@ -374,21 +390,24 @@ FAIL:
   return success;
 }
 
-static bool check_directory(TIFF *tiff, uint16 dir_num) {
+static bool check_directory(TIFF *tiff, uint16 dir_num, GError **err) {
   if (TIFFSetDirectory(tiff, dir_num) == 0) {
-    g_warning("Can't find directory");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find directory");
     return false;
   }
 
   // verify that we can read this compression (hard fail if not)
   uint16_t compression;
   if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-    g_warning("Can't read compression scheme");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read compression scheme");
     return false;
   }
 
   if (!TIFFIsCODECConfigured(compression)) {
-    g_warning("Unsupported TIFF compression: %u", compression);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unsupported TIFF compression: %u", compression);
     return false;
   }
 
@@ -396,7 +415,8 @@ static bool check_directory(TIFF *tiff, uint16 dir_num) {
 }
 
 bool _openslide_try_leica(openslide_t *osr, TIFF *tiff, 
-                          struct _openslide_hash *quickhash1) {
+                          struct _openslide_hash *quickhash1,
+                          GError **err) {
   GList *level_list = NULL;
   int32_t level_count;
   int32_t *levels = NULL;
@@ -406,7 +426,9 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   int macroIFD;  // which IFD contains the macro image
 
   if (!TIFFIsTiled(tiff)) {
-    goto FAIL; // not tiled
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    goto FAIL;
   }
 
   // get the xml description
@@ -415,12 +437,13 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   // check if it containes the XML namespace string before we invoke
   // the parser
   if (!tiff_result || (strstr(tagval, (const char *) LEICA_XMLNS) == NULL)) {
-    // not leica
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Leica slide");
     goto FAIL;
   }
 
   if (!parse_xml_description(tagval, osr, &macroIFD, &level_list,
-                             &level_count)) {
+                             &level_count, err)) {
     // unrecognizable xml
     goto FAIL;
   }
@@ -432,10 +455,14 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   }
 
   // add macro image if found
-  if (macroIFD != -1 && check_directory(tiff, macroIFD)) {
-    _openslide_add_tiff_associated_image(
-      osr ? osr->associated_images : NULL, "macro", tiff
-    );
+  if (macroIFD != -1) {
+    if (!check_directory(tiff, macroIFD, err)) {
+      goto FAIL;
+    }
+    if (!_openslide_add_tiff_associated_image(osr ? osr->associated_images : NULL,
+                                              "macro", tiff, err)) {
+      goto FAIL;
+    }
   }
 
   // sort tiled levels
@@ -445,7 +472,7 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   levels = g_new(int32_t, level_count);
   for (int i = 0; i < level_count; i++) {
     struct level *l = level_list->data;
-    if (!check_directory(tiff, l->directory_number)) {
+    if (!check_directory(tiff, l->directory_number, err)) {
       goto FAIL;
     }
     level_list = g_list_delete_link(level_list, level_list);

@@ -1,5 +1,5 @@
 base: Hamamatsu-vms/CMU-1.zip
-error: ^Restart interval greater than MCUs per row$
+error: "^Can't verify JPEG 4: Restart interval greater than MCUs per row$"
 generate:
     ? "CMU-1-40x - 2010-01-12 13.24.05_map2.jpg"
     : "jpegtran -restart 1800B -outfile %(out)s %(in)s"
