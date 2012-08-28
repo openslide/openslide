@@ -79,10 +79,11 @@ def _load_test_config(testname):
         return yaml.safe_load(fh)
 
 
-def _try_open_slide(slidefile, valgrind=False, testdir=None):
-    '''Try opening the specified slide file, under Valgrind if specified,
-    using the test programs in the testdir directory.  Return None on
-    success, error message on failure.'''
+def _launch_test(test, slidefile, valgrind=False, testdir=None, **kwargs):
+    '''Start the specified test from the testdir directory against the
+    specified slide, running under Valgrind if requested.  kwargs are passed
+    to the Popen constructor.  Return the Popen instance.'''
+
     if testdir is None:
         testdir = '!!BUILDDIR!!'
     env = os.environ.copy()
@@ -91,18 +92,39 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None):
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
     )
-    args = [os.path.join(testdir, 'try_open'), slidefile]
+    args = [os.path.join(testdir, test), slidefile]
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
                 '--leak-check=full'] + args
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, env=env)
+    return subprocess.Popen(args, env=env, **kwargs)
+
+
+def _try_open_slide(slidefile, valgrind=False, testdir=None):
+    '''Try opening the specified slide file, under Valgrind if specified,
+    using the test program in the testdir directory.  Return None on
+    success, error message on failure.'''
+
+    proc = _launch_test('try_open', slidefile, valgrind=valgrind,
+            testdir=testdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate()
     if proc.returncode or out or err:
         return out + err
     else:
         return None
+
+
+def _try_extended(slidefile, valgrind=False, testdir=None):
+    '''Run the extended test program against the specified slide file, under
+    Valgrind if specified, using the test program in the testdir directory.
+    Ignore return code and swallow stdout, since the test is verbose.
+    Return stderr.'''
+
+    with open('/dev/null', 'r+') as null:
+        proc = _launch_test('test', slidefile, valgrind=valgrind,
+                testdir=testdir, stdout=null, stderr=subprocess.PIPE)
+    _out, err = proc.communicate()
+    return err
 
 
 @_command
@@ -237,8 +259,10 @@ def _unpack_one(testname):
                 os.symlink(src, newpath)
 
 
-def _run_one(testname, valgrind=False, testdir=None):
-    '''Run the specified test, under Valgrind if specified.'''
+def _run_one(testname, valgrind=False, testdir=None, extended=False):
+    '''Run the specified test, under Valgrind if specified.  If extended
+    tests are requested, execute them against cases that are expected to,
+    and do in fact, succeed.'''
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
@@ -246,17 +270,23 @@ def _run_one(testname, valgrind=False, testdir=None):
 
     if result is None and not conf['success']:
         print '%s: unexpected success' % testname
+        return False
     elif result is not None and conf['success']:
         print '%s: unexpected failure: %s' % (testname, result)
+        return False
     elif result is not None and not re.search(conf['error'], result):
         print '%s: incorrect error: %s' % (testname, result)
-    else:
-        print '%s: OK' % testname
-        return True
-    return False
+        return False
+    elif extended and conf['success']:
+        result = _try_extended(slidefile, valgrind, testdir)
+        if result:
+            print '%s: extended test failed: %s' % (testname, result)
+            return False
+    print '%s: OK' % testname
+    return True
 
 
-def _run_all(pattern='*', valgrind=False, testdir=None):
+def _run_all(pattern='*', valgrind=False, testdir=None, extended=False):
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  Return the number of failed tests.'''
     tests = _list_tests(pattern)
@@ -264,7 +294,7 @@ def _run_all(pattern='*', valgrind=False, testdir=None):
         _unpack_one(testname)
     failed = 0
     for testname in tests:
-        if not _run_one(testname, valgrind, testdir):
+        if not _run_one(testname, valgrind, testdir, extended):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
     return failed
@@ -306,7 +336,7 @@ def coverage(outfile):
     subprocess.check_call(['make'])
 
     # Run tests
-    _run_all(testdir='test')
+    _run_all(testdir='test', extended=True)
 
     # Generate coverage reports
     paths = []
@@ -331,7 +361,7 @@ def coverage(outfile):
 @_command
 def valgrind(pattern='*'):
     '''Valgrind all tests matching the specified pattern.'''
-    if _run_all(pattern, True):
+    if _run_all(pattern, valgrind=True, extended=True):
         sys.exit(1)
 
 
