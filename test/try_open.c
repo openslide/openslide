@@ -31,7 +31,7 @@ static gboolean have_error = FALSE;
 static void print_log(const gchar *domain G_GNUC_UNUSED,
                       GLogLevelFlags level G_GNUC_UNUSED,
                       const gchar *message, void *data G_GNUC_UNUSED) {
-  fprintf(stderr, "%s\n", message);
+  fprintf(stderr, "[log] %s\n", message);
   have_error = TRUE;
 }
 
