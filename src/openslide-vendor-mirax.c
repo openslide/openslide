@@ -191,8 +191,12 @@ static int32_t read_le_int32_from_file(FILE *f) {
 
 static bool read_nonhier_record(FILE *f,
 				int64_t nonhier_root_position,
+				const char *dirname,
+				int datafile_count,
+				char **datafile_names,
 				int recordno,
-				int *fileno, int64_t *size, int64_t *position,
+				char **path,  // must g_free()
+				int64_t *size, int64_t *position,
 				GError **err) {
   g_return_val_if_fail(recordno >= 0, false);
 
@@ -290,12 +294,17 @@ static bool read_nonhier_record(FILE *f,
                 "Can't read size");
     return false;
   }
-  *fileno = read_le_int32_from_file(f);
-  if (*fileno == -1) {
+  int fileno = read_le_int32_from_file(f);
+  if (fileno == -1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read fileno");
     return false;
+  } else if (fileno < 0 || fileno >= datafile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid fileno %d", fileno);
+    return false;
   }
+  *path = g_build_filename(dirname, datafile_names[fileno], NULL);
 
   return true;
 }
@@ -650,14 +659,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static int32_t *read_slide_position_file(const char *dirname, const char *name,
+static int32_t *read_slide_position_file(const char *path,
 					 int64_t size, int64_t offset,
 					 int level_0_tile_concat,
 					 GError **err) {
-  char *tmp = g_build_filename(dirname, name, NULL);
-  FILE *f = _openslide_fopen(tmp, "rb", err);
-  g_free(tmp);
-
+  FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
     g_prefix_error(err, "Cannot open slide position file: ");
     return NULL;
@@ -704,11 +710,12 @@ static bool add_associated_image(const char *dirname,
                                  GHashTable *ht,
                                  FILE *indexfile,
                                  int64_t nonhier_root,
+                                 int datafile_count,
                                  char **datafile_names,
                                  const char *name,
                                  int recordno,
                                  GError **err) {
-  int fileno;
+  char *path;
   int64_t size;
   int64_t offset;
   bool result = false;
@@ -718,11 +725,11 @@ static bool add_associated_image(const char *dirname,
     return true;
   }
 
-  if (read_nonhier_record(indexfile, nonhier_root, recordno,
-                          &fileno, &size, &offset, err)) {
-    char *tmp = g_build_filename(dirname, datafile_names[fileno], NULL);
-    result = _openslide_add_jpeg_associated_image(ht, name, tmp, offset, err);
-    g_free(tmp);
+  if (read_nonhier_record(indexfile, nonhier_root, dirname,
+                          datafile_count, datafile_names, recordno,
+                          &path, &size, &offset, err)) {
+    result = _openslide_add_jpeg_associated_image(ht, name, path, offset, err);
+    g_free(path);
   }
 
   if (!result) {
@@ -801,13 +808,16 @@ static bool process_indexfile(const char *uuid,
   // If we have individual tile positioning information as part of the
   // non-hier data, read the position information.
   if (slide_position_record != -1) {
-    int slide_position_fileno;
+    char *slide_position_path;
     int64_t slide_position_size;
     int64_t slide_position_offset;
     if (!read_nonhier_record(indexfile,
 			     nonhier_root,
+			     dirname,
+			     datafile_count,
+			     datafile_names,
 			     slide_position_record,
-			     &slide_position_fileno,
+			     &slide_position_path,
 			     &slide_position_size,
 			     &slide_position_offset,
 			     err)) {
@@ -819,16 +829,17 @@ static bool process_indexfile(const char *uuid,
     if (slide_position_size != (9 * ntiles)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Slide position file not of expected size");
+      g_free(slide_position_path);
       goto DONE;
     }
 
     // read in the slide positions
-    slide_positions = read_slide_position_file(dirname,
-					       datafile_names[slide_position_fileno],
+    slide_positions = read_slide_position_file(slide_position_path,
 					       slide_position_size,
 					       slide_position_offset,
 					       slide_zoom_level_params[0].tile_concat,
 					       err);
+    g_free(slide_position_path);
     if (!slide_positions) {
       goto DONE;
     }
@@ -853,6 +864,7 @@ static bool process_indexfile(const char *uuid,
                             associated_images,
                             indexfile,
                             nonhier_root,
+                            datafile_count,
                             datafile_names,
                             "macro",
                             macro_record,
@@ -863,6 +875,7 @@ static bool process_indexfile(const char *uuid,
                             associated_images,
                             indexfile,
                             nonhier_root,
+                            datafile_count,
                             datafile_names,
                             "label",
                             label_record,
@@ -873,6 +886,7 @@ static bool process_indexfile(const char *uuid,
                             associated_images,
                             indexfile,
                             nonhier_root,
+                            datafile_count,
                             datafile_names,
                             "thumbnail",
                             thumbnail_record,
