@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Can't read fileno$
+error: "^Cannot read macro associated image: Can't read fileno$"
 slide: CMU-1.mrxs
 success: false

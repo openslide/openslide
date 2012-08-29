@@ -438,7 +438,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
     if (fseeko(f, seek_location, SEEK_SET) == -1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Cannot seek to zoom level pointer %d", zoom_level + 1);
+                  "Cannot seek to zoom level pointer %d", zoom_level);
       goto DONE;
     }
 
