@@ -102,22 +102,10 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
                           GError **err) {
-  // determine size of file
-  FILE *f = _openslide_fopen(filename, "rb", err);
-  if (f == NULL) {
-    return false;
-  }
-
-  fseeko(f, 0, SEEK_END);
-  int64_t size = ftello(f);
+  int64_t size = _openslide_fsize(filename, err);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't get size of %s", filename);
-    fclose(f);
     return false;
   }
-
-  fclose(f);
-
   return _openslide_hash_file_part(hash, filename, 0, size, err);
 }
 
