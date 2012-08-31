@@ -112,6 +112,29 @@ static void parse_trestle_image_description(openslide_t *osr,
   *overlaps_OUT = overlaps;
 }
 
+static char *get_associated_path(TIFF *tiff, const char *extension) {
+  char *base_path = g_strdup(TIFFFileName(tiff));
+
+  // strip file extension, if present
+  char *dot = g_strrstr(base_path, ".");
+  if (dot != NULL) {
+    *dot = 0;
+  }
+
+  char *path = g_strdup_printf("%s%s", base_path, extension);
+  g_free(base_path);
+  return path;
+}
+
+static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
+                                const char *extension,
+                                const char *name) {
+  char *path = get_associated_path(tiff, extension);
+  _openslide_add_jpeg_associated_image(osr->associated_images,
+                                       name, path, 0, NULL);
+  g_free(path);
+}
+
 bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			    struct _openslide_hash *quickhash1,
 			    GError **err) {
@@ -175,6 +198,11 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   // directories are linear
   for (int32_t i = 0; i < level_count; i++) {
     levels[i] = i;
+  }
+
+  // add associated images
+  if (osr) {
+    add_associated_jpeg(osr, tiff, ".Full", "macro");
   }
 
   // all set, load up the TIFF-specific ops
