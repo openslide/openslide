@@ -83,42 +83,6 @@ static bool level_in_range(openslide_t *osr, int32_t level) {
   return true;
 }
 
-// TODO: remove entirely if libtiff gets private error/warning callbacks
-static bool quick_tiff_check(const char *filename) {
-  FILE *f = _openslide_fopen(filename, "rb", NULL);
-  if (f == NULL) {
-    return false;
-  }
-
-  // read magic
-  uint8_t buf[4];
-  if (fread(buf, 4, 1, f) != 1) {
-    // can't read
-    fclose(f);
-    return false;
-  }
-
-  fclose(f);
-
-  // check magic
-  if (buf[0] != buf[1]) {
-    return false;
-  }
-
-  switch (buf[0]) {
-  case 'M':
-    // big endian
-    return (buf[2] == 0) && ((buf[3] == 42) || (buf[3] == 43));
-
-  case 'I':
-    // little endian
-    return (buf[3] == 0) && ((buf[2] == 42) || (buf[2] == 43));
-
-  default:
-    return false;
-  }
-}
-
 static void reset_osr(openslide_t *osr) {
   if (osr) {
     g_hash_table_remove_all(osr->properties);
@@ -214,9 +178,8 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
 
   // tiff
-  TIFF *tiff;
-  // TIFFOpen: m disables mmap to avoid sigbus and other mmap fragility
-  if (quick_tiff_check(filename) && ((tiff = TIFFOpen(filename, "rm")) != NULL)) {
+  TIFF *tiff = _openslide_tiff_open(filename);
+  if (tiff != NULL) {
     const _openslide_tiff_vendor_fn *tfn = tiff_formats;
     while (*tfn) {
       if (try_tiff_format(osr, tiff, quickhash1_OUT, tfn, &tmp_err)) {

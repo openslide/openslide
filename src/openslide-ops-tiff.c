@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -27,6 +27,7 @@
 #include <glib.h>
 #include <tiffio.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <cairo.h>
 
@@ -43,6 +44,12 @@ struct _openslide_tiffopsdata {
   int32_t *levels;
 
   _openslide_tiff_tilereader_fn tileread;
+};
+
+struct tiff_file_handle {
+  char *filename;
+  int64_t offset;  // protected by tiff_mutex
+  int64_t size;
 };
 
 struct tiff_associated_image_ctx {
@@ -599,4 +606,127 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
   }
 
   return true;
+}
+
+static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
+  struct tiff_file_handle *hdl = th;
+
+  // don't leave the file handle open between calls
+  // also ensures FD_CLOEXEC is set
+  FILE *f = _openslide_fopen(hdl->filename, "rb", NULL);
+  if (f == NULL) {
+    return 0;
+  }
+  if (fseeko(f, hdl->offset, SEEK_SET)) {
+    fclose(f);
+    return 0;
+  }
+  int64_t rsize = fread(buf, 1, size, f);
+  hdl->offset += rsize;
+  fclose(f);
+  return rsize;
+}
+
+static tsize_t tiff_do_write(thandle_t th G_GNUC_UNUSED,
+                             tdata_t data G_GNUC_UNUSED,
+                             tsize_t size G_GNUC_UNUSED) {
+  // fail
+  return 0;
+}
+
+static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
+  struct tiff_file_handle *hdl = th;
+
+  switch (whence) {
+  case SEEK_SET:
+    hdl->offset = offset;
+    break;
+  case SEEK_CUR:
+    hdl->offset += offset;
+    break;
+  case SEEK_END:
+    hdl->offset = hdl->size + offset;
+    break;
+  default:
+    g_assert_not_reached();
+  }
+  return hdl->offset;
+}
+
+static int tiff_do_close(thandle_t th) {
+  struct tiff_file_handle *hdl = th;
+
+  g_free(hdl->filename);
+  g_slice_free(struct tiff_file_handle, hdl);
+  return 0;
+}
+
+static toff_t tiff_do_size(thandle_t th) {
+  struct tiff_file_handle *hdl = th;
+
+  return hdl->size;
+}
+
+TIFF *_openslide_tiff_open(const char *filename) {
+  // open
+  FILE *f = _openslide_fopen(filename, "rb", NULL);
+  if (f == NULL) {
+    return NULL;
+  }
+
+  // read magic
+  uint8_t buf[4];
+  if (fread(buf, 4, 1, f) != 1) {
+    // can't read
+    fclose(f);
+    return NULL;
+  }
+
+  // get size
+  if (fseeko(f, 0, SEEK_END) == -1) {
+    fclose(f);
+    return NULL;
+  }
+  int64_t size = ftello(f);
+  fclose(f);
+  if (size == -1) {
+    return NULL;
+  }
+
+  // check magic
+  // TODO: remove if libtiff gets private error/warning callbacks
+  if (buf[0] != buf[1]) {
+    return NULL;
+  }
+  switch (buf[0]) {
+  case 'M':
+    // big endian
+    if (!((buf[2] == 0) && ((buf[3] == 42) || (buf[3] == 43)))) {
+      return NULL;
+    }
+    break;
+  case 'I':
+    // little endian
+    if (!((buf[3] == 0) && ((buf[2] == 42) || (buf[2] == 43)))) {
+      return NULL;
+    }
+    break;
+  default:
+    return NULL;
+  }
+
+  // allocate
+  struct tiff_file_handle *hdl = g_slice_new0(struct tiff_file_handle);
+  hdl->filename = g_strdup(filename);
+  hdl->size = size;
+
+  // TIFFOpen
+  // mode: m disables mmap to avoid sigbus and other mmap fragility
+  TIFF *tiff = TIFFClientOpen(filename, "rm", hdl,
+                              tiff_do_read, tiff_do_write, tiff_do_seek,
+                              tiff_do_close, tiff_do_size, NULL, NULL);
+  if (tiff == NULL) {
+    tiff_do_close(hdl);
+  }
+  return tiff;
 }
