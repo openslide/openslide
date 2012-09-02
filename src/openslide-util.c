@@ -171,3 +171,10 @@ int64_t _openslide_fsize(const char *path, GError **err) {
   fclose(f);
   return size;
 }
+
+char *_openslide_format_double(double d) {
+  char buf[G_ASCII_DTOSTR_BUF_SIZE];
+
+  g_ascii_dtostr(buf, sizeof buf, d);
+  return g_strdup(buf);
+}
