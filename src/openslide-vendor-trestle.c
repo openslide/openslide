@@ -60,6 +60,9 @@ static void add_properties(GHashTable *ht, char **tags) {
     }
     g_strfreev(pair);
   }
+
+  _openslide_duplicate_int_prop(ht, "trestle.Objective Power",
+                                OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
 }
 
 static void parse_trestle_image_description(openslide_t *osr,
@@ -212,6 +215,14 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 			  _openslide_generic_tiff_tilereader,
 			  quickhash1);
 
+  // copy the TIFF resolution props to the standard MPP properties
+  // this is a totally non-standard use of these TIFF tags
+  if (osr) {
+    _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
+                                     OPENSLIDE_PROPERTY_NAME_MPP_X);
+    _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
+                                     OPENSLIDE_PROPERTY_NAME_MPP_Y);
+  }
 
   return true;
 

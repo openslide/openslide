@@ -155,6 +155,13 @@ int64_t _openslide_fsize(const char *path, GError **err);
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 
+/* Duplicate OpenSlide properties */
+void _openslide_duplicate_int_prop(GHashTable *ht, const char *src,
+                                   const char *dest);
+void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
+                                      const char *dest);
+
+
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      TIFF *tiff,

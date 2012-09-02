@@ -231,6 +231,12 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
   }
 
   g_strfreev(keys);
+
+  // this allows openslide.objective-power to have a fractional component
+  // but it's better than rounding
+  _openslide_duplicate_double_prop(ht, "hamamatsu.SourceLens",
+                                   OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  // TODO: can we calculate MPP from PhysicalWidth/PhysicalHeight?
 }
 
 static bool hamamatsu_vms_part2(openslide_t *osr,

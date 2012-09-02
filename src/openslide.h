@@ -246,6 +246,29 @@ const char *openslide_get_error(openslide_t *osr);
  * @since 3.2.3
  */
 #define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
+
+/**
+ * The name of the property containing a slide's objective power, if known.
+ *
+ * @since 3.3.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER "openslide.objective-power"
+
+/**
+ * The name of the property containing the number of microns per pixel in
+ * the X dimension of level 0, if known.
+ *
+ * @since 3.3.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_MPP_X "openslide.mpp-x"
+
+/**
+ * The name of the property containing the number of microns per pixel in
+ * the Y dimension of level 0, if known.
+ *
+ * @since 3.3.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_MPP_Y "openslide.mpp-y"
 //@}
 
 /**

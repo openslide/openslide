@@ -241,6 +241,13 @@ static void add_properties(GHashTable *ht, char **props) {
     }
     g_strfreev(pair);
   }
+
+  _openslide_duplicate_int_prop(ht, "aperio.AppMag",
+                                OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  _openslide_duplicate_double_prop(ht, "aperio.MPP",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(ht, "aperio.MPP",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
 }
 
 // add the image from the current TIFF directory

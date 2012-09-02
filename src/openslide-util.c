@@ -178,3 +178,35 @@ char *_openslide_format_double(double d) {
   g_ascii_dtostr(buf, sizeof buf, d);
   return g_strdup(buf);
 }
+
+// if the src prop is an int, canonicalize it and copy it to dest
+void _openslide_duplicate_int_prop(GHashTable *ht, const char *src,
+                                   const char *dest) {
+  g_return_if_fail(g_hash_table_lookup(ht, dest) == NULL);
+
+  char *value = g_hash_table_lookup(ht, src);
+  if (value && value[0]) {
+    char *endptr;
+    int64_t result = g_ascii_strtoll(value, &endptr, 10);
+    if (endptr[0] == 0) {
+      g_hash_table_insert(ht, g_strdup(dest),
+                          g_strdup_printf("%"G_GINT64_FORMAT, result));
+    }
+  }
+}
+
+// if the src prop is a double, canonicalize it and copy it to dest
+void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
+                                      const char *dest) {
+  g_return_if_fail(g_hash_table_lookup(ht, dest) == NULL);
+
+  char *value = g_hash_table_lookup(ht, src);
+  if (value && value[0]) {
+    char *endptr;
+    double result = g_ascii_strtod(value, &endptr);
+    if (endptr[0] == 0) {
+      g_hash_table_insert(ht, g_strdup(dest),
+                          _openslide_format_double(result));
+    }
+  }
+}

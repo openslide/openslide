@@ -149,6 +149,21 @@ static void set_prop_from_attribute(openslide_t *osr,
   xmlXPathFreeObject(result);
 }
 
+static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
+                                const char *property_name,
+                                ttag_t tag) {
+  float f;
+  uint16_t unit;
+
+  if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &unit) &&
+      TIFFGetField(tiff, tag, &f) &&
+      osr &&
+      unit == RESUNIT_CENTIMETER) {
+    g_hash_table_insert(osr->properties, g_strdup(property_name),
+                        _openslide_format_double(10000.0 / f));
+  }
+}
+
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
                                   int *out_macro_ifd,
                                   GList **out_main_image_ifds,
@@ -345,6 +360,12 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                         "l:scanSettings/l:illuminationSettings/l:illuminationSource",
                         context);
 
+  // copy objective to standard property
+  if (osr) {
+    _openslide_duplicate_int_prop(osr->properties, "leica.objective",
+                                  OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  }
+
   // process macro image
   if (macro_image != NULL) {
     context->node = macro_image;
@@ -482,9 +503,20 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   }
 
   g_assert(level_list == NULL);
+  g_assert(level_count > 0);
+
+  // set MPP properties
+  if (!TIFFSetDirectory(tiff, levels[0])) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read directory");
+    goto FAIL;
+  }
+  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
+                      TIFFTAG_XRESOLUTION);
+  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
+                      TIFFTAG_YRESOLUTION);
 
   // all set, load up the TIFF-specific ops
-  g_assert(level_count > 0);
   _openslide_add_tiff_ops(osr, tiff, levels[0],
     0, NULL,
     level_count, levels,

@@ -49,6 +49,7 @@ static const char KEY_SLIDE_VERSION[] = "SLIDE_VERSION";
 static const char KEY_SLIDE_ID[] = "SLIDE_ID";
 static const char KEY_IMAGENUMBER_X[] = "IMAGENUMBER_X";
 static const char KEY_IMAGENUMBER_Y[] = "IMAGENUMBER_Y";
+static const char KEY_OBJECTIVE_MAGNIFICATION[] = "OBJECTIVE_MAGNIFICATION";
 static const char KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE[] = "CameraImageDivisionsPerSide";
 
 static const char GROUP_HIERARCHICAL[] = "HIERARCHICAL";
@@ -80,6 +81,8 @@ static const char KEY_d_FILE[] = "FILE_%d";
 
 static const char KEY_OVERLAP_X[] = "OVERLAP_X";
 static const char KEY_OVERLAP_Y[] = "OVERLAP_Y";
+static const char KEY_MPP_X[] = "MICROMETER_PER_PIXEL_X";
+static const char KEY_MPP_Y[] = "MICROMETER_PER_PIXEL_Y";
 static const char KEY_IMAGE_FORMAT[] = "IMAGE_FORMAT";
 static const char KEY_IMAGE_FILL_COLOR_BGR[] = "IMAGE_FILL_COLOR_BGR";
 static const char KEY_DIGITIZER_WIDTH[] = "DIGITIZER_WIDTH";
@@ -138,6 +141,8 @@ struct slide_zoom_level_section {
 
   double overlap_x;
   double overlap_y;
+  double mpp_x;
+  double mpp_y;
 
   uint32_t fill_rgb;
 
@@ -1122,6 +1127,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   int tiles_x = 0;
   int tiles_y = 0;
   int image_divisions = 0;
+  int objective_magnification = 0;
 
   char *index_filename = NULL;
   int zoom_levels = 0;
@@ -1195,6 +1201,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_IMAGENUMBER_X, integer, "Can't read tiles across");
   READ_KEY_OR_FAIL(tiles_y, slidedat, GROUP_GENERAL,
 		   KEY_IMAGENUMBER_Y, integer, "Can't read tiles down");
+  READ_KEY_OR_FAIL(objective_magnification, slidedat, GROUP_GENERAL,
+		   KEY_OBJECTIVE_MAGNIFICATION, integer,
+		   "Can't read objective magnification");
 
   image_divisions = g_key_file_get_integer(slidedat, GROUP_GENERAL,
 					   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE,
@@ -1309,6 +1318,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		     double, "Can't read overlap X");
     READ_KEY_OR_FAIL(hs->overlap_y, slidedat, group, KEY_OVERLAP_Y,
 		     double, "Can't read overlap Y");
+    READ_KEY_OR_FAIL(hs->mpp_x, slidedat, group, KEY_MPP_X,
+		     double, "Can't read micrometers/pixel X");
+    READ_KEY_OR_FAIL(hs->mpp_y, slidedat, group, KEY_MPP_Y,
+		     double, "Can't read micrometers/pixel Y");
     READ_KEY_OR_FAIL(bgr, slidedat, group, KEY_IMAGE_FILL_COLOR_BGR,
 		     integer, "Can't read image fill color");
     READ_KEY_OR_FAIL(hs->tile_w, slidedat, group, KEY_DIGITIZER_WIDTH,
@@ -1387,6 +1400,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
     g_debug("  overlap_x: %g", hs->overlap_x);
     g_debug("  overlap_y: %g", hs->overlap_y);
+    g_debug("  mpp_x: %g", hs->mpp_x);
+    g_debug("  mpp_y: %g", hs->mpp_y);
     g_debug("  fill_rgb: %" PRIu32, hs->fill_rgb);
     g_debug("  tile_w: %d", hs->tile_w);
     g_debug("  tile_h: %d", hs->tile_h);
@@ -1569,6 +1584,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 					     (fill >> 16) & 0xFF,
 					     (fill >> 8) & 0xFF,
 					     fill & 0xFF);
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                        g_strdup_printf("%d", objective_magnification));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                        _openslide_format_double(slide_zoom_level_sections[0].mpp_x));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                        _openslide_format_double(slide_zoom_level_sections[0].mpp_y));
   }
 
   _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, levels);
