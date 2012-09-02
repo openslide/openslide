@@ -64,7 +64,18 @@ OpenSlide itself creates these properties (for now):
    This property is not always present.
 
  openslide.comment
-   A free-form text comment, the same as returned from openslide_get_comment.
+   A free-form text comment.
+
+ openslide.mpp-x
+   Microns per pixel in the X dimension of level 0. May not be present or
+   accurate.
+
+ openslide.mpp-y
+   Microns per pixel in the Y dimension of level 0. May not be present or
+   accurate.
+
+ openslide.objective-power
+   Magnification power of the objective. Often inaccurate; sometimes missing.
 
  openslide.quickhash-1
    A non-cryptographic hash of a subset of the slide data. It can be used
