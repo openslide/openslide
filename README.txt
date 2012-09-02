@@ -59,8 +59,9 @@ http://openslide.org/properties/
 
 OpenSlide itself creates these properties (for now):
 
- openslide.vendor
-   The name of the vendor backend.
+ openslide.background-color
+   The background color of the slide, given as an RGB hex triplet.
+   This property is not always present.
 
  openslide.comment
    A free-form text comment, the same as returned from openslide_get_comment.
@@ -70,9 +71,8 @@ OpenSlide itself creates these properties (for now):
    to uniquely identify a particular virtual slide, but cannot be used
    to detect file corruption or modification.
 
- openslide.background-color
-   The background color of the slide, given as an RGB hex triplet.
-   This property is not always present.
+ openslide.vendor
+   The name of the vendor backend.
 
 
 Other Documentation
