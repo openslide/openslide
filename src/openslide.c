@@ -698,15 +698,6 @@ void openslide_read_associated_image(openslide_t *osr,
   }
 }
 
-void _openslide_set_background_color_property(GHashTable *ht,
-					      uint8_t r, uint8_t g, uint8_t b) {
-  g_return_if_fail(g_hash_table_lookup(ht,
-				       OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR) == NULL);
-
-  g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
-		      g_strdup_printf("%.02X%.02X%.02X", r, g, b));
-}
-
 const char *openslide_get_version(void) {
   return PACKAGE_VERSION;
 }

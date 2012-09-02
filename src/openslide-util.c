@@ -210,3 +210,12 @@ void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
     }
   }
 }
+
+void _openslide_set_background_color_prop(GHashTable *ht,
+                                          uint8_t r, uint8_t g, uint8_t b) {
+  g_return_if_fail(g_hash_table_lookup(ht,
+                                       OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR) == NULL);
+
+  g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
+                      g_strdup_printf("%.02X%.02X%.02X", r, g, b));
+}

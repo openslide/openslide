@@ -1580,10 +1580,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   if (osr) {
     uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
-    _openslide_set_background_color_property(osr->properties,
-					     (fill >> 16) & 0xFF,
-					     (fill >> 8) & 0xFF,
-					     fill & 0xFF);
+    _openslide_set_background_color_prop(osr->properties,
+                                         (fill >> 16) & 0xFF,
+                                         (fill >> 8) & 0xFF,
+                                         fill & 0xFF);
     g_hash_table_insert(osr->properties,
                         g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
                         g_strdup_printf("%d", objective_magnification));

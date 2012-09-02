@@ -101,10 +101,10 @@ static void parse_trestle_image_description(openslide_t *osr,
       uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
       if (bg || !errno) {
 	if (osr) {
-	  _openslide_set_background_color_property(osr->properties,
-						   (bg >> 16) & 0xFF,
-						   (bg >> 8) & 0xFF,
-						   bg & 0xFF);
+          _openslide_set_background_color_prop(osr->properties,
+                                               (bg >> 16) & 0xFF,
+                                               (bg >> 8) & 0xFF,
+                                               bg & 0xFF);
 	}
       }
     }

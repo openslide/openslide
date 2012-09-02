@@ -161,6 +161,10 @@ void _openslide_duplicate_int_prop(GHashTable *ht, const char *src,
 void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
                                       const char *dest);
 
+// background color helper
+void _openslide_set_background_color_prop(GHashTable *ht,
+                                          uint8_t r, uint8_t g, uint8_t b);
+
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
@@ -313,10 +317,6 @@ GQuark _openslide_error_quark(void);
 
 void _openslide_io_error(GError **err, const char *fmt, ...);
 void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
-
-// background color helper
-void _openslide_set_background_color_property(GHashTable *ht,
-					      uint8_t r, uint8_t g, uint8_t b);
 
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"
