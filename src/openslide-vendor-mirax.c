@@ -1402,7 +1402,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_debug("  overlap_y: %g", hs->overlap_y);
     g_debug("  mpp_x: %g", hs->mpp_x);
     g_debug("  mpp_y: %g", hs->mpp_y);
-    g_debug("  fill_rgb: %" PRIu32, hs->fill_rgb);
+    g_debug("  fill_rgb: %" G_GUINT32_FORMAT, hs->fill_rgb);
     g_debug("  tile_w: %d", hs->tile_w);
     g_debug("  tile_h: %d", hs->tile_h);
   }
