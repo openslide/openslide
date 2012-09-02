@@ -38,7 +38,7 @@ as well as TIFF files that conform to a simple convention. (InterScope
 files tend to be readable as this generic TIFF.)
 
 More information about formats is here:
-http://openslide.org/Supported%20Virtual%20Slide%20Formats/
+http://openslide.org/formats/
 
 An openslide_t object can be used concurrently from multiple threads
 without locking. (But you must lock or otherwise use memory barriers
@@ -55,7 +55,7 @@ a given virtual slide. (These are accessed by way of the
 These properties are generally uninterpreted data gathered from the
 on-disk files. New properties can be added over time in subsequent releases
 of OpenSlide. A list of some properties can be found at:
-http://openslide.org/List%20of%20Known%20Properties/
+http://openslide.org/properties/
 
 OpenSlide itself creates these properties (for now):
 
