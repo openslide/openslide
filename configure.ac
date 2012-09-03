@@ -84,6 +84,11 @@ PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 PKG_CHECK_MODULES(LIBXML2, [libxml-2.0])
 
+# optional
+PKG_CHECK_MODULES(VALGRIND, [valgrind], [
+  AC_DEFINE([HAVE_VALGRIND], [1], [Define to 1 if you have the Valgrind headers.])
+], [:])
+
 gl_VISIBILITY
 
 # CLOEXEC

@@ -24,7 +24,9 @@
 #include "config.h"
 #include "openslide.h"
 
-#include "callgrind.h"
+#ifdef HAVE_VALGRIND
+#include <callgrind.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -422,7 +424,9 @@ int main(int argc, char **argv) {
     associated_image_names++;
   }
 
-  CALLGRIND_START_INSTRUMENTATION
+#ifdef HAVE_VALGRIND
+  CALLGRIND_START_INSTRUMENTATION;
+#endif
   /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
@@ -466,7 +470,9 @@ int main(int argc, char **argv) {
 
   //  test_pdf(osr, "test0.pdf");
 
-  CALLGRIND_STOP_INSTRUMENTATION
+#ifdef HAVE_VALGRIND
+  CALLGRIND_STOP_INSTRUMENTATION;
+#endif
 
   openslide_close(osr);
 
