@@ -26,6 +26,8 @@
 #include <glib.h>
 #include "openslide.h"
 
+#define MAX_FDS 128
+
 static gboolean have_error = FALSE;
 
 static void print_log(const gchar *domain G_GNUC_UNUSED,
@@ -40,7 +42,6 @@ int main(int argc, char **argv) {
   const char *filename;
   const char *error;
   GHashTable *fds;
-  int maxfds;
   struct stat st;
   bool can_open;
 
@@ -52,9 +53,7 @@ int main(int argc, char **argv) {
 
   // Record preexisting file descriptors
   fds = g_hash_table_new(g_direct_hash, g_direct_equal);
-  maxfds = sysconf(_SC_OPEN_MAX);
-  g_assert(maxfds != -1);
-  for (int i = 0; i < maxfds; i++) {
+  for (int i = 0; i < MAX_FDS; i++) {
     if (!fstat(i, &st)) {
       g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
     }
@@ -88,7 +87,7 @@ int main(int argc, char **argv) {
   }
 
   // Check for file descriptor leaks
-  for (int i = 0; i < maxfds; i++) {
+  for (int i = 0; i < MAX_FDS; i++) {
     if (!fstat(i, &st) && !g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
       // leaked
       char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
