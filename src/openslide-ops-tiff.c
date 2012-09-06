@@ -691,20 +691,20 @@ TIFF *_openslide_tiff_open(const char *filename) {
   if (buf[0] != buf[1]) {
     return NULL;
   }
+  uint16_t version;
   switch (buf[0]) {
   case 'M':
     // big endian
-    if (!((buf[2] == 0) && ((buf[3] == 42) || (buf[3] == 43)))) {
-      return NULL;
-    }
+    version = (buf[2] << 8) | buf[3];
     break;
   case 'I':
     // little endian
-    if (!((buf[3] == 0) && ((buf[2] == 42) || (buf[2] == 43)))) {
-      return NULL;
-    }
+    version = (buf[3] << 8) | buf[2];
     break;
   default:
+    return NULL;
+  }
+  if (!(version == 42 || version == 43)) {
     return NULL;
   }
 
