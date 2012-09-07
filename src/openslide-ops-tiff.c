@@ -704,7 +704,8 @@ TIFF *_openslide_tiff_open(const char *filename) {
   default:
     return NULL;
   }
-  if (!(version == 42 || version == 43)) {
+  // only accept BigTIFF on libtiff >= 4
+  if (!(version == 42 || (sizeof(toff_t) > 4 && version == 43))) {
     return NULL;
   }
 
