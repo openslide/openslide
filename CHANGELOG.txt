@@ -1,6 +1,21 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.3.0, 2012-09-08
+ * Support Leica SCN format (requires libtiff >= 4) (thanks, Agelos Pappas)
+ * Allow opening MIRAX 2.2 slides (though there are seams, bug #92)
+ * Add standardized microns-per-pixel and objective-power properties
+ * Add "macro" associated image in Trestle
+ * Rename "layer" to "level" throughout the API (deprecate "layer" functions;
+   remove "layer" properties)
+ * Report parse errors in openslide_open() by returning an openslide_t in
+   error state
+ * Deprecate openslide_get_comment()
+ * Add openslide_get_version()
+ * Improve command-line tools; add manpages
+ * Support building with MinGW-w64; drop CMake, MSVC, mingw32
+ * Add tests for many error paths
+
 Version 3.2.6, 2012-02-23
  * Support downsampled MIRAX files
  * Improve performance on MIRAX slides without tile overlaps
