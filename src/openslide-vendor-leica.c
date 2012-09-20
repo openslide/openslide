@@ -44,6 +44,7 @@ static const xmlChar LEICA_XMLNS[] = "http://www.leica-microsystems.com/scn/2010
 static const xmlChar LEICA_ATTR_SIZE_X[] = "sizeX";
 static const xmlChar LEICA_ATTR_SIZE_Y[] = "sizeY";
 static const xmlChar LEICA_ATTR_IFD[] = "ifd";
+static const xmlChar LEICA_ATTR_Z_PLANE[] = "z";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
@@ -323,6 +324,16 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // add all the IFDs of the main image to the level list
   for (i = 0; i < result->nodesetval->nodeNr; i++) {
+    xmlChar *z = xmlGetProp(result->nodesetval->nodeTab[i],
+                            LEICA_ATTR_Z_PLANE);
+    if (z && strcmp((char *) z, "0")) {
+      // accept only IFDs from z-plane 0
+      // TODO: support multiple z-planes
+      xmlFree(z);
+      continue;
+    }
+    xmlFree(z);
+
     l = g_slice_new(struct level);
 
     PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
@@ -331,11 +342,10 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                 LEICA_ATTR_IFD, l->directory_number);
 
     *out_main_image_ifds = g_list_prepend(*out_main_image_ifds, l);
+    ++*level_count;
   }
 
   l = NULL;
-
-  *level_count = result->nodesetval->nodeNr;
 
   xmlXPathFreeObject(result);
   result = NULL;
