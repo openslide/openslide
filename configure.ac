@@ -47,15 +47,18 @@ AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
 
-AC_MSG_CHECKING([for OpenJPEG])
-dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
-dnl because of the stdcall calling convention which requires
-dnl configure to read openjpeg.h.
+PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
+  dnl OpenJPEG < 1.4 has no pkg-config file
 
-old_LIBS="$LIBS"
-LIBS="-lopenjpeg $LIBS"
-AC_LINK_IFELSE(
-  [AC_LANG_SOURCE(
+  AC_MSG_CHECKING([for OpenJPEG (fallback)])
+  dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
+  dnl because of the stdcall calling convention which requires
+  dnl configure to read openjpeg.h.
+
+  old_LIBS="$LIBS"
+  LIBS="-lopenjpeg $LIBS"
+  AC_LINK_IFELSE(
+    [AC_LANG_SOURCE(
 [[
 #include <openjpeg.h>
 int
@@ -65,19 +68,25 @@ main ()
   return 0;
 }
 ]])],
-  openjpeg_ok=yes,
-  openjpeg_ok=no)
-LIBS="$old_LIBS"
+    openjpeg_ok=yes,
+    openjpeg_ok=no)
+  LIBS="$old_LIBS"
 
-if test "$openjpeg_ok" = yes; then
-  OPENJPEG_LIBS="-lopenjpeg"
-  LIBS="$OPENJPEG_LIBS $LIBS"
-  AC_MSG_RESULT($openjpeg_ok)
-else
-  AC_MSG_FAILURE([cannot find OpenJPEG])
-fi
+  if test "$openjpeg_ok" = yes; then
+    OPENJPEG_LIBS="-lopenjpeg"
+    AC_MSG_RESULT($openjpeg_ok)
+  else
+    AC_MSG_FAILURE([cannot find OpenJPEG])
+  fi
+])
 
-AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
+PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
+  dnl libtiff < 4 has no pkg-config file
+  old_LIBS="$LIBS"
+  AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
+  LIBS="$old_LIBS"
+  LIBTIFF_LIBS="-ltiff"
+])
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
