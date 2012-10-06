@@ -46,7 +46,7 @@ noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-til
 
 
 
-noinst_PROGRAMS = test/test test/try_open
+noinst_PROGRAMS = test/test test/try_open test/parallel
 noinst_SCRIPTS = test/driver
 CLEANFILES  = test/driver
 EXTRA_DIST += test/driver.in
@@ -57,6 +57,9 @@ test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 test_try_open_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_try_open_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+
+test_parallel_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
+test_parallel_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \

@@ -36,6 +36,7 @@ Makefile.in
 
 /test/_slidedata
 /test/driver
+/test/parallel
 /test/test
 /test/try_open
 
