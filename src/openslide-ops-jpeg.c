@@ -370,10 +370,10 @@ static uint8_t find_next_ff_marker(FILE *f,
   }
 }
 
-static void compute_mcu_start(openslide_t *osr,
-			      struct one_jpeg *jpeg,
-			      FILE *f,
-			      int64_t target) {
+static void _compute_mcu_start(openslide_t *osr,
+			       struct one_jpeg *jpeg,
+			       FILE *f,
+			       int64_t target) {
   // special case for first
   if (jpeg->mcu_starts[0] == -1) {
     struct jpeg_decompress_struct cinfo;
@@ -467,6 +467,37 @@ static void compute_mcu_start(openslide_t *osr,
   }
 }
 
+static void compute_mcu_start(openslide_t *osr,
+			      struct one_jpeg *jpeg,
+			      FILE *f,
+			      int64_t tileno,
+			      int64_t *header_stop_position,
+			      int64_t *start_position,
+			      int64_t *stop_position) {
+  _compute_mcu_start(osr, jpeg, f, tileno);
+
+  // end of header; always computed by _compute_mcu_start
+  if (header_stop_position) {
+    *header_stop_position = jpeg->mcu_starts[0];
+  }
+
+  // start of data stream
+  if (start_position) {
+    *start_position = jpeg->mcu_starts[tileno];
+  }
+
+  // end of data stream
+  if (stop_position) {
+    if (jpeg->mcu_starts_count == tileno + 1) {
+      // EOF
+      *stop_position = jpeg->end_in_file;
+    } else {
+      _compute_mcu_start(osr, jpeg, f, tileno + 1);
+      *stop_position = jpeg->mcu_starts[tileno + 1];
+    }
+  }
+}
+
 static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     struct one_jpeg *jpeg,
 				     int32_t tileno,
@@ -499,15 +530,13 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
+    int64_t header_stop_position;
+    int64_t start_position;
     int64_t stop_position;
-    compute_mcu_start(osr, jpeg, f, tileno);
-    if (jpeg->mcu_starts_count == tileno + 1) {
-      // EOF
-      stop_position = jpeg->end_in_file;
-    } else {
-      compute_mcu_start(osr, jpeg, f, tileno + 1);
-      stop_position = jpeg->mcu_starts[tileno + 1];
-    }
+    compute_mcu_start(osr, jpeg, f, tileno,
+                      &header_stop_position,
+                      &start_position,
+                      &stop_position);
 
     // set error handler, this will longjmp if necessary
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -517,8 +546,8 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 
     jpeg_random_access_src(osr, &cinfo, f,
 			   jpeg->start_in_file,
-			   jpeg->mcu_starts[0],
-			   jpeg->mcu_starts[tileno],
+			   header_stop_position,
+			   start_position,
 			   stop_position);
 
     jpeg_read_header(&cinfo, TRUE);
@@ -1003,7 +1032,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	}
       }
       if (current_file != NULL) {
-	compute_mcu_start(osr, oj, current_file, current_mcu_start);
+	compute_mcu_start(osr, oj, current_file, current_mcu_start,
+	                  NULL, NULL, NULL);
 	if (openslide_get_error(osr)) {
 	  goto LOCKED_FAIL;
 	}
