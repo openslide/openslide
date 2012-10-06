@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -376,20 +376,17 @@ static uint8_t find_next_ff_marker(FILE *f,
 }
 
 static void compute_mcu_start(openslide_t *osr,
+			      struct one_jpeg *jpeg,
 			      FILE *f,
-			      int64_t *mcu_starts,
-			      int64_t *unreliable_mcu_starts,
-			      int64_t start_in_file,
-			      int64_t end_in_file,
 			      int64_t target) {
   // special case for first
-  if (mcu_starts[0] == -1) {
+  if (jpeg->mcu_starts[0] == -1) {
     struct jpeg_decompress_struct cinfo;
     struct _openslide_jpeg_error_mgr jerr;
     jmp_buf env;
 
     // init jpeg
-    fseeko(f, start_in_file, SEEK_SET);
+    fseeko(f, jpeg->start_in_file, SEEK_SET);
 
     if (setjmp(env) == 0) {
       cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -405,22 +402,22 @@ static void compute_mcu_start(openslide_t *osr,
     }
 
     // set the first entry
-    mcu_starts[0] = ftello(f) - cinfo.src->bytes_in_buffer;
+    jpeg->mcu_starts[0] = ftello(f) - cinfo.src->bytes_in_buffer;
 
     // done
     jpeg_destroy_decompress(&cinfo);
   }
 
   // check if already done
-  if (mcu_starts[target] != -1) {
+  if (jpeg->mcu_starts[target] != -1) {
     return;
   }
 
   // check the unreliable_mcu_starts store first,
   // and use it if valid
   int64_t offset = -1;
-  if (unreliable_mcu_starts != NULL) {
-    offset = unreliable_mcu_starts[target];
+  if (jpeg->unreliable_mcu_starts != NULL) {
+    offset = jpeg->unreliable_mcu_starts[target];
   }
 
   if (offset != -1) {
@@ -432,7 +429,7 @@ static void compute_mcu_start(openslide_t *osr,
 	buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
       _openslide_set_error(osr, "Restart marker not found in expected place");
     } else {
-      mcu_starts[target] = offset;
+      jpeg->mcu_starts[target] = offset;
       return;
     }
   }
@@ -440,13 +437,13 @@ static void compute_mcu_start(openslide_t *osr,
 
   // otherwise, walk backwards, to find the first non -1 offset
   int64_t first_good = target - 1;
-  while (mcu_starts[first_good] == -1) {
+  while (jpeg->mcu_starts[first_good] == -1) {
     first_good--;
   }
   //  g_debug("target: %d, first_good: %d", target, first_good);
 
   // now search for the new restart markers
-  fseeko(f, mcu_starts[first_good], SEEK_SET);
+  fseeko(f, jpeg->mcu_starts[first_good], SEEK_SET);
 
   uint8_t buf_start[4096];
   uint8_t *buf = buf_start;
@@ -454,7 +451,7 @@ static void compute_mcu_start(openslide_t *osr,
   while (first_good < target) {
     int64_t after_marker_pos;
     uint8_t b = find_next_ff_marker(f, buf_start, &buf, 4096,
-				    end_in_file,
+				    jpeg->end_in_file,
 				    &after_marker_pos,
 				    &bytes_in_buf);
     g_assert(after_marker_pos > 0 || after_marker_pos == -1);
@@ -470,7 +467,7 @@ static void compute_mcu_start(openslide_t *osr,
       break;
     } else if (b >= 0xD0 && b < 0xD8) {
       // marker
-      mcu_starts[1 + first_good++] = after_marker_pos;
+      jpeg->mcu_starts[1 + first_good++] = after_marker_pos;
     }
   }
 }
@@ -508,22 +505,12 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
     int64_t stop_position;
-    compute_mcu_start(osr, f,
-		      jpeg->mcu_starts,
-		      jpeg->unreliable_mcu_starts,
-		      jpeg->start_in_file,
-		      jpeg->end_in_file,
-		      tileno);
+    compute_mcu_start(osr, jpeg, f, tileno);
     if (jpeg->mcu_starts_count == tileno + 1) {
       // EOF
       stop_position = jpeg->end_in_file;
     } else {
-      compute_mcu_start(osr, f,
-			jpeg->mcu_starts,
-			jpeg->unreliable_mcu_starts,
-			jpeg->start_in_file,
-			jpeg->end_in_file,
-			tileno + 1);
+      compute_mcu_start(osr, jpeg, f, tileno + 1);
       stop_position = jpeg->mcu_starts[tileno + 1];
     }
 
@@ -1021,11 +1008,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	}
       }
       if (current_file != NULL) {
-	compute_mcu_start(osr, current_file, oj->mcu_starts,
-			  oj->unreliable_mcu_starts,
-			  oj->start_in_file,
-			  oj->end_in_file,
-			  current_mcu_start);
+	compute_mcu_start(osr, oj, current_file, current_mcu_start);
 	if (openslide_get_error(osr)) {
 	  goto LOCKED_FAIL;
 	}
