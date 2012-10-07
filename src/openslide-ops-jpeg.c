@@ -474,6 +474,10 @@ static void compute_mcu_start(openslide_t *osr,
 			      int64_t *header_stop_position,
 			      int64_t *start_position,
 			      int64_t *stop_position) {
+  struct jpegops_data *data = osr->data;
+
+  g_mutex_lock(data->restart_marker_mutex);
+
   _compute_mcu_start(osr, jpeg, f, tileno);
 
   // end of header; always computed by _compute_mcu_start
@@ -496,6 +500,8 @@ static void compute_mcu_start(openslide_t *osr,
       *stop_position = jpeg->mcu_starts[tileno + 1];
     }
   }
+
+  g_mutex_unlock(data->restart_marker_mutex);
 }
 
 static uint32_t *read_from_one_jpeg (openslide_t *osr,
@@ -768,9 +774,6 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   //  g_debug("telling thread to pause");
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
-  // wait until thread is paused
-  g_mutex_lock(data->restart_marker_mutex);
-
   // compute coordinates
   double ds = openslide_get_level_downsample(osr, level);
   double ds_x = x / ds;
@@ -802,9 +805,6 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			l->tile_advance_y,
 			osr, osr->cache,
 			read_tile);
-
-  // unlock
-  g_mutex_unlock(data->restart_marker_mutex);
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -1010,14 +1010,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
     // we are finally able to run
     g_mutex_unlock(data->restart_marker_cond_mutex);
 
-    if (!g_mutex_trylock(data->restart_marker_mutex)) {
-      // just kidding, still not ready, go back and sleep
-      continue;
-    }
-
-    // locked
-
-
     //g_debug("current_jpeg: %d, current_mcu_start: %d",
     //        current_jpeg, current_mcu_start);
 
@@ -1026,16 +1018,18 @@ static gpointer restart_marker_thread_func(gpointer d) {
       if (current_file == NULL) {
 	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
+	  //g_debug("restart_marker_thread_func fopen failed");
 	  _openslide_set_error_from_gerror(osr, tmp_err);
 	  g_clear_error(&tmp_err);
-	  goto LOCKED_FAIL;
+	  break;
 	}
       }
       if (current_file != NULL) {
 	compute_mcu_start(osr, oj, current_file, current_mcu_start,
 	                  NULL, NULL, NULL);
 	if (openslide_get_error(osr)) {
-	  goto LOCKED_FAIL;
+	  //g_debug("restart_marker_thread_func compute_mcu_start failed");
+	  break;
 	}
       }
 
@@ -1049,15 +1043,9 @@ static gpointer restart_marker_thread_func(gpointer d) {
     } else {
       current_jpeg++;
     }
-
-    g_mutex_unlock(data->restart_marker_mutex);
   }
 
   //  g_debug("restart_marker_thread_func done!");
-  return NULL;
-
- LOCKED_FAIL:
-  g_mutex_unlock(data->restart_marker_mutex);
   return NULL;
 }
 
