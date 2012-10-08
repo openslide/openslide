@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2009 Carnegie Mellon University
+ *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -48,6 +48,7 @@ struct _openslide_cache_entry {
 };
 
 struct _openslide_cache {
+  GMutex *mutex;
   GQueue *list;
   GHashTable *hashtable;
 
@@ -56,6 +57,7 @@ struct _openslide_cache {
 };
 
 // eviction
+// mutex must be held
 static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
   g_assert(incoming_size >= 0);
 
@@ -125,6 +127,9 @@ static void hash_destroy_value(gpointer data) {
 struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
   struct _openslide_cache *cache = g_slice_new0(struct _openslide_cache);
 
+  // init mutex
+  cache->mutex = g_mutex_new();
+
   // init queue
   cache->list = g_queue_new();
 
@@ -142,10 +147,15 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
 
 void _openslide_cache_destroy(struct _openslide_cache *cache) {
   // clear hashtable (auto-deletes all data)
+  g_mutex_lock(cache->mutex);
   g_hash_table_unref(cache->hashtable);
+  g_mutex_unlock(cache->mutex);
 
   // clear list
   g_queue_free(cache->list);
+
+  // free mutex
+  g_mutex_free(cache->mutex);
 
   // destroy struct
   g_slice_free(struct _openslide_cache, cache);
@@ -153,15 +163,20 @@ void _openslide_cache_destroy(struct _openslide_cache *cache) {
 
 
 int _openslide_cache_get_capacity(struct _openslide_cache *cache) {
-  return cache->capacity;
+  g_mutex_lock(cache->mutex);
+  int capacity = cache->capacity;
+  g_mutex_unlock(cache->mutex);
+  return capacity;
 }
 
 void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 				   int capacity_in_bytes) {
   g_assert(capacity_in_bytes >= 0);
 
+  g_mutex_lock(cache->mutex);
   cache->capacity = capacity_in_bytes;
   possibly_evict(cache, 0);
+  g_mutex_unlock(cache->mutex);
 }
 
 // put and get
@@ -184,9 +199,13 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   entry->size = size_in_bytes;
   *_entry = entry;
 
+  // lock
+  g_mutex_lock(cache->mutex);
+
   // don't try to put anything in the cache that cannot possibly fit
   if (size_in_bytes > cache->capacity) {
     //g_debug("refused %p", entry);
+    g_mutex_unlock(cache->mutex);
     return;
   }
 
@@ -218,6 +237,9 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   // another ref for the cache
   g_atomic_int_inc(&entry->refcount);
 
+  // unlock
+  g_mutex_unlock(cache->mutex);
+
   //g_debug("insert %p", entry);
 }
 
@@ -226,7 +248,10 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
 			   int32_t level,
-			   struct _openslide_cache_entry **entry) {
+			   struct _openslide_cache_entry **_entry) {
+  // lock
+  g_mutex_lock(cache->mutex);
+
   // create key
   struct _openslide_cache_key key = { .x = x, .y = y, .level = level };
 
@@ -234,7 +259,8 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
 							     &key);
   if (value == NULL) {
-    *entry = NULL;
+    g_mutex_unlock(cache->mutex);
+    *_entry = NULL;
     return NULL;
   }
 
@@ -244,17 +270,20 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   g_queue_push_head_link(cache->list, link);
 
   // acquire entry reference for the caller
-  g_atomic_int_inc(&value->entry->refcount);
+  struct _openslide_cache_entry *entry = value->entry;
+  g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", value->entry, x, y, level);
+  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", entry, x, y, level);
+
+  // unlock
+  g_mutex_unlock(cache->mutex);
 
   // return data
-  *entry = value->entry;
-  return value->entry->data;
+  *_entry = entry;
+  return entry->data;
 }
 
 // value unref
-// calls do not need to be serialized
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
   //g_debug("unref %p, refs %d", entry, g_atomic_int_get(&entry->refcount));
 

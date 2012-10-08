@@ -35,9 +35,6 @@
 struct ngr_data {
   int32_t ngr_count;
   struct _openslide_ngr **ngrs;
-
-  // cache lock
-  GMutex *cache_mutex;
 };
 
 
@@ -54,7 +51,6 @@ static void destroy(openslide_t *osr) {
 
   destroy_ngrs(data->ngrs, data->ngr_count);
 
-  g_mutex_free(data->cache_mutex);
   g_slice_free(struct ngr_data, data);
 }
 
@@ -88,10 +84,8 @@ static void read_tile(openslide_t *osr,
   int tilesize = ngr->column_width * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
-  g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = _openslide_cache_get(cache, tile_x, tile_y, level,
                                             &cache_entry);
-  g_mutex_unlock(data->cache_mutex);
 
   if (!tiledata) {
     // read the tile data
@@ -136,12 +130,10 @@ static void read_tile(openslide_t *osr,
     g_slice_free1(buf_size, buf);
 
     // put it in the cache
-    g_mutex_lock(data->cache_mutex);
     _openslide_cache_put(cache, tile_x, tile_y, level,
                          tiledata,
                          ngr->column_width * 1 * 4,
                          &cache_entry);
-    g_mutex_unlock(data->cache_mutex);
   }
 
   // draw it
@@ -211,9 +203,6 @@ void _openslide_add_ngr_ops(openslide_t *osr,
 
   data->ngr_count = ngr_count;
   data->ngrs = ngrs;
-
-  // init cache lock
-  data->cache_mutex = g_mutex_new();
 
   // store vmu-specific data into osr
   g_assert(osr->data == NULL);

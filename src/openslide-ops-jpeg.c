@@ -113,9 +113,6 @@ struct jpegops_data {
   // level_count is in the osr struct
   struct level *levels;
 
-  // cache lock
-  GMutex *cache_mutex;
-
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
   GMutex *restart_marker_mutex;
@@ -659,13 +656,11 @@ static void read_tile(openslide_t *osr,
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
-  g_mutex_lock(data->cache_mutex);
   uint32_t *tiledata = _openslide_cache_get(cache,
                                             requested_tile->jpegno,
                                             requested_tile->tileno,
                                             level,
                                             &cache_entry);
-  g_mutex_unlock(data->cache_mutex);
   int tw = requested_tile->jpeg->tile_width / l->scale_denom;
   int th = requested_tile->jpeg->tile_height / l->scale_denom;
 
@@ -676,12 +671,10 @@ static void read_tile(openslide_t *osr,
 				  l->scale_denom,
 				  tw, th);
 
-    g_mutex_lock(data->cache_mutex);
     _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, level,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
-    g_mutex_unlock(data->cache_mutex);
   }
 
   // draw it
@@ -849,9 +842,6 @@ static void destroy(openslide_t *osr) {
 
   // the level array
   g_free(data->levels);
-
-  // the cache lock
-  g_mutex_free(data->cache_mutex);
 
   // the background stuff
   g_mutex_free(data->restart_marker_mutex);
@@ -1264,9 +1254,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
   g_hash_table_unref(expanded_levels);
 
-
-  // init cache lock
-  data->cache_mutex = g_mutex_new();
 
   // init background thread for finding restart markers
   data->restart_marker_timer = g_timer_new();
