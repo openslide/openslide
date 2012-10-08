@@ -39,10 +39,12 @@ void _openslide_read_tiles(cairo_t *cr,
 			   double advance_x, double advance_y,
 			   openslide_t *osr,
 			   struct _openslide_cache *cache,
+			   void *arg,
 			   void (*read_tile)(openslide_t *osr,
 					     cairo_t *cr,
 					     int32_t level,
 					     int64_t tile_x, int64_t tile_y,
 					     double translate_x, double translate_y,
-					     struct _openslide_cache *cache));
+					     struct _openslide_cache *cache,
+					     void *arg));
 #endif

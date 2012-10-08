@@ -225,7 +225,8 @@ static void read_tile(openslide_t *osr,
 		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
-		      struct _openslide_cache *cache) {
+		      struct _openslide_cache *cache,
+		      void *arg G_GNUC_UNUSED) {
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = data->tiff;
 
@@ -402,7 +403,7 @@ static void paint_region_unlocked(openslide_t *osr, cairo_t *cr,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
 			advance_x, advance_y,
-			osr, osr->cache,
+			osr, osr->cache, NULL,
 			read_tile);
 }
 

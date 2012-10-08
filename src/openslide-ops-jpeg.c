@@ -632,7 +632,8 @@ static void read_tile(openslide_t *osr,
 		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
-		      struct _openslide_cache *cache) {
+		      struct _openslide_cache *cache,
+		      void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");
   struct jpegops_data *data = osr->data;
   struct level *l = data->levels + level;
@@ -796,7 +797,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			offset_x, offset_y,
 			l->tile_advance_x,
 			l->tile_advance_y,
-			osr, osr->cache,
+			osr, osr->cache, NULL,
 			read_tile);
 
   // maybe tell the background thread to resume
