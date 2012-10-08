@@ -22,6 +22,9 @@
 /**
  * @file openslide.h
  * The API for the OpenSlide library.
+ *
+ * All functions except openslide_close() are thread-safe.
+ * See the openslide_close() documentation for its restrictions.
  */
 
 #ifndef OPENSLIDE_OPENSLIDE_H_
@@ -164,8 +167,9 @@ void openslide_read_region(openslide_t *osr,
 
 
 /**
- * Close an OpenSlide object. After this call returns, the object cannot
- * be used anymore.
+ * Close an OpenSlide object.
+ * No other threads may be using the object.
+ * After this call returns, the object cannot be used anymore.
  *
  * @param osr The OpenSlide object.
  */
