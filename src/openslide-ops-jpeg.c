@@ -508,8 +508,6 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     int w, int h) {
   GError *tmp_err = NULL;
 
-  g_assert(jpeg->filename);
-
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
   // open file
@@ -872,6 +870,8 @@ static const struct _openslide_ops jpeg_ops = {
 
 static void init_one_jpeg(struct one_jpeg *onej,
 			  struct _openslide_jpeg_file *file) {
+  g_assert(file->filename);
+
   onej->filename = file->filename;
   onej->start_in_file = file->start_in_file;
   onej->end_in_file = file->end_in_file;
@@ -924,11 +924,8 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 
   while(current_jpeg < data->jpeg_count) {
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (!oj->filename) {
-      current_jpeg++;
-      continue;
-    }
 
+    g_assert(oj->filename);
     if (current_mcu_start > 0) {
       int64_t offset = oj->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
@@ -1005,7 +1002,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (oj->filename && oj->mcu_starts_count > 1) {
+    if (oj->mcu_starts_count > 1) {
       if (current_file == NULL) {
 	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
@@ -1045,30 +1042,16 @@ static int one_jpeg_compare(const void *a, const void *b) {
   const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
 
   // compare files
-  int str_result;
-  if ((aa->filename == NULL) && (bb->filename == NULL)) {
-    str_result = 0;
-  } else if (aa->filename == NULL) {
-    str_result = -1;
-  } else if (bb->filename == NULL) {
-    str_result = 1;
-  } else {
-    str_result = strcmp(aa->filename, bb->filename);
-  }
-
-  if (str_result != 0) {
-    return str_result;
+  int res = strcmp(aa->filename, bb->filename);
+  if (res != 0) {
+    return res;
   }
 
   // compare offsets
-  if (aa->filename && bb->filename) {
-    if (aa->start_in_file < bb->start_in_file) {
-      return -1;
-    } else if (aa->start_in_file > bb->start_in_file) {
-      return 1;
-    } else {
-      return 0;
-    }
+  if (aa->start_in_file < bb->start_in_file) {
+    return -1;
+  } else if (aa->start_in_file > bb->start_in_file) {
+    return 1;
   } else {
     return 0;
   }
@@ -1098,10 +1081,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   if (osr == NULL) {
     // free now and return
     for (int32_t i = 0; i < file_count; i++) {
-      if (files[i]->filename) {
-	g_free(files[i]->filename);
-	g_free(files[i]->mcu_starts);
-      }
+      g_free(files[i]->filename);
+      g_free(files[i]->mcu_starts);
       g_slice_free(struct _openslide_jpeg_file, files[i]);
     }
     g_free(files);
