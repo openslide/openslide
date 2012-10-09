@@ -1012,13 +1012,12 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	  break;
 	}
       }
-      if (current_file != NULL) {
-	compute_mcu_start(osr, oj, current_file, current_mcu_start,
-	                  NULL, NULL, NULL);
-	if (openslide_get_error(osr)) {
-	  //g_debug("restart_marker_thread_func compute_mcu_start failed");
-	  break;
-	}
+
+      compute_mcu_start(osr, oj, current_file, current_mcu_start,
+                        NULL, NULL, NULL);
+      if (openslide_get_error(osr)) {
+        //g_debug("restart_marker_thread_func compute_mcu_start failed");
+        break;
       }
 
       current_mcu_start++;
