@@ -1005,7 +1005,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (oj->filename) {
+    if (oj->filename && oj->mcu_starts_count > 1) {
       if (current_file == NULL) {
 	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
