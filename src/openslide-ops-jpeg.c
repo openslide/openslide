@@ -400,39 +400,35 @@ static void _compute_mcu_start(openslide_t *osr,
     jpeg_destroy_decompress(&cinfo);
   }
 
-  // check if already done
-  if (jpeg->mcu_starts[target] != -1) {
-    return;
-  }
+  // walk backwards to find the first non -1 offset
+  int64_t first_good;
+  for (first_good = target; jpeg->mcu_starts[first_good] == -1; first_good--) {
+    // if we have an unreliable_mcu_start, validate it and use it
+    int64_t offset = -1;
+    if (jpeg->unreliable_mcu_starts != NULL) {
+      offset = jpeg->unreliable_mcu_starts[first_good];
+    }
+    if (offset != -1) {
+      uint8_t buf[2];
+      fseeko(f, offset - 2, SEEK_SET);
 
-  // check the unreliable_mcu_starts store first,
-  // and use it if valid
-  int64_t offset = -1;
-  if (jpeg->unreliable_mcu_starts != NULL) {
-    offset = jpeg->unreliable_mcu_starts[target];
-  }
-
-  if (offset != -1) {
-    uint8_t buf[2];
-    fseeko(f, offset - 2, SEEK_SET);
-
-    size_t result = fread(buf, 2, 1, f);
-    if (result == 0 ||
-	buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-      _openslide_set_error(osr, "Restart marker not found in expected place");
-    } else {
-      jpeg->mcu_starts[target] = offset;
-      return;
+      size_t result = fread(buf, 2, 1, f);
+      if (result == 0 ||
+          buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
+        _openslide_set_error(osr, "Restart marker not found in expected place");
+      } else {
+        //  g_debug("accepted unreliable marker %"G_GINT64_FORMAT, first_good);
+        jpeg->mcu_starts[first_good] = offset;
+        break;
+      }
     }
   }
 
-
-  // otherwise, walk backwards, to find the first non -1 offset
-  int64_t first_good = target - 1;
-  while (jpeg->mcu_starts[first_good] == -1) {
-    first_good--;
+  if (first_good == target) {
+    // we're done
+    return;
   }
-  //  g_debug("target: %d, first_good: %d", target, first_good);
+  //  g_debug("target: %"G_GINT64_FORMAT", first_good: %"G_GINT64_FORMAT, target, first_good);
 
   // now search for the new restart markers
   fseeko(f, jpeg->mcu_starts[first_good], SEEK_SET);
