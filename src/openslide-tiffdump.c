@@ -408,6 +408,174 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   return NULL;
 }
 
+//This code derived from "read_directory"
+//I am only add code to set "count" variable
+//at line 484 to 510
+static GHashTable *ndpi_read_directory(FILE *f, int64_t *diroff,
+				  GHashTable *loop_detector,
+				  uint16_t endian,
+				  GError **err) {
+  int64_t off = *diroff;
+  *diroff = 0;
+  GHashTable *result = NULL;
+  int64_t *key = NULL;
+  int64_t nextdiroff = -1;
+  int dircount = -1;
+
+  //  g_debug("diroff: %" PRId64, off);
+
+  if (off <= 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Bad offset");
+    goto FAIL;
+  }
+
+  // loop detection
+  if (g_hash_table_lookup_extended(loop_detector, &off, NULL, NULL)) {
+    // loop
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Loop detected");
+    goto FAIL;
+  }
+  key = g_slice_new(int64_t);
+  *key = off;
+  g_hash_table_insert(loop_detector, key, NULL);
+
+  // no loop, let's seek
+  if (fseeko(f, off, SEEK_SET) != 0) {
+    _openslide_io_error(err, "Cannot seek to offset");
+    goto FAIL;
+  }
+
+  // read directory count
+  dircount = read_uint16(f, endian);
+  if (dircount == -1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot read dircount");
+    goto FAIL;
+  }
+
+  //  g_debug("dircount: %d", dircount);
+
+
+  // initial checks passed, initialized the hashtable
+  result = g_hash_table_new_full(g_int_hash, g_int_equal,
+				 g_free, tiffdump_item_destroy);
+
+  // read all directory entries
+  for (int i = 0; i < dircount; i++) {
+    int32_t tag = read_uint16(f, endian);
+    int32_t type = read_uint16(f, endian);
+    int64_t count = read_uint32(f, endian);
+
+    if ((tag == -1) || (type == -1) || (count == -1)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read tag, type, and count");
+      goto FAIL;
+    }
+
+    //    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
+
+    // allocate the item
+    struct _openslide_tiffdump_item *data =
+      g_slice_new(struct _openslide_tiffdump_item);
+    data->type = (TIFFDataType) type;
+
+    //I dont know why, but NDPI file only read this data type with count size 1
+    //I am not yet try to other data type (double), because that data
+    //not yet used when try to debug NDPI file
+    //I am copy the original code offset detection to below (line 488 to 510)
+    //So, the offset only read data with size "count"
+	if(type==TIFF_SHORT || type==TIFF_LONG || type==TIFF_SSHORT || type==TIFF_SLONG) {
+		if(tag!=NDPI_RESTART_MARKER_OFFSETS)
+			count = 1;
+	}
+    data->count = count;
+
+    // read in the value/offset
+    uint8_t value[4];
+    if (fread(value, 1, 4, f) != 4) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read value/offset");
+      goto FAIL;
+    }
+
+    uint32_t offset;
+    memcpy(&offset, value, 4);
+    if (endian == TIFF_BIGENDIAN) {
+      offset = GUINT32_FROM_BE(offset);
+    } else {
+      offset = GUINT32_FROM_LE(offset);
+    }
+
+    // load the value
+    switch (type) {
+    case TIFF_BYTE:
+    case TIFF_ASCII:
+    case TIFF_SBYTE:
+    case TIFF_UNDEFINED:
+      data->value = read_tiff_tag_1(f, count, offset, value);
+      break;
+
+    case TIFF_SHORT:
+    case TIFF_SSHORT:
+      data->value = read_tiff_tag_2(f, count, offset, value, endian);
+      break;
+
+    case TIFF_LONG:
+    case TIFF_SLONG:
+    case TIFF_FLOAT:
+    case TIFF_IFD:
+      data->value = read_tiff_tag_4(f, count, offset, value, endian);
+      break;
+
+    case TIFF_RATIONAL:
+    case TIFF_SRATIONAL:
+      data->value = read_tiff_tag_4(f, count * 2, offset, value, endian);
+      break;
+
+    case TIFF_DOUBLE:
+      data->value = read_tiff_tag_8(f, count, offset, endian);
+      break;
+
+    default:
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unknown type encountered: %d", type);
+      goto FAIL;
+    }
+
+    if (data->value == NULL) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read value");
+      goto FAIL;
+    }
+
+    // add this tag to the hashtable
+    int *key = g_new(int, 1);
+    *key = tag;
+    g_hash_table_insert(result, key, data);
+  }
+
+  // read the next dir offset
+  nextdiroff = read_uint32(f, endian);
+  if (nextdiroff == -1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot read next directory offset");
+    goto FAIL;
+  }
+  *diroff = nextdiroff;
+
+  // success
+  return result;
+
+
+ FAIL:
+  if (result != NULL) {
+    g_hash_table_unref(result);
+  }
+  return NULL;
+}
+
 // returns list of hashtables of (int -> struct _openslide_tiffdump_item)
 GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
   // read and check magic
@@ -446,7 +614,8 @@ GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
   GSList *result = NULL;
   while (diroff != 0) {
     // read a directory
-    GHashTable *ht = read_directory(f, &diroff, loop_detector, magic, err);
+    //GHashTable *ht = read_directory(f, &diroff, loop_detector, magic, err);
+	  GHashTable *ht = ndpi_read_directory(f, &diroff, loop_detector, magic, err);
 
     // was the directory successfully read?
     if (ht == NULL) {
@@ -693,4 +862,62 @@ int64_t _openslide_tiffdump_get_ifd(struct _openslide_tiffdump_item *item,
 				    int64_t i) {
   check_assertions(item, TIFF_IFD, i);
   return ((uint32_t *) item->value)[i];
+}
+
+//create key_file from NDPI dump list
+void ndpi_create_key_file(GSList *ndpi_dump, GKeyFile *key_file,
+		const char *groupname, int32_t *num_images, int32_t *num_jpegs) {
+  int idx_image=0;
+  *num_jpegs = 0;
+  while (ndpi_dump != NULL) {
+    GHashTable *ht = ndpi_dump->data;
+    int count = g_hash_table_size(ht);
+    struct hash_key_helper h = { 0, g_new(int, count) };
+    g_hash_table_foreach(ht, save_key, &h);
+    qsort(h.tags, count, sizeof (int), int_compare);
+
+    gboolean get_marker=false;
+    for (int j = 0; j < count; j++) {
+      int tag = h.tags[j];
+      switch(tag){
+      case NDPI_SOURCE_LENS:
+        g_key_file_set_double(key_file, groupname,
+                              g_strdup_printf("hamamatsu.SourceLens[%i]", (*num_jpegs)),
+                              _openslide_tiffdump_get_float(g_hash_table_lookup(ht, &tag), 0));
+        break;
+      case TIFFTAG_IMAGEWIDTH:
+        g_key_file_set_integer(key_file, groupname,
+                              g_strdup_printf("hamamatsu.Width[%i]", (*num_jpegs)),
+                              _openslide_tiffdump_get_long(g_hash_table_lookup(ht, &tag), 0));
+        break;
+      case TIFFTAG_IMAGELENGTH:
+        g_key_file_set_integer(key_file, groupname,
+                              g_strdup_printf("hamamatsu.Length[%i]", (*num_jpegs)),
+                              _openslide_tiffdump_get_long(g_hash_table_lookup(ht, &tag), 0));
+        break;
+      case TIFFTAG_STRIPOFFSETS:
+        g_key_file_set_integer(key_file, groupname,
+                              g_strdup_printf("hamamatsu.JpegStartOffset[%i]", (*num_jpegs)),
+                              _openslide_tiffdump_get_long(g_hash_table_lookup(ht, &tag), 0));
+        break;
+      case TIFFTAG_STRIPBYTECOUNTS:
+        g_key_file_set_integer(key_file, groupname,
+                              g_strdup_printf("hamamatsu.JpegSize[%i]", (*num_jpegs)),
+                              _openslide_tiffdump_get_long(g_hash_table_lookup(ht, &tag), 0));
+        break;
+      case NDPI_RESTART_MARKER_OFFSETS:
+				get_marker = true;
+        break;
+      }
+    }
+    g_key_file_set_boolean(key_file, groupname,
+                           g_strdup_printf("hamamatsu.RestartMarker[%i]", (*num_jpegs)),
+                           get_marker);
+    if(get_marker==true)
+      (*num_jpegs)++;
+
+    ndpi_dump = ndpi_dump->next;
+    idx_image++; //read next image
+  }
+  *num_images = idx_image;
 }

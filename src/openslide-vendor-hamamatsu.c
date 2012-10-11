@@ -856,30 +856,324 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   return success;
 }
 
+static bool hamamatsu_ndpi_part2(openslide_t *osr,
+				int num_jpegs, char *image_filenames,
+				int num_jpeg_cols,
+				GKeyFile *key_file,
+				GError **err) {
+  bool success = false;
+
+  // initialize individual jpeg structs
+  struct _openslide_jpeg_file **jpegs = g_new0(struct _openslide_jpeg_file *,
+					       num_jpegs);
+  for (int i = 0; i < num_jpegs; i++) {
+    jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
+  }
+
+  // init levels: base image + map
+  int32_t level_count = 2;
+  struct _openslide_jpeg_level **levels =
+    g_new0(struct _openslide_jpeg_level *, level_count);
+  for (int32_t i = 0; i < level_count; i++) {
+    levels[i] = g_slice_new0(struct _openslide_jpeg_level);
+    levels[i]->tiles = _openslide_jpeg_create_tiles_table();
+  }
+
+  // process jpegs
+  int32_t jpeg0_tw = 0;
+  int32_t jpeg0_th = 0;
+  int32_t jpeg0_ta = 0;
+  int32_t jpeg0_td = 0;
+
+  for (int i = 0; i < num_jpegs; i++) {
+    struct _openslide_jpeg_file *jp = jpegs[i];
+
+    //jp->start_in_file = 0;
+    jp->filename = g_strdup(image_filenames);
+
+    FILE *f;
+    if ((f = _openslide_fopen(jp->filename, "rb", err)) == NULL) {
+      g_prefix_error(err, "Can't open JPEG %d: ", i);
+      goto DONE;
+    }
+
+    // set start and end of jpeg file
+    // from key_file
+    jp->start_in_file = g_key_file_get_integer(key_file, GROUP_VMS,
+                        g_strdup_printf("hamamatsu.JpegStartOffset[%i]",i), err);
+    int jpeg_size = g_key_file_get_integer(key_file, GROUP_VMS,
+                        g_strdup_printf("hamamatsu.JpegSize[%i]",i), err);
+
+    if (fseeko(f, jp->start_in_file, SEEK_SET) != 0) {
+      _openslide_io_error(err, "Cannot seek to offset");
+      goto DONE;
+    }
+
+    // comment?
+    char *comment = NULL;
+    char **comment_ptr = NULL;
+    if (i == 0 && osr) {
+      comment_ptr = &comment;
+    }
+
+    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr, err)) {
+      g_prefix_error(err, "Can't verify JPEG %d: ", i);
+      fclose(f);
+      goto DONE;
+    }
+
+    if (comment) {
+      g_hash_table_insert(osr->properties,
+			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
+			  comment);
+    }
+
+    //seek to end of jpeg offset
+    fseeko(f, jpeg_size, SEEK_CUR);
+    jp->end_in_file = ftello(f);
+    if (jp->end_in_file == -1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read file size for JPEG %d", i);
+      fclose(f);
+      goto DONE;
+    }
+
+    // file is done now
+    fclose(f);
+
+    int32_t num_tiles_across = jp->w / jp->tw;
+    int32_t num_tiles_down = jp->h / jp->th;
+
+    //my sample NDPI file dont have map file.
+    //if I dont modified this code, I get error
+    //The overwriting error message was: Tile size not consistent
+    //so, I am remove "else if" code
+
+    // because map file is last, ensure that all tw and th are the
+    // same for 0 through num_jpegs-2
+    //    g_debug("tile size: %d %d", tw, th);
+    //if (i == 0) {
+      jpeg0_tw = jp->tw;
+      jpeg0_th = jp->th;
+      jpeg0_ta = num_tiles_across;
+      jpeg0_td = num_tiles_down;
+    /*} else if (i != (num_jpegs - 1)) {
+      // not map file (still within level 0)
+      g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
+      if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tile size not consistent");
+        goto DONE;
+      }
+    }*/
+
+    //NDPI file dont have optimisation file input, so remove this code
+    /*
+    // use the optimisation file, if present
+    int32_t mcu_starts_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
+    int64_t *mcu_starts = NULL;
+    if (optimisation_file) {
+      mcu_starts = extract_one_optimisation(optimisation_file,
+					    num_tiles_down,
+					    num_tiles_across,
+					    mcu_starts_count);
+    }
+    if (mcu_starts) {
+      jp->mcu_starts = mcu_starts;
+    } else if (optimisation_file != NULL) {
+      // the optimisation file is useless, ignore it
+      optimisation_file = NULL;
+    }
+    */
+
+    // accumulate into some of the fields of the levels
+    int32_t level;
+    if (i != num_jpegs - 1) {
+      // base (level 0)
+      level = 0;
+    } else {
+      // map (level 1)
+      level = 1;
+    }
+
+    struct _openslide_jpeg_level *l = levels[level];
+    int32_t file_x = 0;
+    int32_t file_y = 0;
+    if (level == 0) {
+      file_x = i % num_jpeg_cols;
+      file_y = i / num_jpeg_cols;
+    }
+    if (file_y == 0) {
+      l->level_w += jp->w;
+      l->tiles_across += num_tiles_across;
+    }
+    if (file_x == 0) {
+      l->level_h += jp->h;
+      l->tiles_down += num_tiles_down;
+    }
+
+    // set some values (don't accumulate)
+    l->raw_tile_width = jp->tw;
+    l->raw_tile_height = jp->th;
+    l->tile_advance_x = jp->tw;   // no overlaps or funny business
+    l->tile_advance_y = jp->th;
+  }
+
+  // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
+
+  for (int i = 0; i < num_jpegs; i++) {
+    struct _openslide_jpeg_file *jp = jpegs[i];
+
+    int32_t level;
+    int32_t file_x;
+    int32_t file_y;
+    if (i != num_jpegs - 1) {
+      // base (level 0)
+      level = 0;
+      file_x = i % num_jpeg_cols;
+      file_y = i / num_jpeg_cols;
+    } else {
+      // map (level 1)
+      level = 1;
+      file_x = 0;
+      file_y = 0;
+    }
+
+    //g_debug("processing file %d %d %d", file_x, file_y, level);
+
+    int32_t num_tiles_across = jp->w / jp->tw;
+
+    struct _openslide_jpeg_level *l = levels[level];
+
+    int32_t tile_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
+
+    // add all the tiles
+    for (int local_tileno = 0; local_tileno < tile_count; local_tileno++) {
+      struct _openslide_jpeg_tile *t = g_slice_new0(struct _openslide_jpeg_tile);
+
+      int32_t local_tile_x = local_tileno % num_tiles_across;
+      int32_t local_tile_y = local_tileno / num_tiles_across;
+
+      t->fileno = i;
+      t->tileno = local_tileno;
+      t->w = jp->tw;
+      t->h = jp->th;
+      // no dest or src offsets
+
+      // compute key for hashtable (y * w + x)
+      int64_t x = file_x * jpeg0_ta + local_tile_x;
+      int64_t y = file_y * jpeg0_td + local_tile_y;
+
+      int64_t *key = g_slice_new(int64_t);
+      *key = (y * l->tiles_across) + x;
+
+      //g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, t->fileno, t->tileno, t->w, t->h, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
+      g_assert(!g_hash_table_lookup(l->tiles, key));
+      g_hash_table_insert(l->tiles, key, t);
+    }
+  }
+
+  success = true;
+
+ DONE:
+  if (success) {
+    _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, level_count, levels);
+  } else {
+    // destroy
+    for (int i = 0; i < num_jpegs; i++) {
+      g_free(jpegs[i]->filename);
+      g_free(jpegs[i]->mcu_starts);
+      g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+    }
+    g_free(jpegs);
+
+    for (int32_t i = 0; i < level_count; i++) {
+      g_hash_table_unref(levels[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_level, levels[i]);
+    }
+    g_free(levels);
+  }
+
+  return success;
+}
+
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 				   struct _openslide_hash *quickhash1,
 				   GError **err) {
-  FILE *f = _openslide_fopen(filename, "rb", NULL);
+  bool success = false;
+
+  char *image_filenames = NULL;
+  char *dirname = g_path_get_dirname(filename);
+  image_filenames = g_new0(char, 1);
+  image_filenames = g_build_filename(dirname, filename, NULL);
+
+  FILE *f = _openslide_fopen(image_filenames, "rb", NULL);
   if (!f) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Can't open file");
     return false;
   }
 
+  //dump data from NDPI file. from this function, we get all information about
+  //NDPI file (number of image, size of image, offset, etc)
   GSList *dump = _openslide_tiffdump_create(f, err);
   if (!dump) {
     fclose(f);
     return false;
   }
-  _openslide_tiffdump_print(dump);
-  _openslide_tiffdump_destroy(dump);
   fclose(f);
 
-  /* XXX function is incomplete */
-  (void) osr;
-  (void) quickhash1;
+  const char *groupname = GROUP_VMS;
+  GKeyFile *key_file = g_key_file_new();
 
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-              "NDPI not supported");
-  return false;
+  //NDPI file dont have key file. So, I am create the key using this method
+  //but, the problem is I can not show the property using :
+  //openslide_get_property_names(osr)
+  //are you know why?
+  g_key_file_set_string(key_file, groupname, "ImageFile", image_filenames);
+
+  //I dont get information about number of layers from NDPI file.
+  //So, I set this num_layers to 1
+  int num_layers = 1;
+  g_key_file_set_integer(key_file, groupname, "NoLayers", num_layers);
+
+  //create NDPI key from from dump variable
+  //create key_file from this GSList.
+  //We will get some of image from NDPI file with jpeg format
+  //I save the count number of all jpeg image in "num_images" variable
+  //some of the jpeg file dont have complete header (dont have restart marker offset)
+  //"num_jpegs" is total number of jpeg with complete header
+  int num_images; //the total number of jpegs images
+  int num_jpegs;  //the total number of jpegs with complete header
+
+  //I am still confused how to create index name from extracted
+  //NDPI file. So, I am create a file with symbols [%].
+  //please check this function
+  ndpi_create_key_file(dump, key_file,
+                       groupname, &num_images, &num_jpegs);
+
+  //I dont get information about num_cols and num_rows
+  //So, I set this "num_cols" variable like this
+  int num_cols;
+  if(num_jpegs>1)
+    num_cols = 2;
+  else
+    num_cols = 1;
+
+  // add properties
+  if (osr) {
+    add_properties(osr->properties, key_file, groupname);
+  }
+
+  //I am not yet add the macros file
+  //we can get the macros file from key_file
+
+  success = hamamatsu_ndpi_part2(osr,
+            num_jpegs, image_filenames,
+            num_cols, key_file,
+            err);
+
+  _openslide_tiffdump_destroy(dump);
+  g_key_file_free(key_file);
+  return success;
 }

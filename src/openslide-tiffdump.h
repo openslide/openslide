@@ -27,6 +27,9 @@
 #include <glib.h>
 #include <tiffio.h>
 
+#define NDPI_SOURCE_LENS 65421
+#define NDPI_RESTART_MARKER_OFFSETS 65426
+
 struct _openslide_tiffdump_item {
   TIFFDataType type;
   int64_t count;
@@ -94,4 +97,6 @@ double _openslide_tiffdump_get_double(struct _openslide_tiffdump_item *item,
 int64_t _openslide_tiffdump_get_ifd(struct _openslide_tiffdump_item *item,
 				    int64_t i);
 
+void ndpi_create_key_file(GSList *ndpi_dump, GKeyFile *key_file,
+		const char *groupname, int32_t *num_images, int32_t *num_jpegs);
 #endif
