@@ -645,7 +645,6 @@ static void read_tile(openslide_t *osr,
 		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
-		      struct _openslide_cache *cache,
 		      void *arg) {
   //g_debug("read_tile");
   struct jpegops_data *data = osr->data;
@@ -688,7 +687,7 @@ static void read_tile(openslide_t *osr,
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(cache,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             requested_tile->jpegno,
                                             requested_tile->tileno,
                                             level,
@@ -701,7 +700,8 @@ static void read_tile(openslide_t *osr,
 				  l->scale_denom,
 				  tw, th);
 
-    _openslide_cache_put(cache, requested_tile->jpegno, requested_tile->tileno, level,
+    _openslide_cache_put(osr->cache,
+			 requested_tile->jpegno, requested_tile->tileno, level,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
@@ -832,7 +832,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			offset_x, offset_y,
 			l->tile_advance_x,
 			l->tile_advance_y,
-			osr, osr->cache, &region,
+			osr, &region,
 			read_tile);
 
   // maybe tell the background thread to resume

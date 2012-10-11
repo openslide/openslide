@@ -81,7 +81,6 @@ static void read_tile(openslide_t *osr,
 		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
-		      struct _openslide_cache *cache,
 		      void *arg G_GNUC_UNUSED) {
   struct ngr_data *data = osr->data;
   struct _openslide_ngr *ngr = data->ngrs[level];
@@ -99,7 +98,7 @@ static void read_tile(openslide_t *osr,
   int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
-  uint32_t *tiledata = _openslide_cache_get(cache, tile_x, tile_y, level,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, level,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -145,7 +144,7 @@ static void read_tile(openslide_t *osr,
     g_slice_free1(buf_size, buf);
 
     // put it in the cache
-    _openslide_cache_put(cache, tile_x, tile_y, level,
+    _openslide_cache_put(osr->cache, tile_x, tile_y, level,
                          tiledata,
                          tilesize,
                          &cache_entry);
@@ -192,7 +191,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
 			ngr->column_width, NGR_TILE_HEIGHT,
-			osr, osr->cache, NULL,
+			osr, NULL,
 			read_tile);
 }
 

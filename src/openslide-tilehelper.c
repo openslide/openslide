@@ -36,14 +36,12 @@ void _openslide_read_tiles(cairo_t *cr,
 			   double offset_x, double offset_y,
 			   double advance_x, double advance_y,
 			   openslide_t *osr,
-			   struct _openslide_cache *cache,
 			   void *arg,
 			   void (*read_tile)(openslide_t *osr,
 					     cairo_t *cr,
 					     int32_t level,
 					     int64_t tile_x, int64_t tile_y,
 					     double translate_x, double translate_y,
-					     struct _openslide_cache *cache,
 					     void *arg)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
   if (fabs(offset_x) >= advance_x) {
@@ -71,7 +69,7 @@ void _openslide_read_tiles(cairo_t *cr,
     while (tile_x >= start_tile_x) {
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
       //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
-      read_tile(osr, cr, level, tile_x, tile_y, translate_x, translate_y, cache, arg);
+      read_tile(osr, cr, level, tile_x, tile_y, translate_x, translate_y, arg);
       tile_x--;
     }
 

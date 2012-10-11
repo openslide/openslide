@@ -32,6 +32,7 @@
 #include <math.h>
 #include <cairo.h>
 
+#include "openslide-cache.h"
 #include "openslide-tilehelper.h"
 #include "openslide-hash.h"
 
@@ -314,7 +315,6 @@ static void read_tile(openslide_t *osr,
 		      int32_t level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
-		      struct _openslide_cache *cache,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
   TIFF *tiff = arg;
@@ -343,7 +343,8 @@ static void read_tile(openslide_t *osr,
 
   // cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(cache, x, y, level, &cache_entry);
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, x, y, level,
+                                            &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
     data->tileread(osr, tiff, tiledata, x, y, tw, th);
@@ -372,7 +373,7 @@ static void read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    _openslide_cache_put(cache, x, y, level,
+    _openslide_cache_put(osr->cache, x, y, level,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
   }
@@ -491,7 +492,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
 			advance_x, advance_y,
-			osr, osr->cache, tiff,
+			osr, tiff,
 			read_tile);
 }
 
