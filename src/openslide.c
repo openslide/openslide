@@ -321,6 +321,7 @@ openslide_t *openslide_open(const char *filename) {
   g_hash_table_insert(osr->properties,
 		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT),
 		      g_strdup_printf("%d", osr->level_count));
+  bool should_have_geometry;
   for (int32_t i = 0; i < osr->level_count; i++) {
     int64_t w, h;
     openslide_get_level_dimensions(osr, i, &w, &h);
@@ -334,6 +335,25 @@ openslide_t *openslide_open(const char *filename) {
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE, i),
 			_openslide_format_double(osr->downsamples[i]));
+
+    // tile geometry
+    w = h = -1;
+    (osr->ops->get_tile_geometry)(osr, i, &w, &h);
+    bool have_geometry = (w > 0 && h > 0);
+    if (i == 0) {
+      should_have_geometry = have_geometry;
+    }
+    if (!openslide_get_error(osr) && have_geometry != should_have_geometry) {
+      g_warning("Inconsistent tile geometry hints between levels");
+    }
+    if (have_geometry) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_WIDTH, i),
+                          g_strdup_printf("%" G_GINT64_FORMAT, w));
+      g_hash_table_insert(osr->properties,
+                          g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_HEIGHT, i),
+                          g_strdup_printf("%" G_GINT64_FORMAT, h));
+    }
   }
 
   // fill in names

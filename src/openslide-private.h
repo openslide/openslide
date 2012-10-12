@@ -87,6 +87,10 @@ struct _openslide_ops {
   void (*get_dimensions)(openslide_t *osr,
 			 int32_t level,
 			 int64_t *w, int64_t *h);
+  // need not do anything, but must be consistent
+  void (*get_tile_geometry)(openslide_t *osr,
+			    int32_t level,
+			    int64_t *w, int64_t *h);
   void (*paint_region)(openslide_t *osr, cairo_t *cr,
 		       int64_t x, int64_t y,
 		       int32_t level,
@@ -323,6 +327,8 @@ void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_WIDTH "openslide.level[%d].width"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_HEIGHT "openslide.level[%d].height"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE "openslide.level[%d].downsample"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_WIDTH "openslide.level[%d].tile-width"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_HEIGHT "openslide.level[%d].tile-height"
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat

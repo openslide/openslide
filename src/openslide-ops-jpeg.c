@@ -95,6 +95,7 @@ struct level {
   int32_t extra_tiles_left;
   int32_t extra_tiles_right;
 
+  bool valid_tilesize_hints;
 
   // note: everything below is pre-divided by scale_denom
 
@@ -295,6 +296,17 @@ static void convert_tiles(gpointer key,
     int extra_bottom = ceil(-dsy / new_l->tile_advance_y);
     new_l->extra_tiles_bottom = MAX(new_l->extra_tiles_bottom,
 				    extra_bottom);
+  }
+
+  // we only issue tile size hints if:
+  // - advances are integers (checked below)
+  // - no tile has a delta from the standard advance
+  // - no tiles overlap
+  if (new_tile->w != new_l->tile_advance_x ||
+      new_tile->h != new_l->tile_advance_y ||
+      new_tile->dest_offset_x ||
+      new_tile->dest_offset_y) {
+    new_l->valid_tilesize_hints = false;
   }
 
   //  g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", new_l, new_l->extra_tiles_left, new_l->extra_tiles_right, new_l->extra_tiles_top, new_l->extra_tiles_bottom);
@@ -858,8 +870,25 @@ static void get_dimensions(openslide_t *osr,
   *h = l->pixel_h;
 }
 
+static void get_tile_geometry(openslide_t *osr,
+                              int32_t level,
+                              int64_t *w, int64_t *h) {
+  struct jpegops_data *data = osr->data;
+  struct level *l = data->levels + level;
+
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    if (!data->levels[i].valid_tilesize_hints) {
+      return;
+    }
+  }
+
+  *w = l->tile_advance_x;
+  *h = l->tile_advance_y;
+}
+
 static const struct _openslide_ops jpeg_ops = {
   .get_dimensions = get_dimensions,
+  .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
 };
@@ -1125,6 +1154,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     new_l->tiles_down = old_l->tiles_down;
     new_l->downsample = old_l->downsample;
     new_l->scale_denom = 1;
+    new_l->valid_tilesize_hints =
+        ((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
+        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y;
     new_l->pixel_w = old_l->level_w;
     new_l->pixel_h = old_l->level_h;
     new_l->tile_advance_x = old_l->tile_advance_x;
@@ -1169,6 +1201,10 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->pixel_h = new_l->pixel_h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
+      sd_l->valid_tilesize_hints =
+          new_l->valid_tilesize_hints &&
+          ((int64_t) sd_l->tile_advance_x) == sd_l->tile_advance_x &&
+          ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y;
 
       key = g_slice_new(int64_t);
       *key = sd_l->pixel_w;

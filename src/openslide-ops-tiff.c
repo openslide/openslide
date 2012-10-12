@@ -272,6 +272,42 @@ static void get_dimensions(openslide_t *osr, int32_t level,
   put_tiff(osr, tiff);
 }
 
+static void _get_tile_geometry(openslide_t *osr, TIFF *tiff, int32_t level,
+                               int64_t *w, int64_t *h) {
+  struct _openslide_tiffopsdata *data = osr->data;
+
+  uint32_t tmp;
+
+  // if any level has overlaps, reporting tile advances would mislead the
+  // application
+  for (int32_t i = 0; i < 2 * data->overlap_count; i++) {
+    if (data->overlaps[i]) {
+      return;
+    }
+  }
+
+  // set the level
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
+
+  // figure out tile size
+  int64_t tw, th;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+
+  // commit
+  *w = tw;
+  *h = th;
+}
+
+static void get_tile_geometry(openslide_t *osr, int32_t level,
+                              int64_t *w, int64_t *h) {
+  TIFF *tiff = get_tiff(osr);
+  if (tiff != NULL) {
+    _get_tile_geometry(osr, tiff, level, w, h);
+  }
+  put_tiff(osr, tiff);
+}
+
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      int32_t level,
@@ -472,6 +508,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 static const struct _openslide_ops _openslide_tiff_ops = {
   .get_dimensions = get_dimensions,
+  .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
 };

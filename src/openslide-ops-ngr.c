@@ -65,6 +65,15 @@ static void get_dimensions(openslide_t *osr, int32_t level,
   *h = ngr->h;
 }
 
+static void get_tile_geometry(openslide_t *osr, int32_t level,
+                              int64_t *w, int64_t *h) {
+  struct ngr_data *data = osr->data;
+  struct _openslide_ngr *ngr = data->ngrs[level];
+
+  *w = ngr->column_width;
+  *h = 1;
+}
+
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      int32_t level,
@@ -185,6 +194,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 static const struct _openslide_ops _openslide_vmu_ops = {
   .get_dimensions = get_dimensions,
+  .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
 };
