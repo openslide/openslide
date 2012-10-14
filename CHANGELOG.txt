@@ -1,6 +1,14 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.3.1, 2012-10-14
+ * Parallelize concurrent openslide_read_region calls on an openslide_t
+ * Eliminate background scanning of tile headers in MIRAX
+ * Scan many fewer tiles during first accesses to Hamamatsu VMS
+ * Ignore Leica Z-planes other than 0
+ * Add experimental tile-size properties
+ * Document API thread safety
+
 Version 3.3.0, 2012-09-08
  * Support Leica SCN format (requires libtiff >= 4) (thanks, Agelos Pappas)
  * Allow opening MIRAX 2.2 slides (though there are seams, bug #92)
