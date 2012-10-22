@@ -780,10 +780,10 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / l->tile_advance_x;
   double offset_x = ds_x - (start_tile_x * l->tile_advance_x);
-  int64_t end_tile_x = ((ds_x + w) / l->tile_advance_x) + 1;
+  int64_t end_tile_x = ceil((ds_x + w) / l->tile_advance_x);
   int64_t start_tile_y = ds_y / l->tile_advance_y;
   double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
-  int64_t end_tile_y = ((ds_y + h) / l->tile_advance_y) + 1;
+  int64_t end_tile_y = ceil((ds_y + h) / l->tile_advance_y);
 
   //g_debug("ds: % " G_GINT64_FORMAT " %" G_GINT64_FORMAT, ds_x, ds_y);
   //  g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT,

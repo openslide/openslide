@@ -28,6 +28,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include <glib.h>
 #include <cairo.h>
 
@@ -175,9 +176,9 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / ngr->column_width;
-  int64_t end_tile_x = ((ds_x + w) / ngr->column_width) + 1;
+  int64_t end_tile_x = ceil((ds_x + w) / ngr->column_width);
   int64_t start_tile_y = ds_y;
-  int64_t end_tile_y = ds_y + h + 1;
+  int64_t end_tile_y = ceil(ds_y + h);
 
   double offset_x = ds_x - (start_tile_x * ngr->column_width);
 

@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <cairo.h>
 
 #include "openslide-tilehelper.h"
@@ -452,9 +453,9 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / (tw - ox);
-  int64_t end_tile_x = ((ds_x + w) / (tw - ox)) + 1;
+  int64_t end_tile_x = ceil((ds_x + w) / (tw - ox));
   int64_t start_tile_y = ds_y / (th - oy);
-  int64_t end_tile_y = ((ds_y + h) / (th - oy)) + 1;
+  int64_t end_tile_y = ceil((ds_y + h) / (th - oy));
 
   double offset_x = ds_x - (start_tile_x * (tw - ox));
   double offset_y = ds_y - (start_tile_y * (th - oy));
