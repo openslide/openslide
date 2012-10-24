@@ -130,6 +130,13 @@ struct jpeg_associated_image_ctx {
   int64_t offset;
 };
 
+struct read_region_args {
+  double ds_x;
+  double ds_y;
+  int32_t w;
+  int32_t h;
+};
+
 
 /*
  * Source manager for doing fancy things with libjpeg and restart markers,
@@ -639,10 +646,11 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      struct _openslide_cache *cache,
-		      void *arg G_GNUC_UNUSED) {
+		      void *arg) {
   //g_debug("read_tile");
   struct jpegops_data *data = osr->data;
   struct level *l = data->levels + level;
+  struct read_region_args *region = arg;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
     //g_debug("too much");
@@ -657,6 +665,23 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
+  double level_x = tile_x * l->tile_advance_x +
+                   requested_tile->dest_offset_x / l->scale_denom;
+  double level_y = tile_y * l->tile_advance_y +
+                   requested_tile->dest_offset_y / l->scale_denom;
+  int tw = requested_tile->jpeg->tile_width / l->scale_denom;
+  int th = requested_tile->jpeg->tile_height / l->scale_denom;
+
+  // skip the tile if it's outside the requested region
+  // (i.e., extra_tiles_* gave us an irrelevant tile)
+  if (level_x + tw <= region->ds_x ||
+      level_y + th <= region->ds_y ||
+      level_x >= region->ds_x + region->w ||
+      level_y >= region->ds_y + region->h) {
+    //g_debug("skip x %g w %d y %g h %d, region x %g w %"G_GINT32_FORMAT" y %g h %"G_GINT32_FORMAT, level_x, tw, level_y, th, region->ds_x, region->w, region->ds_y, region->h);
+    return;
+  }
+
   if (level <= 3) {
     //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
   }
@@ -668,8 +693,6 @@ static void read_tile(openslide_t *osr,
                                             requested_tile->tileno,
                                             level,
                                             &cache_entry);
-  int tw = requested_tile->jpeg->tile_width / l->scale_denom;
-  int th = requested_tile->jpeg->tile_height / l->scale_denom;
 
   if (!tiledata) {
     tiledata = read_from_one_jpeg(osr,
@@ -784,6 +807,12 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   int64_t start_tile_y = ds_y / l->tile_advance_y;
   double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
   int64_t end_tile_y = ceil((ds_y + h) / l->tile_advance_y);
+  struct read_region_args region = {
+    .ds_x = ds_x,
+    .ds_y = ds_y,
+    .w = w,
+    .h = h,
+  };
 
   //g_debug("ds: % " G_GINT64_FORMAT " %" G_GINT64_FORMAT, ds_x, ds_y);
   //  g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT,
@@ -803,7 +832,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			offset_x, offset_y,
 			l->tile_advance_x,
 			l->tile_advance_y,
-			osr, osr->cache, NULL,
+			osr, osr->cache, &region,
 			read_tile);
 
   // maybe tell the background thread to resume
