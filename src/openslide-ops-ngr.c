@@ -32,6 +32,7 @@
 #include <glib.h>
 #include <cairo.h>
 
+#define NGR_TILE_HEIGHT 64
 
 struct ngr_data {
   int32_t ngr_count;
@@ -72,7 +73,7 @@ static void get_tile_geometry(openslide_t *osr, int32_t level,
   struct _openslide_ngr *ngr = data->ngrs[level];
 
   *w = ngr->column_width;
-  *h = 1;
+  *h = NGR_TILE_HEIGHT;
 }
 
 static void read_tile(openslide_t *osr,
@@ -88,11 +89,14 @@ static void read_tile(openslide_t *osr,
 
   // check if beyond boundary
   int num_columns = ngr->w / ngr->column_width;
-  if ((tile_x >= num_columns) || (tile_y >= ngr->h)) {
+  int num_rows = (ngr->h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT;
+  if (tile_x >= num_columns || tile_y >= num_rows) {
     return;
   }
 
-  int tilesize = ngr->column_width * 4;
+  int64_t tw = ngr->column_width;
+  int64_t th = MIN(NGR_TILE_HEIGHT, ngr->h - tile_y * NGR_TILE_HEIGHT);
+  int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
   uint32_t *tiledata = _openslide_cache_get(cache, tile_x, tile_y, level,
@@ -109,7 +113,7 @@ static void read_tile(openslide_t *osr,
 
     // compute offset to read
     int64_t offset = ngr->start_in_file +
-      (tile_y * ngr->column_width * 6) +
+      (tile_y * NGR_TILE_HEIGHT * ngr->column_width * 6) +
       (tile_x * ngr->h * ngr->column_width * 6);
     //    g_debug("tile_x: %" G_GINT64_FORMAT ", "
     //	    "tile_y: %" G_GINT64_FORMAT ", "
@@ -117,7 +121,7 @@ static void read_tile(openslide_t *osr,
     fseeko(f, offset, SEEK_SET);
 
     // alloc and read
-    int buf_size = ngr->column_width * 6;
+    int buf_size = tw * th * 6;
     uint16_t *buf = g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
@@ -130,7 +134,7 @@ static void read_tile(openslide_t *osr,
 
     // got the data, now convert to 8-bit xRGB
     tiledata = g_slice_alloc(tilesize);
-    for (int i = 0; i < ngr->column_width; i++) {
+    for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
       uint8_t g = GINT16_FROM_LE(buf[(i * 3) + 1]) >> 4;
@@ -143,15 +147,14 @@ static void read_tile(openslide_t *osr,
     // put it in the cache
     _openslide_cache_put(cache, tile_x, tile_y, level,
                          tiledata,
-                         ngr->column_width * 1 * 4,
+                         tilesize,
                          &cache_entry);
   }
 
   // draw it
-  int64_t tw = ngr->column_width;
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
 								 CAIRO_FORMAT_RGB24,
-								 tw, 1,
+								 tw, th,
 								 tw * 4);
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
@@ -177,17 +180,18 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / ngr->column_width;
   int64_t end_tile_x = ceil((ds_x + w) / ngr->column_width);
-  int64_t start_tile_y = ds_y;
-  int64_t end_tile_y = ceil(ds_y + h);
+  int64_t start_tile_y = ds_y / NGR_TILE_HEIGHT;
+  int64_t end_tile_y = ceil((ds_y + h) / NGR_TILE_HEIGHT);
 
   double offset_x = ds_x - (start_tile_x * ngr->column_width);
+  double offset_y = ds_y - (start_tile_y * NGR_TILE_HEIGHT);
 
   _openslide_read_tiles(cr,
 			level,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
-			offset_x, 0,
-			ngr->column_width, 1,
+			offset_x, offset_y,
+			ngr->column_width, NGR_TILE_HEIGHT,
 			osr, osr->cache, NULL,
 			read_tile);
 }
