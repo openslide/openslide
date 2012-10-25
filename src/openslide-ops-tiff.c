@@ -43,11 +43,17 @@ struct _openslide_tiffopsdata {
   GMutex *handle_cache_mutex;
   char *filename;
 
-  int32_t overlap_count;
-  int32_t *overlaps;
-  int32_t *levels;
+  struct tiff_level **levels;
+  int32_t level_count;
 
   _openslide_tiff_tilereader_fn tileread;
+};
+
+struct tiff_level {
+  tdir_t dir;
+
+  int32_t overlap_x;
+  int32_t overlap_y;
 };
 
 // not thread-safe, like libtiff
@@ -208,9 +214,11 @@ static void destroy_data(struct _openslide_tiffopsdata *data) {
   g_mutex_unlock(data->handle_cache_mutex);
   g_queue_free(data->handle_cache);
   g_mutex_free(data->handle_cache_mutex);
-  g_free(data->filename);
+  for (int32_t i = 0; i < data->level_count; i++) {
+    g_slice_free(struct tiff_level, data->levels[i]);
+  }
   g_free(data->levels);
-  g_free(data->overlaps);
+  g_free(data->filename);
   g_slice_free(struct _openslide_tiffopsdata, data);
 }
 
@@ -225,16 +233,13 @@ static void _get_dimensions(openslide_t *osr, TIFF *tiff,
   uint32_t tmp;
 
   struct _openslide_tiffopsdata *data = osr->data;
+  struct tiff_level *l = data->levels[level];
 
-  int32_t ox = 0;
-  int32_t oy = 0;
-  if (level < data->overlap_count) {
-    ox = data->overlaps[level * 2];
-    oy = data->overlaps[(level * 2) + 1];
-  }
+  int32_t ox = l->overlap_x;
+  int32_t oy = l->overlap_y;
 
-  // set the level
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
+  // set the directory
+  SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -282,14 +287,14 @@ static void _get_tile_geometry(openslide_t *osr, TIFF *tiff, int32_t level,
 
   // if any level has overlaps, reporting tile advances would mislead the
   // application
-  for (int32_t i = 0; i < 2 * data->overlap_count; i++) {
-    if (data->overlaps[i]) {
+  for (int32_t i = 0; i < data->level_count; i++) {
+    if (data->levels[i]->overlap_x || data->levels[i]->overlap_y) {
       return;
     }
   }
 
-  // set the level
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
+  // set the directory
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level]->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -321,8 +326,8 @@ static void read_tile(openslide_t *osr,
 
   uint32_t tmp;
 
-  // set the level
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
+  // set the directory
+  SET_DIR_OR_FAIL(osr, tiff, data->levels[level]->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -423,10 +428,11 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
                           int32_t level,
                           int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = osr->data;
+  struct tiff_level *l = data->levels[level];
   uint32_t tmp;
 
-  // set the level
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level])
+  // set the directory
+  SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -443,12 +449,8 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   int64_t tiles_down = (ih / th) + !!(ih % th);
 
   // compute coordinates
-  int32_t ox = 0;
-  int32_t oy = 0;
-  if (level < data->overlap_count) {
-    ox = data->overlaps[level * 2];
-    oy = data->overlaps[(level * 2) + 1];
-  }
+  int32_t ox = l->overlap_x;
+  int32_t oy = l->overlap_y;
 
   double ds = openslide_get_level_downsample(osr, level);
   double ds_x = x / ds;
@@ -521,7 +523,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t overlap_count,
 			     int32_t *overlaps,
 			     int32_t level_count,
-			     int32_t *levels,
+			     int32_t *directories,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1) {
   // allocate private data
@@ -530,16 +532,27 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   GError *tmp_err = NULL;
 
-  // store level info
+  // create levels
+  struct tiff_level **levels = g_new(struct tiff_level *, level_count);
+  for (int32_t i = 0; i < level_count; i++) {
+    struct tiff_level *l = g_slice_new0(struct tiff_level);
+    l->dir = directories[i];
+    if (i < overlap_count) {
+      l->overlap_x = overlaps[2 * i];
+      l->overlap_y = overlaps[2 * i + 1];
+    }
+    levels[i] = l;
+  }
   data->levels = levels;
+  g_free(directories);
+  g_free(overlaps);
 
   // populate private data
   data->handle_cache = g_queue_new();
   data->handle_cache_mutex = g_mutex_new();
   data->filename = g_strdup(TIFFFileName(tiff));
   data->tileread = tileread;
-  data->overlap_count = overlap_count;
-  data->overlaps = overlaps;
+  data->level_count = level_count;
 
   if (osr == NULL) {
     // free now and return
@@ -549,7 +562,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   }
 
   // generate hash of the smallest level
-  TIFFSetDirectory(tiff, levels[level_count - 1]);
+  TIFFSetDirectory(tiff, levels[level_count - 1]->dir);
   if (!_openslide_hash_tiff_tiles(quickhash1, tiff, &tmp_err)) {
     _openslide_set_error(osr, "Cannot hash TIFF tiles: %s", tmp_err->message);
     g_clear_error(&tmp_err);

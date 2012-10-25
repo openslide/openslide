@@ -185,7 +185,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t overlap_count,
 			     int32_t *overlaps,
 			     int32_t level_count,
-			     int32_t *levels,
+			     int32_t *directories,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1);
 
