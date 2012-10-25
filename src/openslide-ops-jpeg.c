@@ -961,14 +961,6 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
   return (w1 < w2) - (w1 > w2);
 }
 
-static void get_keys(gpointer key,
-		     gpointer value G_GNUC_UNUSED,
-		     gpointer user_data) {
-  GList *keys = *((GList **) user_data);
-  keys = g_list_prepend(keys, key);
-  *((GList **) user_data) = keys;
-}
-
 // warning: calls g_assert for trivial things, use only for debugging
 static void verify_mcu_starts(struct jpegops_data *data) {
   g_debug("verifying mcu starts");
@@ -1253,8 +1245,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   qsort(data->all_jpegs, file_count, sizeof(struct one_jpeg *), one_jpeg_compare);
 
   // get sorted keys
-  GList *level_keys = NULL;
-  g_hash_table_foreach(expanded_levels, get_keys, &level_keys);
+  GList *level_keys = g_hash_table_get_keys(expanded_levels);
   level_keys = g_list_sort(level_keys, width_compare);
 
   //  g_debug("number of keys: %d", g_list_length(level_keys));
