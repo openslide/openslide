@@ -79,6 +79,8 @@ struct tile {
 };
 
 struct level {
+  struct _openslide_level info;
+
   GHashTable *tiles;
 
   int32_t tiles_across;
@@ -110,9 +112,6 @@ struct level {
 struct jpegops_data {
   int32_t jpeg_count;
   struct one_jpeg **all_jpegs;
-
-  // level_count is in the osr struct
-  struct level *levels;
 
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
@@ -647,8 +646,7 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      void *arg) {
   //g_debug("read_tile");
-  struct jpegops_data *data = osr->data;
-  struct level *l = data->levels + level;
+  struct level *l = (struct level *) osr->levels[level];
   struct read_region_args *region = arg;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
@@ -789,7 +787,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int32_t level,
 			 int32_t w, int32_t h) {
   struct jpegops_data *data = osr->data;
-  struct level *l = data->levels + level;
+  struct level *l = (struct level *) osr->levels[level];
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -867,17 +865,18 @@ static void destroy(openslide_t *osr) {
 
   // each level in turn
   for (int32_t i = 0; i < osr->level_count; i++) {
-    struct level *l = data->levels + i;
+    struct level *l = (struct level *) osr->levels[i];
 
     //    g_debug("g_free(%p)", l->level_jpegs);
     g_hash_table_unref(l->tiles);
+    g_slice_free(struct level, l);
   }
+
+  // the level array
+  g_free(osr->levels);
 
   // the JPEG array
   g_free(data->all_jpegs);
-
-  // the level array
-  g_free(data->levels);
 
   // the background stuff
   g_mutex_free(data->restart_marker_mutex);
@@ -892,8 +891,7 @@ static void destroy(openslide_t *osr) {
 static void get_dimensions(openslide_t *osr,
 			   int32_t level,
 			   int64_t *w, int64_t *h) {
-  struct jpegops_data *data = osr->data;
-  struct level *l = data->levels + level;
+  struct level *l = (struct level *) osr->levels[level];
 
   *w = l->pixel_w;
   *h = l->pixel_h;
@@ -902,11 +900,11 @@ static void get_dimensions(openslide_t *osr,
 static void get_tile_geometry(openslide_t *osr,
                               int32_t level,
                               int64_t *w, int64_t *h) {
-  struct jpegops_data *data = osr->data;
-  struct level *l = data->levels + level;
+  struct level *l = (struct level *) osr->levels[level];
 
   for (int32_t i = 0; i < osr->level_count; i++) {
-    if (!data->levels[i].valid_tilesize_hints) {
+    struct level *ll = (struct level *) osr->levels[i];
+    if (!ll->valid_tilesize_hints) {
       return;
     }
   }
@@ -1258,28 +1256,25 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   g_assert(osr->downsamples == NULL);
   osr->downsamples = g_new(double, osr->level_count);
 
-  // load into data array
-  data->levels = g_new(struct level, g_hash_table_size(expanded_levels));
+  // load into level array
+  g_assert(osr->levels == NULL);
+  osr->levels = g_new(struct _openslide_level *, osr->level_count);
   GList *tmp_list = level_keys;
 
   int i = 0;
 
-  //  g_debug("copying sorted levels");
+  //  g_debug("moving sorted levels");
   while(tmp_list != NULL) {
     // get a key and value
     struct level *l = g_hash_table_lookup(expanded_levels, tmp_list->data);
 
-    // copy
-    struct level *dest = data->levels + i;
-    *dest = *l;    // shallow copy
+    // move
+    osr->levels[i] = (struct _openslide_level *) l;
+    g_hash_table_steal(expanded_levels, tmp_list->data);
+    _openslide_int64_free(tmp_list->data);  // key
 
     // set downsample
     osr->downsamples[i] = l->downsample;
-
-    // manually free some things, because of that shallow copy
-    g_hash_table_steal(expanded_levels, tmp_list->data);
-    _openslide_int64_free(tmp_list->data);  // key
-    g_slice_free(struct level, l); // shallow deletion of level
 
     // consume the head and continue
     tmp_list = g_list_delete_link(tmp_list, tmp_list);

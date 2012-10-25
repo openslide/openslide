@@ -43,13 +43,12 @@ struct _openslide_tiffopsdata {
   GMutex *handle_cache_mutex;
   char *filename;
 
-  struct tiff_level **levels;
-  int32_t level_count;
-
   _openslide_tiff_tilereader_fn tileread;
 };
 
 struct tiff_level {
+  struct _openslide_level info;
+
   tdir_t dir;
 
   int32_t overlap_x;
@@ -204,7 +203,8 @@ static void put_tiff(openslide_t *osr, TIFF *tiff) {
   }
 }
 
-static void destroy_data(struct _openslide_tiffopsdata *data) {
+static void destroy_data(struct _openslide_tiffopsdata *data,
+                         struct tiff_level **levels, int32_t level_count) {
   TIFF *tiff;
 
   g_mutex_lock(data->handle_cache_mutex);
@@ -214,17 +214,19 @@ static void destroy_data(struct _openslide_tiffopsdata *data) {
   g_mutex_unlock(data->handle_cache_mutex);
   g_queue_free(data->handle_cache);
   g_mutex_free(data->handle_cache_mutex);
-  for (int32_t i = 0; i < data->level_count; i++) {
-    g_slice_free(struct tiff_level, data->levels[i]);
-  }
-  g_free(data->levels);
   g_free(data->filename);
   g_slice_free(struct _openslide_tiffopsdata, data);
+
+  for (int32_t i = 0; i < level_count; i++) {
+    g_slice_free(struct tiff_level, levels[i]);
+  }
+  g_free(levels);
 }
 
 static void destroy(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
-  destroy_data(data);
+  struct tiff_level **levels = (struct tiff_level **) osr->levels;
+  destroy_data(data, levels, osr->level_count);
 }
 
 
@@ -232,8 +234,7 @@ static void _get_dimensions(openslide_t *osr, TIFF *tiff,
                             int32_t level, int64_t *w, int64_t *h) {
   uint32_t tmp;
 
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = data->levels[level];
+  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
 
   int32_t ox = l->overlap_x;
   int32_t oy = l->overlap_y;
@@ -281,20 +282,20 @@ static void get_dimensions(openslide_t *osr, int32_t level,
 
 static void _get_tile_geometry(openslide_t *osr, TIFF *tiff, int32_t level,
                                int64_t *w, int64_t *h) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
+  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
   uint32_t tmp;
 
   // if any level has overlaps, reporting tile advances would mislead the
   // application
-  for (int32_t i = 0; i < data->level_count; i++) {
-    if (data->levels[i]->overlap_x || data->levels[i]->overlap_y) {
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    struct tiff_level *ll = (struct tiff_level *) osr->levels[i];
+    if (ll->overlap_x || ll->overlap_y) {
       return;
     }
   }
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level]->dir)
+  SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -322,12 +323,13 @@ static void read_tile(openslide_t *osr,
 		      double translate_x, double translate_y,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
+  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
   TIFF *tiff = arg;
 
   uint32_t tmp;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, data->levels[level]->dir)
+  SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -427,8 +429,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
                           int64_t x, int64_t y,
                           int32_t level,
                           int32_t w, int32_t h) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = data->levels[level];
+  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
   uint32_t tmp;
 
   // set the directory
@@ -543,7 +544,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     }
     levels[i] = l;
   }
-  data->levels = levels;
   g_free(directories);
   g_free(overlaps);
 
@@ -552,12 +552,11 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   data->handle_cache_mutex = g_mutex_new();
   data->filename = g_strdup(TIFFFileName(tiff));
   data->tileread = tileread;
-  data->level_count = level_count;
 
   if (osr == NULL) {
     // free now and return
     TIFFClose(tiff);
-    destroy_data(data);
+    destroy_data(data, levels, level_count);
     return;
   }
 
@@ -574,8 +573,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);
+  g_assert(osr->levels == NULL);
 
   // general osr data
+  osr->levels = (struct _openslide_level **) levels;
   osr->level_count = level_count;
   osr->data = data;
   osr->ops = &_openslide_tiff_ops;

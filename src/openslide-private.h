@@ -62,6 +62,7 @@ struct _openslide_associated_image {
 /* the main structure */
 struct _openslide {
   const struct _openslide_ops *ops;
+  struct _openslide_level **levels;
   void *data;
   int32_t level_count;
 
@@ -80,6 +81,10 @@ struct _openslide {
 
   // error handling, NULL if no error
   gpointer error; // must use g_atomic_pointer!
+};
+
+struct _openslide_level {
+  int dummy;
 };
 
 /* the function pointer structure for backends */
@@ -289,6 +294,8 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 
 // Hamamatsu NGR
 struct _openslide_ngr {
+  struct _openslide_level info;
+
   char *filename;
 
   int64_t start_in_file;

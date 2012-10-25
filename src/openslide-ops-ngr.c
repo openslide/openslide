@@ -34,12 +34,6 @@
 
 #define NGR_TILE_HEIGHT 64
 
-struct ngr_data {
-  int32_t ngr_count;
-  struct _openslide_ngr **ngrs;
-};
-
-
 static void destroy_ngrs(struct _openslide_ngr **ngrs, int count) {
   for (int i = 0; i < count; i++) {
     g_free(ngrs[i]->filename);
@@ -49,19 +43,13 @@ static void destroy_ngrs(struct _openslide_ngr **ngrs, int count) {
 }
 
 static void destroy(openslide_t *osr) {
-  struct ngr_data *data = osr->data;
-
-  destroy_ngrs(data->ngrs, data->ngr_count);
-
-  g_slice_free(struct ngr_data, data);
+  destroy_ngrs((struct _openslide_ngr **) osr->levels, osr->level_count);
 }
 
 
 static void get_dimensions(openslide_t *osr, int32_t level,
 			   int64_t *w, int64_t *h) {
-
-  struct ngr_data *data = osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[level];
+  struct _openslide_ngr *ngr = (struct _openslide_ngr *) osr->levels[level];
 
   *w = ngr->w;
   *h = ngr->h;
@@ -69,8 +57,7 @@ static void get_dimensions(openslide_t *osr, int32_t level,
 
 static void get_tile_geometry(openslide_t *osr, int32_t level,
                               int64_t *w, int64_t *h) {
-  struct ngr_data *data = osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[level];
+  struct _openslide_ngr *ngr = (struct _openslide_ngr *) osr->levels[level];
 
   *w = ngr->column_width;
   *h = NGR_TILE_HEIGHT;
@@ -82,8 +69,7 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      void *arg G_GNUC_UNUSED) {
-  struct ngr_data *data = osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[level];
+  struct _openslide_ngr *ngr = (struct _openslide_ngr *) osr->levels[level];
   GError *tmp_err = NULL;
 
   // check if beyond boundary
@@ -170,8 +156,7 @@ static void read_tile(openslide_t *osr,
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 int32_t level, int32_t w, int32_t h) {
-  struct ngr_data *data = osr->data;
-  struct _openslide_ngr *ngr = data->ngrs[level];
+  struct _openslide_ngr *ngr = (struct _openslide_ngr *) osr->levels[level];
 
   // compute coordinates
   double ds = openslide_get_level_downsample(osr, level);
@@ -212,16 +197,9 @@ void _openslide_add_ngr_ops(openslide_t *osr,
     return;
   }
 
-  // allocate private data
-  struct ngr_data *data =
-    g_slice_new(struct ngr_data);
-
-  data->ngr_count = ngr_count;
-  data->ngrs = ngrs;
-
-  // store vmu-specific data into osr
-  g_assert(osr->data == NULL);
-  osr->data = data;
+  // set levels
+  g_assert(osr->levels == NULL);
+  osr->levels = (struct _openslide_level **) ngrs;
 
   // general osr data
   osr->level_count = ngr_count;
