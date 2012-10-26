@@ -41,9 +41,6 @@ struct ngr_level {
 
   int64_t start_in_file;
 
-  int32_t w;
-  int32_t h;
-
   int32_t column_width;
 };
 
@@ -59,14 +56,6 @@ static void destroy(openslide_t *osr) {
   destroy_levels((struct ngr_level **) osr->levels, osr->level_count);
 }
 
-
-static void get_dimensions(openslide_t *osr, int32_t level,
-			   int64_t *w, int64_t *h) {
-  struct ngr_level *l = (struct ngr_level *) osr->levels[level];
-
-  *w = l->w;
-  *h = l->h;
-}
 
 static void get_tile_geometry(openslide_t *osr, int32_t level,
                               int64_t *w, int64_t *h) {
@@ -86,14 +75,14 @@ static void read_tile(openslide_t *osr,
   GError *tmp_err = NULL;
 
   // check if beyond boundary
-  int num_columns = l->w / l->column_width;
-  int num_rows = (l->h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT;
+  int num_columns = l->info.w / l->column_width;
+  int num_rows = (l->info.h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT;
   if (tile_x >= num_columns || tile_y >= num_rows) {
     return;
   }
 
   int64_t tw = l->column_width;
-  int64_t th = MIN(NGR_TILE_HEIGHT, l->h - tile_y * NGR_TILE_HEIGHT);
+  int64_t th = MIN(NGR_TILE_HEIGHT, l->info.h - tile_y * NGR_TILE_HEIGHT);
   int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
@@ -112,7 +101,7 @@ static void read_tile(openslide_t *osr,
     // compute offset to read
     int64_t offset = l->start_in_file +
       (tile_y * NGR_TILE_HEIGHT * l->column_width * 6) +
-      (tile_x * l->h * l->column_width * 6);
+      (tile_x * l->info.h * l->column_width * 6);
     //    g_debug("tile_x: %" G_GINT64_FORMAT ", "
     //	    "tile_y: %" G_GINT64_FORMAT ", "
     //	    "seeking to %" G_GINT64_FORMAT, tile_x, tile_y, offset);
@@ -195,7 +184,6 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 
 static const struct _openslide_ops _openslide_vmu_ops = {
-  .get_dimensions = get_dimensions,
   .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
@@ -210,10 +198,10 @@ void _openslide_add_ngr_ops(openslide_t *osr,
   for (int32_t i = 0; i < ngr_count; i++) {
     struct _openslide_ngr *ngr = ngrs[i];
     struct ngr_level *l = g_slice_new0(struct ngr_level);
+    l->info.w = ngr->w;
+    l->info.h = ngr->h;
     l->filename = ngr->filename;
     l->start_in_file = ngr->start_in_file;
-    l->w = ngr->w;
-    l->h = ngr->h;
     l->column_width = ngr->column_width;
     levels[i] = l;
     g_slice_free(struct _openslide_ngr, ngr);

@@ -83,13 +83,13 @@ struct _openslide {
 
 struct _openslide_level {
   double downsample;  // zero value is filled in automatically from dimensions
+
+  int64_t w;
+  int64_t h;
 };
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
-  void (*get_dimensions)(openslide_t *osr,
-			 int32_t level,
-			 int64_t *w, int64_t *h);
   // need not do anything, but must be consistent
   void (*get_tile_geometry)(openslide_t *osr,
 			    int32_t level,

@@ -99,10 +99,6 @@ struct level {
 
   // note: everything below is pre-divided by scale_denom
 
-  // total size
-  int64_t pixel_w;
-  int64_t pixel_h;
-
   double tile_advance_x;
   double tile_advance_y;
 };
@@ -886,15 +882,6 @@ static void destroy(openslide_t *osr) {
   g_slice_free(struct jpegops_data, data);
 }
 
-static void get_dimensions(openslide_t *osr,
-			   int32_t level,
-			   int64_t *w, int64_t *h) {
-  struct level *l = (struct level *) osr->levels[level];
-
-  *w = l->pixel_w;
-  *h = l->pixel_h;
-}
-
 static void get_tile_geometry(openslide_t *osr,
                               int32_t level,
                               int64_t *w, int64_t *h) {
@@ -912,7 +899,6 @@ static void get_tile_geometry(openslide_t *osr,
 }
 
 static const struct _openslide_ops jpeg_ops = {
-  .get_dimensions = get_dimensions,
   .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
@@ -1168,14 +1154,14 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
     struct level *new_l = g_slice_new0(struct level);
     new_l->info.downsample = old_l->downsample;
+    new_l->info.w = old_l->level_w;
+    new_l->info.h = old_l->level_h;
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
     new_l->scale_denom = 1;
     new_l->valid_tilesize_hints =
         ((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
         ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y;
-    new_l->pixel_w = old_l->level_w;
-    new_l->pixel_h = old_l->level_h;
     new_l->tile_advance_x = old_l->tile_advance_x;
     new_l->tile_advance_y = old_l->tile_advance_y;
 
@@ -1190,7 +1176,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
     // now, new_l is all initialized, so add it
     int64_t *key = g_slice_new(int64_t);
-    *key = new_l->pixel_w;
+    *key = new_l->info.w;
     g_hash_table_insert(expanded_levels, key, new_l);
 
     // try adding scale_denom levels
@@ -1214,8 +1200,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       sd_l->scale_denom = scale_denom;
 
-      sd_l->pixel_w = new_l->pixel_w / scale_denom;
-      sd_l->pixel_h = new_l->pixel_h / scale_denom;
+      sd_l->info.w = new_l->info.w / scale_denom;
+      sd_l->info.h = new_l->info.h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
       sd_l->valid_tilesize_hints =
@@ -1224,7 +1210,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
           ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y;
 
       key = g_slice_new(int64_t);
-      *key = sd_l->pixel_w;
+      *key = sd_l->info.w;
       g_hash_table_insert(expanded_levels, key, sd_l);
     }
 

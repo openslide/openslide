@@ -230,14 +230,9 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void _get_dimensions(openslide_t *osr, TIFF *tiff,
-                            int32_t level, int64_t *w, int64_t *h) {
+static void set_dimensions(openslide_t *osr, TIFF *tiff,
+                           struct tiff_level *l) {
   uint32_t tmp;
-
-  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
-
-  int32_t ox = l->overlap_x;
-  int32_t oy = l->overlap_y;
 
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
@@ -260,24 +255,15 @@ static void _get_dimensions(openslide_t *osr, TIFF *tiff,
   int64_t iw_minus_o = iw;
   int64_t ih_minus_o = ih;
   if (iw >= tw) {
-    iw_minus_o -= (tiles_across - 1) * ox;
+    iw_minus_o -= (tiles_across - 1) * l->overlap_x;
   }
   if (ih >= th) {
-    ih_minus_o -= (tiles_down - 1) * oy;
+    ih_minus_o -= (tiles_down - 1) * l->overlap_y;
   }
 
   // commit
-  *w = iw_minus_o;
-  *h = ih_minus_o;
-}
-
-static void get_dimensions(openslide_t *osr, int32_t level,
-			   int64_t *w, int64_t *h) {
-  TIFF *tiff = get_tiff(osr);
-  if (tiff != NULL) {
-    _get_dimensions(osr, tiff, level, w, h);
-  }
-  put_tiff(osr, tiff);
+  l->info.w = iw_minus_o;
+  l->info.h = ih_minus_o;
 }
 
 static void _get_tile_geometry(openslide_t *osr, TIFF *tiff, int32_t level,
@@ -512,7 +498,6 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 
 static const struct _openslide_ops _openslide_tiff_ops = {
-  .get_dimensions = get_dimensions,
   .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
@@ -558,6 +543,11 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     TIFFClose(tiff);
     destroy_data(data, levels, level_count);
     return;
+  }
+
+  // set dimensions
+  for (int32_t i = 0; i < level_count; i++) {
+    set_dimensions(osr, tiff, levels[i]);
   }
 
   // generate hash of the smallest level

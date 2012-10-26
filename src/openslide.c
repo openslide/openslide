@@ -288,13 +288,11 @@ openslide_t *openslide_open(const char *filename) {
     osr->levels[0]->downsample = 1.0;
   }
   for (int32_t i = 1; i < osr->level_count; i++) {
-    if (osr->levels[i]->downsample == 0) {
-      int64_t w, h;
-      openslide_get_level_dimensions(osr, i, &w, &h);
-
-      osr->levels[i]->downsample =
-        (((double) blh / (double) h) +
-         ((double) blw / (double) w)) / 2.0;
+    struct _openslide_level *l = osr->levels[i];
+    if (l->downsample == 0) {
+      l->downsample =
+        (((double) blh / (double) l->h) +
+         ((double) blw / (double) l->w)) / 2.0;
     }
   }
 
@@ -326,21 +324,20 @@ openslide_t *openslide_open(const char *filename) {
 		      g_strdup_printf("%d", osr->level_count));
   bool should_have_geometry;
   for (int32_t i = 0; i < osr->level_count; i++) {
-    int64_t w, h;
-    openslide_get_level_dimensions(osr, i, &w, &h);
+    struct _openslide_level *l = osr->levels[i];
 
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_WIDTH, i),
-			g_strdup_printf("%" G_GINT64_FORMAT, w));
+			g_strdup_printf("%" G_GINT64_FORMAT, l->w));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_HEIGHT, i),
-			g_strdup_printf("%" G_GINT64_FORMAT, h));
+			g_strdup_printf("%" G_GINT64_FORMAT, l->h));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE, i),
-			_openslide_format_double(osr->levels[i]->downsample));
+			_openslide_format_double(l->downsample));
 
     // tile geometry
-    w = h = -1;
+    int64_t w = -1, h = -1;
     (osr->ops->get_tile_geometry)(osr, i, &w, &h);
     bool have_geometry = (w > 0 && h > 0);
     if (i == 0) {
@@ -413,7 +410,8 @@ void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
     return;
   }
 
-  (osr->ops->get_dimensions)(osr, level, w, h);
+  *w = osr->levels[level]->w;
+  *h = osr->levels[level]->h;
 }
 
 void openslide_get_layer0_dimensions(openslide_t *osr,
