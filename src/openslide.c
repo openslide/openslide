@@ -273,23 +273,21 @@ openslide_t *openslide_open(const char *filename) {
       return osr;
     }
   }
+  g_assert(osr->levels);
 
   // compute downsamples if not done already
   int64_t blw, blh;
   openslide_get_level0_dimensions(osr, &blw, &blh);
 
-  if (!osr->downsamples) {
-    osr->downsamples = g_new0(double, osr->level_count);
-  }
-  if (osr->downsamples[0] == 0) {
-    osr->downsamples[0] = 1.0;
+  if (osr->level_count && osr->levels[0]->downsample == 0) {
+    osr->levels[0]->downsample = 1.0;
   }
   for (int32_t i = 1; i < osr->level_count; i++) {
-    if (osr->downsamples[i] == 0) {
+    if (osr->levels[i]->downsample == 0) {
       int64_t w, h;
       openslide_get_level_dimensions(osr, i, &w, &h);
 
-      osr->downsamples[i] =
+      osr->levels[i]->downsample =
         (((double) blh / (double) h) +
          ((double) blw / (double) w)) / 2.0;
     }
@@ -297,11 +295,11 @@ openslide_t *openslide_open(const char *filename) {
 
   // check downsamples
   for (int32_t i = 1; i < osr->level_count; i++) {
-    //g_debug("downsample: %g", osr->downsamples[i]);
+    //g_debug("downsample: %g", osr->levels[i]->downsample);
 
-    if (osr->downsamples[i] < osr->downsamples[i - 1]) {
+    if (osr->levels[i]->downsample < osr->levels[i - 1]->downsample) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
-		osr->downsamples[i], osr->downsamples[i - 1]);
+		osr->levels[i]->downsample, osr->levels[i - 1]->downsample);
       openslide_close(osr);
       _openslide_hash_destroy(quickhash1);
       return NULL;
@@ -334,7 +332,7 @@ openslide_t *openslide_open(const char *filename) {
 			g_strdup_printf("%" G_GINT64_FORMAT, h));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE, i),
-			_openslide_format_double(osr->downsamples[i]));
+			_openslide_format_double(osr->levels[i]->downsample));
 
     // tile geometry
     w = h = -1;
@@ -381,8 +379,6 @@ void openslide_close(openslide_t *osr) {
 
   g_free(osr->associated_image_names);
   g_free(osr->property_names);
-
-  g_free(osr->downsamples);
 
   if (osr->cache) {
     _openslide_cache_destroy(osr->cache);
@@ -451,13 +447,13 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
   }
 
   // too small, return first
-  if (downsample < osr->downsamples[0]) {
+  if (downsample < osr->levels[0]->downsample) {
     return 0;
   }
 
   // find where we are in the middle
   for (int32_t i = 1; i < osr->level_count; i++) {
-    if (downsample < osr->downsamples[i]) {
+    if (downsample < osr->levels[i]->downsample) {
       return i - 1;
     }
   }
@@ -477,7 +473,7 @@ double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
     return -1.0;
   }
 
-  return osr->downsamples[level];
+  return osr->levels[level]->downsample;
 }
 
 double openslide_get_layer_downsample(openslide_t *osr, int32_t level) {

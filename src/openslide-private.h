@@ -66,8 +66,6 @@ struct _openslide {
   void *data;
   int32_t level_count;
 
-  double *downsamples;  // zero values or NULL are filled in automatically from dimensions
-
   // associated images
   GHashTable *associated_images;  // created automatically
   const char **associated_image_names; // filled in automatically from hashtable
@@ -84,7 +82,7 @@ struct _openslide {
 };
 
 struct _openslide_level {
-  int dummy;
+  double downsample;  // zero value is filled in automatically from dimensions
 };
 
 /* the function pointer structure for backends */

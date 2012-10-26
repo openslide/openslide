@@ -159,7 +159,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   struct _openslide_ngr *ngr = (struct _openslide_ngr *) osr->levels[level];
 
   // compute coordinates
-  double ds = openslide_get_level_downsample(osr, level);
+  double ds = ngr->info.downsample;
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / ngr->column_width;

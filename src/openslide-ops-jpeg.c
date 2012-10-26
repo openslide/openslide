@@ -86,8 +86,6 @@ struct level {
   int32_t tiles_across;
   int32_t tiles_down;
 
-  double downsample;
-
   int32_t scale_denom;
 
   // how much extra we might need to read to get all relevant tiles?
@@ -796,7 +794,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
   // compute coordinates
-  double ds = openslide_get_level_downsample(osr, level);
+  double ds = l->info.downsample;
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / l->tile_advance_x;
@@ -1169,9 +1167,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct _openslide_jpeg_level *old_l = levels[i];
 
     struct level *new_l = g_slice_new0(struct level);
+    new_l->info.downsample = old_l->downsample;
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
-    new_l->downsample = old_l->downsample;
     new_l->scale_denom = 1;
     new_l->valid_tilesize_hints =
         ((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
@@ -1208,7 +1206,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->tiles = g_hash_table_ref(new_l->tiles);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
-      sd_l->downsample = new_l->downsample * scale_denom;
+      sd_l->info.downsample = new_l->info.downsample * scale_denom;
       sd_l->extra_tiles_top = new_l->extra_tiles_top;
       sd_l->extra_tiles_bottom = new_l->extra_tiles_bottom;
       sd_l->extra_tiles_left = new_l->extra_tiles_left;
@@ -1252,10 +1250,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   // populate the level_count
   osr->level_count = g_hash_table_size(expanded_levels);
 
-  // allocate downsample array
-  g_assert(osr->downsamples == NULL);
-  osr->downsamples = g_new(double, osr->level_count);
-
   // load into level array
   g_assert(osr->levels == NULL);
   osr->levels = g_new(struct _openslide_level *, osr->level_count);
@@ -1272,9 +1266,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     osr->levels[i] = (struct _openslide_level *) l;
     g_hash_table_steal(expanded_levels, tmp_list->data);
     _openslide_int64_free(tmp_list->data);  // key
-
-    // set downsample
-    osr->downsamples[i] = l->downsample;
 
     // consume the head and continue
     tmp_list = g_list_delete_link(tmp_list, tmp_list);

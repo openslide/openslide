@@ -453,7 +453,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   int32_t ox = l->overlap_x;
   int32_t oy = l->overlap_y;
 
-  double ds = openslide_get_level_downsample(osr, level);
+  double ds = l->info.downsample;
   double ds_x = x / ds;
   double ds_y = y / ds;
   int64_t start_tile_x = ds_x / (tw - ox);
