@@ -231,7 +231,7 @@ static void destroy(openslide_t *osr) {
 
 
 static void set_dimensions(openslide_t *osr, TIFF *tiff,
-                           struct tiff_level *l) {
+                           struct tiff_level *l, bool geometry) {
   uint32_t tmp;
 
   // set the directory
@@ -264,42 +264,10 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   // commit
   l->info.w = iw_minus_o;
   l->info.h = ih_minus_o;
-}
-
-static void _get_tile_geometry(openslide_t *osr, TIFF *tiff, int32_t level,
-                               int64_t *w, int64_t *h) {
-  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
-  uint32_t tmp;
-
-  // if any level has overlaps, reporting tile advances would mislead the
-  // application
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    struct tiff_level *ll = (struct tiff_level *) osr->levels[i];
-    if (ll->overlap_x || ll->overlap_y) {
-      return;
-    }
+  if (geometry) {
+    l->info.tile_w = tw;
+    l->info.tile_h = th;
   }
-
-  // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
-
-  // figure out tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
-
-  // commit
-  *w = tw;
-  *h = th;
-}
-
-static void get_tile_geometry(openslide_t *osr, int32_t level,
-                              int64_t *w, int64_t *h) {
-  TIFF *tiff = get_tiff(osr);
-  if (tiff != NULL) {
-    _get_tile_geometry(osr, tiff, level, w, h);
-  }
-  put_tiff(osr, tiff);
 }
 
 static void read_tile(openslide_t *osr,
@@ -498,7 +466,6 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
 
 static const struct _openslide_ops _openslide_tiff_ops = {
-  .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
 };
@@ -545,9 +512,19 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     return;
   }
 
+  // if any level has overlaps, reporting tile advances would mislead the
+  // application
+  bool report_geometry = true;
+  for (int32_t i = 0; i < level_count; i++) {
+    if (levels[i]->overlap_x || levels[i]->overlap_y) {
+      report_geometry = false;
+      break;
+    }
+  }
+
   // set dimensions
   for (int32_t i = 0; i < level_count; i++) {
-    set_dimensions(osr, tiff, levels[i]);
+    set_dimensions(osr, tiff, levels[i], report_geometry);
   }
 
   // generate hash of the smallest level

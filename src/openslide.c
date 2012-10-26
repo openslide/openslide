@@ -337,9 +337,7 @@ openslide_t *openslide_open(const char *filename) {
 			_openslide_format_double(l->downsample));
 
     // tile geometry
-    int64_t w = -1, h = -1;
-    (osr->ops->get_tile_geometry)(osr, i, &w, &h);
-    bool have_geometry = (w > 0 && h > 0);
+    bool have_geometry = (l->tile_w > 0 && l->tile_h > 0);
     if (i == 0) {
       should_have_geometry = have_geometry;
     }
@@ -349,10 +347,10 @@ openslide_t *openslide_open(const char *filename) {
     if (have_geometry) {
       g_hash_table_insert(osr->properties,
                           g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_WIDTH, i),
-                          g_strdup_printf("%" G_GINT64_FORMAT, w));
+                          g_strdup_printf("%" G_GINT64_FORMAT, l->tile_w));
       g_hash_table_insert(osr->properties,
                           g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_HEIGHT, i),
-                          g_strdup_printf("%" G_GINT64_FORMAT, h));
+                          g_strdup_printf("%" G_GINT64_FORMAT, l->tile_h));
     }
   }
 

@@ -95,8 +95,6 @@ struct level {
   int32_t extra_tiles_left;
   int32_t extra_tiles_right;
 
-  bool valid_tilesize_hints;
-
   // note: everything below is pre-divided by scale_denom
 
   double tile_advance_x;
@@ -306,7 +304,9 @@ static void convert_tiles(gpointer key,
       new_tile->h != new_l->tile_advance_y ||
       new_tile->dest_offset_x ||
       new_tile->dest_offset_y) {
-    new_l->valid_tilesize_hints = false;
+    // clear
+    new_l->info.tile_w = 0;
+    new_l->info.tile_h = 0;
   }
 
   //  g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", new_l, new_l->extra_tiles_left, new_l->extra_tiles_right, new_l->extra_tiles_top, new_l->extra_tiles_bottom);
@@ -882,24 +882,7 @@ static void destroy(openslide_t *osr) {
   g_slice_free(struct jpegops_data, data);
 }
 
-static void get_tile_geometry(openslide_t *osr,
-                              int32_t level,
-                              int64_t *w, int64_t *h) {
-  struct level *l = (struct level *) osr->levels[level];
-
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    struct level *ll = (struct level *) osr->levels[i];
-    if (!ll->valid_tilesize_hints) {
-      return;
-    }
-  }
-
-  *w = l->tile_advance_x;
-  *h = l->tile_advance_y;
-}
-
 static const struct _openslide_ops jpeg_ops = {
-  .get_tile_geometry = get_tile_geometry,
   .paint_region = paint_region,
   .destroy = destroy,
 };
@@ -1159,11 +1142,14 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
     new_l->scale_denom = 1;
-    new_l->valid_tilesize_hints =
-        ((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
-        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y;
     new_l->tile_advance_x = old_l->tile_advance_x;
     new_l->tile_advance_y = old_l->tile_advance_y;
+    // initialize tile size hints if potentially valid (may be cleared later)
+    if (((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
+        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y) {
+      new_l->info.tile_w = new_l->tile_advance_x;
+      new_l->info.tile_h = new_l->tile_advance_y;
+    }
 
     // convert tiles
     new_l->tiles = g_hash_table_new_full(_openslide_int64_hash,
@@ -1204,10 +1190,12 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       sd_l->info.h = new_l->info.h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
-      sd_l->valid_tilesize_hints =
-          new_l->valid_tilesize_hints &&
+      if (new_l->info.tile_w && new_l->info.tile_h &&
           ((int64_t) sd_l->tile_advance_x) == sd_l->tile_advance_x &&
-          ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y;
+          ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y) {
+        sd_l->info.tile_w = sd_l->tile_advance_x;
+        sd_l->info.tile_h = sd_l->tile_advance_y;
+      }
 
       key = g_slice_new(int64_t);
       *key = sd_l->info.w;
@@ -1259,6 +1247,17 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
   }
   g_hash_table_unref(expanded_levels);
 
+  // if any level is missing tile size hints, we must invalidate all hints
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    if (!osr->levels[i]->tile_w || !osr->levels[i]->tile_h) {
+      // invalidate
+      for (i = 0; i < osr->level_count; i++) {
+        osr->levels[i]->tile_w = 0;
+        osr->levels[i]->tile_h = 0;
+      }
+      break;
+    }
+  }
 
   // init background thread for finding restart markers
   data->restart_marker_timer = g_timer_new();

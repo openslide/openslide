@@ -86,14 +86,15 @@ struct _openslide_level {
 
   int64_t w;
   int64_t h;
+
+  // only for tile geometry properties; 0 to omit.
+  // all levels must set these, or none
+  int64_t tile_w;
+  int64_t tile_h;
 };
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
-  // need not do anything, but must be consistent
-  void (*get_tile_geometry)(openslide_t *osr,
-			    int32_t level,
-			    int64_t *w, int64_t *h);
   void (*paint_region)(openslide_t *osr, cairo_t *cr,
 		       int64_t x, int64_t y,
 		       int32_t level,
