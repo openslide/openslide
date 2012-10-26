@@ -273,6 +273,11 @@ openslide_t *openslide_open(const char *filename) {
       return osr;
     }
   }
+  if (openslide_get_error(osr)) {
+    // Some error paths put the handle in error state instead of returning
+    // a GError.  We shouldn't encourage this, but shouldn't crash either.
+    return osr;
+  }
   g_assert(osr->levels);
 
   // compute downsamples if not done already
