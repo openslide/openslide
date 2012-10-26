@@ -292,8 +292,6 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
 
 // Hamamatsu NGR
 struct _openslide_ngr {
-  struct _openslide_level info;
-
   char *filename;
 
   int64_t start_in_file;
