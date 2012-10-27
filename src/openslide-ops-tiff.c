@@ -51,6 +51,14 @@ struct tiff_level {
 
   tdir_t dir;
 
+  // the world according to TIFF tags
+  int64_t raw_width;
+  int64_t raw_height;
+  int64_t tile_width;
+  int64_t tile_height;
+
+  int64_t tiles_across;
+  int64_t tiles_down;
   int32_t overlap_x;
   int32_t overlap_y;
 };
@@ -247,26 +255,28 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
   GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
-  // num tiles in each dimension
-  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  int64_t tiles_down = (ih / th) + !!(ih % th);
-
-  // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
-  int64_t iw_minus_o = iw;
-  int64_t ih_minus_o = ih;
-  if (iw >= tw) {
-    iw_minus_o -= (tiles_across - 1) * l->overlap_x;
-  }
-  if (ih >= th) {
-    ih_minus_o -= (tiles_down - 1) * l->overlap_y;
-  }
-
-  // commit
-  l->info.w = iw_minus_o;
-  l->info.h = ih_minus_o;
+  // safe now, start writing
+  l->raw_width = iw;
+  l->raw_height = ih;
+  l->tile_width = tw;
+  l->tile_height = th;
   if (geometry) {
     l->info.tile_w = tw;
     l->info.tile_h = th;
+  }
+
+  // num tiles in each dimension
+  l->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
+  l->tiles_down = (ih / th) + !!(ih % th);
+
+  // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
+  l->info.w = iw;
+  l->info.h = ih;
+  if (iw >= tw) {
+    l->info.w -= (l->tiles_across - 1) * l->overlap_x;
+  }
+  if (ih >= th) {
+    l->info.h -= (l->tiles_down - 1) * l->overlap_y;
   }
 }
 
@@ -280,20 +290,16 @@ static void read_tile(openslide_t *osr,
   struct tiff_level *l = (struct tiff_level *) level;
   TIFF *tiff = arg;
 
-  uint32_t tmp;
-
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
-  // figure out tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+  // tile size
+  int64_t tw = l->tile_width;
+  int64_t th = l->tile_height;
 
-  // get image size
-  int64_t iw, ih;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
+  // image size
+  int64_t iw = l->raw_width;
+  int64_t ih = l->raw_height;
 
   int64_t x = tile_x * tw;
   int64_t y = tile_y * th;
@@ -355,9 +361,8 @@ static void read_tile(openslide_t *osr,
   /*
   cairo_save(cr);
   int z = 4;
-  int64_t tiles_across = (iw / tw) + !!(iw % tw);
   char *zz = g_strdup_printf("%" G_GINT64_FORMAT ",%" G_GINT64_FORMAT " (%" G_GINT64_FORMAT ")",
-			     tile_x, tile_y, tile_y * tiles_across + tile_x);
+			     tile_x, tile_y, tile_y * l->tiles_across + tile_x);
   cairo_set_source_rgb(cr, 0, 0, 0);
   cairo_move_to(cr, 0, 20);
   cairo_show_text(cr, zz);
@@ -384,24 +389,13 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
                           struct _openslide_level *level,
                           int32_t w, int32_t h) {
   struct tiff_level *l = (struct tiff_level *) level;
-  uint32_t tmp;
 
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
-  // figure out tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
-
-  // get image size
-  int64_t iw, ih;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
-
-  // num tiles in each dimension
-  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  int64_t tiles_down = (ih / th) + !!(ih % th);
+  // tile size
+  int64_t tw = l->tile_width;
+  int64_t th = l->tile_height;
 
   // compute coordinates
   int32_t ox = l->overlap_x;
@@ -423,8 +417,8 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
 
   // special cases for edge tiles
   // XXX this code is ugly and should be replaced like in jpeg
-  if (ox && (start_tile_x >= tiles_across - 1)) {
-    start_tile_x = tiles_across - 1;
+  if (ox && (start_tile_x >= l->tiles_across - 1)) {
+    start_tile_x = l->tiles_across - 1;
     offset_x = ds_x - (start_tile_x * (tw - ox));
     advance_x = tw;
     end_tile_x = start_tile_x + 1;
@@ -433,8 +427,8 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
       return;
     }
   }
-  if (oy && (start_tile_y >= tiles_down - 1)) {
-    start_tile_y = tiles_down - 1;
+  if (oy && (start_tile_y >= l->tiles_down - 1)) {
+    start_tile_y = l->tiles_down - 1;
     offset_y = ds_y - (start_tile_y * (th - oy));
     advance_y = th;
     end_tile_y = start_tile_y + 1;
