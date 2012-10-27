@@ -78,7 +78,8 @@ static void read_tile(openslide_t *osr,
   int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, level,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y,
+                                            (struct _openslide_level *) l,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -124,7 +125,8 @@ static void read_tile(openslide_t *osr,
     g_slice_free1(buf_size, buf);
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, tile_x, tile_y, level,
+    _openslide_cache_put(osr->cache, tile_x, tile_y,
+                         (struct _openslide_level *) l,
                          tiledata,
                          tilesize,
                          &cache_entry);

@@ -28,7 +28,7 @@
 struct _openslide_cache_key {
   int64_t x;
   int64_t y;
-  int32_t level;
+  struct _openslide_level *level;
 };
 
 // hash table value
@@ -88,10 +88,7 @@ static guint hash_func(gconstpointer key) {
   const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
-
-  // take the top 4 bits for level, then 14 bits per x and y,
-  // xor it all together
-  return (guint) ((c_key->level << 28) ^ (c_key->y << 14) ^ (c_key->x));
+  return (guint) (((guint64) c_key->level) + ((c_key->y << 14) ^ (c_key->x)));
 }
 
 static gboolean key_equal_func(gconstpointer a,
@@ -186,7 +183,7 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 void _openslide_cache_put(struct _openslide_cache *cache,
 			  int64_t x,
 			  int64_t y,
-			  int32_t level,
+			  struct _openslide_level *level,
 			  void *data,
 			  int size_in_bytes,
 			  struct _openslide_cache_entry **_entry) {
@@ -247,7 +244,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
-			   int32_t level,
+			   struct _openslide_level *level,
 			   struct _openslide_cache_entry **_entry) {
   // lock
   g_mutex_lock(cache->mutex);
@@ -273,7 +270,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_entry *entry = value->entry;
   g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %d", entry, x, y, level);
+  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %p", entry, x, y, (void *) level);
 
   // unlock
   g_mutex_unlock(cache->mutex);
