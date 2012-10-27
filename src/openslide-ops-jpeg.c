@@ -776,10 +776,10 @@ static void read_tile(openslide_t *osr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t level,
+			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   struct jpegops_data *data = osr->data;
-  struct level *l = (struct level *) osr->levels[level];
+  struct level *l = (struct level *) level;
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -813,8 +813,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 		  -l->extra_tiles_left * l->tile_advance_x,
 		  -l->extra_tiles_top * l->tile_advance_y);
 
-  _openslide_read_tiles(cr,
-			(struct _openslide_level *) l,
+  _openslide_read_tiles(cr, level,
 			start_tile_x - l->extra_tiles_left,
 			start_tile_y - l->extra_tiles_top,
 			end_tile_x + l->extra_tiles_right,

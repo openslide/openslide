@@ -149,8 +149,9 @@ static void read_tile(openslide_t *osr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t level, int32_t w, int32_t h) {
-  struct ngr_level *l = (struct ngr_level *) osr->levels[level];
+			 struct _openslide_level *level,
+			 int32_t w, int32_t h) {
+  struct ngr_level *l = (struct ngr_level *) level;
 
   // compute coordinates
   double ds = l->info.downsample;
@@ -164,8 +165,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double offset_x = ds_x - (start_tile_x * l->column_width);
   double offset_y = ds_y - (start_tile_y * NGR_TILE_HEIGHT);
 
-  _openslide_read_tiles(cr,
-			(struct _openslide_level *) l,
+  _openslide_read_tiles(cr, level,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,

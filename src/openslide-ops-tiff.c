@@ -381,9 +381,9 @@ static void read_tile(openslide_t *osr,
 
 static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
                           int64_t x, int64_t y,
-                          int32_t level,
+                          struct _openslide_level *level,
                           int32_t w, int32_t h) {
-  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
+  struct tiff_level *l = (struct tiff_level *) level;
   uint32_t tmp;
 
   // set the directory
@@ -444,7 +444,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
     }
   }
 
-  _openslide_read_tiles(cr, (struct _openslide_level *) l,
+  _openslide_read_tiles(cr, level,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,
@@ -455,7 +455,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
 
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
-			 int32_t level,
+			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   TIFF *tiff = get_tiff(osr);
   if (tiff) {

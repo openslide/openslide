@@ -518,8 +518,10 @@ static void read_region(openslide_t *osr,
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   if (level_in_range(osr, level)) {
+    struct _openslide_level *l = osr->levels[level];
+
     // offset if given negative coordinates
-    double ds = openslide_get_level_downsample(osr, level);
+    double ds = l->downsample;
     int64_t tx = 0;
     int64_t ty = 0;
     if (x < 0) {
@@ -536,7 +538,7 @@ static void read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      (osr->ops->paint_region)(osr, cr, x, y, level, w, h);
+      (osr->ops->paint_region)(osr, cr, x, y, l, w, h);
     }
   }
 

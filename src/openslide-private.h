@@ -97,7 +97,7 @@ struct _openslide_level {
 struct _openslide_ops {
   void (*paint_region)(openslide_t *osr, cairo_t *cr,
 		       int64_t x, int64_t y,
-		       int32_t level,
+		       struct _openslide_level *level,
 		       int32_t w, int32_t h);
   void (*destroy)(openslide_t *osr);
 };
