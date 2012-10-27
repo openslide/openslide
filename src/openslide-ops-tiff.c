@@ -272,12 +272,12 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t level,
+		      struct _openslide_level *level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = (struct tiff_level *) osr->levels[level];
+  struct tiff_level *l = (struct tiff_level *) level;
   TIFF *tiff = arg;
 
   uint32_t tmp;
@@ -304,8 +304,7 @@ static void read_tile(openslide_t *osr,
 
   // cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, x, y,
-                                            (struct _openslide_level *) l,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, x, y, level,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
@@ -335,7 +334,7 @@ static void read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, x, y, (struct _openslide_level *) l,
+    _openslide_cache_put(osr->cache, x, y, level,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
   }
@@ -445,7 +444,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
     }
   }
 
-  _openslide_read_tiles(cr, level,
+  _openslide_read_tiles(cr, (struct _openslide_level *) l,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,

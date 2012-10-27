@@ -59,11 +59,11 @@ static void destroy(openslide_t *osr) {
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t level,
+		      struct _openslide_level *level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      void *arg G_GNUC_UNUSED) {
-  struct ngr_level *l = (struct ngr_level *) osr->levels[level];
+  struct ngr_level *l = (struct ngr_level *) level;
   GError *tmp_err = NULL;
 
   // check if beyond boundary
@@ -78,8 +78,7 @@ static void read_tile(openslide_t *osr,
   int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y,
-                                            (struct _openslide_level *) l,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, level,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -125,8 +124,7 @@ static void read_tile(openslide_t *osr,
     g_slice_free1(buf_size, buf);
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, tile_x, tile_y,
-                         (struct _openslide_level *) l,
+    _openslide_cache_put(osr->cache, tile_x, tile_y, level,
                          tiledata,
                          tilesize,
                          &cache_entry);
@@ -167,7 +165,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   double offset_y = ds_y - (start_tile_y * NGR_TILE_HEIGHT);
 
   _openslide_read_tiles(cr,
-			level,
+			(struct _openslide_level *) l,
 			start_tile_x, start_tile_y,
 			end_tile_x, end_tile_y,
 			offset_x, offset_y,

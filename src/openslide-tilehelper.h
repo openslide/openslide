@@ -24,14 +24,14 @@
 
 #include <config.h>
 
-#include "openslide.h"
+#include "openslide-private.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <cairo.h>
 
 void _openslide_read_tiles(cairo_t *cr,
-			   int32_t level,
+			   struct _openslide_level *level,
 			   int64_t start_tile_x, int64_t start_tile_y,
 			   int64_t end_tile_x, int64_t end_tile_y,
 			   double offset_x, double offset_y,
@@ -40,7 +40,7 @@ void _openslide_read_tiles(cairo_t *cr,
 			   void *arg,
 			   void (*read_tile)(openslide_t *osr,
 					     cairo_t *cr,
-					     int32_t level,
+					     struct _openslide_level *level,
 					     int64_t tile_x, int64_t tile_y,
 					     double translate_x, double translate_y,
 					     void *arg));

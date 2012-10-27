@@ -635,12 +635,12 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
-		      int32_t level,
+		      struct _openslide_level *level,
 		      int64_t tile_x, int64_t tile_y,
 		      double translate_x, double translate_y,
 		      void *arg) {
   //g_debug("read_tile");
-  struct level *l = (struct level *) osr->levels[level];
+  struct level *l = (struct level *) level;
   struct read_region_args *region = arg;
 
   if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
@@ -673,16 +673,14 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  if (level <= 3) {
-    //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
-  }
+  //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             requested_tile->jpegno,
                                             requested_tile->tileno,
-                                            (struct _openslide_level *) l,
+                                            level,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -693,8 +691,7 @@ static void read_tile(openslide_t *osr,
 				  tw, th);
 
     _openslide_cache_put(osr->cache,
-			 requested_tile->jpegno, requested_tile->tileno,
-			 (struct _openslide_level *) l,
+			 requested_tile->jpegno, requested_tile->tileno, level,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
@@ -817,7 +814,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 		  -l->extra_tiles_top * l->tile_advance_y);
 
   _openslide_read_tiles(cr,
-			level,
+			(struct _openslide_level *) l,
 			start_tile_x - l->extra_tiles_left,
 			start_tile_y - l->extra_tiles_top,
 			end_tile_x + l->extra_tiles_right,
