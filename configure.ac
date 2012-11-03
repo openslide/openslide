@@ -47,6 +47,11 @@ AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
 
+PKG_CHECK_MODULES(ZLIB, [zlib], [], [
+  dnl for Ubuntu Hardy and Lucid
+  AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
+])
+
 PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
   dnl OpenJPEG < 1.4 has no pkg-config file
 
