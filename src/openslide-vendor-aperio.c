@@ -350,18 +350,19 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   TIFFSetDirectory(tiff, 0);
   i = 0;
   do {
+    tdir_t dir = TIFFCurrentDirectory(tiff);
     if (TIFFIsTiled(tiff)) {
-      levels[i++] = TIFFCurrentDirectory(tiff);
-      //g_debug("tiled directory: %d", TIFFCurrentDirectory(tiff));
+      levels[i++] = dir;
+      //g_debug("tiled directory: %d", dir);
     } else {
       // associated image
-      const char *name = (i == 1) ? "thumbnail" : NULL;
+      const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr ? osr->associated_images : NULL,
                                 name, tiff, err)) {
 	g_prefix_error(err, "Can't read associated image: ");
 	goto FAIL;
       }
-      //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
+      //g_debug("associated image: %d", dir);
     }
 
     // check depth
