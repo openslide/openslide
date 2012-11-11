@@ -38,6 +38,7 @@
 #include <math.h>
 
 #include <jpeglib.h>
+#include <zlib.h>
 
 #include "openslide-hash.h"
 
@@ -64,6 +65,7 @@ static const char KEY_NONHIER_d_NAME[] = "NONHIER_%d_NAME";
 static const char KEY_NONHIER_d_COUNT[] = "NONHIER_%d_COUNT";
 static const char KEY_NONHIER_d_VAL_d[] = "NONHIER_%d_VAL_%d";
 static const char VALUE_VIMSLIDE_POSITION_BUFFER[] = "VIMSLIDE_POSITION_BUFFER";
+static const char VALUE_STITCHING_INTENSITY_LAYER[] = "StitchingIntensityLayer";
 static const char VALUE_SCAN_DATA_LAYER[] = "Scan data layer";
 static const char VALUE_SCAN_DATA_LAYER_MACRO[] = "ScanDataLayer_SlideThumbnail";
 static const char VALUE_SCAN_DATA_LAYER_LABEL[] = "ScanDataLayer_SlideBarcode";
@@ -74,6 +76,7 @@ static const char GROUP_NONHIERLAYER_d_SECTION[] = "NONHIERLAYER_%d_SECTION";
 static const char KEY_VIMSLIDE_POSITION_DATA_FORMAT_VERSION[] =
   "VIMSLIDE_POSITION_DATA_FORMAT_VERSION";
 static const int VALUE_VIMSLIDE_POSITION_DATA_FORMAT_VERSION = 257;
+static const int SLIDE_POSITION_RECORD_SIZE = 9;
 
 static const char GROUP_DATAFILE[] = "DATAFILE";
 static const char KEY_FILE_COUNT[] = "FILE_COUNT";
@@ -135,6 +138,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
       goto FAIL;						\
     }								\
   } while(0)
+  
 
 struct slide_zoom_level_section {
   int concat_exponent;
@@ -664,50 +668,120 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static int32_t *read_slide_position_file(const char *path,
-					 int64_t size, int64_t offset,
-					 int level_0_tile_concat,
+static int inflate_buffer(const void *src, int srcLen, void *dst, int dstLen,
+                          GError **err) {
+  z_stream strm = {0};
+  strm.total_in = strm.avail_in  = srcLen;
+  strm.total_out = strm.avail_out = dstLen;
+  strm.next_in = (Bytef *) src;
+  strm.next_out = (Bytef *) dst;
+
+  strm.zalloc = Z_NULL;
+  strm.zfree = Z_NULL;
+  strm.opaque = Z_NULL;
+
+  int error_code = -1;
+  int ret = -1;
+
+  // 15 window bits, and the +32 tells zlib to to detect if using gzip or zlib
+  error_code = inflateInit2(&strm, (15 + 32));
+  if (error_code == Z_OK) {
+    error_code = inflate(&strm, Z_FINISH);
+    if (error_code == Z_STREAM_END) {
+      ret = strm.total_out;
+    }
+    else {
+      goto ERROR;
+    }
+  } else {
+      goto ERROR;
+  }
+
+  inflateEnd(&strm);
+  return ret;
+  
+ ERROR:
+  if (Z_BUF_ERROR == error_code) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Decompressed slide position buffer not of expected size");
+  }
+  else if (Z_MEM_ERROR == error_code) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Not enough memory to decompress");
+  }
+  else if (Z_DATA_ERROR == error_code) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unrecognizable or corrupt compressed stream");
+  }
+  inflateEnd(&strm);
+  return error_code;
+}
+
+static int read_slide_position_file(const char *path,
+					 int64_t size, int64_t offset, char **buffer,
 					 GError **err) {
+  int buffer_size = size;
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
     g_prefix_error(err, "Cannot open slide position file: ");
-    return NULL;
+    return 0;
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot seek slide position file");
     fclose(f);
-    return NULL;
+    return 0;
+  }
+  
+  *buffer = g_malloc(size);
+  if (fread(*buffer, sizeof(char), size, f) != size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Error while reading slide position buffer");
+
+    g_free(*buffer);
+    *buffer = NULL;
+
+    fclose(f);
+    return 0;
+  }
+  
+  fclose(f);
+  return buffer_size;
+}
+
+static int32_t *read_slide_position_buffer(const char *buffer,
+					 int buffer_size,
+					 int level_0_tile_concat,
+					 GError **err) {
+					 
+  if (buffer_size % SLIDE_POSITION_RECORD_SIZE != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected buffer size");
+    return 0;
   }
 
-  int count = size / 9;
+  const char *p = buffer;
+  int count = buffer_size / SLIDE_POSITION_RECORD_SIZE;
   int32_t *result = g_new(int, count * 2);
+  int32_t x;
+  int32_t y;
 
   //  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
-    // read flag byte, then 2 numbers
-    int zz = getc(f);
-
-    int32_t x;
-    int32_t y;
-    bool x_ok = read_le_int32_from_file_with_result(f, &x);
-    bool y_ok = read_le_int32_from_file_with_result(f, &y);
-
-    if (zz == EOF || !x_ok || !y_ok || (zz & 0xfe)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Error while reading slide position file (%d)", zz);
-      fclose(f);
-      g_free(result);
-      return NULL;
-    }
-
+    p++;  // skip flag byte
+    
+    // then read two integers
+    x = *((int32_t *)p);
+    p += sizeof(int32_t);
+    y = *((int32_t *)p);
+    p += sizeof(int32_t);
+    
     result[i * 2] = x * level_0_tile_concat;
     result[(i * 2) + 1] = y * level_0_tile_concat;
   }
 
-  fclose(f);
   return result;
 }
 
@@ -744,12 +818,12 @@ static bool add_associated_image(const char *dirname,
 }
 
 
-
 static bool process_indexfile(const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
 			      char **datafile_names,
 			      int slide_position_record,
+			      int stitching_intensity_record,
 			      int macro_record,
 			      int label_record,
 			      int thumbnail_record,
@@ -773,11 +847,16 @@ static bool process_indexfile(const char *uuid,
 
   char *teststr = NULL;
   bool match;
+  
+  char *tile_position_buffer = NULL;
+  int read_buffer_size = 0;
+  int tile_position_record = -1;
 
   // init tmp parameters
   int32_t ptr = -1;
 
   const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
+  const int tile_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
 
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
@@ -809,10 +888,16 @@ static bool process_indexfile(const char *uuid,
                 "Index.dat doesn't have a matching slide identifier");
     goto DONE;
   }
-
+  
   // If we have individual tile positioning information as part of the
   // non-hier data, read the position information.
   if (slide_position_record != -1) {
+    tile_position_record = slide_position_record;
+  } else {
+    tile_position_record = stitching_intensity_record;
+  }
+
+  if (tile_position_record != -1) {
     char *slide_position_path;
     int64_t slide_position_size;
     int64_t slide_position_offset;
@@ -821,7 +906,7 @@ static bool process_indexfile(const char *uuid,
 			     dirname,
 			     datafile_count,
 			     datafile_names,
-			     slide_position_record,
+			     tile_position_record,
 			     &slide_position_path,
 			     &slide_position_size,
 			     &slide_position_offset,
@@ -829,22 +914,53 @@ static bool process_indexfile(const char *uuid,
       g_prefix_error(err, "Cannot read slide position info: ");
       goto DONE;
     }
-    //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
+    
+    read_buffer_size = read_slide_position_file(slide_position_path,
+					       slide_position_size, 
+					       slide_position_offset,
+					       &tile_position_buffer, 
+					       err);
+    g_free(slide_position_path);
+    
+    if (!tile_position_buffer) {
+      goto DONE;
+    }
+    
+    if (tile_position_record == stitching_intensity_record) {
+      //MRXS 2.2 we need to decompress the buffer
+      char *decompressed = g_malloc(tile_position_buffer_size);
+      int decompress_result = inflate_buffer(tile_position_buffer, read_buffer_size, 
+                                            decompressed, tile_position_buffer_size,
+                                            err);
+      
+      g_free(tile_position_buffer); // free the compressed buffer
 
-    if (slide_position_size != (9 * ntiles)) {
+      if (decompress_result == tile_position_buffer_size) {
+        tile_position_buffer = decompressed;
+        read_buffer_size = tile_position_buffer_size;
+      } else {
+        g_free(decompressed);
+        goto DONE;
+      }
+    }
+
+    if (tile_position_buffer_size != read_buffer_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Slide position file not of expected size");
-      g_free(slide_position_path);
+
+      g_free(tile_position_buffer);
+
       goto DONE;
     }
 
     // read in the slide positions
-    slide_positions = read_slide_position_file(slide_position_path,
-					       slide_position_size,
-					       slide_position_offset,
+    slide_positions = read_slide_position_buffer(tile_position_buffer,
+					       tile_position_buffer_size,
 					       slide_zoom_level_params[0].tile_concat,
 					       err);
-    g_free(slide_position_path);
+
+    g_free(tile_position_buffer);
+
     if (!slide_positions) {
       goto DONE;
     }
@@ -1134,6 +1250,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   int hier_count = 0;
   int nonhier_count = 0;
   int position_nonhier_offset = -1;
+  int position_nonhier_stitching_offset = -1;  // used for MRXS 2.2
   int macro_nonhier_offset = -1;
   int label_nonhier_offset = -1;
   int thumbnail_nonhier_offset = -1;
@@ -1365,6 +1482,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 						    &tmp_err);
   SUCCESSFUL_OR_FAIL(tmp_err);
 
+  if (position_nonhier_offset == -1) {
+    position_nonhier_stitching_offset = get_nonhier_name_offset(slidedat,
+						      nonhier_count,
+						      GROUP_HIERARCHICAL,
+						      VALUE_STITCHING_INTENSITY_LAYER,
+						      &tmp_err);
+    SUCCESSFUL_OR_FAIL(tmp_err);
+  }
+
   // associated images
   macro_nonhier_offset = get_nonhier_val_offset(slidedat,
 						nonhier_count,
@@ -1491,6 +1617,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     const int positions_per_jpeg_tile = MAX(1, lp->tile_concat / image_divisions);
 
     if (position_nonhier_offset != -1
+        || position_nonhier_stitching_offset != -1
         || slide_zoom_level_sections[0].overlap_x != 0
         || slide_zoom_level_sections[0].overlap_y != 0) {
       // tile_count_divisor: as we record levels, we would prefer to shrink the
@@ -1560,6 +1687,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 dirname,
 			 datafile_count, datafile_names,
 			 position_nonhier_offset,
+			 position_nonhier_stitching_offset,
 			 macro_nonhier_offset,
 			 label_nonhier_offset,
 			 thumbnail_nonhier_offset,
