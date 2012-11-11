@@ -1683,6 +1683,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   if (osr) {
     associated_images = osr->associated_images;
   }
+  
   if (!process_indexfile(slide_id,
 			 dirname,
 			 datafile_count, datafile_names,
