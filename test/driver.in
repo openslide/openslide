@@ -214,7 +214,7 @@ def pack(testname):
 
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
-                subprocess.check_call(['xdelta', 'encode', '-9', '-s',
+                subprocess.check_call(['xdelta3', 'encode', '-9', '-s',
                         origpath, newpath, deltapath])
         else:
             open(whiteoutpath, 'w').close()
@@ -252,7 +252,7 @@ def _unpack_one(testname):
                 subprocess.check_call([a % {'in': origpath, 'out': newpath}
                         for a in shlex.split(generator)])
             elif os.path.exists(deltapath):
-                subprocess.check_call(['xdelta', 'decode', '-s',
+                subprocess.check_call(['xdelta3', 'decode', '-s',
                         origpath, deltapath, newpath])
             else:
                 src = os.path.relpath(origpath, os.path.dirname(newpath))
