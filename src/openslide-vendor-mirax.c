@@ -668,86 +668,79 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static int inflate_buffer(const void *src, int srcLen, void *dst, int dstLen,
-                          GError **err) {
-  z_stream strm = {0};
-  strm.total_in = strm.avail_in  = srcLen;
-  strm.total_out = strm.avail_out = dstLen;
-  strm.next_in = (Bytef *) src;
-  strm.next_out = (Bytef *) dst;
-
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-
-  int error_code = -1;
-  int ret = -1;
-
-  // 15 window bits, and the +32 tells zlib to to detect if using gzip or zlib
-  error_code = inflateInit2(&strm, (15 + 32));
-  if (error_code == Z_OK) {
-    error_code = inflate(&strm, Z_FINISH);
-    if (error_code == Z_STREAM_END) {
-      ret = strm.total_out;
-    }
-    else {
-      goto ERROR;
-    }
-  } else {
-      goto ERROR;
-  }
-
-  inflateEnd(&strm);
-  return ret;
+static int64_t inflate_buffer(const void *src, int src_len, 
+                              void *dst, int dst_len,
+                              GError **err) {
+                              
+  z_stream strm = {
+    .total_in = src_len,
+    .total_out = dst_len,
+    .avail_in = src_len,
+    .avail_out = dst_len,
+    .next_in = (Bytef *) src,
+    .next_out = (Bytef *) dst,
+    .zalloc = Z_NULL,
+    .zfree = Z_NULL,
+    .opaque = Z_NULL
+  };
   
- ERROR:
-  if (Z_BUF_ERROR == error_code) {
+  int64_t error_code = -1;
+  int64_t ret = -1;
+
+  inflateInit(&strm);
+  inflate(&strm, Z_FINISH);
+  error_code = inflateEnd(&strm);
+  ret = strm.total_out;
+
+  if ((error_code == Z_OK) && (ret == dst_len)) {
+    return ret;
+  }
+  
+  // ERROR:
+  if ((Z_BUF_ERROR == error_code) || (ret != dst_len)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Decompressed slide position buffer not of expected size");
-  }
-  else if (Z_MEM_ERROR == error_code) {
+  } else if (Z_MEM_ERROR == error_code) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not enough memory to decompress");
-  }
-  else if (Z_DATA_ERROR == error_code) {
+  } else if (Z_DATA_ERROR == error_code) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unrecognizable or corrupt compressed stream");
   }
-  inflateEnd(&strm);
+
   return error_code;
 }
 
-static int read_slide_position_file(const char *path,
-					 int64_t size, int64_t offset, char **buffer,
+static bool read_record_data(const char *path,
+					 int64_t size, int64_t offset, 
+					 char **buffer,
 					 GError **err) {
-  int buffer_size = size;
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
-    g_prefix_error(err, "Cannot open slide position file: ");
-    return 0;
+    g_prefix_error(err, "Cannot data file: ");
+    return false;
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot seek slide position file");
+                "Cannot seek data file");
     fclose(f);
-    return 0;
+    return false;
   }
   
   *buffer = g_malloc(size);
   if (fread(*buffer, sizeof(char), size, f) != size) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Error while reading slide position buffer");
+    _openslide_io_error(err, "Error while reading data");
 
     g_free(*buffer);
     *buffer = NULL;
 
     fclose(f);
-    return 0;
+    return false;
   }
   
   fclose(f);
-  return buffer_size;
+  return true;
 }
 
 static int32_t *read_slide_position_buffer(const char *buffer,
@@ -766,16 +759,27 @@ static int32_t *read_slide_position_buffer(const char *buffer,
   int32_t *result = g_new(int, count * 2);
   int32_t x;
   int32_t y;
+  char zz;
 
   //  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
-    p++;  // skip flag byte
+    memcpy(&zz, p, sizeof(zz));
+    
+    if (zz & 0xfe) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unexpected flag value (%d)", zz);
+
+      g_free(result);
+      return NULL;
+    }
+    
+    p++;  // flag byte
     
     // then read two integers
-    x = *((int32_t *)p);
+    memcpy(&x, p, sizeof(x));
     p += sizeof(int32_t);
-    y = *((int32_t *)p);
+    memcpy(&y, p, sizeof(y));
     p += sizeof(int32_t);
     
     result[i * 2] = x * level_0_tile_concat;
@@ -849,7 +853,6 @@ static bool process_indexfile(const char *uuid,
   bool match;
   
   char *tile_position_buffer = NULL;
-  int read_buffer_size = 0;
   int tile_position_record = -1;
 
   // init tmp parameters
@@ -915,21 +918,21 @@ static bool process_indexfile(const char *uuid,
       goto DONE;
     }
     
-    read_buffer_size = read_slide_position_file(slide_position_path,
+    bool data_result = read_record_data(slide_position_path,
 					       slide_position_size, 
 					       slide_position_offset,
 					       &tile_position_buffer, 
 					       err);
     g_free(slide_position_path);
     
-    if (!tile_position_buffer) {
+    if (!data_result) {
       goto DONE;
     }
     
     if (tile_position_record == stitching_intensity_record) {
       //MRXS 2.2 we need to decompress the buffer
       char *decompressed = g_malloc(tile_position_buffer_size);
-      int decompress_result = inflate_buffer(tile_position_buffer, read_buffer_size, 
+      int64_t decompress_result = inflate_buffer(tile_position_buffer, slide_position_size, 
                                             decompressed, tile_position_buffer_size,
                                             err);
       
@@ -937,20 +940,10 @@ static bool process_indexfile(const char *uuid,
 
       if (decompress_result == tile_position_buffer_size) {
         tile_position_buffer = decompressed;
-        read_buffer_size = tile_position_buffer_size;
       } else {
         g_free(decompressed);
         goto DONE;
       }
-    }
-
-    if (tile_position_buffer_size != read_buffer_size) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Slide position file not of expected size");
-
-      g_free(tile_position_buffer);
-
-      goto DONE;
     }
 
     // read in the slide positions
@@ -1471,7 +1464,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_free(tmp);
     tmp = NULL;
   }
-
 
   // load position stuff
   // find key for position, if present
