@@ -74,6 +74,7 @@ static const char GROUP_NONHIERLAYER_d_SECTION[] = "NONHIERLAYER_%d_SECTION";
 static const char KEY_VIMSLIDE_POSITION_DATA_FORMAT_VERSION[] =
   "VIMSLIDE_POSITION_DATA_FORMAT_VERSION";
 static const int VALUE_VIMSLIDE_POSITION_DATA_FORMAT_VERSION = 257;
+static const int SLIDE_POSITION_RECORD_SIZE = 9;
 
 static const char GROUP_DATAFILE[] = "DATAFILE";
 static const char KEY_FILE_COUNT[] = "FILE_COUNT";
@@ -135,6 +136,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
       goto FAIL;						\
     }								\
   } while(0)
+  
 
 struct slide_zoom_level_section {
   int concat_exponent;
@@ -664,50 +666,81 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static int32_t *read_slide_position_file(const char *path,
-					 int64_t size, int64_t offset,
-					 int level_0_tile_concat,
+static bool read_record_data(const char *path,
+					 int64_t size, int64_t offset, 
+					 char **buffer,
 					 GError **err) {
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
-    g_prefix_error(err, "Cannot open slide position file: ");
-    return NULL;
+    g_prefix_error(err, "Cannot data file: ");
+    return false;
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot seek slide position file");
+                "Cannot seek data file");
     fclose(f);
-    return NULL;
+    return false;
+  }
+  
+  *buffer = g_malloc(size);
+  if (fread(*buffer, sizeof(char), size, f) != size) {
+    _openslide_io_error(err, "Error while reading data");
+
+    g_free(*buffer);
+    *buffer = NULL;
+
+    fclose(f);
+    return false;
+  }
+  
+  fclose(f);
+  return true;
+}
+
+static int32_t *read_slide_position_buffer(const char *buffer,
+					 int buffer_size,
+					 int level_0_tile_concat,
+					 GError **err) {
+					 
+  if (buffer_size % SLIDE_POSITION_RECORD_SIZE != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected buffer size");
+    return 0;
   }
 
-  int count = size / 9;
+  const char *p = buffer;
+  int count = buffer_size / SLIDE_POSITION_RECORD_SIZE;
   int32_t *result = g_new(int, count * 2);
+  int32_t x;
+  int32_t y;
+  char zz;
 
   //  g_debug("tile positions count: %d", count);
 
   for (int i = 0; i < count; i++) {
-    // read flag byte, then 2 numbers
-    int zz = getc(f);
-
-    int32_t x;
-    int32_t y;
-    bool x_ok = read_le_int32_from_file_with_result(f, &x);
-    bool y_ok = read_le_int32_from_file_with_result(f, &y);
-
-    if (zz == EOF || !x_ok || !y_ok || (zz & 0xfe)) {
+    memcpy(&zz, p, sizeof(zz));
+    
+    if (zz & 0xfe) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Error while reading slide position file (%d)", zz);
-      fclose(f);
+                  "Unexpected flag value (%d)", zz);
+
       g_free(result);
       return NULL;
     }
-
+    
+    p++;  // flag byte
+    
+    // then read two integers
+    memcpy(&x, p, sizeof(x));
+    p += sizeof(int32_t);
+    memcpy(&y, p, sizeof(y));
+    p += sizeof(int32_t);
+    
     result[i * 2] = x * level_0_tile_concat;
     result[(i * 2) + 1] = y * level_0_tile_concat;
   }
 
-  fclose(f);
   return result;
 }
 
@@ -744,7 +777,6 @@ static bool add_associated_image(const char *dirname,
 }
 
 
-
 static bool process_indexfile(const char *uuid,
 			      const char *dirname,
 			      int datafile_count,
@@ -773,11 +805,15 @@ static bool process_indexfile(const char *uuid,
 
   char *teststr = NULL;
   bool match;
+  
+  char *tile_position_buffer = NULL;
+  int tile_position_record = -1;
 
   // init tmp parameters
   int32_t ptr = -1;
 
   const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
+  const int tile_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
 
   struct _openslide_jpeg_file **jpegs = NULL;
   bool success = false;
@@ -809,10 +845,14 @@ static bool process_indexfile(const char *uuid,
                 "Index.dat doesn't have a matching slide identifier");
     goto DONE;
   }
-
+  
   // If we have individual tile positioning information as part of the
   // non-hier data, read the position information.
   if (slide_position_record != -1) {
+    tile_position_record = slide_position_record;
+  }
+
+  if (tile_position_record != -1) {
     char *slide_position_path;
     int64_t slide_position_size;
     int64_t slide_position_offset;
@@ -821,7 +861,7 @@ static bool process_indexfile(const char *uuid,
 			     dirname,
 			     datafile_count,
 			     datafile_names,
-			     slide_position_record,
+			     tile_position_record,
 			     &slide_position_path,
 			     &slide_position_size,
 			     &slide_position_offset,
@@ -829,22 +869,26 @@ static bool process_indexfile(const char *uuid,
       g_prefix_error(err, "Cannot read slide position info: ");
       goto DONE;
     }
-    //  g_debug("slide position: fileno %d size %" G_GINT64_FORMAT " offset %" G_GINT64_FORMAT, slide_position_fileno, slide_position_size, slide_position_offset);
-
-    if (slide_position_size != (9 * ntiles)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Slide position file not of expected size");
-      g_free(slide_position_path);
+    
+    bool data_result = read_record_data(slide_position_path,
+					       slide_position_size, 
+					       slide_position_offset,
+					       &tile_position_buffer, 
+					       err);
+    g_free(slide_position_path);
+    
+    if (!data_result) {
       goto DONE;
     }
 
     // read in the slide positions
-    slide_positions = read_slide_position_file(slide_position_path,
-					       slide_position_size,
-					       slide_position_offset,
+    slide_positions = read_slide_position_buffer(tile_position_buffer,
+					       tile_position_buffer_size,
 					       slide_zoom_level_params[0].tile_concat,
 					       err);
-    g_free(slide_position_path);
+
+    g_free(tile_position_buffer);
+
     if (!slide_positions) {
       goto DONE;
     }
@@ -1355,7 +1399,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     tmp = NULL;
   }
 
-
   // load position stuff
   // find key for position, if present
   position_nonhier_offset = get_nonhier_name_offset(slidedat,
@@ -1556,6 +1599,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   if (osr) {
     associated_images = osr->associated_images;
   }
+  
   if (!process_indexfile(slide_id,
 			 dirname,
 			 datafile_count, datafile_names,
