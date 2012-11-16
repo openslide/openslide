@@ -671,7 +671,6 @@ static char *read_record_data(const char *path,
   char *buffer = NULL;
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
-    g_prefix_error(err, "Cannot open data file: ");
     return NULL;
   }
 
@@ -684,7 +683,8 @@ static char *read_record_data(const char *path,
 
   buffer = g_malloc(size);
   if (fread(buffer, sizeof(char), size, f) != (size_t) size) {
-    _openslide_io_error(err, "Error while reading data");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Error while reading data");
     g_free(buffer);
     fclose(f);
     return NULL;
