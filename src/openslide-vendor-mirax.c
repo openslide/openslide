@@ -666,12 +666,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 }
 
 static char *read_record_data(const char *path,
-					 int64_t size, int64_t offset,
-					 GError **err) {
+                              int64_t size, int64_t offset,
+                              GError **err) {
   char *buffer = NULL;
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
-    g_prefix_error(err, "Cannot data file: ");
+    g_prefix_error(err, "Cannot open data file: ");
     return NULL;
   }
 
@@ -683,11 +683,9 @@ static char *read_record_data(const char *path,
   }
 
   buffer = g_malloc(size);
-  if (fread(buffer, sizeof(char), size, f) != size) {
+  if (fread(buffer, sizeof(char), size, f) != (size_t) size) {
     _openslide_io_error(err, "Error while reading data");
-
     g_free(buffer);
-
     fclose(f);
     return NULL;
   }
@@ -697,9 +695,9 @@ static char *read_record_data(const char *path,
 }
 
 static int32_t *read_slide_position_buffer(const char *buffer,
-					 int buffer_size,
-					 int level_0_tile_concat,
-					 GError **err) {
+					   int64_t buffer_size,
+					   int level_0_tile_concat,
+					   GError **err) {
 
   if (buffer_size % SLIDE_POSITION_RECORD_SIZE != 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -722,7 +720,6 @@ static int32_t *read_slide_position_buffer(const char *buffer,
     if (zz & 0xfe) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unexpected flag value (%d)", zz);
-
       g_free(result);
       return NULL;
     }
@@ -871,10 +868,17 @@ static bool process_indexfile(const char *uuid,
       goto DONE;
     }
 
+    if (tile_position_buffer_size != slide_position_size) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Slide position file not of the expected size");
+      g_free(slide_position_path);
+      goto DONE;
+    }
+
     tile_position_buffer = read_record_data(slide_position_path,
-					       slide_position_size,
-					       slide_position_offset,
-					       err);
+                                            slide_position_size,
+                                            slide_position_offset,
+                                            err);
     g_free(slide_position_path);
 
     if (!tile_position_buffer) {
@@ -882,18 +886,11 @@ static bool process_indexfile(const char *uuid,
       goto DONE;
     }
 
-    if (tile_position_buffer_size != slide_position_size) {
-      g_free(tile_position_buffer);
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Tile position buffer not of the expected size");
-      goto DONE;
-    }
-
     // read in the slide positions
     slide_positions = read_slide_position_buffer(tile_position_buffer,
-					       tile_position_buffer_size,
-					       slide_zoom_level_params[0].tile_concat,
-					       err);
+					         tile_position_buffer_size,
+					         slide_zoom_level_params[0].tile_concat,
+					         err);
 
     g_free(tile_position_buffer);
 
