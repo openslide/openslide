@@ -55,6 +55,12 @@ typedef struct _openslide openslide_t;
 /**
  * Do a quick check to see if a whole slide image is valid.
  *
+ * This function is more efficient than openslide_open() if you do not
+ * necessarily intend to open the specified file (for example, when creating
+ * a list of available slide files).  If you definitely intend to open the
+ * file, calling this function will only reduce performance; you should call
+ * openslide_open() directly.
+ *
  * @param filename The filename to check.
  * @return If openslide_open() will succeed.
  */
