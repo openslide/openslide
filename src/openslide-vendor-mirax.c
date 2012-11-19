@@ -3,7 +3,7 @@
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
- *  Copyright (c) 2012 Pathomation http://www.pathomation.com/
+ *  Copyright (c) 2012 Pathomation
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -668,47 +668,64 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static int64_t inflate_buffer(const void *src, int64_t src_len,
-                              void *dst, int64_t dst_len,
-                              GError **err) {
+static char *inflate_buffer(const void *src,
+                           int64_t src_len,
+                           int64_t dst_len,
+                           GError **err) {
+  char *dst = g_malloc(dst_len);
   z_stream strm = {
     .total_in = src_len,
     .total_out = dst_len,
     .avail_in = src_len,
     .avail_out = dst_len,
     .next_in = (Bytef *) src,
-    .next_out = (Bytef *) dst,
-    .zalloc = Z_NULL,
-    .zfree = Z_NULL,
-    .opaque = Z_NULL
+    .next_out = (Bytef *) dst
   };
 
   int64_t error_code = -1;
-  int64_t ret = -1;
+  int64_t decompressed_size = -1;
 
-  inflateInit(&strm);
+  error_code = inflateInit(&strm);
+  if (error_code != Z_OK) {
+    goto ZLIB_ERROR;
+  }
   error_code = inflate(&strm, Z_FINISH);
+  if (error_code != Z_STREAM_END) {
+    goto ZLIB_ERROR;
+  }
   error_code = inflateEnd(&strm);
-
-  ret = strm.total_out;
-
-  if ((error_code == Z_OK) && (ret == dst_len)) {
-    return ret;
+  if (error_code != Z_OK) {
+    goto ZLIB_ERROR;
   }
 
-  // ERROR:
-  if ((Z_BUF_ERROR == error_code) || (ret != dst_len)) {
+  decompressed_size = strm.total_out;
+
+  if (decompressed_size == dst_len) {
+    return dst;
+  } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Decompressed buffer not of the expected size");
-  } else if (Z_MEM_ERROR == error_code) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Not enough memory to decompress");
-  } else if (Z_DATA_ERROR == error_code) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Unrecognizable or corrupt compressed stream");
+    g_free(dst);
+    dst = NULL;
+    return NULL;
   }
 
-  return error_code;
+ ZLIB_ERROR:
+  g_free(dst);
+  dst = NULL;
+  if (error_code == Z_STREAM_END) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Short read while decompressing: %lu/%"G_GINT64_FORMAT,
+                strm.total_out, dst_len);
+  } else if (strm.msg) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Decompression failure: %s (%s)", zError(error_code), strm.msg);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Decompression failure: %s", zError(error_code));
+  }
+
+  return NULL;
 }
 
 static char *read_record_data(const char *path,
@@ -929,28 +946,25 @@ static bool process_indexfile(const char *uuid,
     }
 
     if (tile_position_record == stitching_intensity_record) {
-      // MRXS 2.2 we need to decompress the buffer
+      // MRXS 2.2: we need to decompress the buffer
+      // Length check happens in inflate_buffer
       g_prefix_error(err, "Error decompressing position buffer: ");
-      char *decompressed = g_malloc(tile_position_buffer_size);
-      int64_t decompress_result = inflate_buffer(tile_position_buffer,
-                                    slide_position_size,
-                                    decompressed, tile_position_buffer_size,
-                                    err);
+      char *decompressed = inflate_buffer(tile_position_buffer,
+                                          slide_position_size,
+                                          tile_position_buffer_size,
+                                          err);
 
       g_free(tile_position_buffer); // free the compressed buffer
 
-      if (decompress_result == tile_position_buffer_size) {
+      if (decompressed) {
         tile_position_buffer = decompressed;
-        slide_position_size = decompress_result;
       } else {
-        g_free(decompressed);
         goto DONE;
       }
-    }
-
-    if (tile_position_buffer_size != slide_position_size) {
+    } else if (tile_position_buffer_size != slide_position_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Slide position file not of the expected size");
+      g_free(tile_position_buffer);
       goto DONE;
     }
 
