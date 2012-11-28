@@ -669,13 +669,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 }
 
 static char *inflate_buffer(const void *src,
-                           int64_t src_len,
-                           int64_t dst_len,
-                           GError **err) {
+                            int64_t src_len,
+                            int64_t dst_len,
+                            GError **err) {
   char *dst = g_malloc(dst_len);
   z_stream strm = {
-    .total_in = src_len,
-    .total_out = dst_len,
     .avail_in = src_len,
     .avail_out = dst_len,
     .next_in = (Bytef *) src,
@@ -683,7 +681,6 @@ static char *inflate_buffer(const void *src,
   };
 
   int64_t error_code = -1;
-  int64_t decompressed_size = -1;
 
   error_code = inflateInit(&strm);
   if (error_code != Z_OK) {
@@ -691,6 +688,7 @@ static char *inflate_buffer(const void *src,
   }
   error_code = inflate(&strm, Z_FINISH);
   if (error_code != Z_STREAM_END) {
+    inflateEnd(&strm);
     goto ZLIB_ERROR;
   }
   error_code = inflateEnd(&strm);
@@ -698,21 +696,17 @@ static char *inflate_buffer(const void *src,
     goto ZLIB_ERROR;
   }
 
-  decompressed_size = strm.total_out;
-
-  if (decompressed_size == dst_len) {
+  if ((int64_t) strm.total_out == dst_len) {
     return dst;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Decompressed buffer not of the expected size");
     g_free(dst);
-    dst = NULL;
     return NULL;
   }
 
- ZLIB_ERROR:
+ZLIB_ERROR:
   g_free(dst);
-  dst = NULL;
   if (error_code == Z_STREAM_END) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Short read while decompressing: %lu/%"G_GINT64_FORMAT,
@@ -948,7 +942,6 @@ static bool process_indexfile(const char *uuid,
     if (tile_position_record == stitching_intensity_record) {
       // MRXS 2.2: we need to decompress the buffer
       // Length check happens in inflate_buffer
-      g_prefix_error(err, "Error decompressing position buffer: ");
       char *decompressed = inflate_buffer(tile_position_buffer,
                                           slide_position_size,
                                           tile_position_buffer_size,
@@ -959,6 +952,7 @@ static bool process_indexfile(const char *uuid,
       if (decompressed) {
         tile_position_buffer = decompressed;
       } else {
+        g_prefix_error(err, "Error decompressing position buffer: ");
         goto DONE;
       }
     } else if (tile_position_buffer_size != slide_position_size) {
@@ -1498,10 +1492,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   if (position_nonhier_offset == -1) {
     position_nonhier_stitching_offset = get_nonhier_name_offset(slidedat,
-						      nonhier_count,
-						      GROUP_HIERARCHICAL,
-						      VALUE_STITCHING_INTENSITY_LAYER,
-						      &tmp_err);
+							        nonhier_count,
+							        GROUP_HIERARCHICAL,
+							        VALUE_STITCHING_INTENSITY_LAYER,
+							        &tmp_err);
     SUCCESSFUL_OR_FAIL(tmp_err);
   }
 
