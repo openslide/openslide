@@ -668,11 +668,11 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static char *inflate_buffer(const void *src,
+static void *inflate_buffer(const void *src,
                             int64_t src_len,
                             int64_t dst_len,
                             GError **err) {
-  char *dst = g_malloc(dst_len);
+  void *dst = g_malloc(dst_len);
   z_stream strm = {
     .avail_in = src_len,
     .avail_out = dst_len,
@@ -714,10 +714,10 @@ ZLIB_ERROR:
   return NULL;
 }
 
-static char *read_record_data(const char *path,
+static void *read_record_data(const char *path,
                               int64_t size, int64_t offset,
                               GError **err) {
-  char *buffer = NULL;
+  void *buffer = NULL;
   FILE *f = _openslide_fopen(path, "rb", err);
   if (!f) {
     return NULL;
@@ -743,7 +743,7 @@ static char *read_record_data(const char *path,
   return buffer;
 }
 
-static int32_t *read_slide_position_buffer(const char *buffer,
+static int32_t *read_slide_position_buffer(const void *buffer,
 					   int64_t buffer_size,
 					   int level_0_tile_concat,
 					   GError **err) {
@@ -854,7 +854,7 @@ static bool process_indexfile(const char *uuid,
   char *teststr = NULL;
   bool match;
 
-  char *tile_position_buffer = NULL;
+  void *tile_position_buffer = NULL;
   int tile_position_record = -1;
 
   // init tmp parameters
@@ -934,7 +934,7 @@ static bool process_indexfile(const char *uuid,
     if (tile_position_record == stitching_intensity_record) {
       // MRXS 2.2: we need to decompress the buffer
       // Length check happens in inflate_buffer
-      char *decompressed = inflate_buffer(tile_position_buffer,
+      void *decompressed = inflate_buffer(tile_position_buffer,
                                           slide_position_size,
                                           tile_position_buffer_size,
                                           err);
