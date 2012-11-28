@@ -687,7 +687,7 @@ static char *inflate_buffer(const void *src,
     goto ZLIB_ERROR;
   }
   error_code = inflate(&strm, Z_FINISH);
-  if (error_code != Z_STREAM_END) {
+  if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
     inflateEnd(&strm);
     goto ZLIB_ERROR;
   }
@@ -696,17 +696,9 @@ static char *inflate_buffer(const void *src,
     goto ZLIB_ERROR;
   }
 
-  if ((int64_t) strm.total_out == dst_len) {
-    return dst;
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Decompressed buffer not of the expected size");
-    g_free(dst);
-    return NULL;
-  }
+  return dst;
 
 ZLIB_ERROR:
-  g_free(dst);
   if (error_code == Z_STREAM_END) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Short read while decompressing: %lu/%"G_GINT64_FORMAT,
@@ -718,7 +710,7 @@ ZLIB_ERROR:
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Decompression failure: %s", zError(error_code));
   }
-
+  g_free(dst);
   return NULL;
 }
 
