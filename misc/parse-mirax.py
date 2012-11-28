@@ -216,7 +216,7 @@ def read_tile_position_map(r, image_divisions, tiles_x, f, len):
         zz = struct.unpack('B', read_len(f, 1))[0]
         x = read_int32(f)
         y = read_int32(f)
-        if x != 0 or y != 0:
+        if x != 0 or y != 0 or zz != 0:
             r('Tile %5d x %5d' % ((i % images_x) * image_divisions,
                     (i // images_x) * image_divisions),
                     '%8d x %8d  (%3d)' % (x, y, zz))
