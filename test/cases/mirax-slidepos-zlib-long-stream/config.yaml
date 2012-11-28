@@ -1,0 +1,4 @@
+base: Mirax/Mirax2.2-2.zip
+error: "^Error decompressing position buffer: Decompression failure: buffer error$"
+slide: Mirax2.2-2.mrxs
+success: false
