@@ -82,7 +82,7 @@ static void warning_callback(const char *msg G_GNUC_UNUSED,
 }
 static void error_callback(const char *msg, void *data) {
   openslide_t *osr = data;
-  _openslide_set_error(osr, "%s", msg);
+  _openslide_set_error(osr, "OpenJPEG error: %s", msg);
 }
 
 static void copy_aperio_tile(uint16_t compression_mode,
