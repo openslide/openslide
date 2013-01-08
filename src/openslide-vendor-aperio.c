@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -166,6 +166,14 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     return;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
+
+  // a slide with zero-length tiles has been seen in the wild
+  if (!tile_size) {
+    // fill with transparent
+    memset(dest, 0, w * h * 4);
+    //g_debug("skipping tile %d", tile_no);
+    return;  // ok, haven't allocated anything yet
+  }
 
   // get raw tile
   tdata_t buf = g_slice_alloc(tile_size);
