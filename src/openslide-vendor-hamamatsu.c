@@ -642,7 +642,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      groupname,
 			      KEY_MAP_FILE,
 			      NULL);
-  if (tmp) {
+  if (tmp && *tmp) {
     char *map_filename = g_build_filename(dirname, tmp, NULL);
     g_free(tmp);
 
@@ -655,6 +655,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read map file");
+    g_free(tmp);
     goto DONE;
   }
 
