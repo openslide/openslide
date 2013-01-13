@@ -2,7 +2,7 @@
 #
 # OpenSlide, a library for reading whole slide image files
 #
-# Copyright (c) 2012 Carnegie Mellon University
+# Copyright (c) 2012-2013 Carnegie Mellon University
 # All rights reserved.
 #
 # OpenSlide is free software: you can redistribute it and/or modify
@@ -79,10 +79,12 @@ def _load_test_config(testname):
         return yaml.safe_load(fh)
 
 
-def _launch_test(test, slidefile, valgrind=False, testdir=None, **kwargs):
+def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
+        **kwargs):
     '''Start the specified test from the testdir directory against the
-    specified slide, running under Valgrind if requested.  kwargs are passed
-    to the Popen constructor.  Return the Popen instance.'''
+    specified slide, running under Valgrind if requested.  args are appended
+    to the command line.  kwargs are passed to the Popen constructor.  Return
+    the Popen instance.'''
 
     if testdir is None:
         testdir = '!!BUILDDIR!!'
@@ -92,7 +94,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, **kwargs):
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
     )
-    args = [os.path.join(testdir, test), slidefile]
+    args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
@@ -100,12 +102,20 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, **kwargs):
     return subprocess.Popen(args, env=env, **kwargs)
 
 
-def _try_open_slide(slidefile, valgrind=False, testdir=None):
+def _try_open_slide(slidefile, valgrind=False, testdir=None, properties={},
+        regions=[]):
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
-    success, error message on failure.'''
+    success, error message on failure.  properties is a map of slide
+    properties and their expected values.  regions is a list of region
+    tuples (x, y, level, w, h).'''
 
-    proc = _launch_test('try_open', slidefile, valgrind=valgrind,
+    args = []
+    for k, v in properties.iteritems():
+        args.extend(['-p', '='.join([k, (v or '')])])
+    for region in regions:
+        args.extend(['-r', ' '.join(str(d) for d in region)])
+    proc = _launch_test('try_open', slidefile, valgrind=valgrind, args=args,
             testdir=testdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate()
     if proc.returncode or out or err:
@@ -266,7 +276,9 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
-    result = _try_open_slide(slidefile, valgrind, testdir)
+    result = _try_open_slide(slidefile, valgrind, testdir,
+            properties=conf.get('properties', {}),
+            regions=conf.get('regions', []))
 
     if result is None and not conf['success']:
         print '%s: unexpected success' % testname
