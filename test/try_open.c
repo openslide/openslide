@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2012 Carnegie Mellon University
+ *  Copyright (c) 2012-2013 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <glib.h>
 #include "openslide.h"
@@ -30,6 +31,18 @@
 
 static gboolean have_error = FALSE;
 
+static void fail(const char *str, ...) {
+  va_list ap;
+
+  if (!have_error) {
+    va_start(ap, str);
+    vfprintf(stderr, str, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+    have_error = TRUE;
+  }
+}
+
 static void print_log(const gchar *domain G_GNUC_UNUSED,
                       GLogLevelFlags level G_GNUC_UNUSED,
                       const gchar *message, void *data G_GNUC_UNUSED) {
@@ -37,16 +50,22 @@ static void print_log(const gchar *domain G_GNUC_UNUSED,
   have_error = TRUE;
 }
 
+static void check_error(openslide_t *osr) {
+  const char *error = openslide_get_error(osr);
+  if (error != NULL) {
+    fail("%s", error);
+  }
+}
+
 int main(int argc, char **argv) {
   openslide_t *osr;
   const char *filename;
-  const char *error;
   GHashTable *fds;
   struct stat st;
   bool can_open;
 
   if (argc != 2) {
-    fprintf(stderr, "No slide specified\n");
+    fail("No slide specified");
     return 2;
   }
   filename = argv[1];
@@ -67,11 +86,7 @@ int main(int argc, char **argv) {
   osr = openslide_open(filename);
 
   if (osr != NULL) {
-    error = openslide_get_error(osr);
-    if (error != NULL) {
-      fprintf(stderr, "%s\n", error);
-      have_error = TRUE;
-    }
+    check_error(osr);
     openslide_close(osr);
   } else if (!have_error) {
     // openslide_open returned NULL but logged nothing
@@ -82,8 +97,8 @@ int main(int argc, char **argv) {
   // This may produce false warnings if messages are logged through glib,
   // but that already indicates a programming error.
   if (can_open != !have_error) {
-    fprintf(stderr, "openslide_can_open returned %s but openslide_open %s\n",
-            can_open ? "true" : "false", have_error ? "failed" : "succeeded");
+    fail("openslide_can_open returned %s but openslide_open %s",
+         can_open ? "true" : "false", have_error ? "failed" : "succeeded");
   }
 
   // Check for file descriptor leaks
