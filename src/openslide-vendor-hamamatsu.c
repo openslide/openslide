@@ -541,8 +541,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   } else {
     // destroy
     for (int i = 0; i < num_files; i++) {
-      g_slice_free(struct _openslide_ngr, files[i]);
       g_free(files[i]->filename);
+      g_slice_free(struct _openslide_ngr, files[i]);
     }
     g_free(files);
   }
