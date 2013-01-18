@@ -1,3 +1,5 @@
 base: Mirax/Mirax2.2-2.zip
 slide: Mirax2.2-2.mrxs
 success: true
+properties:
+  openslide.quickhash-1: 0b9f6c368a78c3b8b0f0dc752f12f6ef64d583130d13ba1f8c222819432b8763

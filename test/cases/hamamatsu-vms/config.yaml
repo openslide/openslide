@@ -1,3 +1,5 @@
 base: Hamamatsu-vms/CMU-1.zip
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: true
+properties:
+  openslide.quickhash-1: 6f461a1e85ca672477b791e1ce5155bfbeec83c28c91263cf596db82f80ec7a5

@@ -1,3 +1,5 @@
 base: Aperio/CMU-1-Small-Region.svs
 slide: CMU-1-Small-Region.svs
 success: true
+properties:
+  openslide.quickhash-1: 6335ea0e6cc54c2cba64bb265d3c713a50cd84484924e3a9c109558c13521d5c
