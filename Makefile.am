@@ -37,7 +37,7 @@ endif
 
 src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(LIBXML2_CFLAGS) $(OPENJPEG_CFLAGS) $(LIBTIFF_CFLAGS) $(ZLIB_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
-src_libopenslide_la_LDFLAGS = -version-info 3:2:3 -no-undefined
+src_libopenslide_la_LDFLAGS = -version-info 3:3:3 -no-undefined
 
 
 pkginclude_HEADERS = src/openslide.h src/openslide-features.h
