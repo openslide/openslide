@@ -648,7 +648,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 			   l->tile_advance_x, l->tile_advance_y,
 			   x / lp->tile_count_divisor + xi,
 			   y / lp->tile_count_divisor + yi,
-			   tiles_across / lp->tile_count_divisor,
+			   l->tiles_across,
 			   zoom_level);
 	  }
 	}
@@ -1652,8 +1652,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->tiles = _openslide_jpeg_create_tiles_table();
     l->level_w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->level_h = base_h / lp->tile_concat;
-    l->tiles_across = tiles_x / lp->tile_count_divisor;
-    l->tiles_down = tiles_y / lp->tile_count_divisor;
+    l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
+    l->tiles_down = (tiles_y + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
     l->raw_tile_width = hs->tile_w;  // raw JPEG size
     l->raw_tile_height = hs->tile_h;
 
