@@ -41,7 +41,6 @@ void _openslide_read_tiles(cairo_t *cr,
 					     cairo_t *cr,
 					     struct _openslide_level *level,
 					     int64_t tile_x, int64_t tile_y,
-					     double translate_x, double translate_y,
 					     void *arg)) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
   if (fabs(offset_x) >= advance_x) {
@@ -60,6 +59,9 @@ void _openslide_read_tiles(cairo_t *cr,
   //g_debug("start: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y);
   //g_debug("end: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, end_tile_x, end_tile_y);
 
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
   int64_t tile_y = end_tile_y - 1;
 
   while (tile_y >= start_tile_y) {
@@ -69,7 +71,9 @@ void _openslide_read_tiles(cairo_t *cr,
     while (tile_x >= start_tile_x) {
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
       //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
-      read_tile(osr, cr, level, tile_x, tile_y, translate_x, translate_y, arg);
+      cairo_translate(cr, translate_x, translate_y);
+      read_tile(osr, cr, level, tile_x, tile_y, arg);
+      cairo_set_matrix(cr, &matrix);
       tile_x--;
     }
 

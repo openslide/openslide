@@ -284,7 +284,6 @@ static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
 		      int64_t tile_x, int64_t tile_y,
-		      double translate_x, double translate_y,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
   struct tiff_level *l = (struct tiff_level *) level;
@@ -350,13 +349,9 @@ static void read_tile(openslide_t *osr,
 								 CAIRO_FORMAT_ARGB32,
 								 tw, th,
 								 tw * 4);
-  cairo_matrix_t matrix;
-  cairo_get_matrix(cr, &matrix);
-  cairo_translate(cr, translate_x, translate_y);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-  cairo_set_matrix(cr, &matrix);
 
   /*
   cairo_save(cr);

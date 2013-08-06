@@ -637,7 +637,6 @@ static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
 		      int64_t tile_x, int64_t tile_y,
-		      double translate_x, double translate_y,
 		      void *arg) {
   //g_debug("read_tile");
   struct level *l = (struct level *) level;
@@ -733,8 +732,8 @@ static void read_tile(openslide_t *osr,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr,
-		  requested_tile->dest_offset_x / l->scale_denom + translate_x,
-		  requested_tile->dest_offset_y / l->scale_denom + translate_y);
+		  requested_tile->dest_offset_x / l->scale_denom,
+		  requested_tile->dest_offset_y / l->scale_denom);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
