@@ -1,0 +1,5 @@
+base: Aperio/JP2K-33003-1.svs
+slide: JP2K-33003-1.svs
+success: true
+properties:
+  openslide.quickhash-1: 3380de13dab8823ca49131e7ed031bd8c0dbacda93909facdbd45d641a1453ac

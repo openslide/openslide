@@ -21,11 +21,13 @@
 #
 
 from __future__ import division
-from ConfigParser import RawConfigParser, NoOptionError
+from ConfigParser import RawConfigParser, NoOptionError, Error as ConfigError
 import io
 import os
+from StringIO import StringIO
 import struct
 import sys
+import zlib
 
 class Reporter(object):
     def __init__(self, level=0):
@@ -166,8 +168,8 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     f.seek(page)
     # check pagesize
     assert_int32(f, 1)
-    # check rest of prologue
-    assert_int32(f, 0)
+    # read rest of prologue
+    read_int32(f)
     assert_int32(f, 0)
     assert_int32(f, 0)
     # read actual data
@@ -207,15 +209,14 @@ def read_hier_record(r, f, root_position, datafiles, record, tiles_x):
                     os.path.basename(datafiles[fileno]), position, size))
 
 
-def read_tile_position_map(r, image_divisions, tiles_x, f, offset, len):
+def read_tile_position_map(r, image_divisions, tiles_x, f, len):
     assert(len % 9 == 0)
-    f.seek(offset)
     images_x = tiles_x // image_divisions
     for i in range(len // 9):
         zz = struct.unpack('B', read_len(f, 1))[0]
         x = read_int32(f)
         y = read_int32(f)
-        if x != 0 or y != 0:
+        if x != 0 or y != 0 or zz != 0:
             r('Tile %5d x %5d' % ((i % images_x) * image_divisions,
                     (i // images_x) * image_divisions),
                     '%8d x %8d  (%3d)' % (x, y, zz))
@@ -270,15 +271,26 @@ def dump_mirax(path, r=None):
         except KeyError:
             pass
     # Position map (may be missing)
-    try:
-        position_layer = nonhier_tree.get_layer_by_name(
-                'VIMSLIDE_POSITION_BUFFER')
-        nonhier_offsets['index'] = position_layer.get_level_by_name(
-                'default').offset
-        r('Position map ver', dat.get(position_layer.section,
-                'VIMSLIDE_POSITION_DATA_FORMAT_VERSION'))
-    except KeyError:
-        pass
+    for key, layer, level, version_key in (
+            ('index', 'VIMSLIDE_POSITION_BUFFER', 'default',
+                'VIMSLIDE_POSITION_DATA_FORMAT_VERSION'),
+            ('zindex', 'StitchingIntensityLayer', 'StitchingIntensityLevel',
+                'COMPRESSSED_STITCHING_VERSION')):
+        try:
+            position_layer = nonhier_tree.get_layer_by_name(layer)
+            position_level = position_layer.get_level_by_name(level)
+            # Look for version in layer section (for index) and
+            # level section (for zindex)
+            try:
+                position_ver = dat.get(position_level.section, version_key)
+            except ConfigError:
+                position_ver = dat.get(position_layer.section, version_key)
+            nonhier_offsets[key] = position_level.offset
+            rr = r.child('Position map')
+            rr('Type', layer)
+            rr('Version', position_ver)
+        except KeyError:
+            pass
 
     # Start parsing index.dat
     index = open(os.path.join(dirname, dat.get('HIERARCHICAL', 'INDEXFILE')))
@@ -311,12 +323,19 @@ def dump_mirax(path, r=None):
                     nonhier_root, level.offset)
 
     # Print tile position map
-    if 'index' in nonhier_offsets:
-        rr = r.child('Tile positions')
-        fileno, position, size = read_nonhier_record(rr, datafiles, index,
-                nonhier_root, nonhier_offsets['index'])
-        read_tile_position_map(rr, image_divisions, tiles_x,
-                open(datafiles[fileno]), position, size)
+    position_keys = set(['index', 'zindex']) & set(nonhier_offsets)
+    if position_keys:
+        for key in position_keys:
+            rr = r.child('Tile positions')
+            fileno, position, size = read_nonhier_record(rr, datafiles, index,
+                    nonhier_root, nonhier_offsets[key])
+            f = open(datafiles[fileno])
+            f.seek(position)
+            if key == 'zindex':
+                buf = zlib.decompress(f.read(size))
+                f = StringIO(buf)
+                size = len(buf)
+            read_tile_position_map(rr, image_divisions, tiles_x, f, size)
     else:
         r('Tile positions', 'None')
 

@@ -26,8 +26,10 @@ See the file lgpl-2.1.txt for the text of the license.
 Requirements
 ============
 
-This library requires libjpeg, libtiff, openjpeg, libxml2, cairo >= 1.2,
-and glib >= 2.16.
+This library requires zlib, libjpeg, libtiff, OpenJPEG 1.x, libxml2,
+cairo >= 1.2, and glib >= 2.16.  Leica support requires libtiff >= 4.
+
+The openslide-write-png program additionally requires libpng.
 
 
 Features

@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([OpenSlide], [3.3.1], [openslide-users@lists.andrew.cmu.edu], [openslide], [http://openslide.org])
+AC_INIT([OpenSlide], [3.3.3], [openslide-users@lists.andrew.cmu.edu], [openslide], [http://openslide.org])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
@@ -46,6 +46,11 @@ AC_SUBST(PKGCONFIG_REQUIRES)
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
+
+PKG_CHECK_MODULES(ZLIB, [zlib], [], [
+  dnl for Ubuntu Hardy and Lucid
+  AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
+])
 
 PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
   dnl OpenJPEG < 1.4 has no pkg-config file

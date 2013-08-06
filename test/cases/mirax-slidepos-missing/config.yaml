@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: "^Cannot open slide position file: Couldn't open .*/Data0019.dat: No such file or directory$"
+error: "^Cannot read slide position record: Couldn't open .*/Data0019.dat: No such file or directory$"
 slide: CMU-1.mrxs
 success: false

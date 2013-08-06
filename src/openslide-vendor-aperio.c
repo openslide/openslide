@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -82,7 +82,7 @@ static void warning_callback(const char *msg G_GNUC_UNUSED,
 }
 static void error_callback(const char *msg, void *data) {
   openslide_t *osr = data;
-  _openslide_set_error(osr, "%s", msg);
+  _openslide_set_error(osr, "OpenJPEG error: %s", msg);
 }
 
 static void copy_aperio_tile(uint16_t compression_mode,
@@ -166,6 +166,14 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     return;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
+
+  // a slide with zero-length tiles has been seen in the wild
+  if (!tile_size) {
+    // fill with transparent
+    memset(dest, 0, w * h * 4);
+    //g_debug("skipping tile %d", tile_no);
+    return;  // ok, haven't allocated anything yet
+  }
 
   // get raw tile
   tdata_t buf = g_slice_alloc(tile_size);
@@ -350,18 +358,19 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   TIFFSetDirectory(tiff, 0);
   i = 0;
   do {
+    tdir_t dir = TIFFCurrentDirectory(tiff);
     if (TIFFIsTiled(tiff)) {
-      levels[i++] = TIFFCurrentDirectory(tiff);
-      //g_debug("tiled directory: %d", TIFFCurrentDirectory(tiff));
+      levels[i++] = dir;
+      //g_debug("tiled directory: %d", dir);
     } else {
       // associated image
-      const char *name = (i == 1) ? "thumbnail" : NULL;
+      const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr ? osr->associated_images : NULL,
                                 name, tiff, err)) {
 	g_prefix_error(err, "Can't read associated image: ");
 	goto FAIL;
       }
-      //g_debug("associated image: %d", TIFFCurrentDirectory(tiff));
+      //g_debug("associated image: %d", dir);
     }
 
     // check depth

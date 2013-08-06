@@ -541,8 +541,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   } else {
     // destroy
     for (int i = 0; i < num_files; i++) {
-      g_slice_free(struct _openslide_ngr, files[i]);
       g_free(files[i]->filename);
+      g_slice_free(struct _openslide_ngr, files[i]);
     }
     g_free(files);
   }
@@ -642,7 +642,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      groupname,
 			      KEY_MAP_FILE,
 			      NULL);
-  if (tmp) {
+  if (tmp && *tmp) {
     char *map_filename = g_build_filename(dirname, tmp, NULL);
     g_free(tmp);
 
@@ -655,6 +655,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read map file");
+    g_free(tmp);
     goto DONE;
   }
 
@@ -767,19 +768,20 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      groupname,
 			      KEY_MACRO_IMAGE,
 			      NULL);
-  if (tmp) {
+  if (tmp && *tmp) {
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
     bool result = _openslide_add_jpeg_associated_image(osr ? osr->associated_images : NULL,
                                                        "macro",
                                                        macro_filename, 0, err);
     g_free(macro_filename);
-    g_free(tmp);
 
     if (!result) {
       g_prefix_error(err, "Could not read macro image: ");
+      g_free(tmp);
       goto DONE;
     }
   }
+  g_free(tmp);
 
   // finalize depending on what format
   if (groupname == GROUP_VMS) {

@@ -1,3 +1,5 @@
 base: Mirax/CMU-1-Exported.zip
 slide: CMU-1-Exported.mrxs
 success: true
+properties:
+  openslide.quickhash-1: b36348d2adcd3b1ca9ab84ca2615ed7ae07590979677c51855d64bf1b94598ef

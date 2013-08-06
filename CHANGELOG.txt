@@ -1,6 +1,19 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.3.3, 2013-04-13
+ * Fix inclusion of openslide.h with MSVC
+ * Properly handle Aperio JP2K slides with zero-length tiles
+ * Support Hamamatsu slides with blank MacroImage key
+
+Version 3.3.2, 2012-12-01
+ * Fix seams in MIRAX 2.2 slides (thanks, Agelos Pappas)
+ * Fix associated image naming in single-level Aperio slides
+ * Stop decoding MIRAX tiles outside requested region
+ * Stop decoding unneeded tiles during tile-aligned accesses
+ * Increase Hamamatsu VMU tile size to reduce rendering overhead
+ * Document performance considerations for openslide_can_open()
+
 Version 3.3.1, 2012-10-14
  * Parallelize concurrent openslide_read_region calls on an openslide_t
  * Eliminate background scanning of tile headers in MIRAX

@@ -27,6 +27,7 @@
 #include <glib.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <stdint.h>

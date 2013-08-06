@@ -1,0 +1,4 @@
+base: Mirax/Mirax2.2-2.zip
+error: "^Error decompressing position buffer: Decompression failure: data error \\(incorrect data check\\)$"
+slide: Mirax2.2-2.mrxs
+success: false

@@ -1,3 +1,5 @@
 base: Generic-TIFF/CMU-1.tiff
 slide: CMU-1.tiff
 success: true
+properties:
+  openslide.quickhash-1: 428aa6abf42c774234a463cb90e2cbf88423afc0217e46ec2e308f31e29f1a9f
