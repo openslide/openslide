@@ -168,8 +168,8 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     f.seek(page)
     # check pagesize
     assert_int32(f, 1)
-    # check rest of prologue
-    assert_int32(f, 0)
+    # read rest of prologue
+    read_int32(f)
     assert_int32(f, 0)
     assert_int32(f, 0)
     # read actual data
