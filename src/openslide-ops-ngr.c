@@ -36,6 +36,7 @@
 
 struct ngr_level {
   struct _openslide_level info;
+  struct _openslide_grid_simple *grid;
 
   char *filename;
 
@@ -47,6 +48,7 @@ struct ngr_level {
 static void destroy_levels(struct ngr_level **levels, int count) {
   for (int i = 0; i < count; i++) {
     g_free(levels[i]->filename);
+    _openslide_grid_simple_destroy(levels[i]->grid);
     g_slice_free(struct ngr_level, levels[i]);
   }
   g_free(levels);
@@ -64,13 +66,6 @@ static void read_tile(openslide_t *osr,
 		      void *arg G_GNUC_UNUSED) {
   struct ngr_level *l = (struct ngr_level *) level;
   GError *tmp_err = NULL;
-
-  // check if beyond boundary
-  int num_columns = l->info.w / l->column_width;
-  int num_rows = (l->info.h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT;
-  if (tile_x >= num_columns || tile_y >= num_rows) {
-    return;
-  }
 
   int64_t tw = l->column_width;
   int64_t th = MIN(NGR_TILE_HEIGHT, l->info.h - tile_y * NGR_TILE_HEIGHT);
@@ -142,31 +137,13 @@ static void read_tile(openslide_t *osr,
   _openslide_cache_entry_unref(cache_entry);
 }
 
-static void paint_region(openslide_t *osr, cairo_t *cr,
+static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   struct ngr_level *l = (struct ngr_level *) level;
 
-  // compute coordinates
-  double ds = l->info.downsample;
-  double ds_x = x / ds;
-  double ds_y = y / ds;
-  int64_t start_tile_x = ds_x / l->column_width;
-  int64_t end_tile_x = ceil((ds_x + w) / l->column_width);
-  int64_t start_tile_y = ds_y / NGR_TILE_HEIGHT;
-  int64_t end_tile_y = ceil((ds_y + h) / NGR_TILE_HEIGHT);
-
-  double offset_x = ds_x - (start_tile_x * l->column_width);
-  double offset_y = ds_y - (start_tile_y * NGR_TILE_HEIGHT);
-
-  _openslide_read_tiles(cr, level,
-			start_tile_x, start_tile_y,
-			end_tile_x, end_tile_y,
-			offset_x, offset_y,
-			l->column_width, NGR_TILE_HEIGHT,
-			osr, NULL,
-			read_tile);
+  _openslide_grid_simple_paint_region(l->grid, cr, NULL, x, y, level, w, h);
 }
 
 
@@ -188,6 +165,12 @@ void _openslide_add_ngr_ops(openslide_t *osr,
     l->info.h = ngr->h;
     l->info.tile_w = ngr->column_width;
     l->info.tile_h = NGR_TILE_HEIGHT;
+    l->grid = _openslide_grid_simple_create(osr,
+                                            ngr->w / ngr->column_width,
+                                            (ngr->h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT,
+                                            ngr->column_width,
+                                            NGR_TILE_HEIGHT,
+                                            read_tile);
     l->filename = ngr->filename;
     l->start_in_file = ngr->start_in_file;
     l->column_width = ngr->column_width;

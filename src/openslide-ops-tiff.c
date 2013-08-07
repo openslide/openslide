@@ -48,6 +48,7 @@ struct _openslide_tiffopsdata {
 
 struct tiff_level {
   struct _openslide_level info;
+  struct _openslide_grid_simple *grid;
 
   tdir_t dir;
 
@@ -86,6 +87,12 @@ struct tiff_associated_image_ctx {
     return;							\
   }								\
   result = tmp;
+
+static void read_tile(openslide_t *osr,
+		      cairo_t *cr,
+		      struct _openslide_level *level,
+		      int64_t tile_x, int64_t tile_y,
+		      void *arg);
 
 static const char *store_string_property(TIFF *tiff, GHashTable *ht,
 					 const char *name, ttag_t tag) {
@@ -226,6 +233,7 @@ static void destroy_data(struct _openslide_tiffopsdata *data,
   g_slice_free(struct _openslide_tiffopsdata, data);
 
   for (int32_t i = 0; i < level_count; i++) {
+    _openslide_grid_simple_destroy(levels[i]->grid);
     g_slice_free(struct tiff_level, levels[i]);
   }
   g_free(levels);
@@ -278,6 +286,14 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   if (ih >= th) {
     l->info.h -= (l->tiles_down - 1) * l->overlap_y;
   }
+
+  // set up grid
+  l->grid = _openslide_grid_simple_create(osr,
+                                          l->tiles_across,
+                                          l->tiles_down,
+                                          l->tile_width - l->overlap_x,
+                                          l->tile_height - l->overlap_y,
+                                          read_tile);
 }
 
 static void read_tile(openslide_t *osr,
@@ -302,10 +318,6 @@ static void read_tile(openslide_t *osr,
 
   int64_t x = tile_x * tw;
   int64_t y = tile_y * th;
-
-  if ((x >= iw) || (y >= ih)) {
-    return;
-  }
 
   // cache
   struct _openslide_cache_entry *cache_entry;
@@ -388,58 +400,7 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
-  // tile size
-  int64_t tw = l->tile_width;
-  int64_t th = l->tile_height;
-
-  // compute coordinates
-  int32_t ox = l->overlap_x;
-  int32_t oy = l->overlap_y;
-
-  double ds = l->info.downsample;
-  double ds_x = x / ds;
-  double ds_y = y / ds;
-  int64_t start_tile_x = ds_x / (tw - ox);
-  int64_t end_tile_x = ceil((ds_x + w) / (tw - ox));
-  int64_t start_tile_y = ds_y / (th - oy);
-  int64_t end_tile_y = ceil((ds_y + h) / (th - oy));
-
-  double offset_x = ds_x - (start_tile_x * (tw - ox));
-  double offset_y = ds_y - (start_tile_y * (th - oy));
-
-  int32_t advance_x = tw - ox;
-  int32_t advance_y = th - oy;
-
-  // special cases for edge tiles
-  // XXX this code is ugly and should be replaced like in jpeg
-  if (ox && (start_tile_x >= l->tiles_across - 1)) {
-    start_tile_x = l->tiles_across - 1;
-    offset_x = ds_x - (start_tile_x * (tw - ox));
-    advance_x = tw;
-    end_tile_x = start_tile_x + 1;
-
-    if (offset_x >= advance_x) {
-      return;
-    }
-  }
-  if (oy && (start_tile_y >= l->tiles_down - 1)) {
-    start_tile_y = l->tiles_down - 1;
-    offset_y = ds_y - (start_tile_y * (th - oy));
-    advance_y = th;
-    end_tile_y = start_tile_y + 1;
-
-    if (offset_y >= advance_y) {
-      return;
-    }
-  }
-
-  _openslide_read_tiles(cr, level,
-			start_tile_x, start_tile_y,
-			end_tile_x, end_tile_y,
-			offset_x, offset_y,
-			advance_x, advance_y,
-			osr, tiff,
-			read_tile);
+  _openslide_grid_simple_paint_region(l->grid, cr, tiff, x, y, level, w, h);
 }
 
 static void paint_region(openslide_t *osr, cairo_t *cr,

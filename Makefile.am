@@ -15,7 +15,7 @@ lib_LTLIBRARIES = src/libopenslide.la
 src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS) $(LIBXML2_LIBS) \
 	$(OPENJPEG_LIBS) $(LIBTIFF_LIBS) $(ZLIB_LIBS)
 
-src_libopenslide_la_SOURCES = src/openslide.c \
+src_libopenslide_la_SOURCES = src/openslide.c src/openslide-grid.c \
 	src/openslide-cache.c src/openslide-tilehelper.c \
 	src/openslide-hash.c src/openslide-error.c src/openslide-util.c \
 	src/openslide-ops-jpeg.c \

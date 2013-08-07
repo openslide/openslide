@@ -38,9 +38,5 @@ void _openslide_read_tiles(cairo_t *cr,
 			   double advance_x, double advance_y,
 			   openslide_t *osr,
 			   void *arg,
-			   void (*read_tile)(openslide_t *osr,
-					     cairo_t *cr,
-					     struct _openslide_level *level,
-					     int64_t tile_x, int64_t tile_y,
-					     void *arg));
+			   _openslide_tileread_fn read_tile);
 #endif

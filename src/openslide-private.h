@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -173,6 +173,29 @@ void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
 void _openslide_set_background_color_prop(GHashTable *ht,
                                           uint8_t r, uint8_t g, uint8_t b);
 
+
+// Grid helpers
+typedef void (*_openslide_tileread_fn)(openslide_t *osr,
+                                       cairo_t *cr,
+                                       struct _openslide_level *level,
+                                       int64_t tile_col, int64_t tile_row,
+                                       void *arg);
+
+struct _openslide_grid_simple *_openslide_grid_simple_create(openslide_t *osr,
+                                                             int64_t tiles_across,
+                                                             int64_t tiles_down,
+                                                             int32_t tile_w,
+                                                             int32_t tile_h,
+                                                             _openslide_tileread_fn read_tile);
+
+void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
+                                         cairo_t *cr,
+                                         void *arg,
+                                         int64_t x, int64_t y,
+                                         struct _openslide_level *level,
+                                         int32_t w, int32_t h);
+
+void _openslide_grid_simple_destroy(struct _openslide_grid_simple *grid);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
