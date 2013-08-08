@@ -44,7 +44,6 @@
 #include <cairo.h>
 
 #include "openslide-cache.h"
-#include "openslide-tilehelper.h"
 
 struct one_jpeg {
   char *filename;

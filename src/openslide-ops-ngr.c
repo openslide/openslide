@@ -24,7 +24,6 @@
 
 #include "openslide-private.h"
 #include "openslide-cache.h"
-#include "openslide-tilehelper.h"
 
 #include <string.h>
 #include <stdint.h>

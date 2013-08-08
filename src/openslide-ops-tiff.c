@@ -33,7 +33,6 @@
 #include <cairo.h>
 
 #include "openslide-cache.h"
-#include "openslide-tilehelper.h"
 #include "openslide-hash.h"
 
 #define HANDLE_CACHE_MAX 32

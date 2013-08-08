@@ -19,10 +19,11 @@
  *
  */
 
+#include <stdint.h>
 #include <math.h>
 #include <glib.h>
+#include <cairo.h>
 #include "openslide-private.h"
-#include "openslide-tilehelper.h"
 
 struct _openslide_grid_simple {
   openslide_t *osr;
@@ -76,6 +77,54 @@ struct tilemap_read_tile_args {
   int32_t region_h;
 };
 
+static void read_tiles(cairo_t *cr,
+                       struct _openslide_level *level,
+                       int64_t start_tile_x, int64_t start_tile_y,
+                       int64_t end_tile_x, int64_t end_tile_y,
+                       double offset_x, double offset_y,
+                       double advance_x, double advance_y,
+                       openslide_t *osr,
+                       void *arg,
+                       _openslide_tileread_fn read_tile) {
+  //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, advance_x, advance_y);
+  if (fabs(offset_x) >= advance_x) {
+    _openslide_set_error(osr, "internal error: fabs(offset_x) >= advance_x");
+    return;
+  }
+  if (fabs(offset_y) >= advance_y) {
+    _openslide_set_error(osr, "internal error: fabs(offset_y) >= advance_y");
+    return;
+  }
+
+  //  cairo_set_source_rgb(cr, 0, 1, 0);
+  //  cairo_paint(cr);
+  //g_debug("offset: %d %d", offset_x, offset_y);
+
+  //g_debug("start: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y);
+  //g_debug("end: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, end_tile_x, end_tile_y);
+
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
+  int64_t tile_y = end_tile_y - 1;
+
+  while (tile_y >= start_tile_y) {
+    double translate_y = ((tile_y - start_tile_y) * advance_y) - offset_y;
+    int64_t tile_x = end_tile_x - 1;
+
+    while (tile_x >= start_tile_x) {
+      double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
+      //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
+      cairo_translate(cr, translate_x, translate_y);
+      read_tile(osr, cr, level, tile_x, tile_y, arg);
+      cairo_set_matrix(cr, &matrix);
+      tile_x--;
+    }
+
+    tile_y--;
+  }
+}
+
 struct _openslide_grid_simple *_openslide_grid_simple_create(openslide_t *osr,
                                                              int64_t tiles_across,
                                                              int64_t tiles_down,
@@ -117,12 +166,12 @@ void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
   end_tile_x = MIN(end_tile_x, grid->tiles_across);
   end_tile_y = MIN(end_tile_y, grid->tiles_down);
 
-  _openslide_read_tiles(cr, level,
-			start_tile_x, start_tile_y,
-			end_tile_x, end_tile_y,
-			offset_x, offset_y,
-			grid->tile_w, grid->tile_h,
-			grid->osr, arg, grid->read_tile);
+  read_tiles(cr, level,
+             start_tile_x, start_tile_y,
+             end_tile_x, end_tile_y,
+             offset_x, offset_y,
+             grid->tile_w, grid->tile_h,
+             grid->osr, arg, grid->read_tile);
 }
 
 void _openslide_grid_simple_destroy(struct _openslide_grid_simple *grid) {
@@ -293,14 +342,14 @@ void _openslide_grid_tilemap_paint_region(struct _openslide_grid_tilemap *grid,
                   -grid->extra_tiles_left * grid->tile_advance_x,
                   -grid->extra_tiles_top * grid->tile_advance_y);
 
-  _openslide_read_tiles(cr, level,
-                        start_tile_x - grid->extra_tiles_left,
-                        start_tile_y - grid->extra_tiles_top,
-                        end_tile_x + grid->extra_tiles_right,
-                        end_tile_y + grid->extra_tiles_bottom,
-                        offset_x, offset_y,
-                        grid->tile_advance_x, grid->tile_advance_y,
-                        grid->osr, &args, grid_tilemap_read_tile);
+  read_tiles(cr, level,
+             start_tile_x - grid->extra_tiles_left,
+             start_tile_y - grid->extra_tiles_top,
+             end_tile_x + grid->extra_tiles_right,
+             end_tile_y + grid->extra_tiles_bottom,
+             offset_x, offset_y,
+             grid->tile_advance_x, grid->tile_advance_y,
+             grid->osr, &args, grid_tilemap_read_tile);
 }
 
 void _openslide_grid_tilemap_destroy(struct _openslide_grid_tilemap *grid) {
