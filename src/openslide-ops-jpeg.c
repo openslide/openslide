@@ -64,6 +64,10 @@ struct tile {
   int32_t jpegno;   // used only for cache lookup
   int32_t tileno;
 
+  // physical tile size
+  int32_t tile_width;
+  int32_t tile_height;
+
   // bounds in the physical tile?
   double src_x;
   double src_y;
@@ -260,6 +264,8 @@ static void convert_tiles(gpointer key,
   new_tile->jpeg = args->all_jpegs[old_tile->fileno];
   new_tile->jpegno = old_tile->fileno;
   new_tile->tileno = old_tile->tileno;
+  new_tile->tile_width = new_tile->jpeg->tile_width;
+  new_tile->tile_height = new_tile->jpeg->tile_height;
   new_tile->src_x = old_tile->src_x;
   new_tile->src_y = old_tile->src_y;
   new_tile->w = old_tile->w;
@@ -656,8 +662,8 @@ static void read_tile(openslide_t *osr,
                    requested_tile->dest_offset_x / l->scale_denom;
   double level_y = tile_y * l->tile_advance_y +
                    requested_tile->dest_offset_y / l->scale_denom;
-  int tw = requested_tile->jpeg->tile_width / l->scale_denom;
-  int th = requested_tile->jpeg->tile_height / l->scale_denom;
+  int tw = requested_tile->tile_width / l->scale_denom;
+  int th = requested_tile->tile_height / l->scale_denom;
 
   // skip the tile if it's outside the requested region
   // (i.e., extra_tiles_* gave us an irrelevant tile)
@@ -669,7 +675,7 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->jpeg->tile_width, tile->jpeg->tile_height, tile->w, tile->h);
+  //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->tile_width, tile->tile_height, tile->w, tile->h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -704,8 +710,8 @@ static void read_tile(openslide_t *osr,
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((requested_tile->jpeg->tile_width > requested_tile->w) ||
-      (requested_tile->jpeg->tile_height > requested_tile->h)) {
+  if ((requested_tile->tile_width > requested_tile->w) ||
+      (requested_tile->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
 							   ceil(requested_tile->w / l->scale_denom),
 							   ceil(requested_tile->h / l->scale_denom));
