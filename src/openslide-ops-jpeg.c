@@ -54,9 +54,6 @@ struct one_jpeg {
   int32_t tile_width;
   int32_t tile_height;
 
-  int32_t width;
-  int32_t height;
-
   int32_t mcu_starts_count;
   int64_t *mcu_starts;
   int64_t *unreliable_mcu_starts;
@@ -894,15 +891,13 @@ static void init_one_jpeg(struct one_jpeg *onej,
 
   g_assert(file->w && file->h && file->tw && file->th);
 
-  onej->width = file->w;
-  onej->height = file->h;
   onej->tile_width = file->tw;
   onej->tile_height = file->th;
 
   // compute the mcu starts stuff
   onej->mcu_starts_count =
-    (onej->width / onej->tile_width) *
-    (onej->height / onej->tile_height);
+    (file->w / onej->tile_width) *
+    (file->h / onej->tile_height);
 
   onej->mcu_starts = g_new(int64_t,
 			   onej->mcu_starts_count);
