@@ -73,28 +73,16 @@ struct tile {
   double src_y;
   double w;
   double h;
-
-  // delta from the "natural" position
-  double dest_offset_x;
-  double dest_offset_y;
 };
 
 struct level {
   struct _openslide_level info;
-
-  GHashTable *tiles;
+  struct _openslide_grid_tilemap *grid;
 
   int32_t tiles_across;
   int32_t tiles_down;
 
   int32_t scale_denom;
-
-  // how much extra we might need to read to get all relevant tiles?
-  // computed from dest offsets
-  int32_t extra_tiles_top;
-  int32_t extra_tiles_bottom;
-  int32_t extra_tiles_left;
-  int32_t extra_tiles_right;
 
   // note: everything below is pre-divided by scale_denom
 
@@ -120,13 +108,6 @@ struct jpegops_data {
 struct jpeg_associated_image_ctx {
   char *filename;
   int64_t offset;
-};
-
-struct read_region_args {
-  double ds_x;
-  double ds_y;
-  int32_t w;
-  int32_t h;
 };
 
 
@@ -235,7 +216,7 @@ static void level_free(gpointer data) {
   struct level *l = data;
 
   //  g_debug("g_free(%p)", l->level_jpegs);
-  g_hash_table_unref(l->tiles);
+  _openslide_grid_tilemap_destroy(l->grid);
   g_slice_free(struct level, l);
 }
 
@@ -270,34 +251,6 @@ static void convert_tiles(gpointer key,
   new_tile->src_y = old_tile->src_y / new_l->scale_denom;
   new_tile->w = old_tile->w / new_l->scale_denom;
   new_tile->h = old_tile->h / new_l->scale_denom;
-  new_tile->dest_offset_x = old_tile->dest_offset_x / new_l->scale_denom;
-  new_tile->dest_offset_y = old_tile->dest_offset_y / new_l->scale_denom;
-
-  // margin stuff
-  double dsx = new_tile->dest_offset_x;
-  double dsy = new_tile->dest_offset_y;
-  if (dsx > 0) {
-    // extra on left
-    int extra_left = ceil(dsx / new_l->tile_advance_x);
-    new_l->extra_tiles_left = MAX(new_l->extra_tiles_left,
-				  extra_left);
-  } else {
-    // extra on right
-    int extra_right = ceil(-dsx / new_l->tile_advance_x);
-    new_l->extra_tiles_right = MAX(new_l->extra_tiles_right,
-				   extra_right);
-  }
-  if (dsy > 0) {
-    // extra on top
-    int extra_top = ceil(dsy / new_l->tile_advance_y);
-    new_l->extra_tiles_top = MAX(new_l->extra_tiles_top,
-				 extra_top);
-  } else {
-    // extra on bottom
-    int extra_bottom = ceil(-dsy / new_l->tile_advance_y);
-    new_l->extra_tiles_bottom = MAX(new_l->extra_tiles_bottom,
-				    extra_bottom);
-  }
 
   // we only issue tile size hints if:
   // - advances are integers (checked below)
@@ -305,20 +258,22 @@ static void convert_tiles(gpointer key,
   // - no tiles overlap
   if (new_tile->w != new_l->tile_advance_x ||
       new_tile->h != new_l->tile_advance_y ||
-      new_tile->dest_offset_x ||
-      new_tile->dest_offset_y) {
+      old_tile->dest_offset_x ||
+      old_tile->dest_offset_y) {
     // clear
     new_l->info.tile_w = 0;
     new_l->info.tile_h = 0;
   }
 
-  //  g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", new_l, new_l->extra_tiles_left, new_l->extra_tiles_right, new_l->extra_tiles_top, new_l->extra_tiles_bottom);
-
-
-  // insert tile into new table
-  int64_t *newkey = g_slice_new(int64_t);
-  *newkey = *((int64_t *) key);
-  g_hash_table_insert(new_l->tiles, newkey, new_tile);
+  // add to grid
+  int64_t index = *((int64_t *) key);
+  _openslide_grid_tilemap_add_tile(new_l->grid,
+                                   index % new_l->tiles_across,
+                                   index / new_l->tiles_across,
+                                   old_tile->dest_offset_x / new_l->scale_denom,
+                                   old_tile->dest_offset_y / new_l->scale_denom,
+                                   new_tile->w, new_tile->h,
+                                   new_tile);
 }
 
 static uint8_t find_next_ff_marker(FILE *f,
@@ -639,41 +594,16 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
-		      int64_t tile_x, int64_t tile_y,
-		      void *arg) {
+		      void *data,
+		      void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");
   struct level *l = (struct level *) level;
-  struct read_region_args *region = arg;
+  struct tile *requested_tile = data;
 
-  if ((tile_x >= l->tiles_across) || (tile_y >= l->tiles_down)) {
-    //g_debug("too much");
-    return;
-  }
-
-  int64_t tileindex = tile_y * l->tiles_across + tile_x;
-  struct tile *requested_tile = g_hash_table_lookup(l->tiles, &tileindex);
-
-  if (!requested_tile) {
-    //    g_debug("no tile at index %" G_GINT64_FORMAT, tileindex);
-    return;
-  }
-
-  double level_x = tile_x * l->tile_advance_x + requested_tile->dest_offset_x;
-  double level_y = tile_y * l->tile_advance_y + requested_tile->dest_offset_y;
   int tw = requested_tile->tile_width;
   int th = requested_tile->tile_height;
 
-  // skip the tile if it's outside the requested region
-  // (i.e., extra_tiles_* gave us an irrelevant tile)
-  if (level_x + tw <= region->ds_x ||
-      level_y + th <= region->ds_y ||
-      level_x >= region->ds_x + region->w ||
-      level_y >= region->ds_y + region->h) {
-    //g_debug("skip x %g w %d y %g h %d, region x %g w %"G_GINT32_FORMAT" y %g h %"G_GINT32_FORMAT, level_x, tw, level_y, th, region->ds_x, region->w, region->ds_y, region->h);
-    return;
-  }
-
-  //g_debug("jpeg read_tile: %d, %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, src: %g %g, dim: %d %d, tile dim: %g %g", level, tile_x, tile_y, tile->dest_offset_x, tile->dest_offset_y, tile->src_x, tile->src_y, tile->tile_width, tile->tile_height, tile->w, tile->h);
+  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -730,16 +660,10 @@ static void read_tile(openslide_t *osr,
     cairo_destroy(cr2);
   }
 
-  cairo_matrix_t matrix;
-  cairo_get_matrix(cr, &matrix);
-  cairo_translate(cr,
-		  requested_tile->dest_offset_x,
-		  requested_tile->dest_offset_y);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-  cairo_set_matrix(cr, &matrix);
 
   /*
   cairo_save(cr);
@@ -787,42 +711,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   //  g_debug("telling thread to pause");
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
-  // compute coordinates
-  double ds = l->info.downsample;
-  double ds_x = x / ds;
-  double ds_y = y / ds;
-  int64_t start_tile_x = ds_x / l->tile_advance_x;
-  double offset_x = ds_x - (start_tile_x * l->tile_advance_x);
-  int64_t end_tile_x = ceil((ds_x + w) / l->tile_advance_x);
-  int64_t start_tile_y = ds_y / l->tile_advance_y;
-  double offset_y = ds_y - (start_tile_y * l->tile_advance_y);
-  int64_t end_tile_y = ceil((ds_y + h) / l->tile_advance_y);
-  struct read_region_args region = {
-    .ds_x = ds_x,
-    .ds_y = ds_y,
-    .w = w,
-    .h = h,
-  };
-
-  //g_debug("ds: % " G_GINT64_FORMAT " %" G_GINT64_FORMAT, ds_x, ds_y);
-  //  g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT,
-  //	  start_tile_x, start_tile_y, end_tile_x, end_tile_y);
-
-  // accommodate extra tiles being drawn
-  cairo_translate(cr,
-		  -l->extra_tiles_left * l->tile_advance_x,
-		  -l->extra_tiles_top * l->tile_advance_y);
-
-  _openslide_read_tiles(cr, level,
-			start_tile_x - l->extra_tiles_left,
-			start_tile_y - l->extra_tiles_top,
-			end_tile_x + l->extra_tiles_right,
-			end_tile_y + l->extra_tiles_bottom,
-			offset_x, offset_y,
-			l->tile_advance_x,
-			l->tile_advance_y,
-			osr, &region,
-			read_tile);
+  // paint
+  _openslide_grid_tilemap_paint_region(l->grid, cr, NULL, x, y, level, w, h);
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -859,7 +749,7 @@ static void destroy(openslide_t *osr) {
     struct level *l = (struct level *) osr->levels[i];
 
     //    g_debug("g_free(%p)", l->level_jpegs);
-    g_hash_table_unref(l->tiles);
+    _openslide_grid_tilemap_destroy(l->grid);
     g_slice_free(struct level, l);
   }
 
@@ -1147,9 +1037,12 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     }
 
     // convert tiles
-    new_l->tiles = g_hash_table_new_full(_openslide_int64_hash,
-					 _openslide_int64_equal,
-					 _openslide_int64_free, tile_free);
+    new_l->grid = _openslide_grid_tilemap_create(osr,
+                                                 new_l->tiles_across,
+                                                 new_l->tiles_down,
+                                                 new_l->tile_advance_x,
+                                                 new_l->tile_advance_y,
+                                                 read_tile, tile_free);
     struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
     g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
@@ -1187,9 +1080,12 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
         sd_l->info.tile_h = sd_l->tile_advance_y;
       }
 
-      sd_l->tiles = g_hash_table_new_full(_openslide_int64_hash,
-                                          _openslide_int64_equal,
-                                          _openslide_int64_free, tile_free);
+      sd_l->grid = _openslide_grid_tilemap_create(osr,
+                                                  sd_l->tiles_across,
+                                                  sd_l->tiles_down,
+                                                  sd_l->tile_advance_x,
+                                                  sd_l->tile_advance_y,
+                                                  read_tile, tile_free);
       struct convert_tiles_args ct_args = { sd_l, data->all_jpegs };
       g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 

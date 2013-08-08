@@ -181,6 +181,11 @@ typedef void (*_openslide_tileread_fn)(openslide_t *osr,
                                        int64_t tile_col, int64_t tile_row,
                                        void *arg);
 
+typedef void (*_openslide_tilemap_fn)(openslide_t *osr,
+                                      cairo_t *cr,
+                                      struct _openslide_level *level,
+                                      void *tile, void *arg);
+
 struct _openslide_grid_simple *_openslide_grid_simple_create(openslide_t *osr,
                                                              int64_t tiles_across,
                                                              int64_t tiles_down,
@@ -196,6 +201,29 @@ void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
                                          int32_t w, int32_t h);
 
 void _openslide_grid_simple_destroy(struct _openslide_grid_simple *grid);
+
+struct _openslide_grid_tilemap *_openslide_grid_tilemap_create(openslide_t *osr,
+                                                               int64_t tiles_across,
+                                                               int64_t tiles_down,
+                                                               double tile_advance_x,
+                                                               double tile_advance_y,
+                                                               _openslide_tilemap_fn read_tile,
+                                                               GDestroyNotify destroy_tile);
+
+void _openslide_grid_tilemap_add_tile(struct _openslide_grid_tilemap *grid,
+                                      int64_t col, int64_t row,
+                                      double offset_x, double offset_y,
+                                      double w, double h,
+                                      void *data);
+
+void _openslide_grid_tilemap_paint_region(struct _openslide_grid_tilemap *grid,
+                                          cairo_t *cr,
+                                          void *arg,
+                                          int64_t x, int64_t y,
+                                          struct _openslide_level *level,
+                                          int32_t w, int32_t h);
+
+void _openslide_grid_tilemap_destroy(struct _openslide_grid_tilemap *grid);
 
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
