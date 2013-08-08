@@ -64,7 +64,7 @@ struct tile {
   int32_t jpegno;   // used only for cache lookup
   int32_t tileno;
 
-  // physical tile size
+  // physical tile size (after scaling)
   int32_t tile_width;
   int32_t tile_height;
 
@@ -264,14 +264,14 @@ static void convert_tiles(gpointer key,
   new_tile->jpeg = args->all_jpegs[old_tile->fileno];
   new_tile->jpegno = old_tile->fileno;
   new_tile->tileno = old_tile->tileno;
-  new_tile->tile_width = new_tile->jpeg->tile_width;
-  new_tile->tile_height = new_tile->jpeg->tile_height;
-  new_tile->src_x = old_tile->src_x;
-  new_tile->src_y = old_tile->src_y;
-  new_tile->w = old_tile->w;
-  new_tile->h = old_tile->h;
-  new_tile->dest_offset_x = old_tile->dest_offset_x;
-  new_tile->dest_offset_y = old_tile->dest_offset_y;
+  new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
+  new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
+  new_tile->src_x = old_tile->src_x / new_l->scale_denom;
+  new_tile->src_y = old_tile->src_y / new_l->scale_denom;
+  new_tile->w = old_tile->w / new_l->scale_denom;
+  new_tile->h = old_tile->h / new_l->scale_denom;
+  new_tile->dest_offset_x = old_tile->dest_offset_x / new_l->scale_denom;
+  new_tile->dest_offset_y = old_tile->dest_offset_y / new_l->scale_denom;
 
   // margin stuff
   double dsx = new_tile->dest_offset_x;
@@ -658,12 +658,10 @@ static void read_tile(openslide_t *osr,
     return;
   }
 
-  double level_x = tile_x * l->tile_advance_x +
-                   requested_tile->dest_offset_x / l->scale_denom;
-  double level_y = tile_y * l->tile_advance_y +
-                   requested_tile->dest_offset_y / l->scale_denom;
-  int tw = requested_tile->tile_width / l->scale_denom;
-  int th = requested_tile->tile_height / l->scale_denom;
+  double level_x = tile_x * l->tile_advance_x + requested_tile->dest_offset_x;
+  double level_y = tile_y * l->tile_advance_y + requested_tile->dest_offset_y;
+  int tw = requested_tile->tile_width;
+  int th = requested_tile->tile_height;
 
   // skip the tile if it's outside the requested region
   // (i.e., extra_tiles_* gave us an irrelevant tile)
@@ -705,16 +703,16 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  double src_x = requested_tile->src_x / l->scale_denom;
-  double src_y = requested_tile->src_y / l->scale_denom;
+  double src_x = requested_tile->src_x;
+  double src_y = requested_tile->src_y;
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
   if ((requested_tile->tile_width > requested_tile->w) ||
       (requested_tile->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-							   ceil(requested_tile->w / l->scale_denom),
-							   ceil(requested_tile->h / l->scale_denom));
+							   ceil(requested_tile->w),
+							   ceil(requested_tile->h));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -src_x, -src_y);
 
@@ -725,8 +723,8 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-		    ceil(requested_tile->w / l->scale_denom),
-		    ceil(requested_tile->h / l->scale_denom));
+		    ceil(requested_tile->w),
+		    ceil(requested_tile->h));
     cairo_fill(cr2);
     _openslide_check_cairo_status_possibly_set_error(osr, cr2);
     cairo_destroy(cr2);
@@ -735,8 +733,8 @@ static void read_tile(openslide_t *osr,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr,
-		  requested_tile->dest_offset_x / l->scale_denom,
-		  requested_tile->dest_offset_y / l->scale_denom);
+		  requested_tile->dest_offset_x,
+		  requested_tile->dest_offset_y);
   cairo_set_source_surface(cr, surface,
 			   -src_x, -src_y);
   cairo_surface_destroy(surface);
@@ -755,16 +753,16 @@ static void read_tile(openslide_t *osr,
   cairo_set_source_rgb(cr, 0, 0, 0);
   cairo_stroke(cr);
   char *yt = g_strdup_printf("%d", tile_y);
-  cairo_move_to(cr, 0, tile->h/l->scale_denom);
+  cairo_move_to(cr, 0, tile->h);
   cairo_show_text(cr, yt);
   cairo_translate(cr,
-		  -tile->dest_offset_x / l->scale_denom,
-		  -tile->dest_offset_y / l->scale_denom);
+		  -tile->dest_offset_x,
+		  -tile->dest_offset_y);
   cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
   cairo_rectangle(cr, 0, 0,
-		  tile->w / l->scale_denom, tile->h / l->scale_denom);
+		  tile->w, tile->h);
   cairo_stroke(cr);
-  cairo_move_to(cr, 0, tile->h/l->scale_denom);
+  cairo_move_to(cr, 0, tile->h);
   cairo_show_text(cr, yt);
   g_free(yt);
   cairo_restore(cr);
@@ -1172,14 +1170,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
       // create a derived level
       struct level *sd_l = g_slice_new0(struct level);
-      sd_l->tiles = g_hash_table_ref(new_l->tiles);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
       sd_l->info.downsample = new_l->info.downsample * scale_denom;
-      sd_l->extra_tiles_top = new_l->extra_tiles_top;
-      sd_l->extra_tiles_bottom = new_l->extra_tiles_bottom;
-      sd_l->extra_tiles_left = new_l->extra_tiles_left;
-      sd_l->extra_tiles_right = new_l->extra_tiles_right;
 
       sd_l->scale_denom = scale_denom;
 
@@ -1193,6 +1186,12 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
         sd_l->info.tile_w = sd_l->tile_advance_x;
         sd_l->info.tile_h = sd_l->tile_advance_y;
       }
+
+      sd_l->tiles = g_hash_table_new_full(_openslide_int64_hash,
+                                          _openslide_int64_equal,
+                                          _openslide_int64_free, tile_free);
+      struct convert_tiles_args ct_args = { sd_l, data->all_jpegs };
+      g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
       key = g_slice_new(int64_t);
       *key = sd_l->info.w;
