@@ -31,6 +31,11 @@ struct grid_ops {
                        double x, double y,
                        struct _openslide_level *level,
                        int32_t w, int32_t h);
+  void (*read_tile)(struct _openslide_grid *grid,
+                    cairo_t *cr,
+                    struct _openslide_level *level,
+                    int64_t tile_col, int64_t tile_row,
+                    void *arg);
   void (*destroy)(struct _openslide_grid *grid);
 };
 
@@ -117,7 +122,6 @@ static void read_tiles(cairo_t *cr,
                        struct _openslide_level *level,
                        struct _openslide_grid *grid,
                        struct region *region,
-                       _openslide_tileread_fn read_tile,
                        void *arg) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, grid->tile_advance_x, grid->tile_advance_y);
   if (fabs(region->offset_x) >= grid->tile_advance_x) {
@@ -153,7 +157,7 @@ static void read_tiles(cairo_t *cr,
                             grid->tile_advance_x) - region->offset_x;
       //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
       cairo_translate(cr, translate_x, translate_y);
-      read_tile(grid->osr, cr, level, grid, tile_x, tile_y, arg);
+      grid->ops->read_tile(grid, cr, level, tile_x, tile_y, arg);
       cairo_set_matrix(cr, &matrix);
       tile_x--;
     }
@@ -183,7 +187,17 @@ static void simple_paint_region(struct _openslide_grid *_grid,
   region.end_tile_x = MIN(region.end_tile_x, grid->tiles_across);
   region.end_tile_y = MIN(region.end_tile_y, grid->tiles_down);
 
-  read_tiles(cr, level, _grid, &region, grid->read_tile, arg);
+  read_tiles(cr, level, _grid, &region, arg);
+}
+
+static void simple_read_tile(struct _openslide_grid *_grid,
+                             cairo_t *cr,
+                             struct _openslide_level *level,
+                             int64_t tile_col, int64_t tile_row,
+                             void *arg) {
+  struct simple_grid *grid = (struct simple_grid *) _grid;
+
+  grid->read_tile(grid->base.osr, cr, level, _grid, tile_col, tile_row, arg);
 }
 
 static void simple_destroy(struct _openslide_grid *_grid) {
@@ -194,6 +208,7 @@ static void simple_destroy(struct _openslide_grid *_grid) {
 
 const struct grid_ops simple_grid_ops = {
   .paint_region = simple_paint_region,
+  .read_tile = simple_read_tile,
   .destroy = simple_destroy,
 };
 
@@ -238,10 +253,9 @@ static void grid_tile_hash_destroy_value(gpointer data) {
   g_slice_free(struct grid_tile, tile);
 }
 
-static void tilemap_read_tile(openslide_t *osr,
+static void tilemap_read_tile(struct _openslide_grid *_grid,
                               cairo_t *cr,
                               struct _openslide_level *level,
-                              struct _openslide_grid *_grid,
                               int64_t tile_col, int64_t tile_row,
                               void *arg) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
@@ -275,7 +289,7 @@ static void tilemap_read_tile(openslide_t *osr,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  grid->read_tile(osr, cr, level, _grid, tile->data, args->arg);
+  grid->read_tile(grid->base.osr, cr, level, _grid, tile->data, args->arg);
   cairo_set_matrix(cr, &matrix);
 }
 
@@ -311,7 +325,7 @@ static void tilemap_paint_region(struct _openslide_grid *_grid,
                   -grid->extra_tiles_left * grid->base.tile_advance_x,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
 
-  read_tiles(cr, level, _grid, &region, tilemap_read_tile, &args);
+  read_tiles(cr, level, _grid, &region, &args);
 }
 
 static void tilemap_destroy(struct _openslide_grid *_grid) {
@@ -323,6 +337,7 @@ static void tilemap_destroy(struct _openslide_grid *_grid) {
 
 const struct grid_ops tilemap_grid_ops = {
   .paint_region = tilemap_paint_region,
+  .read_tile = tilemap_read_tile,
   .destroy = tilemap_destroy,
 };
 
