@@ -47,7 +47,7 @@ struct _openslide_tiffopsdata {
 
 struct tiff_level {
   struct _openslide_level base;
-  struct _openslide_grid_simple *grid;
+  struct _openslide_grid *grid;
 
   tdir_t dir;
 
@@ -232,7 +232,7 @@ static void destroy_data(struct _openslide_tiffopsdata *data,
   g_slice_free(struct _openslide_tiffopsdata, data);
 
   for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_simple_destroy(levels[i]->grid);
+    _openslide_grid_destroy(levels[i]->grid);
     g_slice_free(struct tiff_level, levels[i]);
   }
   g_free(levels);
@@ -287,7 +287,7 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   }
 
   // set up grid
-  l->grid = _openslide_grid_simple_create(osr,
+  l->grid = _openslide_grid_create_simple(osr,
                                           l->tiles_across,
                                           l->tiles_down,
                                           l->tile_width - l->overlap_x,
@@ -399,10 +399,10 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
-  _openslide_grid_simple_paint_region(l->grid, cr, tiff,
-                                      x / level->downsample,
-                                      y / level->downsample,
-                                      level, w, h);
+  _openslide_grid_paint_region(l->grid, cr, tiff,
+                               x / level->downsample,
+                               y / level->downsample,
+                               level, w, h);
 }
 
 static void paint_region(openslide_t *osr, cairo_t *cr,

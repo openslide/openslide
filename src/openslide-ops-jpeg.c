@@ -76,7 +76,7 @@ struct tile {
 
 struct level {
   struct _openslide_level base;
-  struct _openslide_grid_tilemap *grid;
+  struct _openslide_grid *grid;
 
   int32_t tiles_across;
   int32_t tiles_down;
@@ -215,7 +215,7 @@ static void level_free(gpointer data) {
   struct level *l = data;
 
   //  g_debug("g_free(%p)", l->level_jpegs);
-  _openslide_grid_tilemap_destroy(l->grid);
+  _openslide_grid_destroy(l->grid);
   g_slice_free(struct level, l);
 }
 
@@ -711,10 +711,10 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
   // paint
-  _openslide_grid_tilemap_paint_region(l->grid, cr, NULL,
-                                       x / level->downsample,
-                                       y / level->downsample,
-                                       level, w, h);
+  _openslide_grid_paint_region(l->grid, cr, NULL,
+                               x / level->downsample,
+                               y / level->downsample,
+                               level, w, h);
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -751,7 +751,7 @@ static void destroy(openslide_t *osr) {
     struct level *l = (struct level *) osr->levels[i];
 
     //    g_debug("g_free(%p)", l->level_jpegs);
-    _openslide_grid_tilemap_destroy(l->grid);
+    _openslide_grid_destroy(l->grid);
     g_slice_free(struct level, l);
   }
 
@@ -1039,7 +1039,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     }
 
     // convert tiles
-    new_l->grid = _openslide_grid_tilemap_create(osr,
+    new_l->grid = _openslide_grid_create_tilemap(osr,
                                                  new_l->tile_advance_x,
                                                  new_l->tile_advance_y,
                                                  read_tile, tile_free);
@@ -1080,7 +1080,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
         sd_l->base.tile_h = sd_l->tile_advance_y;
       }
 
-      sd_l->grid = _openslide_grid_tilemap_create(osr,
+      sd_l->grid = _openslide_grid_create_tilemap(osr,
                                                   sd_l->tile_advance_x,
                                                   sd_l->tile_advance_y,
                                                   read_tile, tile_free);

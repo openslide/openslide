@@ -35,7 +35,7 @@
 
 struct ngr_level {
   struct _openslide_level base;
-  struct _openslide_grid_simple *grid;
+  struct _openslide_grid *grid;
 
   char *filename;
 
@@ -47,7 +47,7 @@ struct ngr_level {
 static void destroy_levels(struct ngr_level **levels, int count) {
   for (int i = 0; i < count; i++) {
     g_free(levels[i]->filename);
-    _openslide_grid_simple_destroy(levels[i]->grid);
+    _openslide_grid_destroy(levels[i]->grid);
     g_slice_free(struct ngr_level, levels[i]);
   }
   g_free(levels);
@@ -142,10 +142,10 @@ static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 			 int32_t w, int32_t h) {
   struct ngr_level *l = (struct ngr_level *) level;
 
-  _openslide_grid_simple_paint_region(l->grid, cr, NULL,
-                                      x / level->downsample,
-                                      y / level->downsample,
-                                      level, w, h);
+  _openslide_grid_paint_region(l->grid, cr, NULL,
+                               x / level->downsample,
+                               y / level->downsample,
+                               level, w, h);
 }
 
 
@@ -167,7 +167,7 @@ void _openslide_add_ngr_ops(openslide_t *osr,
     l->base.h = ngr->h;
     l->base.tile_w = ngr->column_width;
     l->base.tile_h = NGR_TILE_HEIGHT;
-    l->grid = _openslide_grid_simple_create(osr,
+    l->grid = _openslide_grid_create_simple(osr,
                                             ngr->w / ngr->column_width,
                                             (ngr->h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT,
                                             ngr->column_width,
