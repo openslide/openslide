@@ -47,7 +47,7 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 void _openslide_cache_put(struct _openslide_cache *cache,
 			  int64_t x,
 			  int64_t y,
-			  struct _openslide_level *level,
+			  struct _openslide_grid *grid,
 			  void *data,
 			  int size_in_bytes,
 			  struct _openslide_cache_entry **entry);
@@ -55,7 +55,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t x,
 			   int64_t y,
-			   struct _openslide_level *level,
+			   struct _openslide_grid *grid,
 			   struct _openslide_cache_entry **entry);
 
 // value unref

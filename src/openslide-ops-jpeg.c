@@ -610,7 +610,7 @@ static void read_tile(openslide_t *osr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             requested_tile->jpegno,
                                             requested_tile->tileno,
-                                            level,
+                                            grid,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -621,7 +621,7 @@ static void read_tile(openslide_t *osr,
 				  tw, th);
 
     _openslide_cache_put(osr->cache,
-			 requested_tile->jpegno, requested_tile->tileno, level,
+			 requested_tile->jpegno, requested_tile->tileno, grid,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
