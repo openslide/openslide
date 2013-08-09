@@ -290,10 +290,18 @@ static void tilemap_read_tile(struct _openslide_grid *_grid,
 
   //g_debug("tilemap read_tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, dim: %g %g", tile_col, tile_row, tile->offset_x, tile->offset_y, tile->w, tile->h);
 
+  // compute desired coordinates within tile
+  double xx = MAX(region->x - x, 0);
+  double yy = MAX(region->y - y, 0);
+  double ww = MIN(region->x + region->w - x, tile->w - xx);
+  double hh = MIN(region->y + region->h - y, tile->h - yy);
+
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  grid->read_tile(grid->base.osr, cr, level, _grid, tile->data, arg);
+  grid->read_tile(grid->base.osr, cr, level, _grid, tile->data,
+                  xx, yy, ww, hh,
+                  arg);
   cairo_set_matrix(cr, &matrix);
 }
 

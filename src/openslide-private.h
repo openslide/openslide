@@ -188,7 +188,10 @@ typedef void (*_openslide_tilemap_fn)(openslide_t *osr,
                                       cairo_t *cr,
                                       struct _openslide_level *level,
                                       struct _openslide_grid *grid,
-                                      void *tile, void *arg);
+                                      void *tile,
+                                      double x, double y,
+                                      double w, double h,
+                                      void *arg);
 
 struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int64_t tiles_across,

@@ -595,6 +595,8 @@ static void read_tile(openslide_t *osr,
 		      struct _openslide_level *level,
 		      struct _openslide_grid *grid,
 		      void *data,
+		      double x, double y,
+		      double w, double h,
 		      void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");
   struct level *l = (struct level *) level;
@@ -603,7 +605,7 @@ static void read_tile(openslide_t *osr,
   int tw = requested_tile->tile_width;
   int th = requested_tile->tile_height;
 
-  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h);
+  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
