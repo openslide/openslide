@@ -46,7 +46,7 @@ struct _openslide_tiffopsdata {
 };
 
 struct tiff_level {
-  struct _openslide_level info;
+  struct _openslide_level base;
   struct _openslide_grid_simple *grid;
 
   tdir_t dir;
@@ -268,8 +268,8 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   l->tile_width = tw;
   l->tile_height = th;
   if (geometry) {
-    l->info.tile_w = tw;
-    l->info.tile_h = th;
+    l->base.tile_w = tw;
+    l->base.tile_h = th;
   }
 
   // num tiles in each dimension
@@ -277,13 +277,13 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   l->tiles_down = (ih / th) + !!(ih % th);
 
   // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
-  l->info.w = iw;
-  l->info.h = ih;
+  l->base.w = iw;
+  l->base.h = ih;
   if (iw >= tw) {
-    l->info.w -= (l->tiles_across - 1) * l->overlap_x;
+    l->base.w -= (l->tiles_across - 1) * l->overlap_x;
   }
   if (ih >= th) {
-    l->info.h -= (l->tiles_down - 1) * l->overlap_y;
+    l->base.h -= (l->tiles_down - 1) * l->overlap_y;
   }
 
   // set up grid

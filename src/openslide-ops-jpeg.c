@@ -75,7 +75,7 @@ struct tile {
 };
 
 struct level {
-  struct _openslide_level info;
+  struct _openslide_level base;
   struct _openslide_grid_tilemap *grid;
 
   int32_t tiles_across;
@@ -260,8 +260,8 @@ static void convert_tiles(gpointer key,
       old_tile->dest_offset_x ||
       old_tile->dest_offset_y) {
     // clear
-    new_l->info.tile_w = 0;
-    new_l->info.tile_h = 0;
+    new_l->base.tile_w = 0;
+    new_l->base.tile_h = 0;
   }
 
   // add to grid
@@ -1023,9 +1023,9 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     struct _openslide_jpeg_level *old_l = levels[i];
 
     struct level *new_l = g_slice_new0(struct level);
-    new_l->info.downsample = old_l->downsample;
-    new_l->info.w = old_l->level_w;
-    new_l->info.h = old_l->level_h;
+    new_l->base.downsample = old_l->downsample;
+    new_l->base.w = old_l->level_w;
+    new_l->base.h = old_l->level_h;
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
     new_l->scale_denom = 1;
@@ -1034,8 +1034,8 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
     // initialize tile size hints if potentially valid (may be cleared later)
     if (((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
         ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y) {
-      new_l->info.tile_w = new_l->tile_advance_x;
-      new_l->info.tile_h = new_l->tile_advance_y;
+      new_l->base.tile_w = new_l->tile_advance_x;
+      new_l->base.tile_h = new_l->tile_advance_y;
     }
 
     // convert tiles
@@ -1052,7 +1052,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
     // now, new_l is all initialized, so add it
     int64_t *key = g_slice_new(int64_t);
-    *key = new_l->info.w;
+    *key = new_l->base.w;
     g_hash_table_insert(expanded_levels, key, new_l);
 
     // try adding scale_denom levels
@@ -1067,19 +1067,19 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       struct level *sd_l = g_slice_new0(struct level);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
-      sd_l->info.downsample = new_l->info.downsample * scale_denom;
+      sd_l->base.downsample = new_l->base.downsample * scale_denom;
 
       sd_l->scale_denom = scale_denom;
 
-      sd_l->info.w = new_l->info.w / scale_denom;
-      sd_l->info.h = new_l->info.h / scale_denom;
+      sd_l->base.w = new_l->base.w / scale_denom;
+      sd_l->base.h = new_l->base.h / scale_denom;
       sd_l->tile_advance_x = new_l->tile_advance_x / scale_denom;
       sd_l->tile_advance_y = new_l->tile_advance_y / scale_denom;
-      if (new_l->info.tile_w && new_l->info.tile_h &&
+      if (new_l->base.tile_w && new_l->base.tile_h &&
           ((int64_t) sd_l->tile_advance_x) == sd_l->tile_advance_x &&
           ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y) {
-        sd_l->info.tile_w = sd_l->tile_advance_x;
-        sd_l->info.tile_h = sd_l->tile_advance_y;
+        sd_l->base.tile_w = sd_l->tile_advance_x;
+        sd_l->base.tile_h = sd_l->tile_advance_y;
       }
 
       sd_l->grid = _openslide_grid_tilemap_create(osr,
@@ -1092,7 +1092,7 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
 
       key = g_slice_new(int64_t);
-      *key = sd_l->info.w;
+      *key = sd_l->base.w;
       g_hash_table_insert(expanded_levels, key, sd_l);
     }
 
