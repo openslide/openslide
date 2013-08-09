@@ -1040,8 +1040,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
     // convert tiles
     new_l->grid = _openslide_grid_tilemap_create(osr,
-                                                 new_l->tiles_across,
-                                                 new_l->tiles_down,
                                                  new_l->tile_advance_x,
                                                  new_l->tile_advance_y,
                                                  read_tile, tile_free);
@@ -1083,8 +1081,6 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
       }
 
       sd_l->grid = _openslide_grid_tilemap_create(osr,
-                                                  sd_l->tiles_across,
-                                                  sd_l->tiles_down,
                                                   sd_l->tile_advance_x,
                                                   sd_l->tile_advance_y,
                                                   read_tile, tile_free);

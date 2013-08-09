@@ -41,8 +41,6 @@ struct _openslide_grid_tilemap {
   _openslide_tilemap_fn read_tile;
   GDestroyNotify destroy_tile;
 
-  int64_t tiles_across;
-  int64_t tiles_down;
   double tile_advance_x;
   double tile_advance_y;
 
@@ -204,8 +202,6 @@ static void grid_tile_hash_destroy_value(gpointer data) {
 }
 
 struct _openslide_grid_tilemap *_openslide_grid_tilemap_create(openslide_t *osr,
-                                                               int64_t tiles_across,
-                                                               int64_t tiles_down,
                                                                double tile_advance_x,
                                                                double tile_advance_y,
                                                                _openslide_tilemap_fn read_tile,
@@ -213,8 +209,6 @@ struct _openslide_grid_tilemap *_openslide_grid_tilemap_create(openslide_t *osr,
   struct _openslide_grid_tilemap *grid =
     g_slice_new0(struct _openslide_grid_tilemap);
   grid->osr = osr;
-  grid->tiles_across = tiles_across;
-  grid->tiles_down = tiles_down;
   grid->tile_advance_x = tile_advance_x;
   grid->tile_advance_y = tile_advance_y;
   grid->read_tile = read_tile;

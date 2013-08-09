@@ -203,8 +203,6 @@ void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
 void _openslide_grid_simple_destroy(struct _openslide_grid_simple *grid);
 
 struct _openslide_grid_tilemap *_openslide_grid_tilemap_create(openslide_t *osr,
-                                                               int64_t tiles_across,
-                                                               int64_t tiles_down,
                                                                double tile_advance_x,
                                                                double tile_advance_y,
                                                                _openslide_tilemap_fn read_tile,
