@@ -83,7 +83,6 @@ struct grid_tile {
 };
 
 struct tilemap_read_tile_args {
-  struct tilemap_grid *grid;
   void *arg;
   double region_x;
   double region_y;
@@ -93,6 +92,7 @@ struct tilemap_read_tile_args {
 
 static void read_tiles(cairo_t *cr,
                        struct _openslide_level *level,
+                       struct _openslide_grid *grid,
                        int64_t start_tile_x, int64_t start_tile_y,
                        int64_t end_tile_x, int64_t end_tile_y,
                        double offset_x, double offset_y,
@@ -130,7 +130,7 @@ static void read_tiles(cairo_t *cr,
       double translate_x = ((tile_x - start_tile_x) * advance_x) - offset_x;
       //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
       cairo_translate(cr, translate_x, translate_y);
-      read_tile(osr, cr, level, tile_x, tile_y, arg);
+      read_tile(osr, cr, level, grid, tile_x, tile_y, arg);
       cairo_set_matrix(cr, &matrix);
       tile_x--;
     }
@@ -165,7 +165,7 @@ static void simple_paint_region(struct _openslide_grid *_grid,
   end_tile_x = MIN(end_tile_x, grid->tiles_across);
   end_tile_y = MIN(end_tile_y, grid->tiles_down);
 
-  read_tiles(cr, level,
+  read_tiles(cr, level, _grid,
              start_tile_x, start_tile_y,
              end_tile_x, end_tile_y,
              offset_x, offset_y,
@@ -228,22 +228,24 @@ static void grid_tile_hash_destroy_value(gpointer data) {
 static void tilemap_read_tile(openslide_t *osr,
                               cairo_t *cr,
                               struct _openslide_level *level,
+                              struct _openslide_grid *_grid,
                               int64_t tile_col, int64_t tile_row,
                               void *arg) {
+  struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
   struct tilemap_read_tile_args *args = arg;
 
   struct grid_tile coords = {
     .col = tile_col,
     .row = tile_row,
   };
-  struct grid_tile *tile = g_hash_table_lookup(args->grid->tiles, &coords);
+  struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
     //g_debug("no tile at %"G_GINT64_FORMAT", %"G_GINT64_FORMAT, tile_col, tile_row);
     return;
   }
 
-  double x = tile_col * args->grid->base.tile_advance_x + tile->offset_x;
-  double y = tile_row * args->grid->base.tile_advance_y + tile->offset_y;
+  double x = tile_col * grid->base.tile_advance_x + tile->offset_x;
+  double y = tile_row * grid->base.tile_advance_y + tile->offset_y;
 
   // skip the tile if it's outside the requested region
   // (i.e., extra_tiles_* gave us an irrelevant tile)
@@ -260,7 +262,7 @@ static void tilemap_read_tile(openslide_t *osr,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  args->grid->read_tile(osr, cr, level, tile->data, args->arg);
+  grid->read_tile(osr, cr, level, _grid, tile->data, args->arg);
   cairo_set_matrix(cr, &matrix);
 }
 
@@ -281,7 +283,6 @@ static void tilemap_paint_region(struct _openslide_grid *_grid,
   double offset_y = y - (start_tile_y * grid->base.tile_advance_y);
 
   struct tilemap_read_tile_args args = {
-    .grid = grid,
     .arg = arg,
     .region_x = x,
     .region_y = y,
@@ -298,7 +299,7 @@ static void tilemap_paint_region(struct _openslide_grid *_grid,
                   -grid->extra_tiles_left * grid->base.tile_advance_x,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
 
-  read_tiles(cr, level,
+  read_tiles(cr, level, _grid,
              start_tile_x - grid->extra_tiles_left,
              start_tile_y - grid->extra_tiles_top,
              end_tile_x + grid->extra_tiles_right,

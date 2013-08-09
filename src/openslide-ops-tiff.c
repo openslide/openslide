@@ -90,6 +90,7 @@ struct tiff_associated_image_ctx {
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
+		      struct _openslide_grid *grid,
 		      int64_t tile_x, int64_t tile_y,
 		      void *arg);
 
@@ -298,6 +299,7 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
+		      struct _openslide_grid *grid,
 		      int64_t tile_x, int64_t tile_y,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;

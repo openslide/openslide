@@ -593,6 +593,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
+		      struct _openslide_grid *grid,
 		      void *data,
 		      void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");

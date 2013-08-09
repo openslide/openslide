@@ -61,6 +61,7 @@ static void destroy(openslide_t *osr) {
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
+		      struct _openslide_grid *grid,
 		      int64_t tile_x, int64_t tile_y,
 		      void *arg G_GNUC_UNUSED) {
   struct ngr_level *l = (struct ngr_level *) level;
