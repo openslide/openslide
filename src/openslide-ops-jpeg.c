@@ -711,7 +711,10 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
   // paint
-  _openslide_grid_tilemap_paint_region(l->grid, cr, NULL, x, y, level, w, h);
+  _openslide_grid_tilemap_paint_region(l->grid, cr, NULL,
+                                       x / level->downsample,
+                                       y / level->downsample,
+                                       level, w, h);
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);

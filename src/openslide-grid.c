@@ -145,18 +145,16 @@ struct _openslide_grid_simple *_openslide_grid_simple_create(openslide_t *osr,
 void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
                                          cairo_t *cr,
                                          void *arg,
-                                         int64_t x, int64_t y,
+                                         double x, double y,
                                          struct _openslide_level *level,
                                          int32_t w, int32_t h) {
-  double ds_x = x / level->downsample;
-  double ds_y = y / level->downsample;
-  int64_t start_tile_x = ds_x / grid->tile_w;
-  int64_t end_tile_x = ceil((ds_x + w) / grid->tile_w);
-  int64_t start_tile_y = ds_y / grid->tile_h;
-  int64_t end_tile_y = ceil((ds_y + h) / grid->tile_h);
+  int64_t start_tile_x = x / grid->tile_w;
+  int64_t end_tile_x = ceil((x + w) / grid->tile_w);
+  int64_t start_tile_y = y / grid->tile_h;
+  int64_t end_tile_y = ceil((y + h) / grid->tile_h);
 
-  double offset_x = ds_x - (start_tile_x * grid->tile_w);
-  double offset_y = ds_y - (start_tile_y * grid->tile_h);
+  double offset_x = x - (start_tile_x * grid->tile_w);
+  double offset_y = y - (start_tile_y * grid->tile_h);
 
   // openslide.c:read_region() ensures x/y are nonnegative
   if (start_tile_x > grid->tiles_across - 1 ||
@@ -311,29 +309,27 @@ static void grid_tilemap_read_tile(openslide_t *osr,
 void _openslide_grid_tilemap_paint_region(struct _openslide_grid_tilemap *grid,
                                           cairo_t *cr,
                                           void *arg,
-                                          int64_t x, int64_t y,
+                                          double x, double y,
                                           struct _openslide_level *level,
                                           int32_t w, int32_t h) {
-  double ds_x = x / level->downsample;
-  double ds_y = y / level->downsample;
-  int64_t start_tile_x = ds_x / grid->tile_advance_x;
-  int64_t end_tile_x = ceil((ds_x + w) / grid->tile_advance_x);
-  int64_t start_tile_y = ds_y / grid->tile_advance_y;
-  int64_t end_tile_y = ceil((ds_y + h) / grid->tile_advance_y);
+  int64_t start_tile_x = x / grid->tile_advance_x;
+  int64_t end_tile_x = ceil((x + w) / grid->tile_advance_x);
+  int64_t start_tile_y = y / grid->tile_advance_y;
+  int64_t end_tile_y = ceil((y + h) / grid->tile_advance_y);
 
-  double offset_x = ds_x - (start_tile_x * grid->tile_advance_x);
-  double offset_y = ds_y - (start_tile_y * grid->tile_advance_y);
+  double offset_x = x - (start_tile_x * grid->tile_advance_x);
+  double offset_y = y - (start_tile_y * grid->tile_advance_y);
 
   struct tilemap_read_tile_args args = {
     .grid = grid,
     .arg = arg,
-    .region_x = ds_x,
-    .region_y = ds_y,
+    .region_x = x,
+    .region_y = y,
     .region_w = w,
     .region_h = h,
   };
 
-  //g_debug("ds coords: %g %g", ds_x, ds_y);
+  //g_debug("coords: %g %g", x, y);
   //g_debug("advances: %g %g", grid->tile_advance_x, grid->tile_advance_y);
   //g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 

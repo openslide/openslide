@@ -399,7 +399,10 @@ static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
-  _openslide_grid_simple_paint_region(l->grid, cr, tiff, x, y, level, w, h);
+  _openslide_grid_simple_paint_region(l->grid, cr, tiff,
+                                      x / level->downsample,
+                                      y / level->downsample,
+                                      level, w, h);
 }
 
 static void paint_region(openslide_t *osr, cairo_t *cr,

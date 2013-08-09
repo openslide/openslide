@@ -142,7 +142,10 @@ static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 			 int32_t w, int32_t h) {
   struct ngr_level *l = (struct ngr_level *) level;
 
-  _openslide_grid_simple_paint_region(l->grid, cr, NULL, x, y, level, w, h);
+  _openslide_grid_simple_paint_region(l->grid, cr, NULL,
+                                      x / level->downsample,
+                                      y / level->downsample,
+                                      level, w, h);
 }
 
 

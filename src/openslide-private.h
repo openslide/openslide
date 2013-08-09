@@ -196,7 +196,7 @@ struct _openslide_grid_simple *_openslide_grid_simple_create(openslide_t *osr,
 void _openslide_grid_simple_paint_region(struct _openslide_grid_simple *grid,
                                          cairo_t *cr,
                                          void *arg,
-                                         int64_t x, int64_t y,
+                                         double x, double y,
                                          struct _openslide_level *level,
                                          int32_t w, int32_t h);
 
@@ -219,7 +219,7 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid_tilemap *grid,
 void _openslide_grid_tilemap_paint_region(struct _openslide_grid_tilemap *grid,
                                           cairo_t *cr,
                                           void *arg,
-                                          int64_t x, int64_t y,
+                                          double x, double y,
                                           struct _openslide_level *level,
                                           int32_t w, int32_t h);
 
