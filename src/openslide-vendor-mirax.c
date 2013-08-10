@@ -31,6 +31,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-cache.h"
 
 #include <glib.h>
 #include <stdlib.h>
@@ -163,6 +164,507 @@ struct slide_zoom_level_params {
   double subtile_w;
   double subtile_h;
 };
+
+struct one_jpeg {
+  char *filename;
+  int64_t start_in_file;
+  int64_t end_in_file;
+
+  int32_t tile_width;
+  int32_t tile_height;
+
+  int32_t mcu_starts_count;
+  int64_t *mcu_starts;
+  int64_t *unreliable_mcu_starts;
+};
+
+struct tile {
+  struct one_jpeg *jpeg;
+  int32_t jpegno;   // used only for cache lookup
+  int32_t tileno;
+
+  // physical tile size (after scaling)
+  int32_t tile_width;
+  int32_t tile_height;
+
+  // bounds in the physical tile?
+  double src_x;
+  double src_y;
+  double w;
+  double h;
+};
+
+struct level {
+  struct _openslide_level base;
+  struct _openslide_grid *grid;
+
+  int32_t tiles_across;
+  int32_t tiles_down;
+
+  int32_t scale_denom;
+
+  // note: everything below is pre-divided by scale_denom
+
+  double tile_advance_x;
+  double tile_advance_y;
+};
+
+struct jpegops_data {
+  int32_t jpeg_count;
+  struct one_jpeg **all_jpegs;
+};
+
+
+static void level_free(gpointer data) {
+  //g_debug("level_free: %p", data);
+
+  struct level *l = data;
+
+  //  g_debug("g_free(%p)", l->level_jpegs);
+  _openslide_grid_destroy(l->grid);
+  g_slice_free(struct level, l);
+}
+
+static void tile_free(gpointer data) {
+  g_slice_free(struct tile, data);
+}
+
+struct convert_tiles_args {
+  struct level *new_l;
+  struct one_jpeg **all_jpegs;
+};
+
+static void convert_tiles(gpointer key,
+                          gpointer value,
+                          gpointer user_data) {
+  struct convert_tiles_args *args = user_data;
+  struct _openslide_jpeg_tile *old_tile = value;
+  struct level *new_l = args->new_l;
+
+  // create new tile
+  struct tile *new_tile = g_slice_new(struct tile);
+  new_tile->jpeg = args->all_jpegs[old_tile->fileno];
+  new_tile->jpegno = old_tile->fileno;
+  new_tile->tileno = old_tile->tileno;
+  new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
+  new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
+  new_tile->src_x = old_tile->src_x / new_l->scale_denom;
+  new_tile->src_y = old_tile->src_y / new_l->scale_denom;
+  new_tile->w = old_tile->w / new_l->scale_denom;
+  new_tile->h = old_tile->h / new_l->scale_denom;
+
+  // we only issue tile size hints if:
+  // - advances are integers (checked below)
+  // - no tile has a delta from the standard advance
+  // - no tiles overlap
+  if (new_tile->w != new_l->tile_advance_x ||
+      new_tile->h != new_l->tile_advance_y ||
+      old_tile->dest_offset_x ||
+      old_tile->dest_offset_y) {
+    // clear
+    new_l->base.tile_w = 0;
+    new_l->base.tile_h = 0;
+  }
+
+  // add to grid
+  int64_t index = *((int64_t *) key);
+  _openslide_grid_tilemap_add_tile(new_l->grid,
+                                   index % new_l->tiles_across,
+                                   index / new_l->tiles_across,
+                                   old_tile->dest_offset_x / new_l->scale_denom,
+                                   old_tile->dest_offset_y / new_l->scale_denom,
+                                   new_tile->w, new_tile->h,
+                                   new_tile);
+}
+
+static uint32_t *read_from_one_jpeg(openslide_t *osr,
+                                    struct one_jpeg *jpeg,
+                                    int w, int h) {
+  GError *tmp_err = NULL;
+
+  uint32_t *dest = g_slice_alloc(w * h * 4);
+
+  if (!_openslide_jpeg_read(jpeg->filename, jpeg->start_in_file,
+                            dest, w, h,
+                            &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+    memset(dest, 0, w * h * 4);
+  }
+  return dest;
+}
+
+static void read_tile(openslide_t *osr,
+                      cairo_t *cr,
+                      struct _openslide_level *level G_GNUC_UNUSED,
+                      struct _openslide_grid *grid,
+                      void *data,
+                      double x, double y,
+                      double w, double h,
+                      void *arg G_GNUC_UNUSED) {
+  //g_debug("read_tile");
+  struct tile *requested_tile = data;
+
+  int tw = requested_tile->tile_width;
+  int th = requested_tile->tile_height;
+
+  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
+
+  // get the jpeg data, possibly from cache
+  struct _openslide_cache_entry *cache_entry;
+  uint32_t *tiledata = _openslide_cache_get(osr->cache,
+                                            requested_tile->jpegno,
+                                            requested_tile->tileno,
+                                            grid,
+                                            &cache_entry);
+
+  if (!tiledata) {
+    tiledata = read_from_one_jpeg(osr,
+                                  requested_tile->jpeg,
+                                  tw, th);
+
+    _openslide_cache_put(osr->cache,
+                         requested_tile->jpegno, requested_tile->tileno, grid,
+                         tiledata,
+                         tw * th * 4,
+                         &cache_entry);
+  }
+
+  // draw it
+  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                                                 CAIRO_FORMAT_RGB24,
+                                                                 tw, th,
+                                                                 tw * 4);
+
+  double src_x = requested_tile->src_x;
+  double src_y = requested_tile->src_y;
+
+  // if we are drawing a subregion of the tile, we must do an additional copy,
+  // because cairo lacks source clipping
+  if ((requested_tile->tile_width > requested_tile->w) ||
+      (requested_tile->tile_height > requested_tile->h)) {
+    cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                                           ceil(requested_tile->w),
+                                                           ceil(requested_tile->h));
+    cairo_t *cr2 = cairo_create(surface2);
+    cairo_set_source_surface(cr2, surface, -src_x, -src_y);
+
+    // replace original image surface and reset origin
+    cairo_surface_destroy(surface);
+    surface = surface2;
+    src_x = 0;
+    src_y = 0;
+
+    cairo_rectangle(cr2, 0, 0,
+                    ceil(requested_tile->w),
+                    ceil(requested_tile->h));
+    cairo_fill(cr2);
+    _openslide_check_cairo_status_possibly_set_error(osr, cr2);
+    cairo_destroy(cr2);
+  }
+
+  cairo_set_source_surface(cr, surface,
+                           -src_x, -src_y);
+  cairo_surface_destroy(surface);
+  cairo_paint(cr);
+
+  /*
+  cairo_save(cr);
+  cairo_set_source_rgba(cr, 1.0, 0, 0, 0.2);
+  cairo_rectangle(cr, 0, 0, 4, 4);
+  cairo_fill(cr);
+  */
+
+  /*
+  cairo_fill_preserve(cr);
+  cairo_set_source_rgb(cr, 0, 0, 0);
+  cairo_stroke(cr);
+  char *yt = g_strdup_printf("%d", tile_y);
+  cairo_move_to(cr, 0, tile->h);
+  cairo_show_text(cr, yt);
+  cairo_translate(cr,
+                  -tile->dest_offset_x,
+                  -tile->dest_offset_y);
+  cairo_set_source_rgba(cr, 0, 0, 1, 0.2);
+  cairo_rectangle(cr, 0, 0,
+                  tile->w, tile->h);
+  cairo_stroke(cr);
+  cairo_move_to(cr, 0, tile->h);
+  cairo_show_text(cr, yt);
+  g_free(yt);
+  cairo_restore(cr);
+  */
+
+
+  // done with the cache entry, release it
+  _openslide_cache_entry_unref(cache_entry);
+}
+
+
+static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
+                         int64_t x, int64_t y,
+                         struct _openslide_level *level,
+                         int32_t w, int32_t h) {
+  struct level *l = (struct level *) level;
+
+  _openslide_grid_paint_region(l->grid, cr, NULL,
+                               x / level->downsample,
+                               y / level->downsample,
+                               level, w, h);
+}
+
+static void destroy(openslide_t *osr) {
+  struct jpegops_data *data = osr->data;
+
+  // each jpeg in turn
+  for (int32_t i = 0; i < data->jpeg_count; i++) {
+    struct one_jpeg *jpeg = data->all_jpegs[i];
+    g_free(jpeg->filename);
+    g_free(jpeg->mcu_starts);
+    g_free(jpeg->unreliable_mcu_starts);
+    g_slice_free(struct one_jpeg, jpeg);
+  }
+
+  // each level in turn
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    struct level *l = (struct level *) osr->levels[i];
+
+    //    g_debug("g_free(%p)", l->level_jpegs);
+    _openslide_grid_destroy(l->grid);
+    g_slice_free(struct level, l);
+  }
+
+  // the level array
+  g_free(osr->levels);
+
+  // the JPEG array
+  g_free(data->all_jpegs);
+
+  // the structure
+  g_slice_free(struct jpegops_data, data);
+}
+
+static const struct _openslide_ops mirax_ops = {
+  .paint_region = paint_region,
+  .destroy = destroy,
+};
+
+static void init_one_jpeg(struct one_jpeg *onej,
+                          struct _openslide_jpeg_file *file) {
+  g_assert(file->filename);
+
+  onej->filename = file->filename;
+  onej->start_in_file = file->start_in_file;
+  onej->end_in_file = file->end_in_file;
+  onej->unreliable_mcu_starts = file->mcu_starts;
+
+  g_assert(file->w && file->h && file->tw && file->th);
+
+  onej->tile_width = file->tw;
+  onej->tile_height = file->th;
+
+  // compute the mcu starts stuff
+  onej->mcu_starts_count =
+    (file->w / onej->tile_width) *
+    (file->h / onej->tile_height);
+
+  onej->mcu_starts = g_new(int64_t,
+                           onej->mcu_starts_count);
+
+  // init all to -1
+  for (int32_t i = 0; i < onej->mcu_starts_count; i++) {
+    (onej->mcu_starts)[i] = -1;
+  }
+}
+
+static gint width_compare(gconstpointer a, gconstpointer b) {
+  int64_t w1 = *((const int64_t *) a);
+  int64_t w2 = *((const int64_t *) b);
+
+  g_assert(w1 >= 0 && w2 >= 0);
+
+  return (w1 < w2) - (w1 > w2);
+}
+
+static int one_jpeg_compare(const void *a, const void *b) {
+  const struct one_jpeg *aa = *(struct one_jpeg * const *) a;
+  const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
+
+  // compare files
+  int res = strcmp(aa->filename, bb->filename);
+  if (res != 0) {
+    return res;
+  }
+
+  // compare offsets
+  if (aa->start_in_file < bb->start_in_file) {
+    return -1;
+  } else if (aa->start_in_file > bb->start_in_file) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static void add_mirax_ops(openslide_t *osr,
+                          int32_t file_count,
+                          struct _openslide_jpeg_file **files,
+                          int32_t level_count,
+                          struct _openslide_jpeg_level **levels) {
+  /*
+  for (int32_t i = 0; i < level_count; i++) {
+    struct _openslide_jpeg_level *l = levels[i];
+    g_debug("level %d", i);
+    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->level_w, l->level_h);
+    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
+    g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
+    g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
+  }
+
+  g_debug("file_count: %d", file_count);
+  */
+
+  g_assert(level_count);
+  g_assert(file_count);
+
+  if (osr == NULL) {
+    // free now and return
+    for (int32_t i = 0; i < file_count; i++) {
+      g_free(files[i]->filename);
+      g_free(files[i]->mcu_starts);
+      g_slice_free(struct _openslide_jpeg_file, files[i]);
+    }
+    g_free(files);
+
+    for (int32_t i = 0; i < level_count; i++) {
+      g_hash_table_unref(levels[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_level, levels[i]);
+    }
+    g_free(levels);
+
+    return;
+  }
+
+  g_assert(osr->data == NULL);
+
+
+  // allocate private data
+  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
+  osr->data = data;
+
+
+  // convert all struct _openslide_jpeg_file into struct one_jpeg
+  data->jpeg_count = file_count;
+  data->all_jpegs = g_new0(struct one_jpeg *, file_count);
+  for (int32_t i = 0; i < data->jpeg_count; i++) {
+    //    g_debug("init JPEG %d", i);
+    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
+    init_one_jpeg(data->all_jpegs[i], files[i]);
+    g_slice_free(struct _openslide_jpeg_file, files[i]);
+  }
+  g_free(files);
+  files = NULL;
+
+  // convert all struct _openslide_jpeg_level into struct level, and
+  //  (internally) convert all struct _openslide_jpeg_tile into struct tile
+  GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
+                                                      _openslide_int64_equal,
+                                                      _openslide_int64_free,
+                                                      level_free);
+  for (int32_t i = 0; i < level_count; i++) {
+    struct _openslide_jpeg_level *old_l = levels[i];
+
+    struct level *new_l = g_slice_new0(struct level);
+    new_l->base.downsample = old_l->downsample;
+    new_l->base.w = old_l->level_w;
+    new_l->base.h = old_l->level_h;
+    new_l->tiles_across = old_l->tiles_across;
+    new_l->tiles_down = old_l->tiles_down;
+    new_l->scale_denom = 1;
+    new_l->tile_advance_x = old_l->tile_advance_x;
+    new_l->tile_advance_y = old_l->tile_advance_y;
+    // initialize tile size hints if potentially valid (may be cleared later)
+    if (((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
+        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y) {
+      new_l->base.tile_w = new_l->tile_advance_x;
+      new_l->base.tile_h = new_l->tile_advance_y;
+    }
+
+    // convert tiles
+    new_l->grid = _openslide_grid_create_tilemap(osr,
+                                                 new_l->tile_advance_x,
+                                                 new_l->tile_advance_y,
+                                                 read_tile, tile_free);
+    struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
+    g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
+
+    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
+
+    // now, new_l is all initialized, so add it
+    int64_t *key = g_slice_new(int64_t);
+    *key = new_l->base.w;
+    g_hash_table_insert(expanded_levels, key, new_l);
+
+    // delete the old level
+    g_hash_table_unref(old_l->tiles);
+    g_slice_free(struct _openslide_jpeg_level, old_l);
+  }
+  g_free(levels);
+  levels = NULL;
+
+
+  // sort all_jpegs by file and start position, so we can avoid seeks
+  // when background finding mcus
+  qsort(data->all_jpegs, file_count, sizeof(struct one_jpeg *), one_jpeg_compare);
+
+  // get sorted keys
+  GList *level_keys = g_hash_table_get_keys(expanded_levels);
+  level_keys = g_list_sort(level_keys, width_compare);
+
+  //  g_debug("number of keys: %d", g_list_length(level_keys));
+
+
+  // populate the level_count
+  osr->level_count = g_hash_table_size(expanded_levels);
+
+  // load into level array
+  g_assert(osr->levels == NULL);
+  osr->levels = g_new(struct _openslide_level *, osr->level_count);
+  GList *tmp_list = level_keys;
+
+  int i = 0;
+
+  //  g_debug("moving sorted levels");
+  while(tmp_list != NULL) {
+    // get a key and value
+    struct level *l = g_hash_table_lookup(expanded_levels, tmp_list->data);
+
+    // move
+    osr->levels[i] = (struct _openslide_level *) l;
+    g_hash_table_steal(expanded_levels, tmp_list->data);
+    _openslide_int64_free(tmp_list->data);  // key
+
+    // consume the head and continue
+    tmp_list = g_list_delete_link(tmp_list, tmp_list);
+    i++;
+  }
+  g_hash_table_unref(expanded_levels);
+
+  // if any level is missing tile size hints, we must invalidate all hints
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    if (!osr->levels[i]->tile_w || !osr->levels[i]->tile_h) {
+      // invalidate
+      for (i = 0; i < osr->level_count; i++) {
+        osr->levels[i]->tile_w = 0;
+        osr->levels[i]->tile_h = 0;
+      }
+      break;
+    }
+  }
+
+  // set ops
+  osr->ops = &mirax_ops;
+}
 
 static char *read_string_from_file(FILE *f, int len) {
   char *str = g_malloc(len + 1);
@@ -1722,7 +2224,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
                         _openslide_format_double(slide_zoom_level_sections[0].mpp_y));
   }
 
-  _openslide_add_jpeg_ops(osr, num_jpegs, jpegs, zoom_levels, levels);
+  add_mirax_ops(osr, num_jpegs, jpegs, zoom_levels, levels);
 
   success = true;
   goto DONE;
