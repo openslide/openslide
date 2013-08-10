@@ -177,10 +177,6 @@ struct tile {
   struct one_jpeg *jpeg;
   int32_t jpegno;   // used only for cache lookup
 
-  // physical tile size (after scaling)
-  int32_t tile_width;
-  int32_t tile_height;
-
   // bounds in the physical tile?
   double src_x;
   double src_y;
@@ -225,8 +221,6 @@ static void convert_tiles(gpointer key,
   struct tile *new_tile = g_slice_new(struct tile);
   new_tile->jpeg = args->all_jpegs[old_tile->fileno];
   new_tile->jpegno = old_tile->fileno;
-  new_tile->tile_width = new_tile->jpeg->tile_width;
-  new_tile->tile_height = new_tile->jpeg->tile_height;
   new_tile->src_x = old_tile->src_x;
   new_tile->src_y = old_tile->src_y;
   new_tile->w = old_tile->w;
@@ -284,8 +278,8 @@ static void read_tile(openslide_t *osr,
   //g_debug("read_tile");
   struct tile *requested_tile = data;
 
-  int tw = requested_tile->tile_width;
-  int th = requested_tile->tile_height;
+  int tw = requested_tile->jpeg->tile_width;
+  int th = requested_tile->jpeg->tile_height;
 
   //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
 
@@ -320,8 +314,8 @@ static void read_tile(openslide_t *osr,
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((requested_tile->tile_width > requested_tile->w) ||
-      (requested_tile->tile_height > requested_tile->h)) {
+  if ((requested_tile->jpeg->tile_width > requested_tile->w) ||
+      (requested_tile->jpeg->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(requested_tile->w),
                                                            ceil(requested_tile->h));
