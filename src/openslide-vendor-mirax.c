@@ -433,7 +433,7 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->filename = file->filename;
   onej->start_in_file = file->start_in_file;
 
-  g_assert(file->w && file->h && file->tw && file->th);
+  g_assert(file->tw && file->th);
 
   onej->tile_width = file->tw;
   onej->tile_height = file->th;
@@ -982,8 +982,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	jpeg->start_in_file = offset;
 	jpeg->tw = l->raw_tile_width;
 	jpeg->th = l->raw_tile_height;
-	jpeg->w = l->raw_tile_width;
-	jpeg->h = l->raw_tile_height;
 
 	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
 
