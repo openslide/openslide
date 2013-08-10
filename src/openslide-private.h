@@ -320,6 +320,17 @@ void _openslide_add_jpeg_ops(openslide_t *osr,
 
 GHashTable *_openslide_jpeg_create_tiles_table(void);
 
+bool _openslide_jpeg_read_dimensions(const char *filename,
+                                     int64_t offset,
+                                     int32_t *w, int32_t *h,
+                                     GError **err);
+
+bool _openslide_jpeg_read(const char *filename,
+                          int64_t offset,
+                          uint32_t *dest,
+                          int32_t w, int32_t h,
+                          GError **err);
+
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
 					  const char *filename,
