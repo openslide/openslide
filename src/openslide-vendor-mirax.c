@@ -187,7 +187,6 @@ struct tile {
 struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
-  GHashTable *tiles;
 
   int32_t tiles_across;
   int32_t tiles_down;
@@ -207,51 +206,6 @@ struct jpegops_data {
 
 static void tile_free(gpointer data) {
   g_slice_free(struct tile, data);
-}
-
-struct convert_tiles_args {
-  struct level *new_l;
-  struct one_jpeg **all_jpegs;
-};
-
-static void convert_tiles(gpointer key,
-                          gpointer value,
-                          gpointer user_data) {
-  struct convert_tiles_args *args = user_data;
-  struct _openslide_jpeg_tile *old_tile = value;
-  struct level *new_l = args->new_l;
-
-  // create new tile
-  struct tile *new_tile = g_slice_new(struct tile);
-  new_tile->jpeg = args->all_jpegs[old_tile->fileno];
-  new_tile->jpegno = old_tile->fileno;
-  new_tile->src_x = old_tile->src_x;
-  new_tile->src_y = old_tile->src_y;
-  new_tile->w = old_tile->w;
-  new_tile->h = old_tile->h;
-
-  // we only issue tile size hints if:
-  // - advances are integers (checked below)
-  // - no tile has a delta from the standard advance
-  // - no tiles overlap
-  if (new_tile->w != new_l->tile_advance_x ||
-      new_tile->h != new_l->tile_advance_y ||
-      old_tile->dest_offset_x ||
-      old_tile->dest_offset_y) {
-    // clear
-    new_l->base.tile_w = 0;
-    new_l->base.tile_h = 0;
-  }
-
-  // add to grid
-  int64_t index = *((int64_t *) key);
-  _openslide_grid_tilemap_add_tile(new_l->grid,
-                                   index % new_l->tiles_across,
-                                   index / new_l->tiles_across,
-                                   old_tile->dest_offset_x,
-                                   old_tile->dest_offset_y,
-                                   new_tile->w, new_tile->h,
-                                   new_tile);
 }
 
 static uint32_t *read_from_one_jpeg(openslide_t *osr,
@@ -577,37 +531,53 @@ static bool read_nonhier_record(FILE *f,
 }
 
 
-static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
+static void insert_subtile(struct level *l,
+			   struct _openslide_grid *grid,
+			   struct one_jpeg *jpeg, int32_t jpeg_number,
 			   double pos_x, double pos_y,
 			   double src_x, double src_y,
 			   double tw, double th,
-			   double tile_advance_x, double tile_advance_y,
 			   int tile_x, int tile_y,
-			   int tiles_across,
 			   int zoom_level) {
   // generate tile
-  struct _openslide_jpeg_tile *tile = g_slice_new0(struct _openslide_jpeg_tile);
-  tile->fileno = jpeg_number;
+  struct tile *tile = g_slice_new0(struct tile);
+  tile->jpeg = jpeg;
+  tile->jpegno = jpeg_number;
   tile->src_x = src_x;
   tile->src_y = src_y;
   tile->w = tw;
   tile->h = th;
 
   // compute offset
-  tile->dest_offset_x = pos_x - (tile_x * tile_advance_x);
-  tile->dest_offset_y = pos_y - (tile_y * tile_advance_y);
+  double offset_x = pos_x - (tile_x * l->tile_advance_x);
+  double offset_y = pos_y - (tile_y * l->tile_advance_y);
+
+  // we only issue tile size hints if:
+  // - advances are integers (checked below)
+  // - no tile has a delta from the standard advance
+  // - no tiles overlap
+  if (tw != l->tile_advance_x ||
+      th != l->tile_advance_y ||
+      offset_x ||
+      offset_y) {
+    // clear
+    l->base.tile_w = 0;
+    l->base.tile_h = 0;
+  }
 
   // insert
-  int64_t *key = g_slice_new(int64_t);
-  *key = (tile_y * tiles_across) + tile_x;
-  g_hash_table_insert(tiles, key, tile);
+  _openslide_grid_tilemap_add_tile(grid,
+                                   tile_x, tile_y,
+                                   offset_x, offset_y,
+                                   tw, th,
+                                   tile);
 
   if (!true) {
     g_debug("zoom %d, tile %d %d, pos %.10g %.10g, offset %.10g %.10g",
-	    zoom_level, tile_x, tile_y, pos_x, pos_y, tile->dest_offset_x, tile->dest_offset_y);
+	    zoom_level, tile_x, tile_y, pos_x, pos_y, offset_x, offset_y);
 
-    g_debug(" src %.10g %.10g dim %.10g %.10g key %" G_GINT64_FORMAT,
-	    tile->src_x, tile->src_y, tile->w, tile->h, *key);
+    g_debug(" src %.10g %.10g dim %.10g %.10g",
+	    tile->src_x, tile->src_y, tile->w, tile->h);
   }
 }
 
@@ -895,14 +865,13 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
-	    insert_subtile(l->tiles, jpeg_number,
+	    insert_subtile(l, l->grid,
+			   jpeg, jpeg_number,
 			   pos_x, pos_y,
 			   lp->subtile_w * xi, lp->subtile_h * yi,
 			   lp->subtile_w, lp->subtile_h,
-			   l->tile_advance_x, l->tile_advance_y,
 			   x / lp->tile_count_divisor + xi,
 			   y / lp->tile_count_divisor + yi,
-			   l->tiles_across,
 			   zoom_level);
 	  }
 	}
@@ -1903,7 +1872,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     lp->subtile_w = (double) hs->tile_w / lp->subtiles_per_jpeg_tile;
     lp->subtile_h = (double) hs->tile_h / lp->subtiles_per_jpeg_tile;
 
-    l->tiles = _openslide_jpeg_create_tiles_table();
     l->base.w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->base.h = base_h / lp->tile_concat;
     l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
@@ -1936,6 +1904,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     // override downsample.  level 0 is defined to have a downsample of 1.0,
     // irrespective of its concat_exponent
     l->base.downsample = lp->tile_concat / slide_zoom_level_params[0].tile_concat;
+
+    // create grid
+    l->grid = _openslide_grid_create_tilemap(osr,
+                                             l->tile_advance_x,
+                                             l->tile_advance_y,
+                                             read_tile, tile_free);
 
     //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_subtile %d", i, l->tile_advance_x, l->tile_advance_y, l->level_w, l->level_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_subtile);
   }
@@ -2007,7 +1981,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_free(jpegs);
 
     for (int i = 0; i < zoom_levels; i++) {
-      g_hash_table_unref(levels[i]->tiles);
+      _openslide_grid_destroy(levels[i]->grid);
       g_slice_free(struct level, levels[i]);
     }
     g_free(levels);
@@ -2025,23 +1999,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   data->jpeg_count = num_jpegs;
   data->all_jpegs = jpegs;
   jpegs = NULL;
-
-  // convert all struct _openslide_jpeg_tile into struct tile
-  for (int i = 0; i < zoom_levels; i++) {
-    struct level *l = levels[i];
-    l->grid = _openslide_grid_create_tilemap(osr,
-                                             l->tile_advance_x,
-                                             l->tile_advance_y,
-                                             read_tile, tile_free);
-    struct convert_tiles_args ct_args = { l, data->all_jpegs };
-    g_hash_table_foreach(l->tiles, convert_tiles, &ct_args);
-
-    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
-
-    // delete the old table
-    g_hash_table_unref(l->tiles);
-    l->tiles = NULL;
-  }
 
   // if any level is missing tile size hints, we must invalidate all hints
   for (int i = 0; i < zoom_levels; i++) {
@@ -2073,7 +2030,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   if (levels != NULL) {
     for (int i = 0; i < zoom_levels; i++) {
       struct level *l = levels[i];
-      g_hash_table_unref(l->tiles);
+      _openslide_grid_destroy(l->grid);
       g_slice_free(struct level, l);
     }
     g_free(levels);
