@@ -168,9 +168,6 @@ struct slide_zoom_level_params {
 struct one_jpeg {
   char *filename;
   int64_t start_in_file;
-
-  int32_t tile_width;
-  int32_t tile_height;
 };
 
 struct tile {
@@ -227,19 +224,20 @@ static uint32_t *read_from_one_jpeg(openslide_t *osr,
 
 static void read_tile(openslide_t *osr,
                       cairo_t *cr,
-                      struct _openslide_level *level G_GNUC_UNUSED,
+                      struct _openslide_level *level,
                       struct _openslide_grid *grid,
                       void *data,
                       double x, double y,
                       double w, double h,
                       void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");
+  struct level *l = (struct level *) level;
   struct tile *requested_tile = data;
 
-  int tw = requested_tile->jpeg->tile_width;
-  int th = requested_tile->jpeg->tile_height;
+  int tw = l->tile_width;
+  int th = l->tile_height;
 
-  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
+  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, l->tile_width, l->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -272,8 +270,8 @@ static void read_tile(openslide_t *osr,
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((requested_tile->jpeg->tile_width > requested_tile->w) ||
-      (requested_tile->jpeg->tile_height > requested_tile->h)) {
+  if ((l->tile_width > requested_tile->w) ||
+      (l->tile_height > requested_tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(requested_tile->w),
                                                            ceil(requested_tile->h));
@@ -816,8 +814,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
-	jpeg->tile_width = l->tile_width;
-	jpeg->tile_height = l->tile_height;
 
 	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
 
