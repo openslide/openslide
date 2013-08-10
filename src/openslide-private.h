@@ -223,7 +223,7 @@ void _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   void *arg,
                                   double x, double y,
                                   struct _openslide_level *level,
-                                  int32_t w, int32_t h);
+                                  double w, double h);
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 

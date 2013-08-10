@@ -28,8 +28,8 @@
 struct region {
   double x;
   double y;
-  int32_t w;
-  int32_t h;
+  double w;
+  double h;
 
   int64_t start_tile_x;
   int64_t start_tile_y;
@@ -45,7 +45,7 @@ struct grid_ops {
                        cairo_t *cr, void *arg,
                        double x, double y,
                        struct _openslide_level *level,
-                       int32_t w, int32_t h);
+                       double w, double h);
   void (*read_tile)(struct _openslide_grid *grid,
                     struct region *region,
                     cairo_t *cr,
@@ -105,7 +105,7 @@ struct grid_tile {
 
 static void compute_region(struct _openslide_grid *grid,
                            double x, double y,
-                           int32_t w, int32_t h,
+                           double w, double h,
                            struct region *region) {
   region->x = x;
   region->y = y;
@@ -176,7 +176,7 @@ static void simple_paint_region(struct _openslide_grid *_grid,
                                 void *arg,
                                 double x, double y,
                                 struct _openslide_level *level,
-                                int32_t w, int32_t h) {
+                                double w, double h) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
   struct region region;
 
@@ -311,7 +311,7 @@ static void tilemap_paint_region(struct _openslide_grid *_grid,
                                  void *arg,
                                  double x, double y,
                                  struct _openslide_level *level,
-                                 int32_t w, int32_t h) {
+                                 double w, double h) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
   struct region region;
 
@@ -416,7 +416,7 @@ void _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   void *arg,
                                   double x, double y,
                                   struct _openslide_level *level,
-                                  int32_t w, int32_t h) {
+                                  double w, double h) {
   grid->ops->paint_region(grid, cr, arg, x, y, level, w, h);
 }
 
