@@ -426,138 +426,6 @@ static const struct _openslide_ops mirax_ops = {
   .destroy = destroy,
 };
 
-static void init_one_jpeg(struct one_jpeg *onej,
-                          struct _openslide_jpeg_file *file) {
-  g_assert(file->filename);
-
-  onej->filename = file->filename;
-  onej->start_in_file = file->start_in_file;
-
-  g_assert(file->tw && file->th);
-
-  onej->tile_width = file->tw;
-  onej->tile_height = file->th;
-}
-
-static void add_mirax_ops(openslide_t *osr,
-                          int32_t file_count,
-                          struct _openslide_jpeg_file **files,
-                          int32_t level_count,
-                          struct _openslide_jpeg_level **levels) {
-  /*
-  for (int32_t i = 0; i < level_count; i++) {
-    struct _openslide_jpeg_level *l = levels[i];
-    g_debug("level %d", i);
-    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->level_w, l->level_h);
-    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
-    g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
-    g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
-  }
-
-  g_debug("file_count: %d", file_count);
-  */
-
-  g_assert(level_count);
-  g_assert(file_count);
-
-  if (osr == NULL) {
-    // free now and return
-    for (int32_t i = 0; i < file_count; i++) {
-      g_free(files[i]->filename);
-      g_slice_free(struct _openslide_jpeg_file, files[i]);
-    }
-    g_free(files);
-
-    for (int32_t i = 0; i < level_count; i++) {
-      g_hash_table_unref(levels[i]->tiles);
-      g_slice_free(struct _openslide_jpeg_level, levels[i]);
-    }
-    g_free(levels);
-
-    return;
-  }
-
-  g_assert(osr->data == NULL);
-
-
-  // allocate private data
-  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
-  osr->data = data;
-
-
-  // convert all struct _openslide_jpeg_file into struct one_jpeg
-  data->jpeg_count = file_count;
-  data->all_jpegs = g_new0(struct one_jpeg *, file_count);
-  for (int32_t i = 0; i < data->jpeg_count; i++) {
-    //    g_debug("init JPEG %d", i);
-    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
-    init_one_jpeg(data->all_jpegs[i], files[i]);
-    g_slice_free(struct _openslide_jpeg_file, files[i]);
-  }
-  g_free(files);
-  files = NULL;
-
-  // populate the level_count
-  osr->level_count = level_count;
-
-  // convert all struct _openslide_jpeg_level into struct level, and
-  //  (internally) convert all struct _openslide_jpeg_tile into struct tile
-  g_assert(osr->levels == NULL);
-  osr->levels = g_new(struct _openslide_level *, level_count);
-  for (int32_t i = 0; i < level_count; i++) {
-    struct _openslide_jpeg_level *old_l = levels[i];
-
-    struct level *new_l = g_slice_new0(struct level);
-    new_l->base.downsample = old_l->downsample;
-    new_l->base.w = old_l->level_w;
-    new_l->base.h = old_l->level_h;
-    new_l->tiles_across = old_l->tiles_across;
-    new_l->tiles_down = old_l->tiles_down;
-    new_l->tile_advance_x = old_l->tile_advance_x;
-    new_l->tile_advance_y = old_l->tile_advance_y;
-    // initialize tile size hints if potentially valid (may be cleared later)
-    if (((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
-        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y) {
-      new_l->base.tile_w = new_l->tile_advance_x;
-      new_l->base.tile_h = new_l->tile_advance_y;
-    }
-
-    // convert tiles
-    new_l->grid = _openslide_grid_create_tilemap(osr,
-                                                 new_l->tile_advance_x,
-                                                 new_l->tile_advance_y,
-                                                 read_tile, tile_free);
-    struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
-    g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
-
-    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
-
-    // now, new_l is all initialized, so add it
-    osr->levels[i] = (struct _openslide_level *) new_l;
-
-    // delete the old level
-    g_hash_table_unref(old_l->tiles);
-    g_slice_free(struct _openslide_jpeg_level, old_l);
-  }
-  g_free(levels);
-  levels = NULL;
-
-  // if any level is missing tile size hints, we must invalidate all hints
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    if (!osr->levels[i]->tile_w || !osr->levels[i]->tile_h) {
-      // invalidate
-      for (i = 0; i < osr->level_count; i++) {
-        osr->levels[i]->tile_w = 0;
-        osr->levels[i]->tile_h = 0;
-      }
-      break;
-    }
-  }
-
-  // set ops
-  osr->ops = &mirax_ops;
-}
-
 static char *read_string_from_file(FILE *f, int len) {
   char *str = g_malloc(len + 1);
   str[len] = '\0';
@@ -2112,7 +1980,125 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
                         _openslide_format_double(slide_zoom_level_sections[0].mpp_y));
   }
 
-  add_mirax_ops(osr, num_jpegs, jpegs, zoom_levels, levels);
+  /*
+  for (int i = 0; i < zoom_levels; i++) {
+    struct _openslide_jpeg_level *l = levels[i];
+    g_debug("level %d", i);
+    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->level_w, l->level_h);
+    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
+    g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
+    g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
+  }
+
+  g_debug("num_jpegs: %d", num_jpegs);
+  */
+
+  if (osr == NULL) {
+    // free now and return
+    for (int i = 0; i < num_jpegs; i++) {
+      g_free(jpegs[i]->filename);
+      g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+    }
+    g_free(jpegs);
+
+    for (int i = 0; i < zoom_levels; i++) {
+      g_hash_table_unref(levels[i]->tiles);
+      g_slice_free(struct _openslide_jpeg_level, levels[i]);
+    }
+    g_free(levels);
+
+    success = true;
+    goto DONE;
+  }
+
+  g_assert(osr->data == NULL);
+
+
+  // allocate private data
+  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
+  osr->data = data;
+
+
+  // convert all struct _openslide_jpeg_file into struct one_jpeg
+  data->jpeg_count = num_jpegs;
+  data->all_jpegs = g_new0(struct one_jpeg *, num_jpegs);
+  for (int32_t i = 0; i < data->jpeg_count; i++) {
+    //    g_debug("init JPEG %d", i);
+    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
+    g_assert(jpegs[i]->filename);
+
+    data->all_jpegs[i]->filename = jpegs[i]->filename;
+    data->all_jpegs[i]->start_in_file = jpegs[i]->start_in_file;
+
+    g_assert(jpegs[i]->tw && jpegs[i]->th);
+
+    data->all_jpegs[i]->tile_width = jpegs[i]->tw;
+    data->all_jpegs[i]->tile_height = jpegs[i]->th;
+
+    g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+  }
+  g_free(jpegs);
+  jpegs = NULL;
+
+  // populate the level_count
+  osr->level_count = zoom_levels;
+
+  // convert all struct _openslide_jpeg_level into struct level, and
+  //  (internally) convert all struct _openslide_jpeg_tile into struct tile
+  g_assert(osr->levels == NULL);
+  osr->levels = g_new(struct _openslide_level *, zoom_levels);
+  for (int i = 0; i < zoom_levels; i++) {
+    struct _openslide_jpeg_level *old_l = levels[i];
+
+    struct level *new_l = g_slice_new0(struct level);
+    new_l->base.downsample = old_l->downsample;
+    new_l->base.w = old_l->level_w;
+    new_l->base.h = old_l->level_h;
+    new_l->tiles_across = old_l->tiles_across;
+    new_l->tiles_down = old_l->tiles_down;
+    new_l->tile_advance_x = old_l->tile_advance_x;
+    new_l->tile_advance_y = old_l->tile_advance_y;
+    // initialize tile size hints if potentially valid (may be cleared later)
+    if (((int64_t) old_l->tile_advance_x) == old_l->tile_advance_x &&
+        ((int64_t) old_l->tile_advance_y) == old_l->tile_advance_y) {
+      new_l->base.tile_w = new_l->tile_advance_x;
+      new_l->base.tile_h = new_l->tile_advance_y;
+    }
+
+    // convert tiles
+    new_l->grid = _openslide_grid_create_tilemap(osr,
+                                                 new_l->tile_advance_x,
+                                                 new_l->tile_advance_y,
+                                                 read_tile, tile_free);
+    struct convert_tiles_args ct_args = { new_l, data->all_jpegs };
+    g_hash_table_foreach(old_l->tiles, convert_tiles, &ct_args);
+
+    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
+
+    // now, new_l is all initialized, so add it
+    osr->levels[i] = (struct _openslide_level *) new_l;
+
+    // delete the old level
+    g_hash_table_unref(old_l->tiles);
+    g_slice_free(struct _openslide_jpeg_level, old_l);
+  }
+  g_free(levels);
+  levels = NULL;
+
+  // if any level is missing tile size hints, we must invalidate all hints
+  for (int i = 0; i < osr->level_count; i++) {
+    if (!osr->levels[i]->tile_w || !osr->levels[i]->tile_h) {
+      // invalidate
+      for (i = 0; i < osr->level_count; i++) {
+        osr->levels[i]->tile_w = 0;
+        osr->levels[i]->tile_h = 0;
+      }
+      break;
+    }
+  }
+
+  // set ops
+  osr->ops = &mirax_ops;
 
   success = true;
   goto DONE;
