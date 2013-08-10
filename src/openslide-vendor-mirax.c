@@ -844,12 +844,12 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  }
 	}
 
-	// populate the file structure
-	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
+	// populate the jpeg structure
+	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
-	jpeg->tw = l->raw_tile_width;
-	jpeg->th = l->raw_tile_height;
+	jpeg->tile_width = l->raw_tile_width;
+	jpeg->tile_height = l->raw_tile_height;
 
 	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
 
@@ -1099,13 +1099,13 @@ static bool process_indexfile(const char *uuid,
 			      const struct slide_zoom_level_params *slide_zoom_level_params,
 			      FILE *indexfile,
 			      struct _openslide_jpeg_level **levels,
-			      int *file_count_out,
-			      struct _openslide_jpeg_file ***files_out,
+			      int *jpeg_count_out,
+			      struct one_jpeg ***jpegs_out,
 			      struct _openslide_hash *quickhash1,
 			      GError **err) {
   // init out parameters
-  *file_count_out = 0;
-  *files_out = NULL;
+  *jpeg_count_out = 0;
+  *jpegs_out = NULL;
 
   char *teststr = NULL;
   bool match;
@@ -1119,7 +1119,7 @@ static bool process_indexfile(const char *uuid,
   const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
   const int tile_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
 
-  struct _openslide_jpeg_file **jpegs = NULL;
+  struct one_jpeg **jpegs = NULL;
   bool success = false;
 
   int32_t *slide_positions = NULL;
@@ -1313,26 +1313,26 @@ static bool process_indexfile(const char *uuid,
 
   // copy file structures
   int jpeg_count = g_list_length(jpegs_list);
-  jpegs = g_new(struct _openslide_jpeg_file *, jpeg_count);
+  jpegs = g_new(struct one_jpeg *, jpeg_count);
 
-  int cur_file = 0;
+  int cur_jpeg = 0;
   for (GList *iter = jpegs_list; iter != NULL; iter = iter->next) {
-    jpegs[cur_file++] = iter->data;
+    jpegs[cur_jpeg++] = iter->data;
   }
-  g_assert(cur_file == jpeg_count);
+  g_assert(cur_jpeg == jpeg_count);
 
   // deallocate
   g_free(slide_positions);
   g_list_free(jpegs_list);
 
   if (success) {
-    *file_count_out = jpeg_count;
-    *files_out = jpegs;
+    *jpeg_count_out = jpeg_count;
+    *jpegs_out = jpegs;
   } else {
     for (int i = 0; i < jpeg_count; i++) {
-      struct _openslide_jpeg_file *jpeg = jpegs[i];
+      struct one_jpeg *jpeg = jpegs[i];
       g_free(jpeg->filename);
-      g_slice_free(struct _openslide_jpeg_file, jpeg);
+      g_slice_free(struct one_jpeg, jpeg);
     }
     g_free(jpegs);
   }
@@ -1482,7 +1482,7 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			  struct _openslide_hash *quickhash1,
 			  GError **err) {
-  struct _openslide_jpeg_file **jpegs = NULL;
+  struct one_jpeg **jpegs = NULL;
   int num_jpegs = 0;
   struct _openslide_jpeg_level **levels = NULL;
 
@@ -1997,7 +1997,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     // free now and return
     for (int i = 0; i < num_jpegs; i++) {
       g_free(jpegs[i]->filename);
-      g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+      g_slice_free(struct one_jpeg, jpegs[i]);
     }
     g_free(jpegs);
 
@@ -2017,27 +2017,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // allocate private data
   struct jpegops_data *data = g_slice_new0(struct jpegops_data);
   osr->data = data;
-
-
-  // convert all struct _openslide_jpeg_file into struct one_jpeg
   data->jpeg_count = num_jpegs;
-  data->all_jpegs = g_new0(struct one_jpeg *, num_jpegs);
-  for (int32_t i = 0; i < data->jpeg_count; i++) {
-    //    g_debug("init JPEG %d", i);
-    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
-    g_assert(jpegs[i]->filename);
-
-    data->all_jpegs[i]->filename = jpegs[i]->filename;
-    data->all_jpegs[i]->start_in_file = jpegs[i]->start_in_file;
-
-    g_assert(jpegs[i]->tw && jpegs[i]->th);
-
-    data->all_jpegs[i]->tile_width = jpegs[i]->tw;
-    data->all_jpegs[i]->tile_height = jpegs[i]->th;
-
-    g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
-  }
-  g_free(jpegs);
+  data->all_jpegs = jpegs;
   jpegs = NULL;
 
   // populate the level_count
