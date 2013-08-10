@@ -205,16 +205,6 @@ struct jpegops_data {
 };
 
 
-static void level_free(gpointer data) {
-  //g_debug("level_free: %p", data);
-
-  struct level *l = data;
-
-  //  g_debug("g_free(%p)", l->level_jpegs);
-  _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
-}
-
 static void tile_free(gpointer data) {
   g_slice_free(struct tile, data);
 }
@@ -449,35 +439,6 @@ static void init_one_jpeg(struct one_jpeg *onej,
   onej->tile_height = file->th;
 }
 
-static gint width_compare(gconstpointer a, gconstpointer b) {
-  int64_t w1 = *((const int64_t *) a);
-  int64_t w2 = *((const int64_t *) b);
-
-  g_assert(w1 >= 0 && w2 >= 0);
-
-  return (w1 < w2) - (w1 > w2);
-}
-
-static int one_jpeg_compare(const void *a, const void *b) {
-  const struct one_jpeg *aa = *(struct one_jpeg * const *) a;
-  const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
-
-  // compare files
-  int res = strcmp(aa->filename, bb->filename);
-  if (res != 0) {
-    return res;
-  }
-
-  // compare offsets
-  if (aa->start_in_file < bb->start_in_file) {
-    return -1;
-  } else if (aa->start_in_file > bb->start_in_file) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 static void add_mirax_ops(openslide_t *osr,
                           int32_t file_count,
                           struct _openslide_jpeg_file **files,
@@ -536,12 +497,13 @@ static void add_mirax_ops(openslide_t *osr,
   g_free(files);
   files = NULL;
 
+  // populate the level_count
+  osr->level_count = level_count;
+
   // convert all struct _openslide_jpeg_level into struct level, and
   //  (internally) convert all struct _openslide_jpeg_tile into struct tile
-  GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
-                                                      _openslide_int64_equal,
-                                                      _openslide_int64_free,
-                                                      level_free);
+  g_assert(osr->levels == NULL);
+  osr->levels = g_new(struct _openslide_level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
     struct _openslide_jpeg_level *old_l = levels[i];
 
@@ -571,9 +533,7 @@ static void add_mirax_ops(openslide_t *osr,
     //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
 
     // now, new_l is all initialized, so add it
-    int64_t *key = g_slice_new(int64_t);
-    *key = new_l->base.w;
-    g_hash_table_insert(expanded_levels, key, new_l);
+    osr->levels[i] = (struct _openslide_level *) new_l;
 
     // delete the old level
     g_hash_table_unref(old_l->tiles);
@@ -581,44 +541,6 @@ static void add_mirax_ops(openslide_t *osr,
   }
   g_free(levels);
   levels = NULL;
-
-
-  // sort all_jpegs by file and start position, so we can avoid seeks
-  // when background finding mcus
-  qsort(data->all_jpegs, file_count, sizeof(struct one_jpeg *), one_jpeg_compare);
-
-  // get sorted keys
-  GList *level_keys = g_hash_table_get_keys(expanded_levels);
-  level_keys = g_list_sort(level_keys, width_compare);
-
-  //  g_debug("number of keys: %d", g_list_length(level_keys));
-
-
-  // populate the level_count
-  osr->level_count = g_hash_table_size(expanded_levels);
-
-  // load into level array
-  g_assert(osr->levels == NULL);
-  osr->levels = g_new(struct _openslide_level *, osr->level_count);
-  GList *tmp_list = level_keys;
-
-  int i = 0;
-
-  //  g_debug("moving sorted levels");
-  while(tmp_list != NULL) {
-    // get a key and value
-    struct level *l = g_hash_table_lookup(expanded_levels, tmp_list->data);
-
-    // move
-    osr->levels[i] = (struct _openslide_level *) l;
-    g_hash_table_steal(expanded_levels, tmp_list->data);
-    _openslide_int64_free(tmp_list->data);  // key
-
-    // consume the head and continue
-    tmp_list = g_list_delete_link(tmp_list, tmp_list);
-    i++;
-  }
-  g_hash_table_unref(expanded_levels);
 
   // if any level is missing tile size hints, we must invalidate all hints
   for (int32_t i = 0; i < osr->level_count; i++) {
