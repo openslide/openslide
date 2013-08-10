@@ -168,20 +168,14 @@ struct slide_zoom_level_params {
 struct one_jpeg {
   char *filename;
   int64_t start_in_file;
-  int64_t end_in_file;
 
   int32_t tile_width;
   int32_t tile_height;
-
-  int32_t mcu_starts_count;
-  int64_t *mcu_starts;
-  int64_t *unreliable_mcu_starts;
 };
 
 struct tile {
   struct one_jpeg *jpeg;
   int32_t jpegno;   // used only for cache lookup
-  int32_t tileno;
 
   // physical tile size (after scaling)
   int32_t tile_width;
@@ -200,10 +194,6 @@ struct level {
 
   int32_t tiles_across;
   int32_t tiles_down;
-
-  int32_t scale_denom;
-
-  // note: everything below is pre-divided by scale_denom
 
   double tile_advance_x;
   double tile_advance_y;
@@ -245,13 +235,12 @@ static void convert_tiles(gpointer key,
   struct tile *new_tile = g_slice_new(struct tile);
   new_tile->jpeg = args->all_jpegs[old_tile->fileno];
   new_tile->jpegno = old_tile->fileno;
-  new_tile->tileno = old_tile->tileno;
-  new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
-  new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
-  new_tile->src_x = old_tile->src_x / new_l->scale_denom;
-  new_tile->src_y = old_tile->src_y / new_l->scale_denom;
-  new_tile->w = old_tile->w / new_l->scale_denom;
-  new_tile->h = old_tile->h / new_l->scale_denom;
+  new_tile->tile_width = new_tile->jpeg->tile_width;
+  new_tile->tile_height = new_tile->jpeg->tile_height;
+  new_tile->src_x = old_tile->src_x;
+  new_tile->src_y = old_tile->src_y;
+  new_tile->w = old_tile->w;
+  new_tile->h = old_tile->h;
 
   // we only issue tile size hints if:
   // - advances are integers (checked below)
@@ -271,8 +260,8 @@ static void convert_tiles(gpointer key,
   _openslide_grid_tilemap_add_tile(new_l->grid,
                                    index % new_l->tiles_across,
                                    index / new_l->tiles_across,
-                                   old_tile->dest_offset_x / new_l->scale_denom,
-                                   old_tile->dest_offset_y / new_l->scale_denom,
+                                   old_tile->dest_offset_x,
+                                   old_tile->dest_offset_y,
                                    new_tile->w, new_tile->h,
                                    new_tile);
 }
@@ -314,7 +303,7 @@ static void read_tile(openslide_t *osr,
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             requested_tile->jpegno,
-                                            requested_tile->tileno,
+                                            0,
                                             grid,
                                             &cache_entry);
 
@@ -324,7 +313,7 @@ static void read_tile(openslide_t *osr,
                                   tw, th);
 
     _openslide_cache_put(osr->cache,
-                         requested_tile->jpegno, requested_tile->tileno, grid,
+                         requested_tile->jpegno, 0, grid,
                          tiledata,
                          tw * th * 4,
                          &cache_entry);
@@ -420,8 +409,6 @@ static void destroy(openslide_t *osr) {
   for (int32_t i = 0; i < data->jpeg_count; i++) {
     struct one_jpeg *jpeg = data->all_jpegs[i];
     g_free(jpeg->filename);
-    g_free(jpeg->mcu_starts);
-    g_free(jpeg->unreliable_mcu_starts);
     g_slice_free(struct one_jpeg, jpeg);
   }
 
@@ -455,26 +442,11 @@ static void init_one_jpeg(struct one_jpeg *onej,
 
   onej->filename = file->filename;
   onej->start_in_file = file->start_in_file;
-  onej->end_in_file = file->end_in_file;
-  onej->unreliable_mcu_starts = file->mcu_starts;
 
   g_assert(file->w && file->h && file->tw && file->th);
 
   onej->tile_width = file->tw;
   onej->tile_height = file->th;
-
-  // compute the mcu starts stuff
-  onej->mcu_starts_count =
-    (file->w / onej->tile_width) *
-    (file->h / onej->tile_height);
-
-  onej->mcu_starts = g_new(int64_t,
-                           onej->mcu_starts_count);
-
-  // init all to -1
-  for (int32_t i = 0; i < onej->mcu_starts_count; i++) {
-    (onej->mcu_starts)[i] = -1;
-  }
 }
 
 static gint width_compare(gconstpointer a, gconstpointer b) {
@@ -531,7 +503,6 @@ static void add_mirax_ops(openslide_t *osr,
     // free now and return
     for (int32_t i = 0; i < file_count; i++) {
       g_free(files[i]->filename);
-      g_free(files[i]->mcu_starts);
       g_slice_free(struct _openslide_jpeg_file, files[i]);
     }
     g_free(files);
@@ -580,7 +551,6 @@ static void add_mirax_ops(openslide_t *osr,
     new_l->base.h = old_l->level_h;
     new_l->tiles_across = old_l->tiles_across;
     new_l->tiles_down = old_l->tiles_down;
-    new_l->scale_denom = 1;
     new_l->tile_advance_x = old_l->tile_advance_x;
     new_l->tile_advance_y = old_l->tile_advance_y;
     // initialize tile size hints if potentially valid (may be cleared later)
@@ -830,7 +800,6 @@ static void insert_subtile(GHashTable *tiles, int32_t jpeg_number,
   // generate tile
   struct _openslide_jpeg_tile *tile = g_slice_new0(struct _openslide_jpeg_tile);
   tile->fileno = jpeg_number;
-  tile->tileno = 0;
   tile->src_x = src_x;
   tile->src_y = src_y;
   tile->w = tw;
@@ -1089,7 +1058,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	struct _openslide_jpeg_file *jpeg = g_slice_new0(struct _openslide_jpeg_file);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
-	jpeg->end_in_file = jpeg->start_in_file + length;
 	jpeg->tw = l->raw_tile_width;
 	jpeg->th = l->raw_tile_height;
 	jpeg->w = l->raw_tile_width;
