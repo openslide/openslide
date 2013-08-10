@@ -104,7 +104,8 @@ struct jpegops_data {
   bool restart_marker_thread_stop;
 };
 
-struct jpeg_associated_image_ctx {
+struct jpeg_associated_image {
+  struct _openslide_associated_image base;
   char *filename;
   int64_t offset;
 };
@@ -1220,28 +1221,28 @@ GHashTable *_openslide_jpeg_create_tiles_table(void) {
 			       struct_openslide_jpeg_tile_free);
 }
 
-static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
-                                           uint32_t *_dest,
-                                           int64_t w, int64_t h) {
-  struct jpeg_associated_image_ctx *ctx = _ctx;
+static void jpeg_get_associated_image_data(openslide_t *osr,
+                                           struct _openslide_associated_image *_img,
+                                           uint32_t *_dest) {
+  struct jpeg_associated_image *img = (struct jpeg_associated_image *) _img;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   FILE *f;
   jmp_buf env;
   GError *tmp_err = NULL;
 
-  // g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, ctx->filename,
-  //         ctx->offset);
+  // g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, img->filename,
+  //         img->offset);
 
   // open file
-  f = _openslide_fopen(ctx->filename, "rb", &tmp_err);
+  f = _openslide_fopen(img->filename, "rb", &tmp_err);
   if (f == NULL) {
     _openslide_set_error_from_gerror(osr, tmp_err);
     g_clear_error(&tmp_err);
     return;
   }
-  if (ctx->offset && fseeko(f, ctx->offset, SEEK_SET) == -1) {
-    _openslide_set_error(osr, "Cannot seek file %s", ctx->filename);
+  if (img->offset && fseeko(f, img->offset, SEEK_SET) == -1) {
+    _openslide_set_error(osr, "Cannot seek file %s", img->filename);
     fclose(f);
     return;
   }
@@ -1270,7 +1271,7 @@ static void jpeg_get_associated_image_data(openslide_t *osr, void *_ctx,
     // ensure dimensions have not changed
     int32_t width = cinfo.output_width;
     int32_t height = cinfo.output_height;
-    if (w != width || h != height) {
+    if (img->base.w != width || img->base.h != height) {
       _openslide_set_error(osr, "Unexpected associated image size");
       goto DONE;
     }
@@ -1325,12 +1326,17 @@ DONE:
   fclose(f);
 }
 
-static void jpeg_destroy_associated_image_ctx(void *_ctx) {
-  struct jpeg_associated_image_ctx *ctx = _ctx;
+static void jpeg_destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct jpeg_associated_image *img = (struct jpeg_associated_image *) _img;
 
-  g_free(ctx->filename);
-  g_slice_free(struct jpeg_associated_image_ctx, ctx);
+  g_free(img->filename);
+  g_slice_free(struct jpeg_associated_image, img);
 }
+
+static const struct _openslide_associated_image_ops jpeg_associated_ops = {
+  .get_argb_data = jpeg_get_associated_image_data,
+  .destroy = jpeg_destroy_associated_image,
+};
 
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
 					  const char *name,
@@ -1372,20 +1378,15 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     jpeg_calc_output_dimensions(&cinfo);
 
     if (ht) {
-      struct jpeg_associated_image_ctx *ctx =
-        g_slice_new(struct jpeg_associated_image_ctx);
-      ctx->filename = g_strdup(filename);
-      ctx->offset = offset;
+      struct jpeg_associated_image *img =
+        g_slice_new0(struct jpeg_associated_image);
+      img->base.ops = &jpeg_associated_ops;
+      img->base.w = cinfo.output_width;
+      img->base.h = cinfo.output_height;
+      img->filename = g_strdup(filename);
+      img->offset = offset;
 
-      struct _openslide_associated_image *aimg =
-	g_slice_new(struct _openslide_associated_image);
-      aimg->w = cinfo.output_width;
-      aimg->h = cinfo.output_height;
-      aimg->ctx = ctx;
-      aimg->get_argb_data = jpeg_get_associated_image_data;
-      aimg->destroy_ctx = jpeg_destroy_associated_image_ctx;
-
-      g_hash_table_insert(ht, g_strdup(name), aimg);
+      g_hash_table_insert(ht, g_strdup(name), img);
     }
 
     result = true;

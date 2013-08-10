@@ -64,10 +64,7 @@ static void __attribute__((constructor)) _openslide_init(void) {
 static void destroy_associated_image(gpointer data) {
   struct _openslide_associated_image *img = data;
 
-  if (img->destroy_ctx != NULL && img->ctx != NULL) {
-    img->destroy_ctx(img->ctx);
-  }
-  g_slice_free(struct _openslide_associated_image, img);
+  img->ops->destroy(img);
 }
 
 static bool level_in_range(openslide_t *osr, int32_t level) {
@@ -707,7 +704,7 @@ void openslide_read_associated_image(openslide_t *osr,
     size_t pixels = img->w * img->h;
     uint32_t *buf = g_new(uint32_t, pixels);
 
-    img->get_argb_data(osr, img->ctx, buf, img->w, img->h);
+    img->ops->get_argb_data(osr, img, buf);
     if (dest && !openslide_get_error(osr)) {
       memcpy(dest, buf, pixels * sizeof(uint32_t));
     }

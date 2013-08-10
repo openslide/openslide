@@ -49,14 +49,19 @@
 
 /* the associated image structure */
 struct _openslide_associated_image {
+  const struct _openslide_associated_image_ops *ops;
+
   int64_t w;
   int64_t h;
-  void *ctx;
+};
 
-  // must fail if width or height doesn't match the image
-  void (*get_argb_data)(openslide_t *osr, void *ctx, uint32_t *dest,
-                        int64_t w, int64_t h);
-  void (*destroy_ctx)(void *ctx);
+/* associated image operations */
+struct _openslide_associated_image_ops {
+  // must fail if stored width or height doesn't match the image
+  void (*get_argb_data)(openslide_t *osr,
+                        struct _openslide_associated_image *img,
+                        uint32_t *dest);
+  void (*destroy)(struct _openslide_associated_image *img);
 };
 
 /* the main structure */
