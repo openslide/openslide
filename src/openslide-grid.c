@@ -299,7 +299,8 @@ static void tilemap_read_tile(struct _openslide_grid *_grid,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  grid->read_tile(grid->base.osr, cr, level, _grid, tile->data,
+  grid->read_tile(grid->base.osr, cr, level, _grid,
+                  tile->col, tile->row, tile->data,
                   xx, yy, ww, hh,
                   arg);
   cairo_set_matrix(cr, &matrix);
