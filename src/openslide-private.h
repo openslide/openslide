@@ -231,6 +231,10 @@ void _openslide_grid_paint_region(struct _openslide_grid *grid,
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 
+void _openslide_grid_label_tile(struct _openslide_grid *grid,
+                                cairo_t *cr,
+                                int64_t tile_col, int64_t tile_row);
+
 /* TIFF support */
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      TIFF *tiff,

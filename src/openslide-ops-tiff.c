@@ -367,27 +367,7 @@ static void read_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
-  /*
-  cairo_save(cr);
-  int z = 4;
-  char *zz = g_strdup_printf("%" G_GINT64_FORMAT ",%" G_GINT64_FORMAT " (%" G_GINT64_FORMAT ")",
-			     tile_x, tile_y, tile_y * l->tiles_across + tile_x);
-  cairo_set_source_rgb(cr, 0, 0, 0);
-  cairo_move_to(cr, 0, 20);
-  cairo_show_text(cr, zz);
-  cairo_set_source_rgba(cr, 1.0, 0, 0, 0.2);
-  cairo_rectangle(cr, 0, 0, z, z);
-  cairo_fill(cr);
-  cairo_rectangle(cr, tw-z, 0, z, z);
-  cairo_fill(cr);
-  cairo_rectangle(cr, 0, th-z, z, z);
-  cairo_fill(cr);
-  cairo_rectangle(cr, tw-z, th-z, z, z);
-  cairo_fill(cr);
-  g_free(zz);
-  cairo_restore(cr);
-  */
-
+  //_openslide_grid_label_tile(grid, cr, tile_x, tile_y);
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);

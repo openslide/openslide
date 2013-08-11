@@ -50,6 +50,9 @@ struct bounds {
 struct grid_ops {
   void (*get_bounds)(struct _openslide_grid *grid,
                      struct bounds *bounds);
+  void (*get_tile_size)(struct _openslide_grid *grid,
+                        int64_t tile_col, int64_t tile_row,
+                        struct bounds *bounds);
   void (*paint_region)(struct _openslide_grid *grid,
                        cairo_t *cr, void *arg,
                        double x, double y,
@@ -191,6 +194,14 @@ static void simple_get_bounds(struct _openslide_grid *_grid,
   bounds->h = grid->tiles_down * grid->base.tile_advance_y;
 }
 
+static void simple_get_tile_size(struct _openslide_grid *grid,
+                                 int64_t tile_col G_GNUC_UNUSED,
+                                 int64_t tile_row G_GNUC_UNUSED,
+                                 struct bounds *bounds) {
+  bounds->w = grid->tile_advance_x;
+  bounds->h = grid->tile_advance_y;
+}
+
 static void simple_paint_region(struct _openslide_grid *_grid,
                                 cairo_t *cr,
                                 void *arg,
@@ -232,6 +243,7 @@ static void simple_destroy(struct _openslide_grid *_grid) {
 
 const struct grid_ops simple_grid_ops = {
   .get_bounds = simple_get_bounds,
+  .get_tile_size = simple_get_tile_size,
   .paint_region = simple_paint_region,
   .read_tile = simple_read_tile,
   .destroy = simple_destroy,
@@ -288,6 +300,24 @@ static void tilemap_get_bounds(struct _openslide_grid *_grid,
     bounds->w = grid->right - grid->left;
     bounds->h = grid->bottom - grid->top;
   }
+}
+
+static void tilemap_get_tile_size(struct _openslide_grid *_grid,
+                                  int64_t tile_col, int64_t tile_row,
+                                  struct bounds *bounds) {
+  struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
+
+  struct grid_tile coords = {
+    .col = tile_col,
+    .row = tile_row,
+  };
+  struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
+  if (tile == NULL) {
+    return;
+  }
+
+  bounds->w = tile->w;
+  bounds->h = tile->h;
 }
 
 static void tilemap_read_tile(struct _openslide_grid *_grid,
@@ -375,6 +405,7 @@ static void tilemap_destroy(struct _openslide_grid *_grid) {
 
 const struct grid_ops tilemap_grid_ops = {
   .get_bounds = tilemap_get_bounds,
+  .get_tile_size = tilemap_get_tile_size,
   .paint_region = tilemap_paint_region,
   .read_tile = tilemap_read_tile,
   .destroy = tilemap_destroy,
@@ -493,4 +524,32 @@ void _openslide_grid_destroy(struct _openslide_grid *grid) {
     return;
   }
   grid->ops->destroy(grid);
+}
+
+// debugging function
+void _openslide_grid_label_tile(struct _openslide_grid *grid,
+                                cairo_t *cr,
+                                int64_t tile_col, int64_t tile_row) {
+  struct bounds bounds = {0, 0, 0, 0};
+  grid->ops->get_tile_size(grid, tile_col, tile_row, &bounds);
+
+  cairo_save(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+  cairo_set_source_rgba(cr, 0.6, 0, 0, 0.3);
+  cairo_rectangle(cr, 0, 0, bounds.w, bounds.h);
+  cairo_stroke(cr);
+
+  cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
+  char *str = g_strdup_printf("%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT,
+                              tile_col, tile_row);
+  cairo_text_extents_t extents;
+  cairo_text_extents(cr, str, &extents);
+  cairo_move_to(cr,
+                (bounds.w - extents.width) / 2,
+                (bounds.h - extents.height) / 2);
+  cairo_show_text(cr, str);
+  g_free(str);
+
+  cairo_restore(cr);
 }

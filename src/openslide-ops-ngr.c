@@ -133,6 +133,8 @@ static void read_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
+  //_openslide_grid_label_tile(grid, cr, tile_x, tile_y);
+
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
 }
