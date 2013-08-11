@@ -87,9 +87,6 @@ struct tilemap_grid {
   _openslide_tilemap_fn read_tile;
   GDestroyNotify destroy_tile;
 
-  double tile_advance_x;
-  double tile_advance_y;
-
   // outer boundaries of grid
   double top;
   double bottom;
