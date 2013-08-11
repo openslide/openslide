@@ -40,7 +40,16 @@ struct region {
   double offset_y;
 };
 
+struct bounds {
+  double x;
+  double y;
+  double w;
+  double h;
+};
+
 struct grid_ops {
+  void (*get_bounds)(struct _openslide_grid *grid,
+                     struct bounds *bounds);
   void (*paint_region)(struct _openslide_grid *grid,
                        cairo_t *cr, void *arg,
                        double x, double y,
@@ -80,6 +89,12 @@ struct tilemap_grid {
 
   double tile_advance_x;
   double tile_advance_y;
+
+  // outer boundaries of grid
+  double top;
+  double bottom;
+  double left;
+  double right;
 
   // how much extra we might need to read to get all relevant tiles
   // computed from tile offsets
@@ -171,6 +186,14 @@ static void read_tiles(cairo_t *cr,
 
 
 
+static void simple_get_bounds(struct _openslide_grid *_grid,
+                              struct bounds *bounds) {
+  struct simple_grid *grid = (struct simple_grid *) _grid;
+
+  bounds->w = grid->tiles_across * grid->base.tile_advance_x;
+  bounds->h = grid->tiles_down * grid->base.tile_advance_y;
+}
+
 static void simple_paint_region(struct _openslide_grid *_grid,
                                 cairo_t *cr,
                                 void *arg,
@@ -211,6 +234,7 @@ static void simple_destroy(struct _openslide_grid *_grid) {
 }
 
 const struct grid_ops simple_grid_ops = {
+  .get_bounds = simple_get_bounds,
   .paint_region = simple_paint_region,
   .read_tile = simple_read_tile,
   .destroy = simple_destroy,
@@ -255,6 +279,18 @@ static void grid_tile_hash_destroy_value(gpointer data) {
     tile->grid->destroy_tile(tile->data);
   }
   g_slice_free(struct grid_tile, tile);
+}
+
+static void tilemap_get_bounds(struct _openslide_grid *_grid,
+                               struct bounds *bounds) {
+  struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
+
+  if (!isinf(grid->left)) {
+    bounds->x = grid->left;
+    bounds->y = grid->top;
+    bounds->w = grid->right - grid->left;
+    bounds->h = grid->bottom - grid->top;
+  }
 }
 
 static void tilemap_read_tile(struct _openslide_grid *_grid,
@@ -341,6 +377,7 @@ static void tilemap_destroy(struct _openslide_grid *_grid) {
 }
 
 const struct grid_ops tilemap_grid_ops = {
+  .get_bounds = tilemap_get_bounds,
   .paint_region = tilemap_paint_region,
   .read_tile = tilemap_read_tile,
   .destroy = tilemap_destroy,
@@ -365,6 +402,15 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
   tile->data = data;
 
   g_hash_table_replace(grid->tiles, tile, tile);
+
+  grid->left = MIN(col * grid->base.tile_advance_x + offset_x,
+                   grid->left);
+  grid->top = MIN(row * grid->base.tile_advance_y + offset_y,
+                  grid->top);
+  grid->right = MAX(col * grid->base.tile_advance_x + offset_x + w,
+                    grid->right);
+  grid->bottom = MAX(row * grid->base.tile_advance_y + offset_y + h,
+                     grid->bottom);
 
   if (offset_x > 0) {
     // extra on left
@@ -401,6 +447,11 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
   grid->read_tile = read_tile;
   grid->destroy_tile = destroy_tile;
 
+  grid->top = INFINITY;
+  grid->bottom = -INFINITY;
+  grid->left = INFINITY;
+  grid->right = -INFINITY;
+
   grid->tiles = g_hash_table_new_full(grid_tile_hash_func,
                                       grid_tile_hash_key_equal,
                                       NULL,
@@ -410,6 +461,26 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
 }
 
 
+
+void _openslide_grid_get_bounds(struct _openslide_grid *grid,
+                                double *x, double *y,
+                                double *w, double *h) {
+  struct bounds bounds = {0, 0, 0, 0};
+  grid->ops->get_bounds(grid, &bounds);
+  //g_debug("%p bounds: x %g y %g w %g h %g", (void *) grid, bounds.x, bounds.y, bounds.w, bounds.h);
+  if (x) {
+    *x = bounds.x;
+  }
+  if (y) {
+    *y = bounds.y;
+  }
+  if (w) {
+    *w = bounds.w;
+  }
+  if (h) {
+    *h = bounds.h;
+  }
+}
 
 void _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   cairo_t *cr,

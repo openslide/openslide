@@ -218,6 +218,10 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       double w, double h,
                                       void *data);
 
+void _openslide_grid_get_bounds(struct _openslide_grid *grid,
+                                double *x, double *y,
+                                double *w, double *h);
+
 void _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   cairo_t *cr,
                                   void *arg,
