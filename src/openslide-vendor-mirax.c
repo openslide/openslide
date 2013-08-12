@@ -168,12 +168,12 @@ struct slide_zoom_level_params {
 struct one_jpeg {
   char *filename;
   int64_t start_in_file;
+  int32_t jpegno;   // used only for cache lookup
   int refcount;
 };
 
 struct tile {
   struct one_jpeg *jpeg;
-  int32_t jpegno;   // used only for cache lookup
 
   // bounds in the physical tile?
   double src_x;
@@ -248,7 +248,7 @@ static void read_tile(openslide_t *osr,
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            requested_tile->jpegno,
+                                            requested_tile->jpeg->jpegno,
                                             0,
                                             grid,
                                             &cache_entry);
@@ -259,7 +259,7 @@ static void read_tile(openslide_t *osr,
                                   tw, th);
 
     _openslide_cache_put(osr->cache,
-                         requested_tile->jpegno, 0, grid,
+                         requested_tile->jpeg->jpegno, 0, grid,
                          tiledata,
                          tw * th * 4,
                          &cache_entry);
@@ -494,7 +494,7 @@ static bool read_nonhier_record(FILE *f,
 
 static void insert_subtile(struct level *l,
 			   struct _openslide_grid *grid,
-			   struct one_jpeg *jpeg, int32_t jpeg_number,
+			   struct one_jpeg *jpeg,
 			   double pos_x, double pos_y,
 			   double src_x, double src_y,
 			   double tw, double th,
@@ -506,7 +506,6 @@ static void insert_subtile(struct level *l,
   // generate tile
   struct tile *tile = g_slice_new0(struct tile);
   tile->jpeg = jpeg;
-  tile->jpegno = jpeg_number;
   tile->src_x = src_x;
   tile->src_y = src_y;
   tile->w = tw;
@@ -779,6 +778,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
+	jpeg->jpegno = jpeg_number++;
 	jpeg->refcount = 1;
 
 	/*
@@ -826,7 +826,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
 	    insert_subtile(l, l->grid,
-			   jpeg, jpeg_number,
+			   jpeg,
 			   pos_x, pos_y,
 			   lp->subtile_w * xi, lp->subtile_h * yi,
 			   lp->subtile_w, lp->subtile_h,
@@ -838,8 +838,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// drop initial reference, possibly free
 	jpeg_unref(jpeg);
-
-	jpeg_number++;
       }
     } while (next_ptr != 0);
 
