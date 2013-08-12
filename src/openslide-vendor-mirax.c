@@ -188,8 +188,8 @@ struct level {
   int32_t tiles_across;
   int32_t tiles_down;
   // raw image size
-  int32_t tile_width;
-  int32_t tile_height;
+  int32_t image_width;
+  int32_t image_height;
 
   double tile_advance_x;
   double tile_advance_y;
@@ -243,10 +243,10 @@ static void read_tile(openslide_t *osr,
   struct level *l = (struct level *) level;
   struct tile *tile = data;
 
-  int tw = l->tile_width;
-  int th = l->tile_height;
+  int iw = l->image_width;
+  int ih = l->image_height;
 
-  //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", tile->src_x, tile->src_y, l->tile_width, l->tile_height, tile->w, tile->h, x, y, w, h);
+  //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", tile->src_x, tile->src_y, l->image_width, l->image_height, tile->w, tile->h, x, y, w, h);
 
   // get the image data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -257,28 +257,28 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, tile->image, tw, th);
+    tiledata = read_image(osr, tile->image, iw, ih);
 
     _openslide_cache_put(osr->cache,
                          tile->image->imageno, 0, grid,
                          tiledata,
-                         tw * th * 4,
+                         iw * ih * 4,
                          &cache_entry);
   }
 
   // draw it
   cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
                                                                  CAIRO_FORMAT_RGB24,
-                                                                 tw, th,
-                                                                 tw * 4);
+                                                                 iw, ih,
+                                                                 iw * 4);
 
   double src_x = tile->src_x;
   double src_y = tile->src_y;
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((l->tile_width > tile->w) ||
-      (l->tile_height > tile->h)) {
+  if ((l->image_width > tile->w) ||
+      (l->image_height > tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(tile->w),
                                                            ceil(tile->h));
@@ -564,19 +564,19 @@ static bool get_subtile_position(int32_t *slide_positions,
   const struct slide_zoom_level_params *lp = slide_zoom_level_params +
       zoom_level;
 
-  const int tile0_w = levels[0]->tile_width;
-  const int tile0_h = levels[0]->tile_height;
+  const int image0_w = levels[0]->image_width;
+  const int image0_h = levels[0]->image_height;
 
   // camera position coordinates
   int xp = xx / image_divisions;
   int yp = yy / image_divisions;
   int tp = yp * (tiles_across / image_divisions) + xp;
-  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_image, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
+  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, image0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_image, image0_w, image0_h, lp->subtile_w, lp->subtile_h);
 
   *pos0_x = slide_positions[tp * 2] +
-      tile0_w * (xx - xp * image_divisions);
+      image0_w * (xx - xp * image_divisions);
   *pos0_y = slide_positions[(tp * 2) + 1] +
-      tile0_h * (yy - yp * image_divisions);
+      image0_h * (yy - yp * image_divisions);
 
   // ensure only active positions (those present at zoom level 0) are
   // processed at higher zoom levels
@@ -1142,16 +1142,16 @@ static bool process_indexfile(const char *uuid,
   } else {
     // No position map available.  Fill in our own values based on the tile
     // size and nominal overlap.
-    const int tile0_w = levels[0]->tile_width;
-    const int tile0_h = levels[0]->tile_height;
+    const int image0_w = levels[0]->image_width;
+    const int image0_h = levels[0]->image_height;
     const int positions_x = tiles_x / image_divisions;
 
     slide_positions = g_new(int, ntiles * 2);
     for (int i = 0; i < ntiles; i++) {
       slide_positions[(i * 2)]     = (i % positions_x) *
-                                     (tile0_w * image_divisions - overlap_x);
+                                     (image0_w * image_divisions - overlap_x);
       slide_positions[(i * 2) + 1] = (i / positions_x) *
-                                     (tile0_h * image_divisions - overlap_y);
+                                     (image0_h * image_divisions - overlap_y);
     }
   }
 
@@ -1796,8 +1796,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->base.h = base_h / lp->tile_concat;
     l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
     l->tiles_down = (tiles_y + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
-    l->tile_width = hs->tile_w;  // raw image size
-    l->tile_height = hs->tile_h;
+    l->image_width = hs->tile_w;  // raw image size
+    l->image_height = hs->tile_h;
 
     // subtiles_per_position: for this zoom, how many subtiles (in one dimension)
     //                        come from a single photo?
@@ -1883,7 +1883,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_debug("level %d", i);
     g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
-    g_debug(" raw tile size %d %d", l->tile_width, l->tile_height);
+    g_debug(" image size %d %d", l->image_width, l->image_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
   }
   */
