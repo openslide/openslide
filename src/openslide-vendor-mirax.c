@@ -193,7 +193,7 @@ struct level {
 };
 
 struct mirax_ops_data {
-  gchar **datafile_names;
+  gchar **datafile_paths;
 };
 
 static void image_unref(struct image *image) {
@@ -216,7 +216,7 @@ static uint32_t *read_image(openslide_t *osr,
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
-  if (!_openslide_jpeg_read(data->datafile_names[image->fileno],
+  if (!_openslide_jpeg_read(data->datafile_paths[image->fileno],
                             image->start_in_file,
                             dest, w, h,
                             &tmp_err)) {
@@ -334,7 +334,7 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 
   // the ops data
-  g_strfreev(data->datafile_names);
+  g_strfreev(data->datafile_paths);
   g_slice_free(struct mirax_ops_data, data);
 }
 
@@ -380,7 +380,7 @@ static int32_t read_le_int32_from_file(FILE *f) {
 static bool read_nonhier_record(FILE *f,
 				int64_t nonhier_root_position,
 				int datafile_count,
-				char **datafile_names,
+				char **datafile_paths,
 				int recordno,
 				char **path,
 				int64_t *size, int64_t *position,
@@ -489,7 +489,7 @@ static bool read_nonhier_record(FILE *f,
                 "Invalid fileno %d", fileno);
     return false;
   }
-  *path = datafile_names[fileno];
+  *path = datafile_paths[fileno];
 
   return true;
 }
@@ -617,7 +617,7 @@ static bool get_tile_position(int32_t *slide_positions,
 static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int64_t seek_location,
 						   int datafile_count,
-						   char **datafile_names,
+						   char **datafile_paths,
 						   int zoom_levels,
 						   struct level **levels,
 						   int images_across,
@@ -766,7 +766,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// hash in the lowest-res images
 	if (zoom_level == zoom_levels - 1) {
-	  if (!_openslide_hash_file_part(quickhash1, datafile_names[fileno],
+	  if (!_openslide_hash_file_part(quickhash1, datafile_paths[fileno],
 	                                 offset, length, err)) {
             g_prefix_error(err, "Can't hash images: ");
             goto DONE;
@@ -979,7 +979,7 @@ static bool add_associated_image(GHashTable *ht,
                                  FILE *indexfile,
                                  int64_t nonhier_root,
                                  int datafile_count,
-                                 char **datafile_names,
+                                 char **datafile_paths,
                                  const char *name,
                                  int recordno,
                                  GError **err) {
@@ -994,7 +994,7 @@ static bool add_associated_image(GHashTable *ht,
   }
 
   if (read_nonhier_record(indexfile, nonhier_root,
-                          datafile_count, datafile_names, recordno,
+                          datafile_count, datafile_paths, recordno,
                           &path, &size, &offset, err)) {
     result = _openslide_add_jpeg_associated_image(ht, name, path, offset, err);
   }
@@ -1008,7 +1008,7 @@ static bool add_associated_image(GHashTable *ht,
 
 static bool process_indexfile(const char *uuid,
 			      int datafile_count,
-			      char **datafile_names,
+			      char **datafile_paths,
 			      int vimslide_position_record,
 			      int stitching_position_record,
 			      int macro_record,
@@ -1082,7 +1082,7 @@ static bool process_indexfile(const char *uuid,
     if (!read_nonhier_record(indexfile,
 			     nonhier_root,
 			     datafile_count,
-			     datafile_names,
+			     datafile_paths,
 			     slide_position_record,
 			     &slide_position_path,
 			     &slide_position_size,
@@ -1156,7 +1156,7 @@ static bool process_indexfile(const char *uuid,
                             indexfile,
                             nonhier_root,
                             datafile_count,
-                            datafile_names,
+                            datafile_paths,
                             "macro",
                             macro_record,
                             err)) {
@@ -1166,7 +1166,7 @@ static bool process_indexfile(const char *uuid,
                             indexfile,
                             nonhier_root,
                             datafile_count,
-                            datafile_names,
+                            datafile_paths,
                             "label",
                             label_record,
                             err)) {
@@ -1176,7 +1176,7 @@ static bool process_indexfile(const char *uuid,
                             indexfile,
                             nonhier_root,
                             datafile_count,
-                            datafile_names,
+                            datafile_paths,
                             "thumbnail",
                             thumbnail_record,
                             err)) {
@@ -1201,7 +1201,7 @@ static bool process_indexfile(const char *uuid,
   if (!process_hier_data_pages_from_indexfile(indexfile,
 					      ptr,
 					      datafile_count,
-					      datafile_names,
+					      datafile_paths,
 					      zoom_levels,
 					      levels,
 					      images_x,
@@ -1401,7 +1401,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   struct slide_zoom_level_params *slide_zoom_level_params = NULL;
 
   int datafile_count = 0;
-  char **datafile_names = NULL;
+  char **datafile_paths = NULL;
 
   FILE *indexfile = NULL;
 
@@ -1545,14 +1545,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		   KEY_FILE_COUNT, integer, "Can't read datafile count");
   POSITIVE_OR_FAIL(datafile_count);
 
-  datafile_names = g_new0(char *, datafile_count + 1);
+  datafile_paths = g_new0(char *, datafile_count + 1);
   for (int i = 0; i < datafile_count; i++) {
     tmp = g_strdup_printf(KEY_d_FILE, i);
 
     gchar *name;
     READ_KEY_OR_FAIL(name, slidedat, GROUP_DATAFILE,
 		     tmp, value, "Can't read datafile name");
-    datafile_names[i] = g_build_filename(dirname, name, NULL);
+    datafile_paths[i] = g_build_filename(dirname, name, NULL);
     g_free(name);
 
     g_free(tmp);
@@ -1674,7 +1674,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
   g_debug("datafile_count: %d", datafile_count);
   for (int i = 0; i < datafile_count; i++) {
-    g_debug(" datafile name %d: %s", i, datafile_names[i]);
+    g_debug(" datafile path %d: %s", i, datafile_paths[i]);
   }
   g_debug("position_nonhier_vimslide_offset: %d", position_nonhier_vimslide_offset);
   g_debug("position_nonhier_stitching_offset: %d", position_nonhier_stitching_offset);
@@ -1836,7 +1836,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // load the position map and build up the tiles
   if (!process_indexfile(slide_id,
-			 datafile_count, datafile_names,
+			 datafile_count, datafile_paths,
 			 position_nonhier_vimslide_offset,
 			 position_nonhier_stitching_offset,
 			 macro_nonhier_offset,
@@ -1919,8 +1919,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // set private data
   struct mirax_ops_data *data = g_slice_new0(struct mirax_ops_data);
-  data->datafile_names = datafile_names;
-  datafile_names = NULL;
+  data->datafile_paths = datafile_paths;
+  datafile_paths = NULL;
   osr->data = data;
 
   // set ops
@@ -1947,7 +1947,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   g_free(slide_version);
   g_free(slide_id);
   g_free(index_filename);
-  g_strfreev(datafile_names);
+  g_strfreev(datafile_paths);
   g_strfreev(slide_zoom_level_section_names);
   g_free(slide_zoom_level_sections);
   g_free(slide_zoom_level_params);
