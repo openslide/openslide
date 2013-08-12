@@ -552,7 +552,7 @@ static void insert_subtile(struct level *l,
 // given the coordinates of a subtile, compute its level 0 pixel coordinates.
 // return false if none of the camera positions within the subtile are
 // active.
-static bool get_subtile_position(int32_t *tile_positions,
+static bool get_subtile_position(int32_t *slide_positions,
                                  GHashTable *active_positions,
                                  const struct slide_zoom_level_params *slide_zoom_level_params,
                                  struct level **levels,
@@ -573,9 +573,9 @@ static bool get_subtile_position(int32_t *tile_positions,
   int tp = yp * (tiles_across / image_divisions) + xp;
   //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_image, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
 
-  *pos0_x = tile_positions[tp * 2] +
+  *pos0_x = slide_positions[tp * 2] +
       tile0_w * (xx - xp * image_divisions);
-  *pos0_y = tile_positions[(tp * 2) + 1] +
+  *pos0_y = slide_positions[(tp * 2) + 1] +
       tile0_h * (yy - yp * image_divisions);
 
   // ensure only active positions (those present at zoom level 0) are
@@ -587,11 +587,11 @@ static bool get_subtile_position(int32_t *tile_positions,
     // If the concat factor is larger, then active and inactive positions
     // can be merged into the same tile, and we can no longer tell which
     // subtiles can be skipped at higher zoom levels.  Sometimes such
-    // positions have coordinates (0, 0) in the tile_positions map; we can
+    // positions have coordinates (0, 0) in the slide_positions map; we can
     // at least filter out these, and we must because such positions break
     // the tilemap grid's range search.  Assume that only position (0, 0)
     // can be at pixel (0, 0).
-    if (tile_positions[tp * 2] == 0 && tile_positions[tp * 2 + 1] == 0 &&
+    if (slide_positions[tp * 2] == 0 && slide_positions[tp * 2 + 1] == 0 &&
         (xp != 0 || yp != 0)) {
       return false;
     }
@@ -628,7 +628,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int tiles_down,
 						   int image_divisions,
 						   const struct slide_zoom_level_params *slide_zoom_level_params,
-						   int32_t *tile_positions,
+						   int32_t *slide_positions,
 						   struct _openslide_hash *quickhash1,
 						   GError **err) {
   int32_t image_number = 0;
@@ -809,7 +809,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    // position in level 0
             int pos0_x;
             int pos0_y;
-            if (!get_subtile_position(tile_positions,
+            if (!get_subtile_position(slide_positions,
                                       active_positions,
                                       slide_zoom_level_params,
                                       levels,
@@ -949,7 +949,7 @@ static int32_t *read_slide_position_buffer(const void *buffer,
   int32_t y;
   char zz;
 
-  //  g_debug("tile positions count: %d", count);
+  //  g_debug("slide positions count: %d", count);
 
   for (int64_t i = 0; i < count; i++) {
     zz = *p;  // flag byte
@@ -1013,8 +1013,8 @@ static bool add_associated_image(GHashTable *ht,
 static bool process_indexfile(const char *uuid,
 			      int datafile_count,
 			      char **datafile_names,
-			      int slide_position_record,
-			      int stitching_intensity_record,
+			      int vimslide_position_record,
+			      int stitching_position_record,
 			      int macro_record,
 			      int label_record,
 			      int thumbnail_record,
@@ -1033,14 +1033,14 @@ static bool process_indexfile(const char *uuid,
   char *teststr = NULL;
   bool match;
 
-  void *tile_position_buffer = NULL;
-  int tile_position_record = -1;
+  void *slide_position_buffer = NULL;
+  int slide_position_record = -1;
 
   // init tmp parameters
   int32_t ptr = -1;
 
   const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
-  const int tile_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
+  const int slide_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
 
   bool success = false;
 
@@ -1071,15 +1071,15 @@ static bool process_indexfile(const char *uuid,
     goto DONE;
   }
 
-  // If we have individual tile positioning information as part of the
+  // If we have individual slide positioning information as part of the
   // non-hier data, read the position information.
-  if (slide_position_record != -1) {
-    tile_position_record = slide_position_record;
+  if (vimslide_position_record != -1) {
+    slide_position_record = vimslide_position_record;
   } else {
-    tile_position_record = stitching_intensity_record;
+    slide_position_record = stitching_position_record;
   }
 
-  if (tile_position_record != -1) {
+  if (slide_position_record != -1) {
     char *slide_position_path;
     int64_t slide_position_size;
     int64_t slide_position_offset;
@@ -1087,7 +1087,7 @@ static bool process_indexfile(const char *uuid,
 			     nonhier_root,
 			     datafile_count,
 			     datafile_names,
-			     tile_position_record,
+			     slide_position_record,
 			     &slide_position_path,
 			     &slide_position_size,
 			     &slide_position_offset,
@@ -1096,45 +1096,45 @@ static bool process_indexfile(const char *uuid,
       goto DONE;
     }
 
-    tile_position_buffer = read_record_data(slide_position_path,
-                                            slide_position_size,
-                                            slide_position_offset,
-                                            err);
-    if (!tile_position_buffer) {
+    slide_position_buffer = read_record_data(slide_position_path,
+                                             slide_position_size,
+                                             slide_position_offset,
+                                             err);
+    if (!slide_position_buffer) {
       g_prefix_error(err, "Cannot read slide position record: ");
       goto DONE;
     }
 
-    if (tile_position_record == stitching_intensity_record) {
-      // MRXS 2.2: we need to decompress the buffer
+    if (slide_position_record == stitching_position_record) {
+      // We need to decompress the buffer.
       // Length check happens in inflate_buffer
-      void *decompressed = inflate_buffer(tile_position_buffer,
+      void *decompressed = inflate_buffer(slide_position_buffer,
                                           slide_position_size,
-                                          tile_position_buffer_size,
+                                          slide_position_buffer_size,
                                           err);
 
-      g_free(tile_position_buffer); // free the compressed buffer
+      g_free(slide_position_buffer); // free the compressed buffer
 
       if (decompressed) {
-        tile_position_buffer = decompressed;
+        slide_position_buffer = decompressed;
       } else {
         g_prefix_error(err, "Error decompressing position buffer: ");
         goto DONE;
       }
-    } else if (tile_position_buffer_size != slide_position_size) {
+    } else if (slide_position_buffer_size != slide_position_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Slide position file not of the expected size");
-      g_free(tile_position_buffer);
+      g_free(slide_position_buffer);
       goto DONE;
     }
 
     // read in the slide positions
-    slide_positions = read_slide_position_buffer(tile_position_buffer,
-					         tile_position_buffer_size,
+    slide_positions = read_slide_position_buffer(slide_position_buffer,
+					         slide_position_buffer_size,
 					         slide_zoom_level_params[0].tile_concat,
 					         err);
 
-    g_free(tile_position_buffer);
+    g_free(slide_position_buffer);
 
     if (!slide_positions) {
       goto DONE;
@@ -1391,8 +1391,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   int zoom_levels = 0;
   int hier_count = 0;
   int nonhier_count = 0;
-  int position_nonhier_offset = -1;
-  int position_nonhier_stitching_offset = -1; // used for MRXS 2.2
+  int position_nonhier_vimslide_offset = -1;  // VIMSLIDE_POSITION_BUFFER
+  int position_nonhier_stitching_offset = -1; // StitchingIntensityLayer
   int macro_nonhier_offset = -1;
   int label_nonhier_offset = -1;
   int thumbnail_nonhier_offset = -1;
@@ -1619,14 +1619,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   // load position stuff
   // find key for position, if present
-  position_nonhier_offset = get_nonhier_name_offset(slidedat,
-						    nonhier_count,
-						    GROUP_HIERARCHICAL,
-						    VALUE_VIMSLIDE_POSITION_BUFFER,
-						    &tmp_err);
+  position_nonhier_vimslide_offset = get_nonhier_name_offset(slidedat,
+                                                             nonhier_count,
+                                                             GROUP_HIERARCHICAL,
+                                                             VALUE_VIMSLIDE_POSITION_BUFFER,
+                                                             &tmp_err);
   SUCCESSFUL_OR_FAIL(tmp_err);
 
-  if (position_nonhier_offset == -1) {
+  if (position_nonhier_vimslide_offset == -1) {
     position_nonhier_stitching_offset = get_nonhier_name_offset(slidedat,
 							        nonhier_count,
 							        GROUP_HIERARCHICAL,
@@ -1680,7 +1680,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   for (int i = 0; i < datafile_count; i++) {
     g_debug(" datafile name %d: %s", i, datafile_names[i]);
   }
-  g_debug("position_nonhier_offset: %d", position_nonhier_offset);
+  g_debug("position_nonhier_vimslide_offset: %d", position_nonhier_vimslide_offset);
+  g_debug("position_nonhier_stitching_offset: %d", position_nonhier_stitching_offset);
   */
 
   // read indexfile
@@ -1758,7 +1759,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     //                      depending on image_divisions
     const int positions_per_image = MAX(1, lp->tile_concat / image_divisions);
 
-    if (position_nonhier_offset != -1
+    if (position_nonhier_vimslide_offset != -1
         || position_nonhier_stitching_offset != -1
         || slide_zoom_level_sections[0].overlap_x != 0
         || slide_zoom_level_sections[0].overlap_y != 0) {
@@ -1840,7 +1841,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   if (!process_indexfile(slide_id,
 			 datafile_count, datafile_names,
-			 position_nonhier_offset,
+			 position_nonhier_vimslide_offset,
 			 position_nonhier_stitching_offset,
 			 macro_nonhier_offset,
 			 label_nonhier_offset,
