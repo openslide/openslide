@@ -150,8 +150,8 @@ struct slide_zoom_level_section {
 
   uint32_t fill_rgb;
 
-  int tile_w;
-  int tile_h;
+  int image_w;
+  int image_h;
 };
 
 // see comments in _openslide_try_mirax()
@@ -1586,18 +1586,18 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 		     double, "Can't read micrometers/pixel Y");
     READ_KEY_OR_FAIL(bgr, slidedat, group, KEY_IMAGE_FILL_COLOR_BGR,
 		     integer, "Can't read image fill color");
-    READ_KEY_OR_FAIL(hs->tile_w, slidedat, group, KEY_DIGITIZER_WIDTH,
-		     integer, "Can't read tile width");
-    READ_KEY_OR_FAIL(hs->tile_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
-		     integer, "Can't read tile height");
+    READ_KEY_OR_FAIL(hs->image_w, slidedat, group, KEY_DIGITIZER_WIDTH,
+		     integer, "Can't read image width");
+    READ_KEY_OR_FAIL(hs->image_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
+		     integer, "Can't read image height");
 
     if (i == 0) {
       NON_NEGATIVE_OR_FAIL(hs->concat_exponent);
     } else {
       POSITIVE_OR_FAIL(hs->concat_exponent);
     }
-    POSITIVE_OR_FAIL(hs->tile_w);
-    POSITIVE_OR_FAIL(hs->tile_h);
+    POSITIVE_OR_FAIL(hs->image_w);
+    POSITIVE_OR_FAIL(hs->image_h);
 
     // convert fill color bgr into rgb
     hs->fill_rgb =
@@ -1673,8 +1673,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_debug("  mpp_x: %g", hs->mpp_x);
     g_debug("  mpp_y: %g", hs->mpp_y);
     g_debug("  fill_rgb: %" G_GUINT32_FORMAT, hs->fill_rgb);
-    g_debug("  tile_w: %d", hs->tile_w);
-    g_debug("  tile_h: %d", hs->tile_h);
+    g_debug("  image_w: %d", hs->image_w);
+    g_debug("  image_h: %d", hs->image_h);
   }
   g_debug("datafile_count: %d", datafile_count);
   for (int i = 0; i < datafile_count; i++) {
@@ -1721,20 +1721,20 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     if (((i % image_divisions) != (image_divisions - 1))
 	|| (i == tiles_x - 1)) {
       // full size
-      base_w += slide_zoom_level_sections[0].tile_w;
+      base_w += slide_zoom_level_sections[0].image_w;
     } else {
       // size minus overlap
-      base_w += slide_zoom_level_sections[0].tile_w - slide_zoom_level_sections[0].overlap_x;
+      base_w += slide_zoom_level_sections[0].image_w - slide_zoom_level_sections[0].overlap_x;
     }
   }
   for (int i = 0; i < tiles_y; i++) {
     if (((i % image_divisions) != (image_divisions - 1))
 	|| (i == tiles_y - 1)) {
       // full size
-      base_h += slide_zoom_level_sections[0].tile_h;
+      base_h += slide_zoom_level_sections[0].image_h;
     } else {
       // size minus overlap
-      base_h += slide_zoom_level_sections[0].tile_h - slide_zoom_level_sections[0].overlap_y;
+      base_h += slide_zoom_level_sections[0].image_h - slide_zoom_level_sections[0].overlap_y;
     }
   }
 
@@ -1789,15 +1789,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       lp->positions_per_subtile = positions_per_image;
     }
 
-    lp->subtile_w = (double) hs->tile_w / lp->subtiles_per_image;
-    lp->subtile_h = (double) hs->tile_h / lp->subtiles_per_image;
+    lp->subtile_w = (double) hs->image_w / lp->subtiles_per_image;
+    lp->subtile_h = (double) hs->image_h / lp->subtiles_per_image;
 
     l->base.w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->base.h = base_h / lp->tile_concat;
     l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
     l->tiles_down = (tiles_y + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
-    l->image_width = hs->tile_w;  // raw image size
-    l->image_height = hs->tile_h;
+    l->image_width = hs->image_w;  // raw image size
+    l->image_height = hs->image_h;
 
     // subtiles_per_position: for this zoom, how many subtiles (in one dimension)
     //                        come from a single photo?
