@@ -241,26 +241,26 @@ static void read_tile(openslide_t *osr,
                       double w, double h,
                       void *arg G_GNUC_UNUSED) {
   struct level *l = (struct level *) level;
-  struct tile *requested_tile = data;
+  struct tile *tile = data;
 
   int tw = l->tile_width;
   int th = l->tile_height;
 
-  //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, l->tile_width, l->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
+  //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", tile->src_x, tile->src_y, l->tile_width, l->tile_height, tile->w, tile->h, x, y, w, h);
 
   // get the image data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            requested_tile->image->imageno,
+                                            tile->image->imageno,
                                             0,
                                             grid,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, requested_tile->image, tw, th);
+    tiledata = read_image(osr, tile->image, tw, th);
 
     _openslide_cache_put(osr->cache,
-                         requested_tile->image->imageno, 0, grid,
+                         tile->image->imageno, 0, grid,
                          tiledata,
                          tw * th * 4,
                          &cache_entry);
@@ -272,16 +272,16 @@ static void read_tile(openslide_t *osr,
                                                                  tw, th,
                                                                  tw * 4);
 
-  double src_x = requested_tile->src_x;
-  double src_y = requested_tile->src_y;
+  double src_x = tile->src_x;
+  double src_y = tile->src_y;
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
-  if ((l->tile_width > requested_tile->w) ||
-      (l->tile_height > requested_tile->h)) {
+  if ((l->tile_width > tile->w) ||
+      (l->tile_height > tile->h)) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-                                                           ceil(requested_tile->w),
-                                                           ceil(requested_tile->h));
+                                                           ceil(tile->w),
+                                                           ceil(tile->h));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -src_x, -src_y);
 
@@ -292,8 +292,8 @@ static void read_tile(openslide_t *osr,
     src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
-                    ceil(requested_tile->w),
-                    ceil(requested_tile->h));
+                    ceil(tile->w),
+                    ceil(tile->h));
     cairo_fill(cr2);
     _openslide_check_cairo_status_possibly_set_error(osr, cr2);
     cairo_destroy(cr2);
