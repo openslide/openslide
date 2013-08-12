@@ -744,13 +744,13 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
           goto DONE;
 	}
 
-	if (x % (1 << zoom_level)) {
+	if (x % lp->image_concat) {
           g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                       "x (%d) not correct multiple for zoom level (%d)",
                       x, zoom_level);
           goto DONE;
 	}
-	if (y % (1 << zoom_level)) {
+	if (y % lp->image_concat) {
           g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                       "y (%d) not correct multiple for zoom level (%d)",
                       y, zoom_level);
