@@ -158,10 +158,10 @@ struct slide_zoom_level_section {
 struct slide_zoom_level_params {
   int tile_concat;
   int tile_count_divisor;
-  int subtiles_per_image;
-  int positions_per_subtile;
-  double subtile_w;
-  double subtile_h;
+  int tiles_per_image;
+  int positions_per_tile;
+  double tile_w;
+  double tile_h;
 };
 
 struct image {
@@ -498,13 +498,13 @@ static bool read_nonhier_record(FILE *f,
 }
 
 
-static void insert_subtile(struct level *l,
-			   struct image *image,
-			   double pos_x, double pos_y,
-			   double src_x, double src_y,
-			   double tw, double th,
-			   int tile_x, int tile_y,
-			   int zoom_level) {
+static void insert_tile(struct level *l,
+                        struct image *image,
+                        double pos_x, double pos_y,
+                        double src_x, double src_y,
+                        double tw, double th,
+                        int tile_x, int tile_y,
+                        int zoom_level) {
   // increment image refcount
   image->refcount++;
 
@@ -549,17 +549,16 @@ static void insert_subtile(struct level *l,
   }
 }
 
-// given the coordinates of a subtile, compute its level 0 pixel coordinates.
-// return false if none of the camera positions within the subtile are
-// active.
-static bool get_subtile_position(int32_t *slide_positions,
-                                 GHashTable *active_positions,
-                                 const struct slide_zoom_level_params *slide_zoom_level_params,
-                                 struct level **levels,
-                                 int tiles_across,
-                                 int image_divisions,
-                                 int zoom_level, int xx, int yy,
-                                 int *pos0_x, int *pos0_y)
+// given the coordinates of a tile, compute its level 0 pixel coordinates.
+// return false if none of the camera positions within the tile are active.
+static bool get_tile_position(int32_t *slide_positions,
+                              GHashTable *active_positions,
+                              const struct slide_zoom_level_params *slide_zoom_level_params,
+                              struct level **levels,
+                              int tiles_across,
+                              int image_divisions,
+                              int zoom_level, int xx, int yy,
+                              int *pos0_x, int *pos0_y)
 {
   const struct slide_zoom_level_params *lp = slide_zoom_level_params +
       zoom_level;
@@ -571,7 +570,7 @@ static bool get_subtile_position(int32_t *slide_positions,
   int xp = xx / image_divisions;
   int yp = yy / image_divisions;
   int tp = yp * (tiles_across / image_divisions) + xp;
-  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, image0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_image, image0_w, image0_h, lp->subtile_w, lp->subtile_h);
+  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, image0: %d %d tile: %g %g", xx, yy, xp, yp, tp, tiles_per_position, lp->tiles_per_image, image0_w, image0_h, lp->tile_w, lp->tile_h);
 
   *pos0_x = slide_positions[tp * 2] +
       image0_w * (xx - xp * image_divisions);
@@ -586,7 +585,7 @@ static bool get_subtile_position(int32_t *slide_positions,
     //
     // If the concat factor is larger, then active and inactive positions
     // can be merged into the same tile, and we can no longer tell which
-    // subtiles can be skipped at higher zoom levels.  Sometimes such
+    // tiles can be skipped at higher zoom levels.  Sometimes such
     // positions have coordinates (0, 0) in the slide_positions map; we can
     // at least filter out these, and we must because such positions break
     // the tilemap grid's range search.  Assume that only position (0, 0)
@@ -602,9 +601,9 @@ static bool get_subtile_position(int32_t *slide_positions,
     return true;
 
   } else {
-    // make sure at least one of the positions within this subtile is active
-    for (int ypp = yp; ypp < yp + lp->positions_per_subtile; ypp++) {
-      for (int xpp = xp; xpp < xp + lp->positions_per_subtile; xpp++) {
+    // make sure at least one of the positions within this tile is active
+    for (int ypp = yp; ypp < yp + lp->positions_per_tile; ypp++) {
+      for (int xpp = xp; xpp < xp + lp->positions_per_tile; xpp++) {
         int tpp = ypp * (tiles_across / image_divisions) + xpp;
         if (g_hash_table_lookup_extended(active_positions, &tpp, NULL, NULL)) {
           //g_debug("accept tile: level %d xp %d yp %d xpp %d ypp %d", zoom_level, xp, yp, xpp, ypp);
@@ -613,7 +612,7 @@ static bool get_subtile_position(int32_t *slide_positions,
       }
     }
 
-    //g_debug("skip tile: level %d positions %d xp %d yp %d", zoom_level, lp->positions_per_subtile, xp, yp);
+    //g_debug("skip tile: level %d positions %d xp %d yp %d", zoom_level, lp->positions_per_tile, xp, yp);
     return false;
   }
 }
@@ -785,20 +784,20 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	image->refcount = 1;
 
 	/*
-	g_debug("tile_concat: %d, subtiles_per_image: %d",
-		lp->tile_concat, lp->subtiles_per_image);
+	g_debug("tile_concat: %d, tiles_per_image: %d",
+		lp->tile_concat, lp->tiles_per_image);
 	g_debug("found %d %d from file", x, y);
 	*/
 
 
-	// start processing 1 image into subtiles_per_image^2 subtiles
-	for (int yi = 0; yi < lp->subtiles_per_image; yi++) {
+	// start processing 1 image into tiles_per_image^2 tiles
+	for (int yi = 0; yi < lp->tiles_per_image; yi++) {
 	  int yy = y + (yi * image_divisions);
 	  if (yy >= tiles_down) {
 	    break;
 	  }
 
-	  for (int xi = 0; xi < lp->subtiles_per_image; xi++) {
+	  for (int xi = 0; xi < lp->tiles_per_image; xi++) {
 	    int xx = x + (xi * image_divisions);
 	    if (xx >= tiles_across) {
 	      break;
@@ -809,15 +808,15 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    // position in level 0
             int pos0_x;
             int pos0_y;
-            if (!get_subtile_position(slide_positions,
-                                      active_positions,
-                                      slide_zoom_level_params,
-                                      levels,
-                                      tiles_across,
-                                      image_divisions,
-                                      zoom_level,
-                                      xx, yy,
-                                      &pos0_x, &pos0_y)) {
+            if (!get_tile_position(slide_positions,
+                                   active_positions,
+                                   slide_zoom_level_params,
+                                   levels,
+                                   tiles_across,
+                                   image_divisions,
+                                   zoom_level,
+                                   xx, yy,
+                                   &pos0_x, &pos0_y)) {
               // no such position
               continue;
             }
@@ -828,14 +827,14 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
-	    insert_subtile(l,
-			   image,
-			   pos_x, pos_y,
-			   lp->subtile_w * xi, lp->subtile_h * yi,
-			   lp->subtile_w, lp->subtile_h,
-			   x / lp->tile_count_divisor + xi,
-			   y / lp->tile_count_divisor + yi,
-			   zoom_level);
+	    insert_tile(l,
+                        image,
+                        pos_x, pos_y,
+                        lp->tile_w * xi, lp->tile_h * yi,
+                        lp->tile_w, lp->tile_h,
+                        x / lp->tile_count_divisor + xi,
+                        y / lp->tile_count_divisor + yi,
+                        zoom_level);
 	  }
 	}
 
@@ -1771,26 +1770,26 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       //                     the advances
       lp->tile_count_divisor = MIN(lp->tile_concat, image_divisions);
 
-      // subtiles_per_image: for this zoom, how many subtiles in an image?
-      //                     this is constant for the first few levels,
-      //                     depending on image_divisions
-      lp->subtiles_per_image = positions_per_image;
+      // tiles_per_image: for this zoom, how many tiles in an image?
+      //                  this is constant for the first few levels,
+      //                  depending on image_divisions
+      lp->tiles_per_image = positions_per_image;
 
-      // positions_per_subtile: for this zoom, how many camera positions
-      //                        are represented in a subtile?
-      lp->positions_per_subtile = 1;
+      // positions_per_tile: for this zoom, how many camera positions
+      //                     are represented in a tile?
+      lp->positions_per_tile = 1;
 
     } else {
       // no position file and no overlaps, so we can skip subtile processing
       // for better performance
 
       lp->tile_count_divisor = lp->tile_concat;
-      lp->subtiles_per_image = 1;
-      lp->positions_per_subtile = positions_per_image;
+      lp->tiles_per_image = 1;
+      lp->positions_per_tile = positions_per_image;
     }
 
-    lp->subtile_w = (double) hs->image_w / lp->subtiles_per_image;
-    lp->subtile_h = (double) hs->image_h / lp->subtiles_per_image;
+    lp->tile_w = (double) hs->image_w / lp->tiles_per_image;
+    lp->tile_h = (double) hs->image_h / lp->tiles_per_image;
 
     l->base.w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->base.h = base_h / lp->tile_concat;
@@ -1799,9 +1798,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     l->image_width = hs->image_w;  // raw image size
     l->image_height = hs->image_h;
 
-    // subtiles_per_position: for this zoom, how many subtiles (in one dimension)
-    //                        come from a single photo?
-    const int subtiles_per_position = MAX(1, image_divisions / lp->tile_concat);
+    // tiles_per_position: for this zoom, how many tiles (in one dimension)
+    //                     come from a single photo?
+    const int tiles_per_position = MAX(1, image_divisions / lp->tile_concat);
 
     // use a fraction of the overlap, so that our tile correction will flip between
     // positive and negative values typically (in case image_divisions=2)
@@ -1809,10 +1808,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
     // overlaps are concatenated within physical tiles, so our virtual tile
     // size must shrink, once we hit image_divisions
-    l->tile_advance_x = lp->subtile_w - ((double) hs->overlap_x /
-        (double) subtiles_per_position);
-    l->tile_advance_y = lp->subtile_h - ((double) hs->overlap_y /
-        (double) subtiles_per_position);
+    l->tile_advance_x = lp->tile_w - ((double) hs->overlap_x /
+        (double) tiles_per_position);
+    l->tile_advance_y = lp->tile_h - ((double) hs->overlap_y /
+        (double) tiles_per_position);
 
     // initialize tile size hints if potentially valid (may be cleared later)
     if (((int64_t) l->tile_advance_x) == l->tile_advance_x &&
@@ -1831,14 +1830,14 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
                                              l->tile_advance_y,
                                              read_tile, tile_free);
 
-    //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, subtile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_subtile %d", i, l->tile_advance_x, l->tile_advance_y, l->level_w, l->level_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->subtile_w, lp->subtile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_subtile);
+    //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", tiles %d %d, rawtile %d %d, tile %g %g, tile_concat %d, tile_count_divisor %d, positions_per_tile %d", i, l->tile_advance_x, l->tile_advance_y, l->level_w, l->level_h, l->tiles_across, l->tiles_down, l->raw_tile_width, l->raw_tile_height, lp->tile_w, lp->tile_h, lp->tile_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }
 
-  // load the position map and build up the tiles, using subtiles
   if (osr) {
     associated_images = osr->associated_images;
   }
 
+  // load the position map and build up the tiles, using subtiles
   if (!process_indexfile(slide_id,
 			 datafile_count, datafile_names,
 			 position_nonhier_vimslide_offset,
