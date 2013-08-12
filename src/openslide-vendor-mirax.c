@@ -493,7 +493,6 @@ static bool read_nonhier_record(FILE *f,
 
 
 static void insert_subtile(struct level *l,
-			   struct _openslide_grid *grid,
 			   struct one_jpeg *jpeg,
 			   double pos_x, double pos_y,
 			   double src_x, double src_y,
@@ -529,7 +528,7 @@ static void insert_subtile(struct level *l,
   }
 
   // insert
-  _openslide_grid_tilemap_add_tile(grid,
+  _openslide_grid_tilemap_add_tile(l->grid,
                                    tile_x, tile_y,
                                    offset_x, offset_y,
                                    tw, th,
@@ -825,7 +824,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
-	    insert_subtile(l, l->grid,
+	    insert_subtile(l,
 			   jpeg,
 			   pos_x, pos_y,
 			   lp->subtile_w * xi, lp->subtile_h * yi,
