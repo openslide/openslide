@@ -168,6 +168,7 @@ struct slide_zoom_level_params {
 struct one_jpeg {
   char *filename;
   int64_t start_in_file;
+  int refcount;
 };
 
 struct tile {
@@ -195,14 +196,17 @@ struct level {
   double tile_advance_y;
 };
 
-struct jpegops_data {
-  int32_t jpeg_count;
-  struct one_jpeg **all_jpegs;
-};
-
+static void jpeg_unref(struct one_jpeg *jpeg) {
+  if (!--jpeg->refcount) {
+    g_free(jpeg->filename);
+    g_slice_free(struct one_jpeg, jpeg);
+  }
+}
 
 static void tile_free(gpointer data) {
-  g_slice_free(struct tile, data);
+  struct tile *tile = data;
+  jpeg_unref(tile->jpeg);
+  g_slice_free(struct tile, tile);
 }
 
 static uint32_t *read_from_one_jpeg(openslide_t *osr,
@@ -319,32 +323,15 @@ static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
-  struct jpegops_data *data = osr->data;
-
-  // each jpeg in turn
-  for (int32_t i = 0; i < data->jpeg_count; i++) {
-    struct one_jpeg *jpeg = data->all_jpegs[i];
-    g_free(jpeg->filename);
-    g_slice_free(struct one_jpeg, jpeg);
-  }
-
   // each level in turn
   for (int32_t i = 0; i < osr->level_count; i++) {
     struct level *l = (struct level *) osr->levels[i];
-
-    //    g_debug("g_free(%p)", l->level_jpegs);
     _openslide_grid_destroy(l->grid);
     g_slice_free(struct level, l);
   }
 
   // the level array
   g_free(osr->levels);
-
-  // the JPEG array
-  g_free(data->all_jpegs);
-
-  // the structure
-  g_slice_free(struct jpegops_data, data);
 }
 
 static const struct _openslide_ops mirax_ops = {
@@ -513,6 +500,9 @@ static void insert_subtile(struct level *l,
 			   double tw, double th,
 			   int tile_x, int tile_y,
 			   int zoom_level) {
+  // increment jpeg refcount
+  jpeg->refcount++;
+
   // generate tile
   struct tile *tile = g_slice_new0(struct tile);
   tile->jpeg = jpeg;
@@ -636,7 +626,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int image_divisions,
 						   const struct slide_zoom_level_params *slide_zoom_level_params,
 						   int32_t *tile_positions,
-						   GList **jpegs_list,
 						   struct _openslide_hash *quickhash1,
 						   GError **err) {
   int32_t jpeg_number = 0;
@@ -790,8 +779,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
 	jpeg->filename = filename;
 	jpeg->start_in_file = offset;
-
-	*jpegs_list = g_list_prepend(*jpegs_list, jpeg);
+	jpeg->refcount = 1;
 
 	/*
 	g_debug("tile_concat: %d, subtiles_per_jpeg_tile: %d",
@@ -847,6 +835,10 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 			   zoom_level);
 	  }
 	}
+
+	// drop initial reference, possibly free
+	jpeg_unref(jpeg);
+
 	jpeg_number++;
       }
     } while (next_ptr != 0);
@@ -1038,14 +1030,8 @@ static bool process_indexfile(const char *uuid,
 			      const struct slide_zoom_level_params *slide_zoom_level_params,
 			      FILE *indexfile,
 			      struct level **levels,
-			      int *jpeg_count_out,
-			      struct one_jpeg ***jpegs_out,
 			      struct _openslide_hash *quickhash1,
 			      GError **err) {
-  // init out parameters
-  *jpeg_count_out = 0;
-  *jpegs_out = NULL;
-
   char *teststr = NULL;
   bool match;
 
@@ -1058,11 +1044,9 @@ static bool process_indexfile(const char *uuid,
   const int ntiles = (tiles_x / image_divisions) * (tiles_y / image_divisions);
   const int tile_position_buffer_size = SLIDE_POSITION_RECORD_SIZE * ntiles;
 
-  struct one_jpeg **jpegs = NULL;
   bool success = false;
 
   int32_t *slide_positions = NULL;
-  GList *jpegs_list = NULL;
 
   rewind(indexfile);
 
@@ -1238,7 +1222,6 @@ static bool process_indexfile(const char *uuid,
 					      image_divisions,
 					      slide_zoom_level_params,
 					      slide_positions,
-					      &jpegs_list,
 					      quickhash1,
 					      err)) {
     goto DONE;
@@ -1247,34 +1230,8 @@ static bool process_indexfile(const char *uuid,
   success = true;
 
  DONE:
-  // reverse list
-  jpegs_list = g_list_reverse(jpegs_list);
-
-  // copy file structures
-  int jpeg_count = g_list_length(jpegs_list);
-  jpegs = g_new(struct one_jpeg *, jpeg_count);
-
-  int cur_jpeg = 0;
-  for (GList *iter = jpegs_list; iter != NULL; iter = iter->next) {
-    jpegs[cur_jpeg++] = iter->data;
-  }
-  g_assert(cur_jpeg == jpeg_count);
-
   // deallocate
   g_free(slide_positions);
-  g_list_free(jpegs_list);
-
-  if (success) {
-    *jpeg_count_out = jpeg_count;
-    *jpegs_out = jpegs;
-  } else {
-    for (int i = 0; i < jpeg_count; i++) {
-      struct one_jpeg *jpeg = jpegs[i];
-      g_free(jpeg->filename);
-      g_slice_free(struct one_jpeg, jpeg);
-    }
-    g_free(jpegs);
-  }
 
   return success;
 }
@@ -1421,8 +1378,6 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			  struct _openslide_hash *quickhash1,
 			  GError **err) {
-  struct one_jpeg **jpegs = NULL;
-  int num_jpegs = 0;
   struct level **levels = NULL;
 
   char *dirname = NULL;
@@ -1908,7 +1863,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 			 slide_zoom_level_params,
 			 indexfile,
 			 levels,
-			 &num_jpegs, &jpegs,
 			 quickhash1,
 			 err)) {
     goto FAIL;
@@ -1940,18 +1894,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     g_debug(" raw tile size %d %d", l->tile_width, l->tile_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
   }
-
-  g_debug("num_jpegs: %d", num_jpegs);
   */
 
   if (osr == NULL) {
     // free now and return
-    for (int i = 0; i < num_jpegs; i++) {
-      g_free(jpegs[i]->filename);
-      g_slice_free(struct one_jpeg, jpegs[i]);
-    }
-    g_free(jpegs);
-
     for (int i = 0; i < zoom_levels; i++) {
       _openslide_grid_destroy(levels[i]->grid);
       g_slice_free(struct level, levels[i]);
@@ -1963,14 +1909,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   g_assert(osr->data == NULL);
-
-
-  // allocate private data
-  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
-  osr->data = data;
-  data->jpeg_count = num_jpegs;
-  data->all_jpegs = jpegs;
-  jpegs = NULL;
 
   // if any level is missing tile size hints, we must invalidate all hints
   for (int i = 0; i < zoom_levels; i++) {
@@ -2007,7 +1945,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     }
     g_free(levels);
   }
-  g_free(jpegs);
 
   success = false;
 
