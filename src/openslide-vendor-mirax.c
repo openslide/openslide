@@ -185,8 +185,6 @@ struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
-  int32_t tiles_across;
-  int32_t tiles_down;
   // raw image size
   int32_t image_width;
   int32_t image_height;
@@ -1793,8 +1791,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
     l->base.w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->base.h = base_h / lp->tile_concat;
-    l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
-    l->tiles_down = (tiles_y + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
     l->image_width = hs->image_w;  // raw image size
     l->image_height = hs->image_h;
 
@@ -1881,7 +1877,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     struct level *l = levels[i];
     g_debug("level %d", i);
     g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
-    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
     g_debug(" image size %d %d", l->image_width, l->image_height);
     g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
   }
