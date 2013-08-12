@@ -39,7 +39,6 @@
 #include <string.h>
 #include <math.h>
 
-#include <jpeglib.h>
 #include <zlib.h>
 
 #include "openslide-hash.h"
@@ -159,23 +158,23 @@ struct slide_zoom_level_section {
 struct slide_zoom_level_params {
   int tile_concat;
   int tile_count_divisor;
-  int subtiles_per_jpeg_tile;
+  int subtiles_per_image;
   int positions_per_subtile;
   double subtile_w;
   double subtile_h;
 };
 
-struct one_jpeg {
+struct image {
   int32_t fileno;
   int64_t start_in_file;
-  int32_t jpegno;   // used only for cache lookup
+  int32_t imageno;   // used only for cache lookup
   int refcount;
 };
 
 struct tile {
-  struct one_jpeg *jpeg;
+  struct image *image;
 
-  // bounds in the physical tile?
+  // bounds in the image
   double src_x;
   double src_y;
   double w;
@@ -188,7 +187,7 @@ struct level {
 
   int32_t tiles_across;
   int32_t tiles_down;
-  // raw JPEG size
+  // raw image size
   int32_t tile_width;
   int32_t tile_height;
 
@@ -200,28 +199,28 @@ struct mirax_ops_data {
   gchar **datafile_names;
 };
 
-static void jpeg_unref(struct one_jpeg *jpeg) {
-  if (!--jpeg->refcount) {
-    g_slice_free(struct one_jpeg, jpeg);
+static void image_unref(struct image *image) {
+  if (!--image->refcount) {
+    g_slice_free(struct image, image);
   }
 }
 
 static void tile_free(gpointer data) {
   struct tile *tile = data;
-  jpeg_unref(tile->jpeg);
+  image_unref(tile->image);
   g_slice_free(struct tile, tile);
 }
 
-static uint32_t *read_from_one_jpeg(openslide_t *osr,
-                                    struct one_jpeg *jpeg,
-                                    int w, int h) {
+static uint32_t *read_image(openslide_t *osr,
+                            struct image *image,
+                            int w, int h) {
   struct mirax_ops_data *data = osr->data;
   GError *tmp_err = NULL;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
-  if (!_openslide_jpeg_read(data->datafile_names[jpeg->fileno],
-                            jpeg->start_in_file,
+  if (!_openslide_jpeg_read(data->datafile_names[image->fileno],
+                            image->start_in_file,
                             dest, w, h,
                             &tmp_err)) {
     _openslide_set_error_from_gerror(osr, tmp_err);
@@ -241,30 +240,27 @@ static void read_tile(openslide_t *osr,
                       double x, double y,
                       double w, double h,
                       void *arg G_GNUC_UNUSED) {
-  //g_debug("read_tile");
   struct level *l = (struct level *) level;
   struct tile *requested_tile = data;
 
   int tw = l->tile_width;
   int th = l->tile_height;
 
-  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, l->tile_width, l->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
+  //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, l->tile_width, l->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
 
-  // get the jpeg data, possibly from cache
+  // get the image data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            requested_tile->jpeg->jpegno,
+                                            requested_tile->image->imageno,
                                             0,
                                             grid,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_from_one_jpeg(osr,
-                                  requested_tile->jpeg,
-                                  tw, th);
+    tiledata = read_image(osr, requested_tile->image, tw, th);
 
     _openslide_cache_put(osr->cache,
-                         requested_tile->jpeg->jpegno, 0, grid,
+                         requested_tile->image->imageno, 0, grid,
                          tiledata,
                          tw * th * 4,
                          &cache_entry);
@@ -503,18 +499,18 @@ static bool read_nonhier_record(FILE *f,
 
 
 static void insert_subtile(struct level *l,
-			   struct one_jpeg *jpeg,
+			   struct image *image,
 			   double pos_x, double pos_y,
 			   double src_x, double src_y,
 			   double tw, double th,
 			   int tile_x, int tile_y,
 			   int zoom_level) {
-  // increment jpeg refcount
-  jpeg->refcount++;
+  // increment image refcount
+  image->refcount++;
 
   // generate tile
   struct tile *tile = g_slice_new0(struct tile);
-  tile->jpeg = jpeg;
+  tile->image = image;
   tile->src_x = src_x;
   tile->src_y = src_y;
   tile->w = tw;
@@ -575,7 +571,7 @@ static bool get_subtile_position(int32_t *tile_positions,
   int xp = xx / image_divisions;
   int yp = yy / image_divisions;
   int tp = yp * (tiles_across / image_divisions) + xp;
-  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_jpeg_tile, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
+  //g_debug("xx %d, yy %d, xp %d, yp %d, tp %d, spp %d, sc %d, tile0: %d %d subtile: %g %g", xx, yy, xp, yp, tp, subtiles_per_position, lp->subtiles_per_image, tile0_w, tile0_h, lp->subtile_w, lp->subtile_h);
 
   *pos0_x = tile_positions[tp * 2] +
       tile0_w * (xx - xp * image_divisions);
@@ -593,7 +589,7 @@ static bool get_subtile_position(int32_t *tile_positions,
     // subtiles can be skipped at higher zoom levels.  Sometimes such
     // positions have coordinates (0, 0) in the tile_positions map; we can
     // at least filter out these, and we must because such positions break
-    // the JPEG backend's range search.  Assume that only position (0, 0)
+    // the tilemap grid's range search.  Assume that only position (0, 0)
     // can be at pixel (0, 0).
     if (tile_positions[tp * 2] == 0 && tile_positions[tp * 2 + 1] == 0 &&
         (xp != 0 || yp != 0)) {
@@ -635,7 +631,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 						   int32_t *tile_positions,
 						   struct _openslide_hash *quickhash1,
 						   GError **err) {
-  int32_t jpeg_number = 0;
+  int32_t image_number = 0;
 
   bool success = false;
 
@@ -781,28 +777,28 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	  }
 	}
 
-	// populate the jpeg structure
-	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
-	jpeg->fileno = fileno;
-	jpeg->start_in_file = offset;
-	jpeg->jpegno = jpeg_number++;
-	jpeg->refcount = 1;
+	// populate the image structure
+	struct image *image = g_slice_new0(struct image);
+	image->fileno = fileno;
+	image->start_in_file = offset;
+	image->imageno = image_number++;
+	image->refcount = 1;
 
 	/*
-	g_debug("tile_concat: %d, subtiles_per_jpeg_tile: %d",
-		lp->tile_concat, lp->subtiles_per_jpeg_tile);
+	g_debug("tile_concat: %d, subtiles_per_image: %d",
+		lp->tile_concat, lp->subtiles_per_image);
 	g_debug("found %d %d from file", x, y);
 	*/
 
 
-	// start processing 1 JPEG tile into subtiles_per_jpeg_tile^2 subtiles
-	for (int yi = 0; yi < lp->subtiles_per_jpeg_tile; yi++) {
+	// start processing 1 image into subtiles_per_image^2 subtiles
+	for (int yi = 0; yi < lp->subtiles_per_image; yi++) {
 	  int yy = y + (yi * image_divisions);
 	  if (yy >= tiles_down) {
 	    break;
 	  }
 
-	  for (int xi = 0; xi < lp->subtiles_per_jpeg_tile; xi++) {
+	  for (int xi = 0; xi < lp->subtiles_per_image; xi++) {
 	    int xx = x + (xi * image_divisions);
 	    if (xx >= tiles_across) {
 	      break;
@@ -833,7 +829,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	    //g_debug("pos0: %d %d, pos: %g %g", pos0_x, pos0_y, pos_x, pos_y);
 
 	    insert_subtile(l,
-			   jpeg,
+			   image,
 			   pos_x, pos_y,
 			   lp->subtile_w * xi, lp->subtile_h * yi,
 			   lp->subtile_w, lp->subtile_h,
@@ -844,7 +840,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	}
 
 	// drop initial reference, possibly free
-	jpeg_unref(jpeg);
+	image_unref(image);
       }
     } while (next_ptr != 0);
 
@@ -1698,23 +1694,22 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // The camera on MIRAX takes a photo and records a position.
-  // Then, the photo is split into image_divisions^2 JPEG tiles.
-  // So, if image_division=2, you'll get 4 JPEG tiles per photo.
-  // If image_division=4, then 16 JPEG tiles per photo.
+  // Then, the photo is split into image_divisions^2 image tiles.
+  // So, if image_divisions=2, you'll get 4 images per photo.
+  // If image_divisions=4, then 16 images per photo.
   //
-  // The overlap is on the original photo, not the JPEG tiles.
-  // What you'll get is position data for only a subset
-  // of JPEG tiles.
-  // The JPEG tiles that come from a photo must be placed edge-to-edge.
+  // The overlap is on the original photo, not the images.
+  // What you'll get is position data for only a subset of images.
+  // The images that come from a photo must be placed edge-to-edge.
   //
-  // To generate levels, each JPEG tile is downsampled by 2 and then
-  // concatenated into a new JPEG tile, 4 old tiles per new JPEG tile (2x2).
-  // Note that this is per-tile, not per-photo. Repeat this several
+  // To generate levels, each image is downsampled by 2 and then
+  // concatenated into a new image, 4 old images per new image (2x2).
+  // Note that this is per-image, not per-photo. Repeat this several
   // times.
   //
   // The downsampling and concatenation is fine up until you start
-  // concatenating JPEG tiles that come from different photos.
-  // Then the positions don't line up and JPEG tiles must be split into
+  // concatenating images that come from different photos.
+  // Then the positions don't line up and images must be split into
   // subtiles. This significantly complicates the code.
 
   // compute dimensions base_w and base_h in stupid but clear way
@@ -1748,7 +1743,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   slide_zoom_level_params = g_new(struct slide_zoom_level_params, zoom_levels);
   total_concat_exponent = 0;
   for (int i = 0; i < zoom_levels; i++) {
-    // one jpeg level per zoom level
     struct level *l = g_slice_new0(struct level);
     levels[i] = l;
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
@@ -1758,11 +1752,11 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     total_concat_exponent += hs->concat_exponent;
     lp->tile_concat = 1 << total_concat_exponent;
 
-    // positions_per_jpeg_tile: for this zoom, how many camera positions
-    //                          are represented in a JPEG tile?
-    //                          this is constant for the first few levels,
-    //                          depending on image_divisions
-    const int positions_per_jpeg_tile = MAX(1, lp->tile_concat / image_divisions);
+    // positions_per_image: for this zoom, how many camera positions
+    //                      are represented in an image?
+    //                      this is constant for the first few levels,
+    //                      depending on image_divisions
+    const int positions_per_image = MAX(1, lp->tile_concat / image_divisions);
 
     if (position_nonhier_offset != -1
         || position_nonhier_stitching_offset != -1
@@ -1770,16 +1764,16 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
         || slide_zoom_level_sections[0].overlap_y != 0) {
       // tile_count_divisor: as we record levels, we would prefer to shrink the
       //                     number of tiles, but keep the tile size constant,
-      //                     but this only works until we encounter JPEG tiles
+      //                     but this only works until we encounter images
       //                     with more than one source photo, in which case
       //                     the tile count bottoms out and we instead shrink
       //                     the advances
       lp->tile_count_divisor = MIN(lp->tile_concat, image_divisions);
 
-      // subtiles_per_jpeg_tile: for this zoom, how many subtiles in a JPEG tile?
-      //                         this is constant for the first few levels,
-      //                         depending on image_divisions
-      lp->subtiles_per_jpeg_tile = positions_per_jpeg_tile;
+      // subtiles_per_image: for this zoom, how many subtiles in an image?
+      //                     this is constant for the first few levels,
+      //                     depending on image_divisions
+      lp->subtiles_per_image = positions_per_image;
 
       // positions_per_subtile: for this zoom, how many camera positions
       //                        are represented in a subtile?
@@ -1790,18 +1784,18 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       // for better performance
 
       lp->tile_count_divisor = lp->tile_concat;
-      lp->subtiles_per_jpeg_tile = 1;
-      lp->positions_per_subtile = positions_per_jpeg_tile;
+      lp->subtiles_per_image = 1;
+      lp->positions_per_subtile = positions_per_image;
     }
 
-    lp->subtile_w = (double) hs->tile_w / lp->subtiles_per_jpeg_tile;
-    lp->subtile_h = (double) hs->tile_h / lp->subtiles_per_jpeg_tile;
+    lp->subtile_w = (double) hs->tile_w / lp->subtiles_per_image;
+    lp->subtile_h = (double) hs->tile_h / lp->subtiles_per_image;
 
     l->base.w = base_w / lp->tile_concat;  // tile_concat is powers of 2
     l->base.h = base_h / lp->tile_concat;
     l->tiles_across = (tiles_x + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
     l->tiles_down = (tiles_y + lp->tile_count_divisor - 1) / lp->tile_count_divisor;
-    l->tile_width = hs->tile_w;  // raw JPEG size
+    l->tile_width = hs->tile_w;  // raw image size
     l->tile_height = hs->tile_h;
 
     // subtiles_per_position: for this zoom, how many subtiles (in one dimension)
