@@ -166,7 +166,7 @@ struct slide_zoom_level_params {
 };
 
 struct one_jpeg {
-  char *filename;
+  int32_t fileno;
   int64_t start_in_file;
   int32_t jpegno;   // used only for cache lookup
   int refcount;
@@ -196,9 +196,12 @@ struct level {
   double tile_advance_y;
 };
 
+struct mirax_ops_data {
+  gchar **datafile_names;
+};
+
 static void jpeg_unref(struct one_jpeg *jpeg) {
   if (!--jpeg->refcount) {
-    g_free(jpeg->filename);
     g_slice_free(struct one_jpeg, jpeg);
   }
 }
@@ -212,11 +215,13 @@ static void tile_free(gpointer data) {
 static uint32_t *read_from_one_jpeg(openslide_t *osr,
                                     struct one_jpeg *jpeg,
                                     int w, int h) {
+  struct mirax_ops_data *data = osr->data;
   GError *tmp_err = NULL;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
-  if (!_openslide_jpeg_read(jpeg->filename, jpeg->start_in_file,
+  if (!_openslide_jpeg_read(data->datafile_names[jpeg->fileno],
+                            jpeg->start_in_file,
                             dest, w, h,
                             &tmp_err)) {
     _openslide_set_error_from_gerror(osr, tmp_err);
@@ -323,6 +328,8 @@ static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
+  struct mirax_ops_data *data = osr->data;
+
   // each level in turn
   for (int32_t i = 0; i < osr->level_count; i++) {
     struct level *l = (struct level *) osr->levels[i];
@@ -332,6 +339,10 @@ static void destroy(openslide_t *osr) {
 
   // the level array
   g_free(osr->levels);
+
+  // the ops data
+  g_strfreev(data->datafile_names);
+  g_slice_free(struct mirax_ops_data, data);
 }
 
 static const struct _openslide_ops mirax_ops = {
@@ -772,7 +783,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// populate the jpeg structure
 	struct one_jpeg *jpeg = g_slice_new0(struct one_jpeg);
-	jpeg->filename = g_strdup(datafile_names[fileno]);
+	jpeg->fileno = fileno;
 	jpeg->start_in_file = offset;
 	jpeg->jpegno = jpeg_number++;
 	jpeg->refcount = 1;
@@ -1915,6 +1926,12 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   g_assert(osr->levels == NULL);
   osr->levels = (struct _openslide_level **) levels;
   levels = NULL;
+
+  // set private data
+  struct mirax_ops_data *data = g_slice_new0(struct mirax_ops_data);
+  data->datafile_names = datafile_names;
+  datafile_names = NULL;
+  osr->data = data;
 
   // set ops
   osr->ops = &mirax_ops;
