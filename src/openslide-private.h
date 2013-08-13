@@ -195,8 +195,6 @@ typedef void (*_openslide_tilemap_fn)(openslide_t *osr,
                                       struct _openslide_grid *grid,
                                       int64_t tile_col, int64_t tile_row,
                                       void *tile,
-                                      double x, double y,
-                                      double w, double h,
                                       void *arg);
 
 struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
@@ -227,7 +225,7 @@ void _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   void *arg,
                                   double x, double y,
                                   struct _openslide_level *level,
-                                  double w, double h);
+                                  int32_t w, int32_t h);
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 

@@ -598,8 +598,6 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_col G_GNUC_UNUSED,
 		      int64_t tile_row G_GNUC_UNUSED,
 		      void *data,
-		      double x, double y,
-		      double w, double h,
 		      void *arg G_GNUC_UNUSED) {
   //g_debug("read_tile");
   struct level *l = (struct level *) level;
