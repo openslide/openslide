@@ -266,67 +266,6 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
 TIFF *_openslide_tiff_open(const char *filename);
 
 /* JPEG support */
-struct _openslide_jpeg_file {
-  char *filename;
-
-  int64_t start_in_file;
-  int64_t end_in_file;
-
-  // if known, put mcu starts here, set unknowns to -1,
-  // and give dimensions and tile dimensions
-  int64_t *mcu_starts;
-  int32_t w;
-  int32_t h;
-  int32_t tw;
-  int32_t th;
-};
-
-struct _openslide_jpeg_tile {
-  // which tile and file?
-  int32_t fileno;
-  int32_t tileno;
-
-  // bounds in the physical tile?
-  double src_x;
-  double src_y;
-  double w;
-  double h;
-
-  // delta for this tile from the standard advance
-  double dest_offset_x;
-  double dest_offset_y;
-};
-
-struct _openslide_jpeg_level {
-  GHashTable *tiles;
-
-  // size of canvas
-  int64_t level_w;
-  int64_t level_h;
-
-  int32_t tiles_across;
-  int32_t tiles_down;
-
-  // ONLY for convenience in checking even scale_denom division
-  int32_t raw_tile_width;
-  int32_t raw_tile_height;
-
-  // standard advance
-  double tile_advance_x;
-  double tile_advance_y;
-
-  // if zero, calculated automatically
-  double downsample;
-};
-
-void _openslide_add_jpeg_ops(openslide_t *osr,
-			     int32_t file_count,
-			     struct _openslide_jpeg_file **files,
-			     int32_t level_count,
-			     struct _openslide_jpeg_level **levels);
-
-GHashTable *_openslide_jpeg_create_tiles_table(void);
-
 bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int64_t offset,
                                      int32_t *w, int32_t *h,
