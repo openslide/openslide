@@ -98,9 +98,6 @@ struct _openslide_jpeg_level {
   // standard advance
   double tile_advance_x;
   double tile_advance_y;
-
-  // if zero, calculated automatically
-  double downsample;
 };
 
 struct one_jpeg {
@@ -1019,7 +1016,6 @@ static void add_hamamatsu_ops(openslide_t *osr,
     struct _openslide_jpeg_level *old_l = levels[i];
 
     struct level *new_l = g_slice_new0(struct level);
-    new_l->base.downsample = old_l->downsample;
     new_l->base.w = old_l->level_w;
     new_l->base.h = old_l->level_h;
     new_l->tiles_across = old_l->tiles_across;
@@ -1061,7 +1057,6 @@ static void add_hamamatsu_ops(openslide_t *osr,
       struct level *sd_l = g_slice_new0(struct level);
       sd_l->tiles_across = new_l->tiles_across;
       sd_l->tiles_down = new_l->tiles_down;
-      sd_l->base.downsample = new_l->base.downsample * scale_denom;
 
       sd_l->scale_denom = scale_denom;
 
