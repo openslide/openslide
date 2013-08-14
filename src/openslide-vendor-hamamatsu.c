@@ -83,7 +83,6 @@ struct _openslide_jpeg_tile {
 
 struct one_jpeg {
   char *filename;
-  int64_t start_in_file;
   int64_t end_in_file;
 
   int32_t width;
@@ -177,7 +176,6 @@ static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
 
 static void jpeg_random_access_src (openslide_t *osr,
 				    j_decompress_ptr cinfo, FILE *infile,
-				    int64_t header_start_position,
 				    int64_t header_stop_position,
 				    int64_t start_position, int64_t stop_position) {
   struct my_src_mgr *src;
@@ -196,18 +194,16 @@ static void jpeg_random_access_src (openslide_t *osr,
   src->pub.term_source = term_source;
 
   // check for problems
-  if ((header_start_position == -1) || (header_stop_position == -1) ||
+  if ((header_stop_position == -1) ||
       (start_position == -1) || (stop_position == -1) ||
-      (header_start_position >= header_stop_position) ||
+      (0 >= header_stop_position) ||
       (header_stop_position > start_position) ||
       (start_position >= stop_position)) {
     _openslide_set_error(osr, "Can't do random access JPEG read: "
-	       "header_start_position: %" G_GINT64_FORMAT ", "
 	       "header_stop_position: %" G_GINT64_FORMAT ", "
 	       "start_position: %" G_GINT64_FORMAT ", "
 	       "stop_position: %" G_GINT64_FORMAT,
-	       header_start_position, header_stop_position,
-	       start_position, stop_position);
+	       header_stop_position, start_position, stop_position);
 
     src->buffer_size = 0;
     src->pub.bytes_in_buffer = 0;
@@ -216,7 +212,7 @@ static void jpeg_random_access_src (openslide_t *osr,
   }
 
   // compute size of buffer and allocate
-  int header_length = header_stop_position - header_start_position;
+  int header_length = header_stop_position;
   int data_length = stop_position - start_position;
 
   src->buffer_size = header_length + data_length;
@@ -226,8 +222,8 @@ static void jpeg_random_access_src (openslide_t *osr,
   src->pub.next_input_byte = src->buffer;
 
   // read in the 2 parts
-  //  g_debug("reading header from %" G_GINT64_FORMAT, header_start_position);
-  fseeko(infile, header_start_position, SEEK_SET);
+  //  g_debug("reading header");
+  fseeko(infile, 0, SEEK_SET);
   if (!fread(src->buffer, header_length, 1, infile)) {
     _openslide_set_error(osr, "Cannot read header in JPEG");
     return;
@@ -385,7 +381,7 @@ static void _compute_mcu_start(openslide_t *osr,
     jmp_buf env;
 
     // init jpeg
-    fseeko(f, jpeg->start_in_file, SEEK_SET);
+    fseeko(f, 0, SEEK_SET);
 
     if (setjmp(env) == 0) {
       cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -549,7 +545,6 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
     jpeg_create_decompress(&cinfo);
 
     jpeg_random_access_src(osr, &cinfo, f,
-			   jpeg->start_in_file,
 			   header_stop_position,
 			   start_position,
 			   stop_position);
@@ -925,20 +920,8 @@ static int one_jpeg_compare(const void *a, const void *b) {
   const struct one_jpeg *aa = *(struct one_jpeg * const *) a;
   const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
 
-  // compare files
-  int res = strcmp(aa->filename, bb->filename);
-  if (res != 0) {
-    return res;
-  }
-
-  // compare offsets
-  if (aa->start_in_file < bb->start_in_file) {
-    return -1;
-  } else if (aa->start_in_file > bb->start_in_file) {
-    return 1;
-  } else {
-    return 0;
-  }
+  // compare filenames
+  return strcmp(aa->filename, bb->filename);
 }
 
 static void add_hamamatsu_ops(openslide_t *osr,
@@ -1355,8 +1338,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   for (int i = 0; i < num_jpegs; i++) {
     struct one_jpeg *jp = jpegs[i];
 
-    // these jpeg files always start at 0
-    jp->start_in_file = 0;
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
