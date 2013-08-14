@@ -69,12 +69,6 @@ struct _openslide_jpeg_tile {
   // which tile and file?
   int32_t fileno;
   int32_t tileno;
-
-  // bounds in the physical tile?
-  double src_x;
-  double src_y;
-  double w;
-  double h;
 };
 
 struct one_jpeg {
@@ -99,12 +93,6 @@ struct tile {
   // physical tile size (after scaling)
   int32_t tile_width;
   int32_t tile_height;
-
-  // bounds in the physical tile?
-  double src_x;
-  double src_y;
-  double w;
-  double h;
 };
 
 struct level {
@@ -276,17 +264,13 @@ static void convert_tiles(gpointer key,
   new_tile->tileno = old_tile->tileno;
   new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
   new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
-  new_tile->src_x = old_tile->src_x / new_l->scale_denom;
-  new_tile->src_y = old_tile->src_y / new_l->scale_denom;
-  new_tile->w = old_tile->w / new_l->scale_denom;
-  new_tile->h = old_tile->h / new_l->scale_denom;
 
   // we only issue tile size hints if:
   // - advances are integers (checked below)
   // - no tile has a delta from the standard advance
   // - no tiles overlap
-  if (new_tile->w != new_l->tile_advance_x ||
-      new_tile->h != new_l->tile_advance_y) {
+  if (new_tile->tile_width != new_l->tile_advance_x ||
+      new_tile->tile_height != new_l->tile_advance_y) {
     // clear
     new_l->base.tile_w = 0;
     new_l->base.tile_h = 0;
@@ -298,7 +282,8 @@ static void convert_tiles(gpointer key,
                                    index % new_l->tiles_across,
                                    index / new_l->tiles_across,
                                    0, 0,
-                                   new_tile->w, new_tile->h,
+                                   new_tile->tile_width,
+                                   new_tile->tile_height,
                                    new_tile);
 }
 
@@ -624,14 +609,13 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_row G_GNUC_UNUSED,
 		      void *data,
 		      void *arg G_GNUC_UNUSED) {
-  //g_debug("read_tile");
   struct level *l = (struct level *) level;
   struct tile *requested_tile = data;
 
   int tw = requested_tile->tile_width;
   int th = requested_tile->tile_height;
 
-  //g_debug("jpeg read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->src_x, requested_tile->src_y, requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->w, requested_tile->h, x, y, w, h);
+  //g_debug("vms read_tile: dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->tile_width, requested_tile->tile_height, x, y, w, h);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -661,35 +645,7 @@ static void read_tile(openslide_t *osr,
 								 tw, th,
 								 tw * 4);
 
-  double src_x = requested_tile->src_x;
-  double src_y = requested_tile->src_y;
-
-  // if we are drawing a subregion of the tile, we must do an additional copy,
-  // because cairo lacks source clipping
-  if ((requested_tile->tile_width > requested_tile->w) ||
-      (requested_tile->tile_height > requested_tile->h)) {
-    cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-							   ceil(requested_tile->w),
-							   ceil(requested_tile->h));
-    cairo_t *cr2 = cairo_create(surface2);
-    cairo_set_source_surface(cr2, surface, -src_x, -src_y);
-
-    // replace original image surface and reset origin
-    cairo_surface_destroy(surface);
-    surface = surface2;
-    src_x = 0;
-    src_y = 0;
-
-    cairo_rectangle(cr2, 0, 0,
-		    ceil(requested_tile->w),
-		    ceil(requested_tile->h));
-    cairo_fill(cr2);
-    _openslide_check_cairo_status_possibly_set_error(osr, cr2);
-    cairo_destroy(cr2);
-  }
-
-  cairo_set_source_surface(cr, surface,
-			   -src_x, -src_y);
+  cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
@@ -1497,9 +1453,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
       t->fileno = i;
       t->tileno = local_tileno;
-      t->w = jp->tile_width;
-      t->h = jp->tile_height;
-      // no dest or src offsets
 
       // compute key for hashtable (y * w + x)
       int64_t x = file_x * jpeg0_ta + local_tile_x;
@@ -1508,7 +1461,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       int64_t *key = g_slice_new(int64_t);
       *key = (y * l->tiles_across) + x;
 
-      //g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, t->fileno, t->tileno, t->w, t->h, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
+      //g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, t->fileno, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
       g_assert(!g_hash_table_lookup(l->tiles, key));
       g_hash_table_insert(l->tiles, key, t);
     }
