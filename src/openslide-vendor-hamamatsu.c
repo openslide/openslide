@@ -75,10 +75,6 @@ struct _openslide_jpeg_tile {
   double src_y;
   double w;
   double h;
-
-  // delta for this tile from the standard advance
-  double dest_offset_x;
-  double dest_offset_y;
 };
 
 struct one_jpeg {
@@ -290,9 +286,7 @@ static void convert_tiles(gpointer key,
   // - no tile has a delta from the standard advance
   // - no tiles overlap
   if (new_tile->w != new_l->tile_advance_x ||
-      new_tile->h != new_l->tile_advance_y ||
-      old_tile->dest_offset_x ||
-      old_tile->dest_offset_y) {
+      new_tile->h != new_l->tile_advance_y) {
     // clear
     new_l->base.tile_w = 0;
     new_l->base.tile_h = 0;
@@ -303,8 +297,7 @@ static void convert_tiles(gpointer key,
   _openslide_grid_tilemap_add_tile(new_l->grid,
                                    index % new_l->tiles_across,
                                    index / new_l->tiles_across,
-                                   old_tile->dest_offset_x / new_l->scale_denom,
-                                   old_tile->dest_offset_y / new_l->scale_denom,
+                                   0, 0,
                                    new_tile->w, new_tile->h,
                                    new_tile);
 }
