@@ -65,21 +65,6 @@ static const char KEY_MACRO_IMAGE[] = "MacroImage";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
-struct _openslide_jpeg_file {
-  char *filename;
-
-  int64_t start_in_file;
-  int64_t end_in_file;
-
-  // if known, put mcu starts here, set unknowns to -1,
-  // and give dimensions and tile dimensions
-  int64_t *mcu_starts;
-  int32_t w;
-  int32_t h;
-  int32_t tw;
-  int32_t th;
-};
-
 struct _openslide_jpeg_tile {
   // which tile and file?
   int32_t fileno;
@@ -123,6 +108,8 @@ struct one_jpeg {
   int64_t start_in_file;
   int64_t end_in_file;
 
+  int32_t width;
+  int32_t height;
   int32_t tile_width;
   int32_t tile_height;
 
@@ -821,34 +808,6 @@ static const struct _openslide_ops jpeg_ops = {
   .destroy = destroy,
 };
 
-static void init_one_jpeg(struct one_jpeg *onej,
-			  struct _openslide_jpeg_file *file) {
-  g_assert(file->filename);
-
-  onej->filename = file->filename;
-  onej->start_in_file = file->start_in_file;
-  onej->end_in_file = file->end_in_file;
-  onej->unreliable_mcu_starts = file->mcu_starts;
-
-  g_assert(file->w && file->h && file->tw && file->th);
-
-  onej->tile_width = file->tw;
-  onej->tile_height = file->th;
-
-  // compute the mcu starts stuff
-  onej->mcu_starts_count =
-    (file->w / onej->tile_width) *
-    (file->h / onej->tile_height);
-
-  onej->mcu_starts = g_new(int64_t,
-			   onej->mcu_starts_count);
-
-  // init all to -1
-  for (int32_t i = 0; i < onej->mcu_starts_count; i++) {
-    (onej->mcu_starts)[i] = -1;
-  }
-}
-
 static gint width_compare(gconstpointer a, gconstpointer b) {
   int64_t w1 = *((const int64_t *) a);
   int64_t w2 = *((const int64_t *) b);
@@ -1001,7 +960,7 @@ static int one_jpeg_compare(const void *a, const void *b) {
 
 static void add_hamamatsu_ops(openslide_t *osr,
                               int32_t file_count,
-                              struct _openslide_jpeg_file **files,
+                              struct one_jpeg **files,
                               int32_t level_count,
                               struct _openslide_jpeg_level **levels) {
   /*
@@ -1025,7 +984,8 @@ static void add_hamamatsu_ops(openslide_t *osr,
     for (int32_t i = 0; i < file_count; i++) {
       g_free(files[i]->filename);
       g_free(files[i]->mcu_starts);
-      g_slice_free(struct _openslide_jpeg_file, files[i]);
+      g_free(files[i]->unreliable_mcu_starts);
+      g_slice_free(struct one_jpeg, files[i]);
     }
     g_free(files);
 
@@ -1046,17 +1006,8 @@ static void add_hamamatsu_ops(openslide_t *osr,
   osr->data = data;
 
 
-  // convert all struct _openslide_jpeg_file into struct one_jpeg
   data->jpeg_count = file_count;
-  data->all_jpegs = g_new0(struct one_jpeg *, file_count);
-  for (int32_t i = 0; i < data->jpeg_count; i++) {
-    //    g_debug("init JPEG %d", i);
-    data->all_jpegs[i] = g_slice_new0(struct one_jpeg);
-    init_one_jpeg(data->all_jpegs[i], files[i]);
-    g_slice_free(struct _openslide_jpeg_file, files[i]);
-  }
-  g_free(files);
-  files = NULL;
+  data->all_jpegs = files;
 
   // convert all struct _openslide_jpeg_level into struct level, and
   //  (internally) convert all struct _openslide_jpeg_tile into struct tile
@@ -1416,10 +1367,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   bool success = false;
 
   // initialize individual jpeg structs
-  struct _openslide_jpeg_file **jpegs = g_new0(struct _openslide_jpeg_file *,
-					       num_jpegs);
+  struct one_jpeg **jpegs = g_new0(struct one_jpeg *, num_jpegs);
   for (int i = 0; i < num_jpegs; i++) {
-    jpegs[i] = g_slice_new0(struct _openslide_jpeg_file);
+    jpegs[i] = g_slice_new0(struct one_jpeg);
   }
 
   // init levels: base image + map
@@ -1438,7 +1388,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   int32_t jpeg0_td = 0;
 
   for (int i = 0; i < num_jpegs; i++) {
-    struct _openslide_jpeg_file *jp = jpegs[i];
+    struct one_jpeg *jp = jpegs[i];
 
     // these jpeg files always start at 0
     jp->start_in_file = 0;
@@ -1457,7 +1407,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->w, &jp->h, &jp->tw, &jp->th, comment_ptr, err)) {
+    if (!verify_jpeg(f, &jp->width, &jp->height,
+                     &jp->tile_width, &jp->tile_height,
+                     comment_ptr, err)) {
       g_prefix_error(err, "Can't verify JPEG %d: ", i);
       fclose(f);
       goto DONE;
@@ -1481,38 +1433,46 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // file is done now
     fclose(f);
 
-    int32_t num_tiles_across = jp->w / jp->tw;
-    int32_t num_tiles_down = jp->h / jp->th;
+    int32_t num_tiles_across = jp->width / jp->tile_width;
+    int32_t num_tiles_down = jp->height / jp->tile_height;
 
     // because map file is last, ensure that all tw and th are the
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
     if (i == 0) {
-      jpeg0_tw = jp->tw;
-      jpeg0_th = jp->th;
+      jpeg0_tw = jp->tile_width;
+      jpeg0_th = jp->tile_height;
       jpeg0_ta = num_tiles_across;
       jpeg0_td = num_tiles_down;
     } else if (i != (num_jpegs - 1)) {
       // not map file (still within level 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
-      if (jpeg0_tw != jp->tw || jpeg0_th != jp->th) {
+      if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Tile size not consistent");
         goto DONE;
       }
     }
 
-    // use the optimisation file, if present
-    int32_t mcu_starts_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
-    int64_t *mcu_starts = NULL;
-    if (optimisation_file) {
-      mcu_starts = extract_one_optimisation(optimisation_file,
-					    num_tiles_down,
-					    num_tiles_across,
-					    mcu_starts_count);
+    // number of tiles
+    jp->mcu_starts_count =
+      (jp->width / jp->tile_width) *
+      (jp->height / jp->tile_height);
+    jp->mcu_starts = g_new(int64_t, jp->mcu_starts_count);
+    // init all to -1
+    for (int32_t i = 0; i < jp->mcu_starts_count; i++) {
+      (jp->mcu_starts)[i] = -1;
     }
-    if (mcu_starts) {
-      jp->mcu_starts = mcu_starts;
+    // use the optimisation file, if present
+    int64_t *unreliable_mcu_starts = NULL;
+    if (optimisation_file) {
+      unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
+                                                       num_tiles_down,
+                                                       num_tiles_across,
+                                                       jp->mcu_starts_count);
+    }
+    if (unreliable_mcu_starts) {
+      jp->unreliable_mcu_starts = unreliable_mcu_starts;
     } else if (optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
       optimisation_file = NULL;
@@ -1536,25 +1496,25 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       file_y = i / num_jpeg_cols;
     }
     if (file_y == 0) {
-      l->level_w += jp->w;
+      l->level_w += jp->width;
       l->tiles_across += num_tiles_across;
     }
     if (file_x == 0) {
-      l->level_h += jp->h;
+      l->level_h += jp->height;
       l->tiles_down += num_tiles_down;
     }
 
     // set some values (don't accumulate)
-    l->raw_tile_width = jp->tw;
-    l->raw_tile_height = jp->th;
-    l->tile_advance_x = jp->tw;   // no overlaps or funny business
-    l->tile_advance_y = jp->th;
+    l->raw_tile_width = jp->tile_width;
+    l->raw_tile_height = jp->tile_height;
+    l->tile_advance_x = jp->tile_width;   // no overlaps or funny business
+    l->tile_advance_y = jp->tile_height;
   }
 
   // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
 
   for (int i = 0; i < num_jpegs; i++) {
-    struct _openslide_jpeg_file *jp = jpegs[i];
+    struct one_jpeg *jp = jpegs[i];
 
     int32_t level;
     int32_t file_x;
@@ -1573,11 +1533,13 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     //g_debug("processing file %d %d %d", file_x, file_y, level);
 
-    int32_t num_tiles_across = jp->w / jp->tw;
+    int32_t num_tiles_across = jp->width / jp->tile_width;
 
     struct _openslide_jpeg_level *l = levels[level];
 
-    int32_t tile_count = (jp->w / jp->tw) * (jp->h / jp->th); // number of tiles
+    int32_t tile_count =
+      (jp->width / jp->tile_width) *
+      (jp->height / jp->tile_height); // number of tiles
 
     // add all the tiles
     for (int local_tileno = 0; local_tileno < tile_count; local_tileno++) {
@@ -1588,8 +1550,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
       t->fileno = i;
       t->tileno = local_tileno;
-      t->w = jp->tw;
-      t->h = jp->th;
+      t->w = jp->tile_width;
+      t->h = jp->tile_height;
       // no dest or src offsets
 
       // compute key for hashtable (y * w + x)
@@ -1615,7 +1577,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     for (int i = 0; i < num_jpegs; i++) {
       g_free(jpegs[i]->filename);
       g_free(jpegs[i]->mcu_starts);
-      g_slice_free(struct _openslide_jpeg_file, jpegs[i]);
+      g_free(jpegs[i]->unreliable_mcu_starts);
+      g_slice_free(struct one_jpeg, jpegs[i]);
     }
     g_free(jpegs);
 
