@@ -87,7 +87,6 @@ struct one_jpeg {
 
 struct tile {
   struct one_jpeg *jpeg;
-  int32_t jpegno;   // used only for cache lookup
   int32_t tileno;
 
   // physical tile size (after scaling)
@@ -260,7 +259,6 @@ static void convert_tiles(gpointer key,
   // create new tile
   struct tile *new_tile = g_slice_new(struct tile);
   new_tile->jpeg = args->all_jpegs[old_tile->fileno];
-  new_tile->jpegno = old_tile->fileno;
   new_tile->tileno = old_tile->tileno;
   new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
   new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
@@ -605,8 +603,7 @@ static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
 		      struct _openslide_grid *grid,
-		      int64_t tile_col G_GNUC_UNUSED,
-		      int64_t tile_row G_GNUC_UNUSED,
+		      int64_t tile_col, int64_t tile_row,
 		      void *data,
 		      void *arg G_GNUC_UNUSED) {
   struct level *l = (struct level *) level;
@@ -620,8 +617,7 @@ static void read_tile(openslide_t *osr,
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            requested_tile->jpegno,
-                                            requested_tile->tileno,
+                                            tile_col, tile_row,
                                             grid,
                                             &cache_entry);
 
@@ -633,7 +629,7 @@ static void read_tile(openslide_t *osr,
 				  tw, th);
 
     _openslide_cache_put(osr->cache,
-			 requested_tile->jpegno, requested_tile->tileno, grid,
+			 tile_col, tile_row, grid,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
