@@ -87,10 +87,6 @@ struct one_jpeg {
 struct tile {
   struct one_jpeg *jpeg;
   int32_t tileno;
-
-  // physical tile size (after scaling)
-  int32_t tile_width;
-  int32_t tile_height;
 };
 
 struct level {
@@ -246,19 +242,6 @@ static void convert_tiles(gpointer key,
   struct tile *new_tile = g_slice_new(struct tile);
   new_tile->jpeg = old_tile->jpeg;
   new_tile->tileno = old_tile->tileno;
-  new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
-  new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
-
-  // we only issue tile size hints if:
-  // - advances are integers (checked below)
-  // - no tile has a delta from the standard advance
-  // - no tiles overlap
-  if (new_tile->tile_width != new_l->tile_width ||
-      new_tile->tile_height != new_l->tile_height) {
-    // clear
-    new_l->base.tile_w = 0;
-    new_l->base.tile_h = 0;
-  }
 
   // add to grid
   int64_t index = *((int64_t *) key);
@@ -266,8 +249,7 @@ static void convert_tiles(gpointer key,
                                    index % new_l->tiles_across,
                                    index / new_l->tiles_across,
                                    0, 0,
-                                   new_tile->tile_width,
-                                   new_tile->tile_height,
+                                   new_l->tile_width, new_l->tile_height,
                                    new_tile);
 }
 
@@ -466,7 +448,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 				     struct one_jpeg *jpeg,
 				     int32_t tileno,
 				     int32_t scale_denom,
-				     int w, int h) {
+				     int32_t w, int32_t h) {
   GError *tmp_err = NULL;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
@@ -548,7 +530,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 	while (rows_read > 0) {
 	  // copy a row
 	  int32_t dest_i = 0;
-	  for (int i = 0; i < w; i++) {
+	  for (int32_t i = 0; i < w; i++) {
 	    jpeg_dest[dest_i++] = 0xFF000000 |      // A
 	      buffer[cur_buffer][i * 3 + 0] << 16 | // R
 	      buffer[cur_buffer][i * 3 + 1] << 8 |  // G
@@ -595,10 +577,10 @@ static void read_tile(openslide_t *osr,
   struct level *l = (struct level *) level;
   struct tile *requested_tile = data;
 
-  int tw = requested_tile->tile_width;
-  int th = requested_tile->tile_height;
+  int32_t tw = l->tile_width;
+  int32_t th = l->tile_height;
 
-  //g_debug("vms read_tile: dim: %d %d, tile dim: %g %g, region %g %g %g %g", requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height, requested_tile->tile_width, requested_tile->tile_height, x, y, w, h);
+  //g_debug("vms read_tile: dim: %d %d", requested_tile->jpeg->tile_width, requested_tile->jpeg->tile_height);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
