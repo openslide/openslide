@@ -65,11 +65,6 @@ static const char KEY_MACRO_IMAGE[] = "MacroImage";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
-struct _openslide_jpeg_tile {
-  struct one_jpeg *jpeg;
-  int32_t tileno;
-};
-
 struct one_jpeg {
   char *filename;
   int64_t end_in_file;
@@ -92,7 +87,6 @@ struct tile {
 struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
-  GHashTable *tiles;
 
   int32_t tiles_across;
   int32_t tiles_down;
@@ -226,31 +220,6 @@ static void level_free(gpointer data) {
 
 static void tile_free(gpointer data) {
   g_slice_free(struct tile, data);
-}
-
-static void struct_openslide_jpeg_tile_free(gpointer data) {
-  g_slice_free(struct _openslide_jpeg_tile, data);
-}
-
-static void convert_tiles(gpointer key,
-			  gpointer value,
-			  gpointer user_data) {
-  struct _openslide_jpeg_tile *old_tile = value;
-  struct level *new_l = user_data;
-
-  // create new tile
-  struct tile *new_tile = g_slice_new(struct tile);
-  new_tile->jpeg = old_tile->jpeg;
-  new_tile->tileno = old_tile->tileno;
-
-  // add to grid
-  int64_t index = *((int64_t *) key);
-  _openslide_grid_tilemap_add_tile(new_l->grid,
-                                   index % new_l->tiles_across,
-                                   index / new_l->tiles_across,
-                                   0, 0,
-                                   new_l->tile_width, new_l->tile_height,
-                                   new_tile);
 }
 
 static uint8_t find_next_ff_marker(FILE *f,
@@ -829,14 +798,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
   return NULL;
 }
 
-static GHashTable *_openslide_jpeg_create_tiles_table(void) {
-  return g_hash_table_new_full(_openslide_int64_hash, _openslide_int64_equal,
-			       _openslide_int64_free,
-			       struct_openslide_jpeg_tile_free);
-}
-
-
-
 // returns w and h and tw and th and comment as a convenience
 static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th,
@@ -1022,6 +983,23 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
   // TODO: can we calculate MPP from PhysicalWidth/PhysicalHeight?
 }
 
+static void copy_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
+                      int64_t tile_col, int64_t tile_row,
+                      void *tile,
+                      void *arg) {
+  struct level *new_l = arg;
+  struct tile *old_tile = tile;
+
+  struct tile *new_tile = g_slice_new0(struct tile);
+  new_tile->jpeg = old_tile->jpeg;
+  new_tile->tileno = old_tile->tileno;
+
+  _openslide_grid_tilemap_add_tile(new_l->grid,
+                                   tile_col, tile_row, 0, 0,
+                                   new_l->tile_width, new_l->tile_height,
+                                   new_tile);
+}
+
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
 				int num_jpeg_cols,
@@ -1040,7 +1018,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   struct level **levels = g_new0(struct level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
     levels[i] = g_slice_new0(struct level);
-    levels[i]->tiles = _openslide_jpeg_create_tiles_table();
   }
 
   // process jpegs
@@ -1192,10 +1169,15 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     //g_debug("processing file %d %d %d", file_x, file_y, level);
 
     struct level *l = levels[level];
+    if (l->grid == NULL) {
+      l->grid = _openslide_grid_create_tilemap(osr,
+                                               l->tile_width, l->tile_height,
+                                               read_tile, tile_free);
+    }
 
     // add all the tiles
     for (int local_tileno = 0; local_tileno < jp->tile_count; local_tileno++) {
-      struct _openslide_jpeg_tile *t = g_slice_new0(struct _openslide_jpeg_tile);
+      struct tile *t = g_slice_new0(struct tile);
 
       int32_t local_tile_x = local_tileno % jp->tiles_across;
       int32_t local_tile_y = local_tileno / jp->tiles_across;
@@ -1203,16 +1185,16 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       t->jpeg = jp;
       t->tileno = local_tileno;
 
-      // compute key for hashtable (y * w + x)
+      // compute tile coordinates
       int64_t x = file_x * jpeg0_ta + local_tile_x;
       int64_t y = file_y * jpeg0_td + local_tile_y;
 
-      int64_t *key = g_slice_new(int64_t);
-      *key = (y * l->tiles_across) + x;
-
       //g_debug("inserting tile: jpeg %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, i, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
-      g_assert(!g_hash_table_lookup(l->tiles, key));
-      g_hash_table_insert(l->tiles, key, t);
+
+      _openslide_grid_tilemap_add_tile(l->grid,
+                                       x, y, 0, 0,
+                                       l->tile_width, l->tile_height,
+                                       t);
     }
   }
 
@@ -1239,7 +1221,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     g_free(jpegs);
 
     for (int32_t i = 0; i < level_count; i++) {
-      g_hash_table_unref(levels[i]->tiles);
+      _openslide_grid_destroy(levels[i]->grid);
       g_slice_free(struct level, levels[i]);
     }
     g_free(levels);
@@ -1254,8 +1236,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   data->all_jpegs = jpegs;
   osr->data = data;
 
-  // create scale_denom levels and (internally) convert all struct
-  //  _openslide_jpeg_tile into struct tile
+  // create scale_denom levels
   GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
 						      _openslide_int64_equal,
 						      _openslide_int64_free,
@@ -1263,15 +1244,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   for (int32_t i = 0; i < level_count; i++) {
     struct level *l = levels[i];
 
-    // convert tiles
-    l->grid = _openslide_grid_create_tilemap(osr,
-                                             l->tile_width, l->tile_height,
-                                             read_tile, tile_free);
-    g_hash_table_foreach(l->tiles, convert_tiles, l);
-
-    //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
-
-    // now, l is all initialized, so add it
+    // add level
     int64_t *key = g_slice_new(int64_t);
     *key = l->base.w;
     g_hash_table_insert(expanded_levels, key, l);
@@ -1299,20 +1272,17 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       sd_l->base.tile_w = sd_l->tile_width;
       sd_l->base.tile_h = sd_l->tile_height;
 
+      // clone grid
       sd_l->grid = _openslide_grid_create_tilemap(osr,
                                                   sd_l->tile_width,
                                                   sd_l->tile_height,
                                                   read_tile, tile_free);
-      g_hash_table_foreach(l->tiles, convert_tiles, sd_l);
+      _openslide_grid_tilemap_foreach(l->grid, copy_tile, sd_l);
 
       key = g_slice_new(int64_t);
       *key = sd_l->base.w;
       g_hash_table_insert(expanded_levels, key, sd_l);
     }
-
-    // delete the tile table
-    g_hash_table_unref(l->tiles);
-    l->tiles = NULL;
   }
   g_free(levels);
   levels = NULL;
@@ -1384,7 +1354,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     g_free(jpegs);
 
     for (int32_t i = 0; i < level_count; i++) {
-      g_hash_table_unref(levels[i]->tiles);
+      _openslide_grid_destroy(levels[i]->grid);
       g_slice_free(struct level, levels[i]);
     }
     g_free(levels);

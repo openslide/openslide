@@ -118,6 +118,12 @@ struct grid_tile {
   double offset_y;
 };
 
+struct tilemap_foreach_args {
+  struct _openslide_grid *grid;
+  _openslide_tilemap_foreach_fn func;
+  void *arg;
+};
+
 static void compute_region(struct _openslide_grid *grid,
                            double x, double y,
                            int32_t w, int32_t h,
@@ -453,6 +459,30 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
     grid->extra_tiles_bottom = MAX(grid->extra_tiles_bottom, extra_bottom);
   }
   //g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", (void *) grid, grid->extra_tiles_left, grid->extra_tiles_right, grid->extra_tiles_top, grid->extra_tiles_bottom);
+}
+
+static void tilemap_foreach_func(void *key G_GNUC_UNUSED,
+                                 void *value,
+                                 void *data) {
+  struct tilemap_foreach_args *args = data;
+  struct grid_tile *tile = value;
+  g_assert(value != NULL);
+
+  args->func(args->grid, tile->col, tile->row, tile->data, args->arg);
+}
+
+void _openslide_grid_tilemap_foreach(struct _openslide_grid *_grid,
+                                     _openslide_tilemap_foreach_fn func,
+                                     void *arg) {
+  struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
+  g_assert(grid->base.ops == &tilemap_grid_ops);
+
+  struct tilemap_foreach_args args = {
+    .grid = _grid,
+    .func = func,
+    .arg = arg,
+  };
+  g_hash_table_foreach(grid->tiles, tilemap_foreach_func, &args);
 }
 
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
