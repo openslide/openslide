@@ -100,17 +100,10 @@ struct level {
 
   int32_t tiles_across;
   int32_t tiles_down;
+  int32_t tile_width;
+  int32_t tile_height;
 
   int32_t scale_denom;
-
-  // ONLY for convenience in checking even scale_denom division
-  int32_t raw_tile_width;
-  int32_t raw_tile_height;
-
-  // note: everything below is pre-divided by scale_denom
-
-  double tile_advance_x;
-  double tile_advance_y;
 };
 
 struct jpegops_data {
@@ -260,8 +253,8 @@ static void convert_tiles(gpointer key,
   // - advances are integers (checked below)
   // - no tile has a delta from the standard advance
   // - no tiles overlap
-  if (new_tile->tile_width != new_l->tile_advance_x ||
-      new_tile->tile_height != new_l->tile_advance_y) {
+  if (new_tile->tile_width != new_l->tile_width ||
+      new_tile->tile_height != new_l->tile_height) {
     // clear
     new_l->base.tile_w = 0;
     new_l->base.tile_h = 0;
@@ -865,8 +858,7 @@ static void add_hamamatsu_ops(openslide_t *osr,
     g_debug("level %d", i);
     g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
-    g_debug(" raw tile size %d %d", l->raw_tile_width, l->raw_tile_height);
-    g_debug(" tile advance %g %g", l->tile_advance_x, l->tile_advance_y);
+    g_debug(" tile size %d %d", l->tile_width, l->tile_height);
   }
 
   g_debug("file_count: %d", file_count);
@@ -916,8 +908,7 @@ static void add_hamamatsu_ops(openslide_t *osr,
 
     // convert tiles
     l->grid = _openslide_grid_create_tilemap(osr,
-                                             l->tile_advance_x,
-                                             l->tile_advance_y,
+                                             l->tile_width, l->tile_height,
                                              read_tile, tile_free);
     g_hash_table_foreach(l->tiles, convert_tiles, l);
 
@@ -931,8 +922,8 @@ static void add_hamamatsu_ops(openslide_t *osr,
     // try adding scale_denom levels
     for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
       // check to make sure we get an even division
-      if ((l->raw_tile_width % scale_denom) ||
-	  (l->raw_tile_height % scale_denom)) {
+      if ((l->tile_width % scale_denom) ||
+	  (l->tile_height % scale_denom)) {
 	continue;
       }
 
@@ -945,18 +936,16 @@ static void add_hamamatsu_ops(openslide_t *osr,
 
       sd_l->base.w = l->base.w / scale_denom;
       sd_l->base.h = l->base.h / scale_denom;
-      sd_l->tile_advance_x = l->tile_advance_x / scale_denom;
-      sd_l->tile_advance_y = l->tile_advance_y / scale_denom;
-      if (l->base.tile_w && l->base.tile_h &&
-          ((int64_t) sd_l->tile_advance_x) == sd_l->tile_advance_x &&
-          ((int64_t) sd_l->tile_advance_y) == sd_l->tile_advance_y) {
-        sd_l->base.tile_w = sd_l->tile_advance_x;
-        sd_l->base.tile_h = sd_l->tile_advance_y;
+      sd_l->tile_width = l->tile_width / scale_denom;
+      sd_l->tile_height = l->tile_height / scale_denom;
+      if (l->base.tile_w && l->base.tile_h) {
+        sd_l->base.tile_w = sd_l->tile_width;
+        sd_l->base.tile_h = sd_l->tile_height;
       }
 
       sd_l->grid = _openslide_grid_create_tilemap(osr,
-                                                  sd_l->tile_advance_x,
-                                                  sd_l->tile_advance_y,
+                                                  sd_l->tile_width,
+                                                  sd_l->tile_height,
                                                   read_tile, tile_free);
       g_hash_table_foreach(l->tiles, convert_tiles, sd_l);
 
@@ -1376,17 +1365,11 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     // set some values (don't accumulate)
     l->scale_denom = 1;
-    l->raw_tile_width = jp->tile_width;
-    l->raw_tile_height = jp->tile_height;
-    l->tile_advance_x = jp->tile_width;   // no overlaps or funny business
-    l->tile_advance_y = jp->tile_height;
-
-    // initialize tile size hints if potentially valid (may be cleared later)
-    if (((int64_t) l->tile_advance_x) == l->tile_advance_x &&
-        ((int64_t) l->tile_advance_y) == l->tile_advance_y) {
-      l->base.tile_w = l->tile_advance_x;
-      l->base.tile_h = l->tile_advance_y;
-    }
+    l->tile_width = jp->tile_width;
+    l->tile_height = jp->tile_height;
+    // tile size hints
+    l->base.tile_w = jp->tile_width;
+    l->base.tile_h = jp->tile_height;
   }
 
   // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
