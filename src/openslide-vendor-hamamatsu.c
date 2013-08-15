@@ -79,7 +79,7 @@ struct one_jpeg {
   int32_t tile_width;
   int32_t tile_height;
 
-  int32_t mcu_starts_count;
+  int32_t tile_count;
   int64_t *mcu_starts;
   int64_t *unreliable_mcu_starts;
 };
@@ -450,7 +450,7 @@ static void compute_mcu_start(openslide_t *osr,
 
   // end of data stream
   if (stop_position) {
-    if (jpeg->mcu_starts_count == tileno + 1) {
+    if (jpeg->tile_count == tileno + 1) {
       // EOF
       *stop_position = jpeg->end_in_file;
     } else {
@@ -750,7 +750,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
     }
 
     current_mcu_start++;
-    if (current_mcu_start >= oj->mcu_starts_count) {
+    if (current_mcu_start >= oj->tile_count) {
       current_mcu_start = 0;
       current_jpeg++;
       g_debug("done verifying jpeg %d", current_jpeg);
@@ -813,7 +813,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //        current_jpeg, current_mcu_start);
 
     struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (oj->mcu_starts_count > 1) {
+    if (oj->tile_count > 1) {
       if (current_file == NULL) {
 	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
@@ -832,7 +832,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       }
 
       current_mcu_start++;
-      if (current_mcu_start >= oj->mcu_starts_count) {
+      if (current_mcu_start >= oj->tile_count) {
 	current_mcu_start = 0;
 	current_jpeg++;
 	fclose(current_file);
@@ -1139,10 +1139,10 @@ DONE:
 
 static int64_t *extract_one_optimisation(FILE *opt_f,
 					 int32_t num_tiles_down,
-					 int32_t num_tiles_across,
-					 int32_t mcu_starts_count) {
-  int64_t *mcu_starts = g_new(int64_t, mcu_starts_count);
-  for (int32_t i = 0; i < mcu_starts_count; i++) {
+					 int32_t num_tiles_across) {
+  int32_t tile_count = num_tiles_across * num_tiles_down;
+  int64_t *mcu_starts = g_new(int64_t, tile_count);
+  for (int32_t i = 0; i < tile_count; i++) {
     mcu_starts[i] = -1; // UNKNOWN value
   }
 
@@ -1314,12 +1314,12 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
 
     // number of tiles
-    jp->mcu_starts_count =
+    jp->tile_count =
       (jp->width / jp->tile_width) *
       (jp->height / jp->tile_height);
-    jp->mcu_starts = g_new(int64_t, jp->mcu_starts_count);
+    jp->mcu_starts = g_new(int64_t, jp->tile_count);
     // init all to -1
-    for (int32_t i = 0; i < jp->mcu_starts_count; i++) {
+    for (int32_t i = 0; i < jp->tile_count; i++) {
       (jp->mcu_starts)[i] = -1;
     }
     // use the optimisation file, if present
@@ -1327,8 +1327,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (optimisation_file) {
       unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
                                                        num_tiles_down,
-                                                       num_tiles_across,
-                                                       jp->mcu_starts_count);
+                                                       num_tiles_across);
     }
     if (unreliable_mcu_starts) {
       jp->unreliable_mcu_starts = unreliable_mcu_starts;
