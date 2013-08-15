@@ -1000,6 +1000,96 @@ static void copy_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
                                    new_tile);
 }
 
+// create scale_denom levels
+static void create_scaled_levels(openslide_t *osr,
+                                 int32_t *_level_count,
+                                 struct level ***_levels) {
+  int32_t level_count = *_level_count;
+  struct level **levels = *_levels;
+
+  GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
+                                                      _openslide_int64_equal,
+                                                      _openslide_int64_free,
+                                                      level_free);
+
+  for (int32_t i = 0; i < level_count; i++) {
+    struct level *l = levels[i];
+
+    // add level
+    int64_t *key = g_slice_new(int64_t);
+    *key = l->base.w;
+    g_hash_table_insert(expanded_levels, key, l);
+
+    // try adding scale_denom levels
+    for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
+      // check to make sure we get an even division
+      if ((l->tile_width % scale_denom) ||
+          (l->tile_height % scale_denom)) {
+        continue;
+      }
+
+      // create a derived level
+      struct level *sd_l = g_slice_new0(struct level);
+      sd_l->tiles_across = l->tiles_across;
+      sd_l->tiles_down = l->tiles_down;
+
+      sd_l->scale_denom = scale_denom;
+
+      sd_l->base.w = l->base.w / scale_denom;
+      sd_l->base.h = l->base.h / scale_denom;
+      sd_l->tile_width = l->tile_width / scale_denom;
+      sd_l->tile_height = l->tile_height / scale_denom;
+      // tile size hints
+      sd_l->base.tile_w = sd_l->tile_width;
+      sd_l->base.tile_h = sd_l->tile_height;
+
+      // clone grid
+      sd_l->grid = _openslide_grid_create_tilemap(osr,
+                                                  sd_l->tile_width,
+                                                  sd_l->tile_height,
+                                                  read_tile, tile_free);
+      _openslide_grid_tilemap_foreach(l->grid, copy_tile, sd_l);
+
+      key = g_slice_new(int64_t);
+      *key = sd_l->base.w;
+      g_hash_table_insert(expanded_levels, key, sd_l);
+    }
+  }
+  g_free(levels);
+
+  // get sorted keys
+  GList *level_keys = g_hash_table_get_keys(expanded_levels);
+  level_keys = g_list_sort(level_keys, width_compare);
+  //g_debug("number of keys: %d", g_list_length(level_keys));
+
+  // get level count
+  level_count = g_hash_table_size(expanded_levels);
+
+  // create new level array
+  levels = g_new(struct level *, level_count);
+
+  // load it
+  int i = 0;
+  while (level_keys != NULL) {
+    // get a value
+    struct level *l = g_hash_table_lookup(expanded_levels, level_keys->data);
+
+    // move
+    levels[i] = l;
+    g_hash_table_steal(expanded_levels, level_keys->data);
+    _openslide_int64_free(level_keys->data);  // key
+
+    // consume the head and continue
+    level_keys = g_list_delete_link(level_keys, level_keys);
+    i++;
+  }
+  g_hash_table_unref(expanded_levels);
+
+  // return results
+  *_level_count = level_count;
+  *_levels = levels;
+}
+
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
 				int num_jpeg_cols,
@@ -1237,89 +1327,12 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   osr->data = data;
 
   // create scale_denom levels
-  GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
-						      _openslide_int64_equal,
-						      _openslide_int64_free,
-						      level_free);
-  for (int32_t i = 0; i < level_count; i++) {
-    struct level *l = levels[i];
+  create_scaled_levels(osr, &level_count, &levels);
 
-    // add level
-    int64_t *key = g_slice_new(int64_t);
-    *key = l->base.w;
-    g_hash_table_insert(expanded_levels, key, l);
-
-    // try adding scale_denom levels
-    for (int scale_denom = 2; scale_denom <= 8; scale_denom <<= 1) {
-      // check to make sure we get an even division
-      if ((l->tile_width % scale_denom) ||
-	  (l->tile_height % scale_denom)) {
-	continue;
-      }
-
-      // create a derived level
-      struct level *sd_l = g_slice_new0(struct level);
-      sd_l->tiles_across = l->tiles_across;
-      sd_l->tiles_down = l->tiles_down;
-
-      sd_l->scale_denom = scale_denom;
-
-      sd_l->base.w = l->base.w / scale_denom;
-      sd_l->base.h = l->base.h / scale_denom;
-      sd_l->tile_width = l->tile_width / scale_denom;
-      sd_l->tile_height = l->tile_height / scale_denom;
-      // tile size hints
-      sd_l->base.tile_w = sd_l->tile_width;
-      sd_l->base.tile_h = sd_l->tile_height;
-
-      // clone grid
-      sd_l->grid = _openslide_grid_create_tilemap(osr,
-                                                  sd_l->tile_width,
-                                                  sd_l->tile_height,
-                                                  read_tile, tile_free);
-      _openslide_grid_tilemap_foreach(l->grid, copy_tile, sd_l);
-
-      key = g_slice_new(int64_t);
-      *key = sd_l->base.w;
-      g_hash_table_insert(expanded_levels, key, sd_l);
-    }
-  }
-  g_free(levels);
-  levels = NULL;
-
-
-  // get sorted keys
-  GList *level_keys = g_hash_table_get_keys(expanded_levels);
-  level_keys = g_list_sort(level_keys, width_compare);
-
-  //  g_debug("number of keys: %d", g_list_length(level_keys));
-
-
-  // populate the level_count
-  osr->level_count = g_hash_table_size(expanded_levels);
-
-  // load into level array
+  // populate the level count and array
   g_assert(osr->levels == NULL);
-  osr->levels = g_new(struct _openslide_level *, osr->level_count);
-  GList *tmp_list = level_keys;
-
-  int i = 0;
-
-  //  g_debug("moving sorted levels");
-  while(tmp_list != NULL) {
-    // get a key and value
-    struct level *l = g_hash_table_lookup(expanded_levels, tmp_list->data);
-
-    // move
-    osr->levels[i] = (struct _openslide_level *) l;
-    g_hash_table_steal(expanded_levels, tmp_list->data);
-    _openslide_int64_free(tmp_list->data);  // key
-
-    // consume the head and continue
-    tmp_list = g_list_delete_link(tmp_list, tmp_list);
-    i++;
-  }
-  g_hash_table_unref(expanded_levels);
+  osr->level_count = level_count;
+  osr->levels = (struct _openslide_level **) levels;
 
   // init background thread for finding restart markers
   data->restart_marker_timer = g_timer_new();
