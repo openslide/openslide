@@ -861,14 +861,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
   return NULL;
 }
 
-static int one_jpeg_compare(const void *a, const void *b) {
-  const struct one_jpeg *aa = *(struct one_jpeg * const *) a;
-  const struct one_jpeg *bb = *(struct one_jpeg * const *) b;
-
-  // compare filenames
-  return strcmp(aa->filename, bb->filename);
-}
-
 static void add_hamamatsu_ops(openslide_t *osr,
                               int32_t file_count,
                               struct one_jpeg **files,
@@ -989,10 +981,6 @@ static void add_hamamatsu_ops(openslide_t *osr,
   g_free(levels);
   levels = NULL;
 
-
-  // sort all_jpegs by file and start position, so we can avoid seeks
-  // when background finding mcus
-  qsort(data->all_jpegs, file_count, sizeof(struct one_jpeg *), one_jpeg_compare);
 
   // get sorted keys
   GList *level_keys = g_hash_table_get_keys(expanded_levels);
