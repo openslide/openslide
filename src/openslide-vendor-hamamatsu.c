@@ -66,8 +66,7 @@ static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
 struct _openslide_jpeg_tile {
-  // which tile and file?
-  int32_t fileno;
+  struct one_jpeg *jpeg;
   int32_t tileno;
 };
 
@@ -244,21 +243,15 @@ static void struct_openslide_jpeg_tile_free(gpointer data) {
   g_slice_free(struct _openslide_jpeg_tile, data);
 }
 
-struct convert_tiles_args {
-  struct level *new_l;
-  struct one_jpeg **all_jpegs;
-};
-
 static void convert_tiles(gpointer key,
 			  gpointer value,
 			  gpointer user_data) {
-  struct convert_tiles_args *args = user_data;
   struct _openslide_jpeg_tile *old_tile = value;
-  struct level *new_l = args->new_l;
+  struct level *new_l = user_data;
 
   // create new tile
   struct tile *new_tile = g_slice_new(struct tile);
-  new_tile->jpeg = args->all_jpegs[old_tile->fileno];
+  new_tile->jpeg = old_tile->jpeg;
   new_tile->tileno = old_tile->tileno;
   new_tile->tile_width = new_tile->jpeg->tile_width / new_l->scale_denom;
   new_tile->tile_height = new_tile->jpeg->tile_height / new_l->scale_denom;
@@ -926,8 +919,7 @@ static void add_hamamatsu_ops(openslide_t *osr,
                                              l->tile_advance_x,
                                              l->tile_advance_y,
                                              read_tile, tile_free);
-    struct convert_tiles_args ct_args = { l, data->all_jpegs };
-    g_hash_table_foreach(l->tiles, convert_tiles, &ct_args);
+    g_hash_table_foreach(l->tiles, convert_tiles, l);
 
     //g_debug("level margins %d %d %d %d", new_l->extra_tiles_top, new_l->extra_tiles_left, new_l->extra_tiles_bottom, new_l->extra_tiles_right);
 
@@ -966,8 +958,7 @@ static void add_hamamatsu_ops(openslide_t *osr,
                                                   sd_l->tile_advance_x,
                                                   sd_l->tile_advance_y,
                                                   read_tile, tile_free);
-      struct convert_tiles_args ct_args = { sd_l, data->all_jpegs };
-      g_hash_table_foreach(l->tiles, convert_tiles, &ct_args);
+      g_hash_table_foreach(l->tiles, convert_tiles, sd_l);
 
       key = g_slice_new(int64_t);
       *key = sd_l->base.w;
@@ -1435,7 +1426,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       int32_t local_tile_x = local_tileno % num_tiles_across;
       int32_t local_tile_y = local_tileno / num_tiles_across;
 
-      t->fileno = i;
+      t->jpeg = jp;
       t->tileno = local_tileno;
 
       // compute key for hashtable (y * w + x)
@@ -1445,7 +1436,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       int64_t *key = g_slice_new(int64_t);
       *key = (y * l->tiles_across) + x;
 
-      //g_debug("inserting tile: fileno %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, t->fileno, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
+      //g_debug("inserting tile: jpeg %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, i, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
       g_assert(!g_hash_table_lookup(l->tiles, key));
       g_hash_table_insert(l->tiles, key, t);
     }
