@@ -920,10 +920,9 @@ static void add_hamamatsu_ops(openslide_t *osr,
       sd_l->base.h = l->base.h / scale_denom;
       sd_l->tile_width = l->tile_width / scale_denom;
       sd_l->tile_height = l->tile_height / scale_denom;
-      if (l->base.tile_w && l->base.tile_h) {
-        sd_l->base.tile_w = sd_l->tile_width;
-        sd_l->base.tile_h = sd_l->tile_height;
-      }
+      // tile size hints
+      sd_l->base.tile_w = sd_l->tile_width;
+      sd_l->base.tile_h = sd_l->tile_height;
 
       sd_l->grid = _openslide_grid_create_tilemap(osr,
                                                   sd_l->tile_width,
@@ -976,18 +975,6 @@ static void add_hamamatsu_ops(openslide_t *osr,
     i++;
   }
   g_hash_table_unref(expanded_levels);
-
-  // if any level is missing tile size hints, we must invalidate all hints
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    if (!osr->levels[i]->tile_w || !osr->levels[i]->tile_h) {
-      // invalidate
-      for (i = 0; i < osr->level_count; i++) {
-        osr->levels[i]->tile_w = 0;
-        osr->levels[i]->tile_h = 0;
-      }
-      break;
-    }
-  }
 
   // init background thread for finding restart markers
   data->restart_marker_timer = g_timer_new();
