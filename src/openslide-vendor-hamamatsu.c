@@ -74,8 +74,8 @@ struct one_jpeg {
   char *filename;
   int64_t end_in_file;
 
-  int32_t width;
-  int32_t height;
+  int32_t tiles_across;
+  int32_t tiles_down;
   int32_t tile_width;
   int32_t tile_height;
 
@@ -1266,13 +1266,17 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->width, &jp->height,
+    int32_t w, h;
+    if (!verify_jpeg(f, &w, &h,
                      &jp->tile_width, &jp->tile_height,
                      comment_ptr, err)) {
       g_prefix_error(err, "Can't verify JPEG %d: ", i);
       fclose(f);
       goto DONE;
     }
+    jp->tiles_across = w / jp->tile_width;
+    jp->tiles_down = h / jp->tile_height;
+    jp->tile_count = jp->tiles_across * jp->tiles_down;
 
     if (comment) {
       g_hash_table_insert(osr->properties,
@@ -1292,17 +1296,14 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // file is done now
     fclose(f);
 
-    int32_t num_tiles_across = jp->width / jp->tile_width;
-    int32_t num_tiles_down = jp->height / jp->tile_height;
-
     // because map file is last, ensure that all tw and th are the
     // same for 0 through num_jpegs-2
     //    g_debug("tile size: %d %d", tw, th);
     if (i == 0) {
       jpeg0_tw = jp->tile_width;
       jpeg0_th = jp->tile_height;
-      jpeg0_ta = num_tiles_across;
-      jpeg0_td = num_tiles_down;
+      jpeg0_ta = jp->tiles_across;
+      jpeg0_td = jp->tiles_down;
     } else if (i != (num_jpegs - 1)) {
       // not map file (still within level 0)
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
@@ -1313,10 +1314,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       }
     }
 
-    // number of tiles
-    jp->tile_count =
-      (jp->width / jp->tile_width) *
-      (jp->height / jp->tile_height);
     jp->mcu_starts = g_new(int64_t, jp->tile_count);
     // init all to -1
     for (int32_t i = 0; i < jp->tile_count; i++) {
@@ -1326,8 +1323,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     int64_t *unreliable_mcu_starts = NULL;
     if (optimisation_file) {
       unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
-                                                       num_tiles_down,
-                                                       num_tiles_across);
+                                                       jp->tiles_down,
+                                                       jp->tiles_across);
     }
     if (unreliable_mcu_starts) {
       jp->unreliable_mcu_starts = unreliable_mcu_starts;
@@ -1354,12 +1351,12 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       file_y = i / num_jpeg_cols;
     }
     if (file_y == 0) {
-      l->base.w += jp->width;
-      l->tiles_across += num_tiles_across;
+      l->base.w += w;
+      l->tiles_across += jp->tiles_across;
     }
     if (file_x == 0) {
-      l->base.h += jp->height;
-      l->tiles_down += num_tiles_down;
+      l->base.h += h;
+      l->tiles_down += jp->tiles_down;
     }
 
     // set some values (don't accumulate)
@@ -1393,20 +1390,14 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     //g_debug("processing file %d %d %d", file_x, file_y, level);
 
-    int32_t num_tiles_across = jp->width / jp->tile_width;
-
     struct level *l = levels[level];
 
-    int32_t tile_count =
-      (jp->width / jp->tile_width) *
-      (jp->height / jp->tile_height); // number of tiles
-
     // add all the tiles
-    for (int local_tileno = 0; local_tileno < tile_count; local_tileno++) {
+    for (int local_tileno = 0; local_tileno < jp->tile_count; local_tileno++) {
       struct _openslide_jpeg_tile *t = g_slice_new0(struct _openslide_jpeg_tile);
 
-      int32_t local_tile_x = local_tileno % num_tiles_across;
-      int32_t local_tile_y = local_tileno / num_tiles_across;
+      int32_t local_tile_x = local_tileno % jp->tiles_across;
+      int32_t local_tile_y = local_tileno / jp->tiles_across;
 
       t->jpeg = jp;
       t->tileno = local_tileno;
