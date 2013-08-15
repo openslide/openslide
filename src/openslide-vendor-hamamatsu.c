@@ -1138,9 +1138,9 @@ DONE:
 }
 
 static int64_t *extract_one_optimisation(FILE *opt_f,
-					 int32_t num_tiles_down,
-					 int32_t num_tiles_across) {
-  int32_t tile_count = num_tiles_across * num_tiles_down;
+                                         int32_t tiles_down,
+                                         int32_t tiles_across) {
+  int32_t tile_count = tiles_across * tiles_down;
   int64_t *mcu_starts = g_new(int64_t, tile_count);
   for (int32_t i = 0; i < tile_count; i++) {
     mcu_starts[i] = -1; // UNKNOWN value
@@ -1159,7 +1159,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
   // we represent missing data by -1, which we initialize to,
   // so if we run out of opt file, we can just stop
 
-  for (int32_t row = 0; row < num_tiles_down; row++) {
+  for (int32_t row = 0; row < tiles_down; row++) {
     // read 40 bytes
     union {
       uint8_t buf[40];
@@ -1181,7 +1181,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
     int64_t offset = GINT64_FROM_LE(u.i64);
 
     // record this marker
-    mcu_starts[row * num_tiles_across] = offset;
+    mcu_starts[row * tiles_across] = offset;
   }
 
   return mcu_starts;
