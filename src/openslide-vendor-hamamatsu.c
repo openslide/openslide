@@ -67,7 +67,7 @@ static const char KEY_MACRO_IMAGE[] = "MacroImage";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
-struct one_jpeg {
+struct jpeg {
   char *filename;
   int64_t end_in_file;
 
@@ -82,7 +82,7 @@ struct one_jpeg {
 };
 
 struct tile {
-  struct one_jpeg *jpeg;
+  struct jpeg *jpeg;
   int32_t tileno;
 };
 
@@ -100,7 +100,7 @@ struct level {
 
 struct vms_ops_data {
   int32_t jpeg_count;
-  struct one_jpeg **all_jpegs;
+  struct jpeg **all_jpegs;
 
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
@@ -296,7 +296,7 @@ static uint8_t find_next_ff_marker(FILE *f,
 }
 
 static void _compute_mcu_start(openslide_t *osr,
-			       struct one_jpeg *jpeg,
+			       struct jpeg *jpeg,
 			       FILE *f,
 			       int64_t target) {
   // special case for first
@@ -389,7 +389,7 @@ static void _compute_mcu_start(openslide_t *osr,
 }
 
 static void compute_mcu_start(openslide_t *osr,
-			      struct one_jpeg *jpeg,
+			      struct jpeg *jpeg,
 			      FILE *f,
 			      int64_t tileno,
 			      int64_t *header_stop_position,
@@ -425,11 +425,11 @@ static void compute_mcu_start(openslide_t *osr,
   g_mutex_unlock(data->restart_marker_mutex);
 }
 
-static uint32_t *read_from_one_jpeg (openslide_t *osr,
-				     struct one_jpeg *jpeg,
-				     int32_t tileno,
-				     int32_t scale_denom,
-				     int32_t w, int32_t h) {
+static uint32_t *read_from_jpeg(openslide_t *osr,
+                                struct jpeg *jpeg,
+                                int32_t tileno,
+                                int32_t scale_denom,
+                                int32_t w, int32_t h) {
   GError *tmp_err = NULL;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
@@ -495,7 +495,7 @@ static uint32_t *read_from_one_jpeg (openslide_t *osr,
 
     if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
       _openslide_set_error(osr,
-			   "Dimensional mismatch in read_from_one_jpeg, "
+			   "Dimensional mismatch in read_from_jpeg, "
 			   "expected %dx%d, got %dx%d",
 			   w, h, cinfo.output_width, cinfo.output_height);
     } else {
@@ -571,11 +571,11 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_from_one_jpeg(osr,
-				  tile->jpeg,
-				  tile->tileno,
-				  l->scale_denom,
-				  tw, th);
+    tiledata = read_from_jpeg(osr,
+                              tile->jpeg,
+                              tile->tileno,
+                              l->scale_denom,
+                              tw, th);
 
     _openslide_cache_put(osr->cache,
 			 tile_col, tile_row, grid,
@@ -643,11 +643,11 @@ static void destroy(openslide_t *osr) {
 
   // each jpeg in turn
   for (int32_t i = 0; i < data->jpeg_count; i++) {
-    struct one_jpeg *jpeg = data->all_jpegs[i];
+    struct jpeg *jpeg = data->all_jpegs[i];
     g_free(jpeg->filename);
     g_free(jpeg->mcu_starts);
     g_free(jpeg->unreliable_mcu_starts);
-    g_slice_free(struct one_jpeg, jpeg);
+    g_slice_free(struct jpeg, jpeg);
   }
 
   // each level in turn
@@ -697,13 +697,13 @@ static void verify_mcu_starts(struct vms_ops_data *data) {
   int32_t current_mcu_start = 0;
 
   while(current_jpeg < data->jpeg_count) {
-    struct one_jpeg *oj = data->all_jpegs[current_jpeg];
+    struct jpeg *jp = data->all_jpegs[current_jpeg];
 
-    g_assert(oj->filename);
+    g_assert(jp->filename);
     if (current_mcu_start > 0) {
-      int64_t offset = oj->mcu_starts[current_mcu_start];
+      int64_t offset = jp->mcu_starts[current_mcu_start];
       g_assert(offset != -1);
-      FILE *f = _openslide_fopen(oj->filename, "rb", NULL);
+      FILE *f = _openslide_fopen(jp->filename, "rb", NULL);
       g_assert(f);
       fseeko(f, offset - 2, SEEK_SET);
       g_assert(getc(f) == 0xFF);
@@ -713,7 +713,7 @@ static void verify_mcu_starts(struct vms_ops_data *data) {
     }
 
     current_mcu_start++;
-    if (current_mcu_start >= oj->tile_count) {
+    if (current_mcu_start >= jp->tile_count) {
       current_mcu_start = 0;
       current_jpeg++;
       g_debug("done verifying jpeg %d", current_jpeg);
@@ -775,10 +775,10 @@ static gpointer restart_marker_thread_func(gpointer d) {
     //g_debug("current_jpeg: %d, current_mcu_start: %d",
     //        current_jpeg, current_mcu_start);
 
-    struct one_jpeg *oj = data->all_jpegs[current_jpeg];
-    if (oj->tile_count > 1) {
+    struct jpeg *jp = data->all_jpegs[current_jpeg];
+    if (jp->tile_count > 1) {
       if (current_file == NULL) {
-	current_file = _openslide_fopen(oj->filename, "rb", &tmp_err);
+	current_file = _openslide_fopen(jp->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
 	  //g_debug("restart_marker_thread_func fopen failed");
 	  _openslide_set_error_from_gerror(osr, tmp_err);
@@ -787,7 +787,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	}
       }
 
-      compute_mcu_start(osr, oj, current_file, current_mcu_start,
+      compute_mcu_start(osr, jp, current_file, current_mcu_start,
                         NULL, NULL, NULL);
       if (openslide_get_error(osr)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
@@ -795,7 +795,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       }
 
       current_mcu_start++;
-      if (current_mcu_start >= oj->tile_count) {
+      if (current_mcu_start >= jp->tile_count) {
 	current_mcu_start = 0;
 	current_jpeg++;
 	fclose(current_file);
@@ -1110,9 +1110,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   bool success = false;
 
   // initialize individual jpeg structs
-  struct one_jpeg **jpegs = g_new0(struct one_jpeg *, num_jpegs);
+  struct jpeg **jpegs = g_new0(struct jpeg *, num_jpegs);
   for (int i = 0; i < num_jpegs; i++) {
-    jpegs[i] = g_slice_new0(struct one_jpeg);
+    jpegs[i] = g_slice_new0(struct jpeg);
   }
 
   // init levels: base image + map
@@ -1129,7 +1129,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   int32_t jpeg0_td = 0;
 
   for (int i = 0; i < num_jpegs; i++) {
-    struct one_jpeg *jp = jpegs[i];
+    struct jpeg *jp = jpegs[i];
 
     jp->filename = g_strdup(image_filenames[i]);
 
@@ -1251,7 +1251,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
 
   for (int i = 0; i < num_jpegs; i++) {
-    struct one_jpeg *jp = jpegs[i];
+    struct jpeg *jp = jpegs[i];
 
     int32_t level;
     int32_t file_x;
@@ -1318,7 +1318,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       g_free(jpegs[i]->filename);
       g_free(jpegs[i]->mcu_starts);
       g_free(jpegs[i]->unreliable_mcu_starts);
-      g_slice_free(struct one_jpeg, jpegs[i]);
+      g_slice_free(struct jpeg, jpegs[i]);
     }
     g_free(jpegs);
 
@@ -1374,7 +1374,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       g_free(jpegs[i]->filename);
       g_free(jpegs[i]->mcu_starts);
       g_free(jpegs[i]->unreliable_mcu_starts);
-      g_slice_free(struct one_jpeg, jpegs[i]);
+      g_slice_free(struct jpeg, jpegs[i]);
     }
     g_free(jpegs);
 
