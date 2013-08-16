@@ -598,10 +598,10 @@ static void read_jpeg_tile(openslide_t *osr,
 }
 
 
-static void paint_region(openslide_t *osr, cairo_t *cr,
-			 int64_t x, int64_t y,
-			 struct _openslide_level *level,
-			 int32_t w, int32_t h) {
+static void vms_paint_region(openslide_t *osr, cairo_t *cr,
+                             int64_t x, int64_t y,
+                             struct _openslide_level *level,
+                             int32_t w, int32_t h) {
   struct vms_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
 
@@ -627,7 +627,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 }
 
-static void destroy(openslide_t *osr) {
+static void vms_destroy(openslide_t *osr) {
   struct vms_ops_data *data = osr->data;
 
   // tell the thread to finish and wait
@@ -670,9 +670,9 @@ static void destroy(openslide_t *osr) {
   g_slice_free(struct vms_ops_data, data);
 }
 
-static const struct _openslide_ops jpeg_ops = {
-  .paint_region = paint_region,
-  .destroy = destroy,
+static const struct _openslide_ops vms_ops = {
+  .paint_region = vms_paint_region,
+  .destroy = vms_destroy,
 };
 
 static gint width_compare(gconstpointer a, gconstpointer b) {
@@ -1360,7 +1360,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   }
 
   // set ops
-  osr->ops = &jpeg_ops;
+  osr->ops = &vms_ops;
 
   success = true;
 
@@ -1491,7 +1491,7 @@ static void ngr_paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                                level, w, h);
 }
 
-static const struct _openslide_ops _openslide_ngr_ops = {
+static const struct _openslide_ops ngr_ops = {
   .paint_region = ngr_paint_region,
   .destroy = ngr_destroy,
 };
@@ -1589,7 +1589,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   g_assert(osr->levels == NULL);
   osr->levels = (struct _openslide_level **) levels;
   osr->level_count = num_levels;
-  osr->ops = &_openslide_ngr_ops;
+  osr->ops = &ngr_ops;
 
   success = true;
 
