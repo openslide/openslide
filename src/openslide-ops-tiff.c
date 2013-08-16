@@ -37,6 +37,13 @@
 
 #define HANDLE_CACHE_MAX 32
 
+// not thread-safe, like libtiff
+struct tiff_file_handle {
+  char *filename;
+  int64_t offset;
+  int64_t size;
+};
+
 struct _openslide_tiffopsdata {
   GQueue *handle_cache;
   GMutex *handle_cache_mutex;
@@ -61,13 +68,6 @@ struct tiff_level {
   int64_t tiles_down;
   int32_t overlap_x;
   int32_t overlap_y;
-};
-
-// not thread-safe, like libtiff
-struct tiff_file_handle {
-  char *filename;
-  int64_t offset;
-  int64_t size;
 };
 
 struct tiff_associated_image {
@@ -177,47 +177,8 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
   }
 }
 
-static TIFF *get_tiff(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff;
-
-  //g_debug("get TIFF");
-  g_mutex_lock(data->handle_cache_mutex);
-  tiff = g_queue_pop_head(data->handle_cache);
-  g_mutex_unlock(data->handle_cache_mutex);
-
-  if (tiff == NULL) {
-    //g_debug("create TIFF");
-    // Does not check that we have the same file.  Then again, neither does
-    // tiff_do_read.
-    tiff = _openslide_tiff_open(data->filename);
-  }
-  if (tiff == NULL) {
-    _openslide_set_error(osr, "Cannot open TIFF file");
-  }
-  return tiff;
-}
-
-static void put_tiff(openslide_t *osr, TIFF *tiff) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
-  if (tiff == NULL) {
-    return;
-  }
-
-  //g_debug("put TIFF");
-  g_mutex_lock(data->handle_cache_mutex);
-  if (g_queue_get_length(data->handle_cache) < HANDLE_CACHE_MAX) {
-    g_queue_push_head(data->handle_cache, tiff);
-    tiff = NULL;
-  }
-  g_mutex_unlock(data->handle_cache_mutex);
-
-  if (tiff) {
-    //g_debug("too many TIFFs");
-    TIFFClose(tiff);
-  }
-}
+static TIFF *get_tiff(openslide_t *osr);
+static void put_tiff(openslide_t *osr, TIFF *tiff);
 
 static void destroy_data(struct _openslide_tiffopsdata *data,
                          struct tiff_level **levels, int32_t level_count) {
@@ -731,4 +692,46 @@ TIFF *_openslide_tiff_open(const char *filename) {
     tiff_do_close(hdl);
   }
   return tiff;
+}
+
+static TIFF *get_tiff(openslide_t *osr) {
+  struct _openslide_tiffopsdata *data = osr->data;
+  TIFF *tiff;
+
+  //g_debug("get TIFF");
+  g_mutex_lock(data->handle_cache_mutex);
+  tiff = g_queue_pop_head(data->handle_cache);
+  g_mutex_unlock(data->handle_cache_mutex);
+
+  if (tiff == NULL) {
+    //g_debug("create TIFF");
+    // Does not check that we have the same file.  Then again, neither does
+    // tiff_do_read.
+    tiff = _openslide_tiff_open(data->filename);
+  }
+  if (tiff == NULL) {
+    _openslide_set_error(osr, "Cannot open TIFF file");
+  }
+  return tiff;
+}
+
+static void put_tiff(openslide_t *osr, TIFF *tiff) {
+  struct _openslide_tiffopsdata *data = osr->data;
+
+  if (tiff == NULL) {
+    return;
+  }
+
+  //g_debug("put TIFF");
+  g_mutex_lock(data->handle_cache_mutex);
+  if (g_queue_get_length(data->handle_cache) < HANDLE_CACHE_MAX) {
+    g_queue_push_head(data->handle_cache, tiff);
+    tiff = NULL;
+  }
+  g_mutex_unlock(data->handle_cache_mutex);
+
+  if (tiff) {
+    //g_debug("too many TIFFs");
+    TIFFClose(tiff);
+  }
 }
