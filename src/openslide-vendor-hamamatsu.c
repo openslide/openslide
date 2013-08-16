@@ -86,7 +86,7 @@ struct jpeg_tile {
   int32_t tileno;
 };
 
-struct level {
+struct jpeg_level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
@@ -220,14 +220,11 @@ static void jpeg_random_access_src (openslide_t *osr,
   src->buffer[src->buffer_size - 1] = JPEG_EOI;
 }
 
-static void level_free(gpointer data) {
+static void jpeg_level_free(gpointer data) {
   //g_debug("level_free: %p", data);
-
-  struct level *l = data;
-
-  //  g_debug("g_free(%p)", l->level_jpegs);
+  struct jpeg_level *l = data;
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_slice_free(struct jpeg_level, l);
 }
 
 static void jpeg_tile_free(gpointer data) {
@@ -555,7 +552,7 @@ static void read_jpeg_tile(openslide_t *osr,
                            int64_t tile_col, int64_t tile_row,
                            void *data,
                            void *arg G_GNUC_UNUSED) {
-  struct level *l = (struct level *) level;
+  struct jpeg_level *l = (struct jpeg_level *) level;
   struct jpeg_tile *tile = data;
 
   int32_t tw = l->tile_width;
@@ -606,7 +603,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   struct vms_ops_data *data = osr->data;
-  struct level *l = (struct level *) level;
+  struct jpeg_level *l = (struct jpeg_level *) level;
 
   // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -652,11 +649,9 @@ static void destroy(openslide_t *osr) {
 
   // each level in turn
   for (int32_t i = 0; i < osr->level_count; i++) {
-    struct level *l = (struct level *) osr->levels[i];
-
-    //    g_debug("g_free(%p)", l->level_jpegs);
+    struct jpeg_level *l = (struct jpeg_level *) osr->levels[i];
     _openslide_grid_destroy(l->grid);
-    g_slice_free(struct level, l);
+    g_slice_free(struct jpeg_level, l);
   }
 
   // the level array
@@ -999,7 +994,7 @@ static void copy_jpeg_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
                            int64_t tile_col, int64_t tile_row,
                            void *tile,
                            void *arg) {
-  struct level *new_l = arg;
+  struct jpeg_level *new_l = arg;
   struct jpeg_tile *old_tile = tile;
 
   struct jpeg_tile *new_tile = g_slice_new0(struct jpeg_tile);
@@ -1013,19 +1008,19 @@ static void copy_jpeg_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
 }
 
 // create scale_denom levels
-static void create_scaled_levels(openslide_t *osr,
-                                 int32_t *_level_count,
-                                 struct level ***_levels) {
+static void create_scaled_jpeg_levels(openslide_t *osr,
+                                      int32_t *_level_count,
+                                      struct jpeg_level ***_levels) {
   int32_t level_count = *_level_count;
-  struct level **levels = *_levels;
+  struct jpeg_level **levels = *_levels;
 
   GHashTable *expanded_levels = g_hash_table_new_full(_openslide_int64_hash,
                                                       _openslide_int64_equal,
                                                       _openslide_int64_free,
-                                                      level_free);
+                                                      jpeg_level_free);
 
   for (int32_t i = 0; i < level_count; i++) {
-    struct level *l = levels[i];
+    struct jpeg_level *l = levels[i];
 
     // add level
     int64_t *key = g_slice_new(int64_t);
@@ -1041,7 +1036,7 @@ static void create_scaled_levels(openslide_t *osr,
       }
 
       // create a derived level
-      struct level *sd_l = g_slice_new0(struct level);
+      struct jpeg_level *sd_l = g_slice_new0(struct jpeg_level);
       sd_l->tiles_across = l->tiles_across;
       sd_l->tiles_down = l->tiles_down;
 
@@ -1079,13 +1074,14 @@ static void create_scaled_levels(openslide_t *osr,
   level_count = g_hash_table_size(expanded_levels);
 
   // create new level array
-  levels = g_new(struct level *, level_count);
+  levels = g_new(struct jpeg_level *, level_count);
 
   // load it
   int i = 0;
   while (level_keys != NULL) {
     // get a value
-    struct level *l = g_hash_table_lookup(expanded_levels, level_keys->data);
+    struct jpeg_level *l = g_hash_table_lookup(expanded_levels,
+                                               level_keys->data);
 
     // move
     levels[i] = l;
@@ -1118,9 +1114,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
   // init levels: base image + map
   int32_t level_count = 2;
-  struct level **levels = g_new0(struct level *, level_count);
+  struct jpeg_level **levels = g_new0(struct jpeg_level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
-    levels[i] = g_slice_new0(struct level);
+    levels[i] = g_slice_new0(struct jpeg_level);
   }
 
   // process jpegs
@@ -1224,7 +1220,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       level = 1;
     }
 
-    struct level *l = levels[level];
+    struct jpeg_level *l = levels[level];
     int32_t file_x = 0;
     int32_t file_y = 0;
     if (level == 0) {
@@ -1271,7 +1267,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     //g_debug("processing file %d %d %d", file_x, file_y, level);
 
-    struct level *l = levels[level];
+    struct jpeg_level *l = levels[level];
     if (l->grid == NULL) {
       l->grid = _openslide_grid_create_tilemap(osr,
                                                l->tile_width, l->tile_height,
@@ -1303,7 +1299,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
   /*
   for (int32_t i = 0; i < level_count; i++) {
-    struct level *l = levels[i];
+    struct jpeg_level *l = levels[i];
     g_debug("level %d", i);
     g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
     g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
@@ -1325,7 +1321,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     for (int32_t i = 0; i < level_count; i++) {
       _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct level, levels[i]);
+      g_slice_free(struct jpeg_level, levels[i]);
     }
     g_free(levels);
 
@@ -1340,7 +1336,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   osr->data = data;
 
   // create scale_denom levels
-  create_scaled_levels(osr, &level_count, &levels);
+  create_scaled_jpeg_levels(osr, &level_count, &levels);
 
   // populate the level count and array
   g_assert(osr->levels == NULL);
@@ -1381,7 +1377,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     for (int32_t i = 0; i < level_count; i++) {
       _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct level, levels[i]);
+      g_slice_free(struct jpeg_level, levels[i]);
     }
     g_free(levels);
   }
