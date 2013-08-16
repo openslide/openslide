@@ -265,9 +265,6 @@ static void read_tile(openslide_t *osr,
                                                                  iw, ih,
                                                                  iw * 4);
 
-  double src_x = tile->src_x;
-  double src_y = tile->src_y;
-
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
   if ((l->image_width > l->tile_w) ||
@@ -276,13 +273,11 @@ static void read_tile(openslide_t *osr,
                                                            ceil(l->tile_w),
                                                            ceil(l->tile_h));
     cairo_t *cr2 = cairo_create(surface2);
-    cairo_set_source_surface(cr2, surface, -src_x, -src_y);
+    cairo_set_source_surface(cr2, surface, -tile->src_x, -tile->src_y);
 
-    // replace original image surface and reset origin
+    // replace original image surface
     cairo_surface_destroy(surface);
     surface = surface2;
-    src_x = 0;
-    src_y = 0;
 
     cairo_rectangle(cr2, 0, 0,
                     ceil(l->tile_w),
@@ -292,8 +287,7 @@ static void read_tile(openslide_t *osr,
     cairo_destroy(cr2);
   }
 
-  cairo_set_source_surface(cr, surface,
-                           -src_x, -src_y);
+  cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
