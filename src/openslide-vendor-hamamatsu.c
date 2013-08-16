@@ -96,7 +96,7 @@ struct level {
   int32_t scale_denom;
 };
 
-struct jpegops_data {
+struct vms_ops_data {
   int32_t jpeg_count;
   struct one_jpeg **all_jpegs;
 
@@ -383,7 +383,7 @@ static void compute_mcu_start(openslide_t *osr,
 			      int64_t *header_stop_position,
 			      int64_t *start_position,
 			      int64_t *stop_position) {
-  struct jpegops_data *data = osr->data;
+  struct vms_ops_data *data = osr->data;
 
   g_mutex_lock(data->restart_marker_mutex);
 
@@ -593,7 +593,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
-  struct jpegops_data *data = osr->data;
+  struct vms_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
   // tell the background thread to pause
@@ -619,7 +619,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 static void destroy(openslide_t *osr) {
-  struct jpegops_data *data = osr->data;
+  struct vms_ops_data *data = osr->data;
 
   // tell the thread to finish and wait
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -660,7 +660,7 @@ static void destroy(openslide_t *osr) {
   g_mutex_free(data->restart_marker_cond_mutex);
 
   // the structure
-  g_slice_free(struct jpegops_data, data);
+  g_slice_free(struct vms_ops_data, data);
 }
 
 static const struct _openslide_ops jpeg_ops = {
@@ -678,7 +678,7 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
 }
 
 // warning: calls g_assert for trivial things, use only for debugging
-static void verify_mcu_starts(struct jpegops_data *data) {
+static void verify_mcu_starts(struct vms_ops_data *data) {
   g_debug("verifying mcu starts");
 
   int32_t current_jpeg = 0;
@@ -711,7 +711,7 @@ static void verify_mcu_starts(struct jpegops_data *data) {
 
 static gpointer restart_marker_thread_func(gpointer d) {
   openslide_t *osr = d;
-  struct jpegops_data *data = osr->data;
+  struct vms_ops_data *data = osr->data;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1321,7 +1321,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
   // allocate private data
   g_assert(osr->data == NULL);
-  struct jpegops_data *data = g_slice_new0(struct jpegops_data);
+  struct vms_ops_data *data = g_slice_new0(struct vms_ops_data);
   data->jpeg_count = num_jpegs;
   data->all_jpegs = jpegs;
   osr->data = data;
