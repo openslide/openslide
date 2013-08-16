@@ -81,7 +81,7 @@ struct jpeg {
   int64_t *unreliable_mcu_starts;
 };
 
-struct tile {
+struct jpeg_tile {
   struct jpeg *jpeg;
   int32_t tileno;
 };
@@ -230,8 +230,8 @@ static void level_free(gpointer data) {
   g_slice_free(struct level, l);
 }
 
-static void tile_free(gpointer data) {
-  g_slice_free(struct tile, data);
+static void jpeg_tile_free(gpointer data) {
+  g_slice_free(struct jpeg_tile, data);
 }
 
 static uint8_t find_next_ff_marker(FILE *f,
@@ -548,15 +548,15 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
   return dest;
 }
 
-static void read_tile(openslide_t *osr,
-		      cairo_t *cr,
-		      struct _openslide_level *level,
-		      struct _openslide_grid *grid,
-		      int64_t tile_col, int64_t tile_row,
-		      void *data,
-		      void *arg G_GNUC_UNUSED) {
+static void read_jpeg_tile(openslide_t *osr,
+                           cairo_t *cr,
+                           struct _openslide_level *level,
+                           struct _openslide_grid *grid,
+                           int64_t tile_col, int64_t tile_row,
+                           void *data,
+                           void *arg G_GNUC_UNUSED) {
   struct level *l = (struct level *) level;
-  struct tile *tile = data;
+  struct jpeg_tile *tile = data;
 
   int32_t tw = l->tile_width;
   int32_t th = l->tile_height;
@@ -995,14 +995,14 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
   // TODO: can we calculate MPP from PhysicalWidth/PhysicalHeight?
 }
 
-static void copy_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
-                      int64_t tile_col, int64_t tile_row,
-                      void *tile,
-                      void *arg) {
+static void copy_jpeg_tile(struct _openslide_grid *grid G_GNUC_UNUSED,
+                           int64_t tile_col, int64_t tile_row,
+                           void *tile,
+                           void *arg) {
   struct level *new_l = arg;
-  struct tile *old_tile = tile;
+  struct jpeg_tile *old_tile = tile;
 
-  struct tile *new_tile = g_slice_new0(struct tile);
+  struct jpeg_tile *new_tile = g_slice_new0(struct jpeg_tile);
   new_tile->jpeg = old_tile->jpeg;
   new_tile->tileno = old_tile->tileno;
 
@@ -1059,8 +1059,9 @@ static void create_scaled_levels(openslide_t *osr,
       sd_l->grid = _openslide_grid_create_tilemap(osr,
                                                   sd_l->tile_width,
                                                   sd_l->tile_height,
-                                                  read_tile, tile_free);
-      _openslide_grid_tilemap_foreach(l->grid, copy_tile, sd_l);
+                                                  read_jpeg_tile,
+                                                  jpeg_tile_free);
+      _openslide_grid_tilemap_foreach(l->grid, copy_jpeg_tile, sd_l);
 
       key = g_slice_new(int64_t);
       *key = sd_l->base.w;
@@ -1274,12 +1275,12 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (l->grid == NULL) {
       l->grid = _openslide_grid_create_tilemap(osr,
                                                l->tile_width, l->tile_height,
-                                               read_tile, tile_free);
+                                               read_jpeg_tile, jpeg_tile_free);
     }
 
     // add all the tiles
     for (int local_tileno = 0; local_tileno < jp->tile_count; local_tileno++) {
-      struct tile *t = g_slice_new0(struct tile);
+      struct jpeg_tile *t = g_slice_new0(struct jpeg_tile);
 
       int32_t local_tile_x = local_tileno % jp->tiles_across;
       int32_t local_tile_y = local_tileno / jp->tiles_across;
