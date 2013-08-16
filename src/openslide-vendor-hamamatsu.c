@@ -1564,25 +1564,25 @@ static int32_t read_le_int32_from_file(FILE *f) {
 }
 
 static bool hamamatsu_vmu_part2(openslide_t *osr,
-				int num_files, char **image_filenames,
+				int num_levels, char **image_filenames,
 				GError **err) {
   bool success = false;
 
   // initialize individual ngr structs
-  struct _openslide_ngr **files = g_new0(struct _openslide_ngr *,
-					 num_files);
-  for (int i = 0; i < num_files; i++) {
-    files[i] = g_slice_new0(struct _openslide_ngr);
+  struct _openslide_ngr **levels = g_new0(struct _openslide_ngr *,
+                                          num_levels);
+  for (int i = 0; i < num_levels; i++) {
+    levels[i] = g_slice_new0(struct _openslide_ngr);
   }
 
   // open files
-  for (int i = 0; i < num_files; i++) {
-    struct _openslide_ngr *ngr = files[i];
+  for (int i = 0; i < num_levels; i++) {
+    struct _openslide_ngr *l = levels[i];
 
-    ngr->filename = g_strdup(image_filenames[i]);
+    l->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(ngr->filename, "rb", err)) == NULL) {
+    if ((f = _openslide_fopen(l->filename, "rb", err)) == NULL) {
       goto DONE;
     }
 
@@ -1596,16 +1596,16 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     // read w, h, column width, headersize
     fseeko(f, 4, SEEK_SET);
-    ngr->w = read_le_int32_from_file(f);
-    ngr->h = read_le_int32_from_file(f);
-    ngr->column_width = read_le_int32_from_file(f);
+    l->w = read_le_int32_from_file(f);
+    l->h = read_le_int32_from_file(f);
+    l->column_width = read_le_int32_from_file(f);
 
     fseeko(f, 24, SEEK_SET);
-    ngr->start_in_file = read_le_int32_from_file(f);
+    l->start_in_file = read_le_int32_from_file(f);
 
     // validate
-    if ((ngr->w <= 0) || (ngr->h <= 0) ||
-	(ngr->column_width <= 0) || (ngr->start_in_file <= 0)) {
+    if ((l->w <= 0) || (l->h <= 0) ||
+	(l->column_width <= 0) || (l->start_in_file <= 0)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Error processing header");
       fclose(f);
@@ -1613,7 +1613,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     }
 
     // ensure no remainder on columns
-    if ((ngr->w % ngr->column_width) != 0) {
+    if ((l->w % l->column_width) != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Width not multiple of column width");
       fclose(f);
@@ -1627,14 +1627,14 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
  DONE:
   if (success) {
-    add_ngr_ops(osr, num_files, files);
+    add_ngr_ops(osr, num_levels, levels);
   } else {
     // destroy
-    for (int i = 0; i < num_files; i++) {
-      g_free(files[i]->filename);
-      g_slice_free(struct _openslide_ngr, files[i]);
+    for (int i = 0; i < num_levels; i++) {
+      g_free(levels[i]->filename);
+      g_slice_free(struct _openslide_ngr, levels[i]);
     }
-    g_free(files);
+    g_free(levels);
   }
 
   return success;
