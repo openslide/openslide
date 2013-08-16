@@ -124,17 +124,6 @@ struct ngr_level {
   int32_t column_width;
 };
 
-struct _openslide_ngr {
-  char *filename;
-
-  int64_t start_in_file;
-
-  int32_t w;
-  int32_t h;
-
-  int32_t column_width;
-};
-
 /*
  * Source manager for doing fancy things with libjpeg and restart markers,
  * initially copied from jdatasrc.c from IJG libjpeg.
@@ -1510,46 +1499,6 @@ static const struct _openslide_ops _openslide_ngr_ops = {
   .destroy = ngr_destroy,
 };
 
-static void add_ngr_ops(openslide_t *osr,
-                        int32_t ngr_count,
-                        struct _openslide_ngr **ngrs) {
-  // transform ngrs to levels
-  struct ngr_level **levels = g_new(struct ngr_level *, ngr_count);
-  for (int32_t i = 0; i < ngr_count; i++) {
-    struct _openslide_ngr *ngr = ngrs[i];
-    struct ngr_level *l = g_slice_new0(struct ngr_level);
-    l->base.w = ngr->w;
-    l->base.h = ngr->h;
-    l->base.tile_w = ngr->column_width;
-    l->base.tile_h = NGR_TILE_HEIGHT;
-    l->grid = _openslide_grid_create_simple(osr,
-                                            ngr->w / ngr->column_width,
-                                            (ngr->h + NGR_TILE_HEIGHT - 1) / NGR_TILE_HEIGHT,
-                                            ngr->column_width,
-                                            NGR_TILE_HEIGHT,
-                                            ngr_read_tile);
-    l->filename = ngr->filename;
-    l->start_in_file = ngr->start_in_file;
-    l->column_width = ngr->column_width;
-    levels[i] = l;
-    g_slice_free(struct _openslide_ngr, ngr);
-  }
-  g_free(ngrs);
-
-  if (osr == NULL) {
-    ngr_destroy_levels(levels, ngr_count);
-    return;
-  }
-
-  // set levels
-  g_assert(osr->levels == NULL);
-  osr->levels = (struct _openslide_level **) levels;
-
-  // general osr data
-  osr->level_count = ngr_count;
-  osr->ops = &_openslide_ngr_ops;
-}
-
 static int32_t read_le_int32_from_file(FILE *f) {
   int32_t i;
 
@@ -1569,15 +1518,14 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   bool success = false;
 
   // initialize individual ngr structs
-  struct _openslide_ngr **levels = g_new0(struct _openslide_ngr *,
-                                          num_levels);
+  struct ngr_level **levels = g_new(struct ngr_level *, num_levels);
   for (int i = 0; i < num_levels; i++) {
-    levels[i] = g_slice_new0(struct _openslide_ngr);
+    levels[i] = g_slice_new0(struct ngr_level);
   }
 
   // open files
   for (int i = 0; i < num_levels; i++) {
-    struct _openslide_ngr *l = levels[i];
+    struct ngr_level *l = levels[i];
 
     l->filename = g_strdup(image_filenames[i]);
 
@@ -1596,15 +1544,15 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     // read w, h, column width, headersize
     fseeko(f, 4, SEEK_SET);
-    l->w = read_le_int32_from_file(f);
-    l->h = read_le_int32_from_file(f);
+    l->base.w = read_le_int32_from_file(f);
+    l->base.h = read_le_int32_from_file(f);
     l->column_width = read_le_int32_from_file(f);
 
     fseeko(f, 24, SEEK_SET);
     l->start_in_file = read_le_int32_from_file(f);
 
     // validate
-    if ((l->w <= 0) || (l->h <= 0) ||
+    if ((l->base.w <= 0) || (l->base.h <= 0) ||
 	(l->column_width <= 0) || (l->start_in_file <= 0)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Error processing header");
@@ -1613,26 +1561,48 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     }
 
     // ensure no remainder on columns
-    if ((l->w % l->column_width) != 0) {
+    if ((l->base.w % l->column_width) != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Width not multiple of column width");
       fclose(f);
       goto DONE;
     }
 
+    l->grid = _openslide_grid_create_simple(osr,
+                                            l->base.w / l->column_width,
+                                            (l->base.h + NGR_TILE_HEIGHT - 1)
+                                            / NGR_TILE_HEIGHT,
+                                            l->column_width,
+                                            NGR_TILE_HEIGHT,
+                                            ngr_read_tile);
+
+    // tile size hints
+    l->base.tile_w = l->column_width;
+    l->base.tile_h = NGR_TILE_HEIGHT;
+
     fclose(f);
   }
+
+  if (osr == NULL) {
+    ngr_destroy_levels(levels, num_levels);
+    return true;
+  }
+
+  // set osr data
+  g_assert(osr->levels == NULL);
+  osr->levels = (struct _openslide_level **) levels;
+  osr->level_count = num_levels;
+  osr->ops = &_openslide_ngr_ops;
 
   success = true;
 
  DONE:
-  if (success) {
-    add_ngr_ops(osr, num_levels, levels);
-  } else {
+  if (!success) {
     // destroy
     for (int i = 0; i < num_levels; i++) {
+      _openslide_grid_destroy(levels[i]->grid);
       g_free(levels[i]->filename);
-      g_slice_free(struct _openslide_ngr, levels[i]);
+      g_slice_free(struct ngr_level, levels[i]);
     }
     g_free(levels);
   }
