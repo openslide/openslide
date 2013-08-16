@@ -310,23 +310,6 @@ struct _openslide_jpeg_error_mgr {
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env);
 
-// Hamamatsu NGR
-struct _openslide_ngr {
-  char *filename;
-
-  int64_t start_in_file;
-
-  int32_t w;
-  int32_t h;
-
-  int32_t column_width;
-};
-
-void _openslide_add_ngr_ops(openslide_t *osr,
-			    int32_t ngr_count,
-			    struct _openslide_ngr **ngrs);
-
-
 // external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
