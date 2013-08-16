@@ -37,6 +37,12 @@
 
 #define HANDLE_CACHE_MAX 32
 
+struct _openslide_tiffcache {
+  char *filename;
+  GQueue *cache;
+  GMutex *lock;
+};
+
 // not thread-safe, like libtiff
 struct tiff_file_handle {
   char *filename;
@@ -45,10 +51,7 @@ struct tiff_file_handle {
 };
 
 struct _openslide_tiffopsdata {
-  GQueue *handle_cache;
-  GMutex *handle_cache_mutex;
-  char *filename;
-
+  struct _openslide_tiffcache *tc;
   _openslide_tiff_tilereader_fn tileread;
 };
 
@@ -177,21 +180,9 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
   }
 }
 
-static TIFF *get_tiff(openslide_t *osr);
-static void put_tiff(openslide_t *osr, TIFF *tiff);
-
 static void destroy_data(struct _openslide_tiffopsdata *data,
                          struct tiff_level **levels, int32_t level_count) {
-  TIFF *tiff;
-
-  g_mutex_lock(data->handle_cache_mutex);
-  while ((tiff = g_queue_pop_head(data->handle_cache)) != NULL) {
-    TIFFClose(tiff);
-  }
-  g_mutex_unlock(data->handle_cache_mutex);
-  g_queue_free(data->handle_cache);
-  g_mutex_free(data->handle_cache_mutex);
-  g_free(data->filename);
+  _openslide_tiffcache_destroy(data->tc);
   g_slice_free(struct _openslide_tiffopsdata, data);
 
   for (int32_t i = 0; i < level_count; i++) {
@@ -353,11 +344,14 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
-  TIFF *tiff = get_tiff(osr);
+  struct _openslide_tiffopsdata *data = osr->data;
+  TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
     _paint_region(osr, tiff, cr, x, y, level, w, h);
+  } else {
+    _openslide_set_error(osr, "Cannot open TIFF file");
   }
-  put_tiff(osr, tiff);
+  _openslide_tiffcache_put(data->tc, tiff);
 }
 
 
@@ -396,9 +390,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   g_free(overlaps);
 
   // populate private data
-  data->handle_cache = g_queue_new();
-  data->handle_cache_mutex = g_mutex_new();
-  data->filename = g_strdup(TIFFFileName(tiff));
   data->tileread = tileread;
 
   if (osr == NULL) {
@@ -444,8 +435,8 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   osr->data = data;
   osr->ops = &_openslide_tiff_ops;
 
-  // now store TIFF handle
-  put_tiff(osr, tiff);
+  // create TIFF cache from handle
+  data->tc = _openslide_tiffcache_create(tiff);
 }
 
 void _openslide_generic_tiff_tilereader(openslide_t *osr,
@@ -515,11 +506,14 @@ static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
 static void tiff_get_associated_image_data(openslide_t *osr,
                                            struct _openslide_associated_image *img,
                                            uint32_t *dest) {
-  TIFF *tiff = get_tiff(osr);
+  struct _openslide_tiffopsdata *data = osr->data;
+  TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
     _tiff_get_associated_image_data(osr, tiff, img, dest);
+  } else {
+    _openslide_set_error(osr, "Cannot open TIFF file");
   }
-  put_tiff(osr, tiff);
+  _openslide_tiffcache_put(data->tc, tiff);
 }
 
 static void tiff_destroy_associated_image(struct _openslide_associated_image *_img) {
@@ -694,44 +688,61 @@ TIFF *_openslide_tiff_open(const char *filename) {
   return tiff;
 }
 
-static TIFF *get_tiff(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff;
+struct _openslide_tiffcache *_openslide_tiffcache_create(TIFF *tiff) {
+  struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
+  tc->filename = g_strdup(TIFFFileName(tiff));
+  tc->cache = g_queue_new();
+  tc->lock = g_mutex_new();
+  _openslide_tiffcache_put(tc, tiff);
+  return tc;
+}
 
+TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
   //g_debug("get TIFF");
-  g_mutex_lock(data->handle_cache_mutex);
-  tiff = g_queue_pop_head(data->handle_cache);
-  g_mutex_unlock(data->handle_cache_mutex);
+  g_mutex_lock(tc->lock);
+  TIFF *tiff = g_queue_pop_head(tc->cache);
+  g_mutex_unlock(tc->lock);
 
   if (tiff == NULL) {
     //g_debug("create TIFF");
     // Does not check that we have the same file.  Then again, neither does
     // tiff_do_read.
-    tiff = _openslide_tiff_open(data->filename);
-  }
-  if (tiff == NULL) {
-    _openslide_set_error(osr, "Cannot open TIFF file");
+    tiff = _openslide_tiff_open(tc->filename);
   }
   return tiff;
 }
 
-static void put_tiff(openslide_t *osr, TIFF *tiff) {
-  struct _openslide_tiffopsdata *data = osr->data;
-
+void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff) {
   if (tiff == NULL) {
     return;
   }
 
   //g_debug("put TIFF");
-  g_mutex_lock(data->handle_cache_mutex);
-  if (g_queue_get_length(data->handle_cache) < HANDLE_CACHE_MAX) {
-    g_queue_push_head(data->handle_cache, tiff);
+  g_mutex_lock(tc->lock);
+  if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
+    g_queue_push_head(tc->cache, tiff);
     tiff = NULL;
   }
-  g_mutex_unlock(data->handle_cache_mutex);
+  g_mutex_unlock(tc->lock);
 
   if (tiff) {
     //g_debug("too many TIFFs");
     TIFFClose(tiff);
   }
+}
+
+void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
+  if (tc == NULL) {
+    return;
+  }
+  g_mutex_lock(tc->lock);
+  TIFF *tiff;
+  while ((tiff = g_queue_pop_head(tc->cache)) != NULL) {
+    TIFFClose(tiff);
+  }
+  g_mutex_unlock(tc->lock);
+  g_queue_free(tc->cache);
+  g_mutex_free(tc->lock);
+  g_free(tc->filename);
+  g_slice_free(struct _openslide_tiffcache, tc);
 }

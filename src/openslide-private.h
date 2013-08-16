@@ -275,6 +275,14 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
 
 TIFF *_openslide_tiff_open(const char *filename);
 
+struct _openslide_tiffcache *_openslide_tiffcache_create(TIFF *tiff);
+
+TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc);
+
+void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
+
+void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
+
 /* JPEG support */
 bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int64_t offset,
