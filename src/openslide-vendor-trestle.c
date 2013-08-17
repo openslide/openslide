@@ -74,6 +74,7 @@ static void read_tile(openslide_t *osr,
                       struct _openslide_level *level,
                       struct _openslide_grid *grid,
                       int64_t tile_x, int64_t tile_y,
+                      void *tile G_GNUC_UNUSED,
                       void *arg);
 
 static void destroy_data(struct trestle_ops_data *data,
@@ -133,11 +134,21 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   }
 
   // set up grid
-  l->grid = _openslide_grid_create_simple(osr,
-                                          tiles_across, tiles_down,
-                                          tw - l->overlap_x,
-                                          th - l->overlap_y,
-                                          read_tile);
+  l->grid = _openslide_grid_create_tilemap(osr,
+                                           tw - l->overlap_x,
+                                           th - l->overlap_y,
+                                           read_tile, NULL);
+
+  // add tiles
+  for (int64_t y = 0; y < tiles_down; y++) {
+    for (int64_t x = 0; x < tiles_across; x++) {
+      _openslide_grid_tilemap_add_tile(l->grid,
+                                       x, y,
+                                       0, 0,
+                                       tw, th,
+                                       NULL);
+    }
+  }
 }
 
 static void read_tile(openslide_t *osr,
@@ -145,6 +156,7 @@ static void read_tile(openslide_t *osr,
                       struct _openslide_level *level,
                       struct _openslide_grid *grid,
                       int64_t tile_x, int64_t tile_y,
+                      void *tile G_GNUC_UNUSED,
                       void *arg) {
   struct level *l = (struct level *) level;
   TIFF *tiff = arg;
