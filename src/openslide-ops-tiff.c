@@ -225,6 +225,38 @@ static bool hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
   return true;
 }
 
+bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
+                                              TIFF *tiff,
+                                              struct _openslide_hash *quickhash1,
+                                              tdir_t lowest_resolution_level,
+                                              tdir_t property_dir,
+                                              GError **err) {
+  if (osr == NULL) {
+    return true;
+  }
+
+  // generate hash of the smallest level
+  if (!TIFFSetDirectory(tiff, lowest_resolution_level)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot set directory %d", lowest_resolution_level);
+    return false;
+  }
+  if (!hash_tiff_tiles(quickhash1, tiff, err)) {
+    g_prefix_error(err, "Cannot hash TIFF tiles: ");
+    return false;
+  }
+
+  // load TIFF properties
+  if (!TIFFSetDirectory(tiff, property_dir)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot set directory %d", property_dir);
+    return false;
+  }
+  store_and_hash_properties(tiff, osr->properties, quickhash1);
+
+  return true;
+}
+
 static void destroy_data(struct _openslide_tiffopsdata *data,
                          struct tiff_level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
@@ -460,15 +492,13 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   }
 
   // generate hash of the smallest level
-  TIFFSetDirectory(tiff, levels[level_count - 1]->dir);
-  if (!hash_tiff_tiles(quickhash1, tiff, &tmp_err)) {
-    _openslide_set_error(osr, "Cannot hash TIFF tiles: %s", tmp_err->message);
+  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
+                                                levels[level_count - 1]->dir,
+                                                property_dir,
+                                                &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
     g_clear_error(&tmp_err);
   }
-
-  // load TIFF properties
-  TIFFSetDirectory(tiff, property_dir);    // ignoring return value, but nothing we can do if failed
-  store_and_hash_properties(tiff, osr->properties, quickhash1);
 
   // store tiff-specific data into osr
   g_assert(osr->data == NULL);

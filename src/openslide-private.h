@@ -260,6 +260,13 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1);
 
+bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
+                                              TIFF *tiff,
+                                              struct _openslide_hash *quickhash1,
+                                              tdir_t lowest_resolution_level,
+                                              tdir_t property_dir,
+                                              GError **err);
+
 void _openslide_generic_tiff_tilereader(openslide_t *osr,
 					TIFF *tiff,
 					uint32_t *dest,
