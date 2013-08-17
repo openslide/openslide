@@ -37,95 +37,32 @@
 #include <stdlib.h>
 #include <tiffio.h>
 
-#include <openjpeg.h>
-
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
 #define APERIO_COMPRESSION_JP2K_YCBCR 33003
 #define APERIO_COMPRESSION_JP2K_RGB   33005
 
-// TODO: replace with tables
-static void write_pixel_ycbcr(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
-  double R = c0 + 1.402 * (c2 - 128);
-  double G = c0 - 0.34414 * (c1 - 128) - 0.71414 * (c2 - 128);
-  double B = c0 + 1.772 * (c1 - 128);
-
-  R = CLAMP(R, 0, 255);
-  G = CLAMP(G, 0, 255);
-  B = CLAMP(B, 0, 255);
-
-  *dest = 255 << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
-}
-
-static void write_pixel_rgb(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2) {
-  *dest = 255 << 24 | c0 << 16 | c1 << 8 | c2;
-}
-
-static void warning_callback(const char *msg G_GNUC_UNUSED,
-                             void *data G_GNUC_UNUSED) {
-  //g_debug("%s", msg);
-}
-static void error_callback(const char *msg, void *data) {
-  openslide_t *osr = data;
-  _openslide_set_error(osr, "OpenJPEG error: %s", msg);
-}
-
-static void copy_aperio_tile(uint16_t compression_mode,
-			     opj_image_comp_t *comps,
-			     uint32_t *dest,
-			     int32_t w, int32_t h) {
-  // TODO: too slow, and with duplicated code!
-
-  int c0_sub_x = w / comps[0].w;
-  int c1_sub_x = w / comps[1].w;
-  int c2_sub_x = w / comps[2].w;
-  int c0_sub_y = h / comps[0].h;
-  int c1_sub_y = h / comps[1].h;
-  int c2_sub_y = h / comps[2].h;
-
-  int i = 0;
-
-  switch (compression_mode) {
-  case APERIO_COMPRESSION_JP2K_YCBCR:
-    for (int y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) {
-	uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
-	uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
-	uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
-
-	write_pixel_ycbcr(dest + i, c0, c1, c2);
-	i++;
-      }
-    }
-
-    break;
-
-  case APERIO_COMPRESSION_JP2K_RGB:
-    for (int y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) {
-	uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
-	uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
-	uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
-
-	write_pixel_rgb(dest + i, c0, c1, c2);
-	i++;
-      }
-    }
-    break;
-  }
-}
-
 static void aperio_tiff_tilereader(openslide_t *osr,
 				   TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t tile_col, int64_t tile_row) {
+  GError *tmp_err = NULL;
+
   // which compression?
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
-  // not for us? fallback
-  if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
-      (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
+  // select color space
+  enum _openslide_jp2k_colorspace space;
+  switch (compression_mode) {
+  case APERIO_COMPRESSION_JP2K_YCBCR:
+    space = OPENSLIDE_JP2K_YCBCR;
+    break;
+  case APERIO_COMPRESSION_JP2K_RGB:
+    space = OPENSLIDE_JP2K_RGB;
+    break;
+  default:
+    // not for us? fallback
     _openslide_generic_tiff_tilereader(osr, tiff, dest, tile_col, tile_row);
     return;
   }
@@ -156,52 +93,18 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     return;  // ok, haven't allocated anything yet
   }
 
-  // init decompressor
-  opj_cio_t *stream = NULL;
-  opj_dinfo_t *dinfo = NULL;
-  opj_image_t *image = NULL;
-  opj_image_comp_t *comps = NULL;
-
-  // note: don't use info_handler, it outputs lots of junk
-  opj_event_mgr_t event_callbacks = {
-    .error_handler = error_callback,
-    .warning_handler = warning_callback,
-  };
-
-  opj_dparameters_t parameters;
-  dinfo = opj_create_decompress(CODEC_J2K);
-  opj_set_default_decoder_parameters(&parameters);
-  opj_setup_decoder(dinfo, &parameters);
-  stream = opj_cio_open((opj_common_ptr) dinfo, buf, buflen);
-  opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
-
-  // decode
-  image = opj_decode(dinfo, stream);
-
-  // check error
-  if (openslide_get_error(osr)) {
-    goto DONE;
+  // decompress
+  if (!_openslide_jp2k_decode_buffer(dest,
+                                     tw, th,
+                                     buf, buflen,
+                                     space,
+                                     &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
   }
 
-  comps = image->comps;
-
-  // sanity check
-  if (image->numcomps != 3) {
-    _openslide_set_error(osr, "image->numcomps != 3");
-    goto DONE;
-  }
-
-  // TODO more checks?
-
-  copy_aperio_tile(compression_mode, comps, dest,
-                   tw, th);
-
- DONE:
-  // erase
+  // clean up
   g_free(buf);
-  if (image) opj_image_destroy(image);
-  if (stream) opj_cio_close(stream);
-  if (dinfo) opj_destroy_decompress(dinfo);
 }
 
 static void add_properties(GHashTable *ht, char **props) {

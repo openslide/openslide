@@ -319,6 +319,18 @@ struct _openslide_jpeg_error_mgr {
 struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
 							 jmp_buf *env);
 
+/* JPEG 2000 support */
+enum _openslide_jp2k_colorspace {
+  OPENSLIDE_JP2K_RGB,
+  OPENSLIDE_JP2K_YCBCR,
+};
+
+bool _openslide_jp2k_decode_buffer(uint32_t *dest,
+                                   int32_t w, int32_t h,
+                                   void *data, int32_t datalen,
+                                   enum _openslide_jp2k_colorspace space,
+                                   GError **err);
+
 // external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
