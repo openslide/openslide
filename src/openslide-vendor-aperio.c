@@ -129,8 +129,7 @@ static void copy_aperio_tile(uint16_t compression_mode,
 static void aperio_tiff_tilereader(openslide_t *osr,
 				   TIFF *tiff,
 				   uint32_t *dest,
-				   int64_t x, int64_t y,
-				   int32_t w, int32_t h) {
+				   int64_t tile_col, int64_t tile_row) {
   // which compression?
   uint16_t compression_mode;
   TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
@@ -138,7 +137,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // not for us? fallback
   if ((compression_mode != APERIO_COMPRESSION_JP2K_YCBCR) &&
       (compression_mode != APERIO_COMPRESSION_JP2K_RGB)) {
-    _openslide_generic_tiff_tilereader(osr, tiff, dest, x, y, w, h);
+    _openslide_generic_tiff_tilereader(osr, tiff, dest, tile_col, tile_row);
     return;
   }
 
@@ -154,8 +153,21 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     .warning_handler = warning_callback,
   };
 
+  // get tile dimensions
+  int32_t tw, th;
+  if (!TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw)) {
+    _openslide_set_error(osr, "Cannot get tile width");
+    return;
+  }
+  if (!TIFFGetField(tiff, TIFFTAG_TILELENGTH, &th)) {
+    _openslide_set_error(osr, "Cannot get tile height");
+    return;
+  }
+
   // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff, x, y, 0, 0);
+  ttile_t tile_no = TIFFComputeTile(tiff,
+                                    tile_col * tw, tile_row * th,
+                                    0, 0);
 
   //  g_debug("aperio reading tile_no: %d", tile_no);
 
@@ -170,7 +182,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // a slide with zero-length tiles has been seen in the wild
   if (!tile_size) {
     // fill with transparent
-    memset(dest, 0, w * h * 4);
+    memset(dest, 0, tw * th * 4);
     //g_debug("skipping tile %d", tile_no);
     return;  // ok, haven't allocated anything yet
   }
@@ -211,10 +223,10 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // TODO more checks?
 
   copy_aperio_tile(compression_mode, comps, dest,
-		   w, h,
-		   w / comps[0].w, h / comps[0].h,
-		   w / comps[1].w, h / comps[1].h,
-		   w / comps[2].w, h / comps[2].h);
+		   tw, th,
+		   tw / comps[0].w, th / comps[0].h,
+		   tw / comps[1].w, th / comps[1].h,
+		   tw / comps[2].w, th / comps[2].h);
 
  DONE:
   // erase

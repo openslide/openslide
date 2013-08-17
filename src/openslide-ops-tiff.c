@@ -279,7 +279,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    data->tileread(osr, tiff, tiledata, x, y, tw, th);
+    data->tileread(osr, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
     int64_t rx = iw - x;
@@ -439,11 +439,10 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   data->tc = _openslide_tiffcache_create(tiff);
 }
 
-void _openslide_generic_tiff_tilereader(openslide_t *osr,
-					TIFF *tiff,
-					uint32_t *dest,
-					int64_t x, int64_t y,
-					int32_t w, int32_t h) {
+static void tiff_read_region(openslide_t *osr, TIFF *tiff,
+                             uint32_t *dest,
+                             int64_t x, int64_t y,
+                             int32_t w, int32_t h) {
   TIFFRGBAImage img;
   char emsg[1024] = "";
 
@@ -480,6 +479,22 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr,
   TIFFRGBAImageEnd(&img);
 }
 
+void _openslide_generic_tiff_tilereader(openslide_t *osr, TIFF *tiff,
+                                        uint32_t *dest,
+                                        int64_t tile_col, int64_t tile_row) {
+  uint32_t tmp;
+
+  // get tile dimensions
+  int64_t tw, th;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+
+  // read region
+  tiff_read_region(osr, tiff, dest,
+                   tile_col * tw, tile_row * th,
+                   tw, th);
+}
+
 static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
                                             struct _openslide_associated_image *_img,
                                             uint32_t *dest) {
@@ -500,7 +515,7 @@ static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
   }
 
   // load the image
-  _openslide_generic_tiff_tilereader(osr, tiff, dest, 0, 0, width, height);
+  tiff_read_region(osr, tiff, dest, 0, 0, width, height);
 }
 
 static void tiff_get_associated_image_data(openslide_t *osr,

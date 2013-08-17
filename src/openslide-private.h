@@ -247,10 +247,8 @@ void _openslide_grid_label_tile(struct _openslide_grid *grid,
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      TIFF *tiff,
 					      uint32_t *dest,
-					      int64_t x,
-					      int64_t y,
-					      int32_t w,
-					      int32_t h);
+					      int64_t tile_col,
+					      int64_t tile_row);
 
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
@@ -265,8 +263,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 void _openslide_generic_tiff_tilereader(openslide_t *osr,
 					TIFF *tiff,
 					uint32_t *dest,
-					int64_t x, int64_t y,
-					int32_t w, int32_t h);
+					int64_t tile_col, int64_t tile_row);
 
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
