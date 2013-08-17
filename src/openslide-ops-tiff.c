@@ -375,7 +375,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    data->tileread(osr, tiff, tiledata, tile_x, tile_y);
+    data->tileread(osr, &l->tiffl, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
@@ -546,20 +546,14 @@ static void tiff_read_region(openslide_t *osr, TIFF *tiff,
   TIFFRGBAImageEnd(&img);
 }
 
-void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
+void _openslide_tiff_read_tile(openslide_t *osr,
+                               struct _openslide_tiff_level *tiffl,
+                               TIFF *tiff,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row) {
-  uint32_t tmp;
-
-  // get tile dimensions
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
-
-  // read region
   tiff_read_region(osr, tiff, dest,
-                   tile_col * tw, tile_row * th,
-                   tw, th);
+                   tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
+                   tiffl->tile_w, tiffl->tile_h);
 }
 
 void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,

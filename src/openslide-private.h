@@ -255,6 +255,7 @@ struct _openslide_tiff_level {
 };
 
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
+					      struct _openslide_tiff_level *tiffl,
 					      TIFF *tiff,
 					      uint32_t *dest,
 					      int64_t tile_col,
@@ -281,7 +282,9 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
                                               tdir_t property_dir,
                                               GError **err);
 
-void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
+void _openslide_tiff_read_tile(openslide_t *osr,
+                               struct _openslide_tiff_level *tiffl,
+                               TIFF *tiff,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row);
 

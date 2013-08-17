@@ -43,6 +43,7 @@ static const char APERIO_DESCRIPTION[] = "Aperio";
 #define APERIO_COMPRESSION_JP2K_RGB   33005
 
 static void aperio_tiff_tilereader(openslide_t *osr,
+				   struct _openslide_tiff_level *tiffl,
 				   TIFF *tiff,
 				   uint32_t *dest,
 				   int64_t tile_col, int64_t tile_row) {
@@ -63,7 +64,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     break;
   default:
     // not for us? fallback
-    _openslide_tiff_read_tile(osr, tiff, dest, tile_col, tile_row);
+    _openslide_tiff_read_tile(osr, tiffl, tiff, dest, tile_col, tile_row);
     return;
   }
 

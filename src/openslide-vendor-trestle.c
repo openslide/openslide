@@ -111,7 +111,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    _openslide_tiff_read_tile(osr, tiff, tiledata, tile_x, tile_y);
+    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
