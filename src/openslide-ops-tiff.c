@@ -271,31 +271,32 @@ static void destroy(openslide_t *osr) {
 }
 
 
-static void set_dimensions(openslide_t *osr, TIFF *tiff,
-                           struct tiff_level *l,
-                           struct _openslide_tiff_level *tiffl,
-                           tdir_t dir) {
+bool _openslide_tiff_level_init(TIFF *tiff,
+                                tdir_t dir,
+                                struct _openslide_level *level,
+                                struct _openslide_tiff_level *tiffl,
+                                GError **err) {
   uint32_t tmp;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, dir)
+  SET_DIR_OR_ERR(tiff, dir, err)
 
   // figure out tile size
   int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_TILEWIDTH, tw, err)
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_TILELENGTH, th, err)
 
   // get image size
   int64_t iw, ih;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, iw, err)
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, ih, err)
 
   // safe now, start writing
-  l->base.w = iw;
-  l->base.h = ih;
+  level->w = iw;
+  level->h = ih;
   // tile size hints
-  l->base.tile_w = tw;
-  l->base.tile_h = th;
+  level->tile_w = tw;
+  level->tile_h = th;
 
   tiffl->dir = dir;
   tiffl->image_w = iw;
@@ -306,6 +307,8 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   // num tiles in each dimension
   tiffl->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
   tiffl->tiles_down = (ih / th) + !!(ih % th);
+
+  return true;
 }
 
 void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
@@ -459,10 +462,19 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     return;
   }
 
-  // set dimensions and create grid
+  // init TIFF levels and create grid
   for (int32_t i = 0; i < level_count; i++) {
     struct tiff_level *l = levels[i];
-    set_dimensions(osr, tiff, l, &l->tiffl, l->tiffl.dir);
+    if (!_openslide_tiff_level_init(tiff,
+                                    l->tiffl.dir,
+                                    (struct _openslide_level *) l,
+                                    &l->tiffl,
+                                    &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      destroy_data(data, levels, level_count);
+      return;
+    }
     l->grid = _openslide_grid_create_simple(osr,
                                             l->tiffl.tiles_across,
                                             l->tiffl.tiles_down,

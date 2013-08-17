@@ -260,6 +260,12 @@ typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      int64_t tile_col,
 					      int64_t tile_row);
 
+bool _openslide_tiff_level_init(TIFF *tiff,
+                                tdir_t dir,
+                                struct _openslide_level *level,
+                                struct _openslide_tiff_level *tiffl,
+                                GError **err);
+
 void _openslide_add_tiff_ops(openslide_t *osr,
 			     TIFF *tiff,
 			     int32_t property_dir,
