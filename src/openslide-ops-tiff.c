@@ -61,12 +61,6 @@ struct tiff_level {
 
   tdir_t dir;
 
-  // the world according to TIFF tags
-  int64_t tile_width;
-  int64_t tile_height;
-
-  int64_t tiles_across;
-  int64_t tiles_down;
   int32_t overlap_x;
   int32_t overlap_y;
 };
@@ -292,33 +286,30 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
   // safe now, start writing
-  l->tile_width = tw;
-  l->tile_height = th;
   if (geometry) {
     l->base.tile_w = tw;
     l->base.tile_h = th;
   }
 
   // num tiles in each dimension
-  l->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  l->tiles_down = (ih / th) + !!(ih % th);
+  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
+  int64_t tiles_down = (ih / th) + !!(ih % th);
 
   // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
   l->base.w = iw;
   l->base.h = ih;
   if (iw >= tw) {
-    l->base.w -= (l->tiles_across - 1) * l->overlap_x;
+    l->base.w -= (tiles_across - 1) * l->overlap_x;
   }
   if (ih >= th) {
-    l->base.h -= (l->tiles_down - 1) * l->overlap_y;
+    l->base.h -= (tiles_down - 1) * l->overlap_y;
   }
 
   // set up grid
   l->grid = _openslide_grid_create_simple(osr,
-                                          l->tiles_across,
-                                          l->tiles_down,
-                                          l->tile_width - l->overlap_x,
-                                          l->tile_height - l->overlap_y,
+                                          tiles_across, tiles_down,
+                                          tw - l->overlap_x,
+                                          th - l->overlap_y,
                                           read_tile);
 }
 
@@ -372,13 +363,15 @@ static void read_tile(openslide_t *osr,
   struct _openslide_tiffopsdata *data = osr->data;
   struct tiff_level *l = (struct tiff_level *) level;
   TIFF *tiff = arg;
+  uint32_t tmp;
 
   // set the directory
   SET_DIR_OR_FAIL(osr, tiff, l->dir)
 
   // tile size
-  int64_t tw = l->tile_width;
-  int64_t th = l->tile_height;
+  int64_t tw, th;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
 
   // cache
   struct _openslide_cache_entry *cache_entry;
