@@ -58,14 +58,6 @@ struct level {
     return;							\
   }
 
-static void read_tile(openslide_t *osr,
-                      cairo_t *cr,
-                      struct _openslide_level *level,
-                      struct _openslide_grid *grid,
-                      int64_t tile_x, int64_t tile_y,
-                      void *tile G_GNUC_UNUSED,
-                      void *arg);
-
 static void destroy_data(struct trestle_ops_data *data,
                          struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
