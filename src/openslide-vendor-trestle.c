@@ -77,7 +77,7 @@ static void read_tile(openslide_t *osr,
                       cairo_t *cr,
                       struct _openslide_level *level,
                       struct _openslide_grid *grid,
-                      int64_t tile_x, int64_t tile_y,
+                      int64_t tile_col, int64_t tile_row,
                       void *tile G_GNUC_UNUSED,
                       void *arg) {
   struct level *l = (struct level *) level;
@@ -90,17 +90,18 @@ static void read_tile(openslide_t *osr,
 
   // cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, grid,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache,
+                                            tile_col, tile_row, grid,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_x, tile_y);
+    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
 
     // clip, if necessary
-    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_x, tile_y);
+    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, tile_x, tile_y, grid,
+    _openslide_cache_put(osr->cache, tile_col, tile_row, grid,
                          tiledata, tw * th * 4,
                          &cache_entry);
   }
@@ -114,7 +115,7 @@ static void read_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
-  //_openslide_grid_label_tile(grid, cr, tile_x, tile_y);
+  //_openslide_grid_label_tile(grid, cr, tile_col, tile_row);
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
