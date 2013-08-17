@@ -73,11 +73,15 @@ static void error_callback(const char *msg, void *data) {
 static void copy_aperio_tile(uint16_t compression_mode,
 			     opj_image_comp_t *comps,
 			     uint32_t *dest,
-			     int32_t w, int32_t h,
-			     int c0_sub_x, int c0_sub_y,
-			     int c1_sub_x, int c1_sub_y,
-			     int c2_sub_x, int c2_sub_y) {
+			     int32_t w, int32_t h) {
   // TODO: too slow, and with duplicated code!
+
+  int c0_sub_x = w / comps[0].w;
+  int c1_sub_x = w / comps[1].w;
+  int c2_sub_x = w / comps[2].w;
+  int c0_sub_y = h / comps[0].h;
+  int c1_sub_y = h / comps[1].h;
+  int c2_sub_y = h / comps[2].h;
 
   int i = 0;
 
@@ -190,10 +194,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // TODO more checks?
 
   copy_aperio_tile(compression_mode, comps, dest,
-		   tw, th,
-		   tw / comps[0].w, th / comps[0].h,
-		   tw / comps[1].w, th / comps[1].h,
-		   tw / comps[2].w, th / comps[2].h);
+                   tw, th);
 
  DONE:
   // erase
