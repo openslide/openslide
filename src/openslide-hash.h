@@ -47,6 +47,9 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       int64_t offset, int64_t size,
 			       GError **err);
 
+// lockout
+void _openslide_hash_disable(struct _openslide_hash *hash);
+
 // accessor
 const char *_openslide_hash_get_string(struct _openslide_hash *hash);
 

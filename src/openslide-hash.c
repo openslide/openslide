@@ -75,7 +75,7 @@ bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
       // This is a non-pyramidal image or one with a very large top level.
       // Refuse to calculate a quickhash for it to keep openslide_open()
       // from taking an arbitrary amount of time.  (#79)
-      hash->enabled = false;
+      _openslide_hash_disable(hash);
       return true;  // ok, haven't allocated anything yet
     }
   }
@@ -150,6 +150,13 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   fclose(f);
   return true;
+}
+
+// Invalidate this hash.  Use if this slide is unhashable for some reason.
+void _openslide_hash_disable(struct _openslide_hash *hash) {
+  if (hash) {
+    hash->enabled = false;
+  }
 }
 
 const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
