@@ -528,7 +528,6 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
 
   // all set, load up the TIFF-specific ops
   _openslide_add_tiff_ops(osr, tiff, levels[0],
-    0, NULL,
     level_count, levels,
     _openslide_tiff_read_tile,
     quickhash1);
