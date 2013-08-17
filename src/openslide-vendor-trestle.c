@@ -42,11 +42,11 @@ static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
 static const char BACKGROUND_COLOR[] = "Background Color=";
 
-struct _openslide_tiffopsdata {
+struct trestle_ops_data {
   struct _openslide_tiffcache *tc;
 };
 
-struct tiff_level {
+struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
@@ -76,27 +76,27 @@ static void read_tile(openslide_t *osr,
                       int64_t tile_x, int64_t tile_y,
                       void *arg);
 
-static void destroy_data(struct _openslide_tiffopsdata *data,
-                         struct tiff_level **levels, int32_t level_count) {
+static void destroy_data(struct trestle_ops_data *data,
+                         struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct _openslide_tiffopsdata, data);
+  g_slice_free(struct trestle_ops_data, data);
 
   for (int32_t i = 0; i < level_count; i++) {
     _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct tiff_level, levels[i]);
+    g_slice_free(struct level, levels[i]);
   }
   g_free(levels);
 }
 
 static void destroy(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level **levels = (struct tiff_level **) osr->levels;
+  struct trestle_ops_data *data = osr->data;
+  struct level **levels = (struct level **) osr->levels;
   destroy_data(data, levels, osr->level_count);
 }
 
 
 static void set_dimensions(openslide_t *osr, TIFF *tiff,
-                           struct tiff_level *l, bool geometry) {
+                           struct level *l, bool geometry) {
   uint32_t tmp;
 
   // set the directory
@@ -146,7 +146,7 @@ static void read_tile(openslide_t *osr,
                       struct _openslide_grid *grid,
                       int64_t tile_x, int64_t tile_y,
                       void *arg) {
-  struct tiff_level *l = (struct tiff_level *) level;
+  struct level *l = (struct level *) level;
   TIFF *tiff = arg;
   uint32_t tmp;
 
@@ -194,8 +194,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
                          int64_t x, int64_t y,
                          struct _openslide_level *level,
                          int32_t w, int32_t h) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = (struct tiff_level *) level;
+  struct trestle_ops_data *data = osr->data;
+  struct level *l = (struct level *) level;
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
@@ -227,15 +227,14 @@ static void add_trestle_ops(openslide_t *osr,
                             int32_t *directories,
                             struct _openslide_hash *quickhash1) {
   // allocate private data
-  struct _openslide_tiffopsdata *data =
-    g_slice_new0(struct _openslide_tiffopsdata);
+  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
 
   GError *tmp_err = NULL;
 
   // create levels
-  struct tiff_level **levels = g_new(struct tiff_level *, level_count);
+  struct level **levels = g_new(struct level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
-    struct tiff_level *l = g_slice_new0(struct tiff_level);
+    struct level *l = g_slice_new0(struct level);
     l->dir = directories[i];
     if (i < overlap_count) {
       l->overlap_x = overlaps[2 * i];
