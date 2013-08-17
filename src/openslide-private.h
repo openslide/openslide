@@ -276,6 +276,10 @@ void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
                                     int64_t tile_col, int64_t tile_row,
                                     void **buf, int32_t *len);
 
+void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
+                               uint32_t *tiledata,
+                               int64_t tile_col, int64_t tile_row);
+
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
 					  TIFF *tiff,

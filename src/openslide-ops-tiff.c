@@ -62,8 +62,6 @@ struct tiff_level {
   tdir_t dir;
 
   // the world according to TIFF tags
-  int64_t raw_width;
-  int64_t raw_height;
   int64_t tile_width;
   int64_t tile_height;
 
@@ -294,8 +292,6 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
 
   // safe now, start writing
-  l->raw_width = iw;
-  l->raw_height = ih;
   l->tile_width = tw;
   l->tile_height = th;
   if (geometry) {
@@ -326,6 +322,47 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
                                           read_tile);
 }
 
+void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
+                               uint32_t *tiledata,
+                               int64_t tile_col, int64_t tile_row) {
+  uint32_t tmp;
+
+  // get image dimensions
+  int64_t iw, ih;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
+
+  // get tile dimensions
+  int64_t tw, th;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+
+  // remaining w/h
+  int64_t rw = iw - tile_col * tw;
+  int64_t rh = ih - tile_row * th;
+
+  if ((rw < tw) || (rh < th)) {
+    // mask right/bottom
+    cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                                                   CAIRO_FORMAT_ARGB32,
+                                                                   tw, th,
+                                                                   tw * 4);
+    cairo_t *cr = cairo_create(surface);
+    cairo_surface_destroy(surface);
+
+    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+
+    cairo_rectangle(cr, rw, 0, tw - rw, th);
+    cairo_fill(cr);
+
+    cairo_rectangle(cr, 0, rh, tw, th - rh);
+    cairo_fill(cr);
+
+    _openslide_check_cairo_status_possibly_set_error(osr, cr);
+    cairo_destroy(cr);
+  }
+}
+
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
@@ -343,10 +380,6 @@ static void read_tile(openslide_t *osr,
   int64_t tw = l->tile_width;
   int64_t th = l->tile_height;
 
-  // image size
-  int64_t iw = l->raw_width;
-  int64_t ih = l->raw_height;
-
   int64_t x = tile_x * tw;
   int64_t y = tile_y * th;
 
@@ -359,27 +392,7 @@ static void read_tile(openslide_t *osr,
     data->tileread(osr, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
-    int64_t rx = iw - x;
-    int64_t ry = ih - y;
-    if ((rx < tw) || (ry < th)) {
-      cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-								     CAIRO_FORMAT_ARGB32,
-								     tw, th,
-								     tw * 4);
-      cairo_t *cr2 = cairo_create(surface);
-      cairo_surface_destroy(surface);
-
-      cairo_set_operator(cr2, CAIRO_OPERATOR_CLEAR);
-
-      cairo_rectangle(cr2, rx, 0, tw - rx, th);
-      cairo_fill(cr2);
-
-      cairo_rectangle(cr2, 0, ry, tw, th - ry);
-      cairo_fill(cr2);
-
-      _openslide_check_cairo_status_possibly_set_error(osr, cr2);
-      cairo_destroy(cr2);
-    }
+    _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
 
     // put it in the cache
     _openslide_cache_put(osr->cache, x, y, grid,
