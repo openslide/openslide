@@ -50,9 +50,6 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
-
-  int32_t overlap_x;
-  int32_t overlap_y;
 };
 
 #define SET_DIR_OR_FAIL(osr, tiff, i)				\
@@ -75,8 +72,10 @@ static void destroy_data(struct trestle_ops_data *data,
   g_slice_free(struct trestle_ops_data, data);
 
   for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct level, levels[i]);
+    if (levels[i]) {
+      _openslide_grid_destroy(levels[i]->grid);
+      g_slice_free(struct level, levels[i]);
+    }
   }
   g_free(levels);
 }
@@ -87,53 +86,6 @@ static void destroy(openslide_t *osr) {
   destroy_data(data, levels, osr->level_count);
 }
 
-
-static void set_dimensions(openslide_t *osr, TIFF *tiff,
-                           struct level *l, bool geometry) {
-  struct _openslide_tiff_level *tiffl = &l->tiffl;
-  GError *tmp_err = NULL;
-
-  if (!_openslide_tiff_level_init(tiff,
-                                  tiffl->dir,
-                                  (struct _openslide_level *) l,
-                                  tiffl,
-                                  &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-    return;
-  }
-
-  if (!geometry) {
-    // clear tile size hints
-    l->base.tile_w = 0;
-    l->base.tile_h = 0;
-  }
-
-  // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
-  if (tiffl->image_w >= tiffl->tile_w) {
-    l->base.w -= (tiffl->tiles_across - 1) * l->overlap_x;
-  }
-  if (tiffl->image_h >= tiffl->tile_h) {
-    l->base.h -= (tiffl->tiles_down - 1) * l->overlap_y;
-  }
-
-  // set up grid
-  l->grid = _openslide_grid_create_tilemap(osr,
-                                           tiffl->tile_w - l->overlap_x,
-                                           tiffl->tile_h - l->overlap_y,
-                                           read_tile, NULL);
-
-  // add tiles
-  for (int64_t y = 0; y < tiffl->tiles_down; y++) {
-    for (int64_t x = 0; x < tiffl->tiles_across; x++) {
-      _openslide_grid_tilemap_add_tile(l->grid,
-                                       x, y,
-                                       0, 0,
-                                       tiffl->tile_w, tiffl->tile_h,
-                                       NULL);
-    }
-  }
-}
 
 static void read_tile(openslide_t *osr,
                       cairo_t *cr,
@@ -384,24 +336,63 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   bool report_geometry = true;
   for (int32_t i = 0; i < level_count; i++) {
     struct level *l = g_slice_new0(struct level);
+    struct _openslide_tiff_level *tiffl = &l->tiffl;
+    levels[i] = l;
+
     // directories are linear
-    l->tiffl.dir = i;
+    if (!_openslide_tiff_level_init(tiff, i,
+                                    (struct _openslide_level *) l, tiffl,
+                                    err)) {
+      destroy_data(data, levels, level_count);
+      return false;
+    }
+
+    // get overlaps
+    int32_t overlap_x = 0;
+    int32_t overlap_y = 0;
     if (i < overlap_count) {
-      l->overlap_x = overlaps[2 * i];
-      l->overlap_y = overlaps[2 * i + 1];
+      overlap_x = overlaps[2 * i];
+      overlap_y = overlaps[2 * i + 1];
       // if any level has overlaps, reporting tile advances would mislead the
       // application
-      if (l->overlap_x || l->overlap_y) {
+      if (overlap_x || overlap_y) {
         report_geometry = false;
       }
     }
-    levels[i] = l;
+
+    // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
+    if (tiffl->image_w >= tiffl->tile_w) {
+      l->base.w -= (tiffl->tiles_across - 1) * overlap_x;
+    }
+    if (tiffl->image_h >= tiffl->tile_h) {
+      l->base.h -= (tiffl->tiles_down - 1) * overlap_y;
+    }
+
+    // create grid
+    l->grid = _openslide_grid_create_tilemap(osr,
+                                             tiffl->tile_w - overlap_x,
+                                             tiffl->tile_h - overlap_y,
+                                             read_tile, NULL);
+
+    // add tiles
+    for (int64_t y = 0; y < tiffl->tiles_down; y++) {
+      for (int64_t x = 0; x < tiffl->tiles_across; x++) {
+        _openslide_grid_tilemap_add_tile(l->grid,
+                                         x, y,
+                                         0, 0,
+                                         tiffl->tile_w, tiffl->tile_h,
+                                         NULL);
+      }
+    }
   }
   g_free(overlaps);
 
-  // set dimensions
-  for (int32_t i = 0; i < level_count; i++) {
-    set_dimensions(osr, tiff, levels[i], report_geometry);
+  // clear tile size hints if necessary
+  if (!report_geometry) {
+    for (int32_t i = 0; i < level_count; i++) {
+      levels[i]->base.tile_w = 0;
+      levels[i]->base.tile_h = 0;
+    }
   }
 
   // set hash and properties
