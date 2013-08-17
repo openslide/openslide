@@ -405,29 +405,23 @@ static void read_tile(openslide_t *osr,
   _openslide_cache_entry_unref(cache_entry);
 }
 
-static void _paint_region(openslide_t *osr, TIFF *tiff, cairo_t *cr,
-                          int64_t x, int64_t y,
-                          struct _openslide_level *level,
-                          int32_t w, int32_t h) {
-  struct tiff_level *l = (struct tiff_level *) level;
-
-  // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
-
-  _openslide_grid_paint_region(l->grid, cr, tiff,
-                               x / level->downsample,
-                               y / level->downsample,
-                               level, w, h);
-}
-
 static void paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = osr->data;
+  struct tiff_level *l = (struct tiff_level *) level;
+
   TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
-    _paint_region(osr, tiff, cr, x, y, level, w, h);
+    if (TIFFSetDirectory(tiff, l->dir)) {
+      _openslide_grid_paint_region(l->grid, cr, tiff,
+                                   x / l->base.downsample,
+                                   y / l->base.downsample,
+                                   level, w, h);
+    } else {
+      _openslide_set_error(osr, "Cannot set TIFF directory");
+    }
   } else {
     _openslide_set_error(osr, "Cannot open TIFF file");
   }
