@@ -82,8 +82,8 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   void *buf;
   int32_t buflen;
   _openslide_tiff_read_tile_data(osr, tiff,
-                                 tile_col, tile_row,
-                                 &buf, &buflen);
+                                 &buf, &buflen,
+                                 tile_col, tile_row);
   if (!buflen) {
     if (!openslide_get_error(osr)) {
       // a slide with zero-length tiles has been seen in the wild

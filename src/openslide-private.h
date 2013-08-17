@@ -272,8 +272,8 @@ void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
                                int64_t tile_col, int64_t tile_row);
 
 void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
-                                    int64_t tile_col, int64_t tile_row,
-                                    void **buf, int32_t *len);
+                                    void **buf, int32_t *len,
+                                    int64_t tile_col, int64_t tile_row);
 
 void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
                                uint32_t *tiledata,

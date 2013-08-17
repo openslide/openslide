@@ -574,8 +574,8 @@ void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
 }
 
 void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
-                                    int64_t tile_col, int64_t tile_row,
-                                    void **_buf, int32_t *_len) {
+                                    void **_buf, int32_t *_len,
+                                    int64_t tile_col, int64_t tile_row) {
   uint32_t tmp;
 
   // initialize out params
