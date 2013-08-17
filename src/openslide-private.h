@@ -250,6 +250,8 @@ struct _openslide_tiff_level {
   int64_t image_h;
   int64_t tile_w;
   int64_t tile_h;
+  int64_t tiles_across;
+  int64_t tiles_down;
 };
 
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,

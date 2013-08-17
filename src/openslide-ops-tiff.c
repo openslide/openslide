@@ -297,14 +297,8 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   tiffl->tile_h = th;
 
   // num tiles in each dimension
-  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  int64_t tiles_down = (ih / th) + !!(ih % th);
-
-  // set up grid
-  l->grid = _openslide_grid_create_simple(osr,
-                                          tiles_across, tiles_down,
-                                          tw, th,
-                                          read_tile);
+  tiffl->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
+  tiffl->tiles_down = (ih / th) + !!(ih % th);
 }
 
 void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
@@ -458,10 +452,16 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     return;
   }
 
-  // set dimensions
+  // set dimensions and create grid
   for (int32_t i = 0; i < level_count; i++) {
     struct tiff_level *l = levels[i];
     set_dimensions(osr, tiff, l, &l->tiffl, l->tiffl.dir);
+    l->grid = _openslide_grid_create_simple(osr,
+                                            l->tiffl.tiles_across,
+                                            l->tiffl.tiles_down,
+                                            l->tiffl.tile_w,
+                                            l->tiffl.tile_h,
+                                            read_tile);
   }
 
   // generate hash of the smallest level
