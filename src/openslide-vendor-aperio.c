@@ -50,24 +50,9 @@ static void write_pixel_ycbcr(uint32_t *dest, uint8_t c0, uint8_t c1, uint8_t c2
   double G = c0 - 0.34414 * (c1 - 128) - 0.71414 * (c2 - 128);
   double B = c0 + 1.772 * (c1 - 128);
 
-  if (R > 255) {
-    R = 255;
-  }
-  if (R < 0) {
-    R = 0;
-  }
-  if (G > 255) {
-    G = 255;
-  }
-  if (G < 0) {
-    G = 0;
-  }
-  if (B > 255) {
-    B = 255;
-  }
-  if (B < 0) {
-    B = 0;
-  }
+  R = CLAMP(R, 0, 255);
+  G = CLAMP(G, 0, 255);
+  B = CLAMP(B, 0, 255);
 
   *dest = 255 << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
 }
