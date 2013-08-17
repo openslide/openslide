@@ -141,18 +141,6 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     return;
   }
 
-  // else, JPEG 2000!
-  opj_cio_t *stream = NULL;
-  opj_dinfo_t *dinfo = NULL;
-  opj_image_t *image = NULL;
-  opj_image_comp_t *comps = NULL;
-
-  // note: don't use info_handler, it outputs lots of junk
-  opj_event_mgr_t event_callbacks = {
-    .error_handler = error_callback,
-    .warning_handler = warning_callback,
-  };
-
   // get tile dimensions
   int32_t tw, th;
   if (!TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw)) {
@@ -164,45 +152,39 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     return;
   }
 
-  // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff,
-                                    tile_col * tw, tile_row * th,
-                                    0, 0);
-
-  //  g_debug("aperio reading tile_no: %d", tile_no);
-
-  // get tile size
-  toff_t *sizes;
-  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    _openslide_set_error(osr, "Cannot get tile size");
+  // read raw tile
+  void *buf;
+  int32_t buflen;
+  _openslide_tiff_read_tile_data(osr, tiff,
+                                 tile_col, tile_row,
+                                 &buf, &buflen);
+  if (!buflen) {
+    if (!openslide_get_error(osr)) {
+      // a slide with zero-length tiles has been seen in the wild
+      // fill with transparent
+      memset(dest, 0, tw * th * 4);
+    }
     return;  // ok, haven't allocated anything yet
-  }
-  tsize_t tile_size = sizes[tile_no];
-
-  // a slide with zero-length tiles has been seen in the wild
-  if (!tile_size) {
-    // fill with transparent
-    memset(dest, 0, tw * th * 4);
-    //g_debug("skipping tile %d", tile_no);
-    return;  // ok, haven't allocated anything yet
-  }
-
-  // get raw tile
-  tdata_t buf = g_slice_alloc(tile_size);
-  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
-  if (size == -1) {
-    _openslide_set_error(osr, "Cannot get raw tile");
-    goto DONE;
   }
 
   // init decompressor
+  opj_cio_t *stream = NULL;
+  opj_dinfo_t *dinfo = NULL;
+  opj_image_t *image = NULL;
+  opj_image_comp_t *comps = NULL;
+
+  // note: don't use info_handler, it outputs lots of junk
+  opj_event_mgr_t event_callbacks = {
+    .error_handler = error_callback,
+    .warning_handler = warning_callback,
+  };
+
   opj_dparameters_t parameters;
   dinfo = opj_create_decompress(CODEC_J2K);
   opj_set_default_decoder_parameters(&parameters);
   opj_setup_decoder(dinfo, &parameters);
-  stream = opj_cio_open((opj_common_ptr) dinfo, buf, size);
+  stream = opj_cio_open((opj_common_ptr) dinfo, buf, buflen);
   opj_set_event_mgr((opj_common_ptr) dinfo, &event_callbacks, osr);
-
 
   // decode
   image = opj_decode(dinfo, stream);
@@ -230,7 +212,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
 
  DONE:
   // erase
-  g_slice_free1(tile_size, buf);
+  g_free(buf);
   if (image) opj_image_destroy(image);
   if (stream) opj_cio_close(stream);
   if (dinfo) opj_destroy_decompress(dinfo);

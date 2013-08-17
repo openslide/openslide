@@ -495,6 +495,53 @@ void _openslide_generic_tiff_tilereader(openslide_t *osr, TIFF *tiff,
                    tw, th);
 }
 
+void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
+                                    int64_t tile_col, int64_t tile_row,
+                                    void **_buf, int32_t *_len) {
+  uint32_t tmp;
+
+  // initialize out params
+  *_buf = NULL;
+  *_len = 0;
+
+  // get tile dimensions
+  int64_t tw, th;
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
+  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+
+  // get tile number
+  ttile_t tile_no = TIFFComputeTile(tiff, tile_col * tw, tile_row * th, 0, 0);
+
+  //g_debug("_openslide_tiff_read_tile_data reading tile %d", tile_no);
+
+  // get tile size
+  toff_t *sizes;
+  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
+    _openslide_set_error(osr, "Cannot get tile size");
+    return;  // ok, haven't allocated anything yet
+  }
+  tsize_t tile_size = sizes[tile_no];
+
+  // a slide with zero-length tiles has been seen in the wild
+  if (!tile_size) {
+    //g_debug("no data for tile %d", tile_no);
+    return;  // ok, haven't allocated anything yet
+  }
+
+  // get raw tile
+  tdata_t buf = g_malloc(tile_size);
+  tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
+  if (size == -1) {
+    _openslide_set_error(osr, "Cannot read raw tile");
+    g_free(buf);
+    return;
+  }
+
+  // set outputs
+  *_buf = buf;
+  *_len = size;
+}
+
 static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
                                             struct _openslide_associated_image *_img,
                                             uint32_t *dest) {
