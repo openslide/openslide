@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -48,9 +48,8 @@ struct trestle_ops_data {
 
 struct level {
   struct _openslide_level base;
+  struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
-
-  tdir_t dir;
 
   int32_t overlap_x;
   int32_t overlap_y;
@@ -61,13 +60,6 @@ struct level {
     _openslide_set_error(osr, "Cannot set TIFF directory");	\
     return;							\
   }
-
-#define GET_FIELD_OR_FAIL(osr, tiff, tag, result)		\
-  if (!TIFFGetField(tiff, tag, &tmp)) {				\
-    _openslide_set_error(osr, "Cannot get required TIFF tag: %d", tag);	\
-    return;							\
-  }								\
-  result = tmp;
 
 static void read_tile(openslide_t *osr,
                       cairo_t *cr,
@@ -98,54 +90,46 @@ static void destroy(openslide_t *osr) {
 
 static void set_dimensions(openslide_t *osr, TIFF *tiff,
                            struct level *l, bool geometry) {
-  uint32_t tmp;
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
+  GError *tmp_err = NULL;
 
-  // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
-
-  // figure out tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
-
-  // get image size
-  int64_t iw, ih;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
-
-  // safe now, start writing
-  if (geometry) {
-    l->base.tile_w = tw;
-    l->base.tile_h = th;
+  if (!_openslide_tiff_level_init(tiff,
+                                  tiffl->dir,
+                                  (struct _openslide_level *) l,
+                                  tiffl,
+                                  &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+    return;
   }
 
-  // num tiles in each dimension
-  int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  int64_t tiles_down = (ih / th) + !!(ih % th);
+  if (!geometry) {
+    // clear tile size hints
+    l->base.tile_w = 0;
+    l->base.tile_h = 0;
+  }
 
   // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
-  l->base.w = iw;
-  l->base.h = ih;
-  if (iw >= tw) {
-    l->base.w -= (tiles_across - 1) * l->overlap_x;
+  if (tiffl->image_w >= tiffl->tile_w) {
+    l->base.w -= (tiffl->tiles_across - 1) * l->overlap_x;
   }
-  if (ih >= th) {
-    l->base.h -= (tiles_down - 1) * l->overlap_y;
+  if (tiffl->image_h >= tiffl->tile_h) {
+    l->base.h -= (tiffl->tiles_down - 1) * l->overlap_y;
   }
 
   // set up grid
   l->grid = _openslide_grid_create_tilemap(osr,
-                                           tw - l->overlap_x,
-                                           th - l->overlap_y,
+                                           tiffl->tile_w - l->overlap_x,
+                                           tiffl->tile_h - l->overlap_y,
                                            read_tile, NULL);
 
   // add tiles
-  for (int64_t y = 0; y < tiles_down; y++) {
-    for (int64_t x = 0; x < tiles_across; x++) {
+  for (int64_t y = 0; y < tiffl->tiles_down; y++) {
+    for (int64_t x = 0; x < tiffl->tiles_across; x++) {
       _openslide_grid_tilemap_add_tile(l->grid,
                                        x, y,
                                        0, 0,
-                                       tw, th,
+                                       tiffl->tile_w, tiffl->tile_h,
                                        NULL);
     }
   }
@@ -159,16 +143,15 @@ static void read_tile(openslide_t *osr,
                       void *tile G_GNUC_UNUSED,
                       void *arg) {
   struct level *l = (struct level *) level;
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
-  uint32_t tmp;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
+  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir)
 
   // tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+  int64_t tw = tiffl->tile_w;
+  int64_t th = tiffl->tile_h;
 
   // cache
   struct _openslide_cache_entry *cache_entry;
@@ -211,7 +194,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
-    if (TIFFSetDirectory(tiff, l->dir)) {
+    if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
       _openslide_grid_paint_region(l->grid, cr, tiff,
                                    x / l->base.downsample,
                                    y / l->base.downsample,
@@ -402,7 +385,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   for (int32_t i = 0; i < level_count; i++) {
     struct level *l = g_slice_new0(struct level);
     // directories are linear
-    l->dir = i;
+    l->tiffl.dir = i;
     if (i < overlap_count) {
       l->overlap_x = overlaps[2 * i];
       l->overlap_y = overlaps[2 * i + 1];
@@ -423,7 +406,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 
   // set hash and properties
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->dir,
+                                                levels[level_count - 1]->tiffl.dir,
                                                 0,
                                                 err)) {
     destroy_data(data, levels, level_count);
