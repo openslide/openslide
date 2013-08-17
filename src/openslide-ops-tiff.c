@@ -79,6 +79,21 @@ struct tiff_associated_image {
   }								\
   result = tmp;
 
+#define SET_DIR_OR_ERR(tiff, i, err)				\
+  if (!TIFFSetDirectory(tiff, i)) {				\
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                "Cannot set TIFF directory %d", i);		\
+    return false;						\
+  }
+
+#define GET_FIELD_OR_ERR(tiff, tag, result, err)		\
+  if (!TIFFGetField(tiff, tag, &tmp)) {				\
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                "Cannot get required TIFF tag: %d", tag);	\
+    return false;						\
+  }								\
+  result = tmp;
+
 static void read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
@@ -224,22 +239,14 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
   }
 
   // generate hash of the smallest level
-  if (!TIFFSetDirectory(tiff, lowest_resolution_level)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot set directory %d", lowest_resolution_level);
-    return false;
-  }
+  SET_DIR_OR_ERR(tiff, lowest_resolution_level, err)
   if (!hash_tiff_tiles(quickhash1, tiff, err)) {
     g_prefix_error(err, "Cannot hash TIFF tiles: ");
     return false;
   }
 
   // load TIFF properties
-  if (!TIFFSetDirectory(tiff, property_dir)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot set directory %d", property_dir);
-    return false;
-  }
+  SET_DIR_OR_ERR(tiff, property_dir, err)
   store_and_hash_properties(tiff, osr->properties, quickhash1);
 
   return true;
@@ -644,19 +651,9 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
   uint32_t tmp;
 
   // get the dimensions
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &tmp)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot get associated image width");
-    return false;
-  }
-  int64_t w = tmp;
-
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &tmp)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot get associated image height");
-    return false;
-  }
-  int64_t h = tmp;
+  int64_t w, h;
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, w, err)
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, h, err)
 
   // possibly load into struct
   if (ht) {
