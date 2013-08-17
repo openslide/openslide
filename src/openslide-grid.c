@@ -439,24 +439,28 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
   grid->bottom = MAX(row * grid->base.tile_advance_y + offset_y + h,
                      grid->bottom);
 
-  if (offset_x > 0) {
-    // extra on left
-    int32_t extra_left = ceil(offset_x / grid->base.tile_advance_x);
-    grid->extra_tiles_left = MAX(grid->extra_tiles_left, extra_left);
-  } else {
+  if (offset_x < 0) {
     // extra on right
     int32_t extra_right = ceil(-offset_x / grid->base.tile_advance_x);
     grid->extra_tiles_right = MAX(grid->extra_tiles_right, extra_right);
   }
+  double offset_xr = offset_x + (tile->w - grid->base.tile_advance_x);
+  if (offset_xr > 0) {
+    // extra on left
+    int32_t extra_left = ceil(offset_xr / grid->base.tile_advance_x);
+    grid->extra_tiles_left = MAX(grid->extra_tiles_left, extra_left);
+  }
 
-  if (offset_y > 0) {
-    // extra on top
-    int32_t extra_top = ceil(offset_y / grid->base.tile_advance_y);
-    grid->extra_tiles_top = MAX(grid->extra_tiles_top, extra_top);
-  } else {
+  if (offset_y < 0) {
     // extra on bottom
     int32_t extra_bottom = ceil(-offset_y / grid->base.tile_advance_y);
     grid->extra_tiles_bottom = MAX(grid->extra_tiles_bottom, extra_bottom);
+  }
+  double offset_yr = offset_y + (tile->h - grid->base.tile_advance_y);
+  if (offset_yr > 0) {
+    // extra on top
+    int32_t extra_top = ceil(offset_yr / grid->base.tile_advance_y);
+    grid->extra_tiles_top = MAX(grid->extra_tiles_top, extra_top);
   }
   //g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", (void *) grid, grid->extra_tiles_left, grid->extra_tiles_right, grid->extra_tiles_top, grid->extra_tiles_bottom);
 }
