@@ -114,7 +114,7 @@ static void read_tile(openslide_t *osr,
     _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
-    _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
+    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_x, tile_y);
 
     // put it in the cache
     _openslide_cache_put(osr->cache, tile_x, tile_y, grid,

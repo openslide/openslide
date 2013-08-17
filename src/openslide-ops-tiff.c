@@ -311,20 +311,17 @@ bool _openslide_tiff_level_init(TIFF *tiff,
   return true;
 }
 
-void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
+void _openslide_tiff_clip_tile(openslide_t *osr,
+                               struct _openslide_tiff_level *tiffl,
                                uint32_t *tiledata,
                                int64_t tile_col, int64_t tile_row) {
-  uint32_t tmp;
-
   // get image dimensions
-  int64_t iw, ih;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, iw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, ih)
+  int64_t iw = tiffl->image_w;
+  int64_t ih = tiffl->image_h;
 
   // get tile dimensions
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+  int64_t tw = tiffl->tile_w;
+  int64_t th = tiffl->tile_h;
 
   // remaining w/h
   int64_t rw = iw - tile_col * tw;
@@ -378,7 +375,7 @@ static void read_tile(openslide_t *osr,
     data->tileread(osr, &l->tiffl, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
-    _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
+    _openslide_tiff_clip_tile(osr, &l->tiffl, tiledata, tile_x, tile_y);
 
     // put it in the cache
     _openslide_cache_put(osr->cache, tile_x, tile_y, grid,
@@ -556,22 +553,20 @@ void _openslide_tiff_read_tile(openslide_t *osr,
                    tiffl->tile_w, tiffl->tile_h);
 }
 
-void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
+void _openslide_tiff_read_tile_data(openslide_t *osr,
+                                    struct _openslide_tiff_level *tiffl,
+                                    TIFF *tiff,
                                     void **_buf, int32_t *_len,
                                     int64_t tile_col, int64_t tile_row) {
-  uint32_t tmp;
-
   // initialize out params
   *_buf = NULL;
   *_len = 0;
 
-  // get tile dimensions
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
-
   // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff, tile_col * tw, tile_row * th, 0, 0);
+  ttile_t tile_no = TIFFComputeTile(tiff,
+                                    tile_col * tiffl->tile_w,
+                                    tile_row * tiffl->tile_h,
+                                    0, 0);
 
   //g_debug("_openslide_tiff_read_tile_data reading tile %d", tile_no);
 

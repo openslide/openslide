@@ -82,7 +82,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
   // read raw tile
   void *buf;
   int32_t buflen;
-  _openslide_tiff_read_tile_data(osr, tiff,
+  _openslide_tiff_read_tile_data(osr, tiffl, tiff,
                                  &buf, &buflen,
                                  tile_col, tile_row);
   if (!buflen) {

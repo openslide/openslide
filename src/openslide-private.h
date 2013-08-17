@@ -288,11 +288,14 @@ void _openslide_tiff_read_tile(openslide_t *osr,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row);
 
-void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
-                                    void **buf, int32_t *len,
+void _openslide_tiff_read_tile_data(openslide_t *osr,
+                                    struct _openslide_tiff_level *tiffl,
+                                    TIFF *tiff,
+                                    void **_buf, int32_t *_len,
                                     int64_t tile_col, int64_t tile_row);
 
-void _openslide_tiff_clip_tile(openslide_t *osr, TIFF *tiff,
+void _openslide_tiff_clip_tile(openslide_t *osr,
+                               struct _openslide_tiff_level *tiffl,
                                uint32_t *tiledata,
                                int64_t tile_col, int64_t tile_row);
 
