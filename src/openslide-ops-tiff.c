@@ -416,7 +416,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     struct _openslide_hash *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
-    g_slice_new(struct _openslide_tiffopsdata);
+    g_slice_new0(struct _openslide_tiffopsdata);
 
   GError *tmp_err = NULL;
 
