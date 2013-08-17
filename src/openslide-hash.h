@@ -37,8 +37,6 @@ struct _openslide_hash;
 struct _openslide_hash *_openslide_hash_quickhash1_create(void);
 
 // hashers
-bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
-                                GError **err);
 void _openslide_hash_string(struct _openslide_hash *hash, const char *str);
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
                           GError **err);

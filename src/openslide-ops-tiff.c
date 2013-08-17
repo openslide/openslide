@@ -180,6 +180,51 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
   }
 }
 
+static bool hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
+                            GError **err) {
+  g_assert(TIFFIsTiled(tiff));
+
+  // get tile count
+  ttile_t count = TIFFNumberOfTiles(tiff);
+
+  // get tile sizes
+  toff_t *sizes;
+  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get tile size");
+    return false;
+  }
+  toff_t total = 0;
+  for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
+    total += sizes[tile_no];
+    if (total > (5 << 20)) {
+      // This is a non-pyramidal image or one with a very large top level.
+      // Refuse to calculate a quickhash for it to keep openslide_open()
+      // from taking an arbitrary amount of time.  (#79)
+      _openslide_hash_disable(hash);
+      return true;
+    }
+  }
+
+  // get offsets
+  toff_t *offsets;
+  if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get offsets");
+    return false;
+  }
+
+  // hash each tile's raw data
+  const char *filename = TIFFFileName(tiff);
+  for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
+    if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no], err)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static void destroy_data(struct _openslide_tiffopsdata *data,
                          struct tiff_level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
@@ -416,7 +461,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // generate hash of the smallest level
   TIFFSetDirectory(tiff, levels[level_count - 1]->dir);
-  if (!_openslide_hash_tiff_tiles(quickhash1, tiff, &tmp_err)) {
+  if (!hash_tiff_tiles(quickhash1, tiff, &tmp_err)) {
     _openslide_set_error(osr, "Cannot hash TIFF tiles: %s", tmp_err->message);
     g_clear_error(&tmp_err);
   }
