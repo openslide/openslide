@@ -219,77 +219,6 @@ static const struct _openslide_ops _openslide_tiff_ops = {
   .destroy = destroy,
 };
 
-static void add_trestle_ops(openslide_t *osr,
-                            TIFF *tiff,
-                            int32_t overlap_count,
-                            int32_t *overlaps,
-                            int32_t level_count,
-                            int32_t *directories,
-                            struct _openslide_hash *quickhash1) {
-  // allocate private data
-  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
-
-  GError *tmp_err = NULL;
-
-  // create levels
-  struct level **levels = g_new(struct level *, level_count);
-  for (int32_t i = 0; i < level_count; i++) {
-    struct level *l = g_slice_new0(struct level);
-    l->dir = directories[i];
-    if (i < overlap_count) {
-      l->overlap_x = overlaps[2 * i];
-      l->overlap_y = overlaps[2 * i + 1];
-    }
-    levels[i] = l;
-  }
-  g_free(directories);
-  g_free(overlaps);
-
-  if (osr == NULL) {
-    // free now and return
-    TIFFClose(tiff);
-    destroy_data(data, levels, level_count);
-    return;
-  }
-
-  // if any level has overlaps, reporting tile advances would mislead the
-  // application
-  bool report_geometry = true;
-  for (int32_t i = 0; i < level_count; i++) {
-    if (levels[i]->overlap_x || levels[i]->overlap_y) {
-      report_geometry = false;
-      break;
-    }
-  }
-
-  // set dimensions
-  for (int32_t i = 0; i < level_count; i++) {
-    set_dimensions(osr, tiff, levels[i], report_geometry);
-  }
-
-  // generate hash of the smallest level
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->dir,
-                                                0,
-                                                &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
-
-  // store tiff-specific data into osr
-  g_assert(osr->data == NULL);
-  g_assert(osr->levels == NULL);
-
-  // general osr data
-  osr->levels = (struct _openslide_level **) levels;
-  osr->level_count = level_count;
-  osr->data = data;
-  osr->ops = &_openslide_tiff_ops;
-
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
-}
-
 static void add_properties(GHashTable *ht, char **tags) {
   g_hash_table_insert(ht,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
@@ -360,7 +289,7 @@ static void parse_trestle_image_description(openslide_t *osr,
   }
   g_strfreev(first_pass);
 
-  *overlap_count_OUT = overlap_count;
+  *overlap_count_OUT = overlap_count / 2;
   *overlaps_OUT = overlaps;
 }
 
@@ -393,7 +322,6 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
-  int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -445,37 +373,75 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     // level ok
     level_count++;
   } while (TIFFReadDirectory(tiff));
-  levels = g_new(int32_t, level_count);
 
-  // directories are linear
+  if (osr == NULL) {
+    // free now and return
+    TIFFClose(tiff);
+    g_free(overlaps);
+    return true;
+  }
+
+  // create ops data
+  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
+
+  // create levels
+  struct level **levels = g_new(struct level *, level_count);
+  bool report_geometry = true;
   for (int32_t i = 0; i < level_count; i++) {
-    levels[i] = i;
+    struct level *l = g_slice_new0(struct level);
+    // directories are linear
+    l->dir = i;
+    if (i < overlap_count) {
+      l->overlap_x = overlaps[2 * i];
+      l->overlap_y = overlaps[2 * i + 1];
+      // if any level has overlaps, reporting tile advances would mislead the
+      // application
+      if (l->overlap_x || l->overlap_y) {
+        report_geometry = false;
+      }
+    }
+    levels[i] = l;
+  }
+  g_free(overlaps);
+
+  // set dimensions
+  for (int32_t i = 0; i < level_count; i++) {
+    set_dimensions(osr, tiff, levels[i], report_geometry);
   }
 
-  // add associated images
-  if (osr) {
-    add_associated_jpeg(osr, tiff, ".Full", "macro");
+  // set hash and properties
+  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
+                                                levels[level_count - 1]->dir,
+                                                0,
+                                                err)) {
+    destroy_data(data, levels, level_count);
+    return false;
   }
 
-  // all set, load up the TIFF-specific ops
-  add_trestle_ops(osr, tiff,
-                  overlap_count / 2, overlaps,
-                  level_count, levels,
-                  quickhash1);
+  // store osr data
+  g_assert(osr->data == NULL);
+  g_assert(osr->levels == NULL);
+  osr->levels = (struct _openslide_level **) levels;
+  osr->level_count = level_count;
+  osr->data = data;
+  osr->ops = &_openslide_tiff_ops;
 
   // copy the TIFF resolution props to the standard MPP properties
   // this is a totally non-standard use of these TIFF tags
-  if (osr) {
-    _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_X);
-    _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_Y);
-  }
+  _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
+
+  // add associated images
+  add_associated_jpeg(osr, tiff, ".Full", "macro");
+
+  // create TIFF cache from handle
+  data->tc = _openslide_tiffcache_create(tiff);
 
   return true;
 
  FAIL:
-  g_free(levels);
   g_free(overlaps);
   return false;
 }
