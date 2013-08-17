@@ -52,12 +52,6 @@ struct level {
   struct _openslide_grid *grid;
 };
 
-#define SET_DIR_OR_FAIL(osr, tiff, i)				\
-  if (!TIFFSetDirectory(tiff, i)) {				\
-    _openslide_set_error(osr, "Cannot set TIFF directory");	\
-    return;							\
-  }
-
 static void destroy_data(struct trestle_ops_data *data,
                          struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
@@ -89,9 +83,6 @@ static void read_tile(openslide_t *osr,
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
-
-  // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir)
 
   // tile size
   int64_t tw = tiffl->tile_w;

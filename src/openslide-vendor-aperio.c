@@ -70,6 +70,10 @@ static void aperio_tiff_tilereader(openslide_t *osr,
 
   // get tile dimensions
   int32_t tw, th;
+  if (!TIFFSetDirectory(tiff, tiffl->dir)) {
+    _openslide_set_error(osr, "Cannot set TIFF directory");
+    return;
+  }
   if (!TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw)) {
     _openslide_set_error(osr, "Cannot get tile width");
     return;

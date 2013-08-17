@@ -353,9 +353,6 @@ static void read_tile(openslide_t *osr,
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
 
-  // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir)
-
   // tile size
   int64_t tw = tiffl->tile_w;
   int64_t th = tiffl->tile_h;
@@ -542,6 +539,10 @@ void _openslide_tiff_read_tile(openslide_t *osr,
                                TIFF *tiff,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row) {
+  // set directory
+  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir);
+
+  // read tile
   tiff_read_region(osr, tiff, dest,
                    tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
                    tiffl->tile_w, tiffl->tile_h);
@@ -555,6 +556,9 @@ void _openslide_tiff_read_tile_data(openslide_t *osr,
   // initialize out params
   *_buf = NULL;
   *_len = 0;
+
+  // set directory
+  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir);
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff,
