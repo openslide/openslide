@@ -267,10 +267,9 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
                                               tdir_t property_dir,
                                               GError **err);
 
-void _openslide_generic_tiff_tilereader(openslide_t *osr,
-					TIFF *tiff,
-					uint32_t *dest,
-					int64_t tile_col, int64_t tile_row);
+void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
+                               uint32_t *dest,
+                               int64_t tile_col, int64_t tile_row);
 
 void _openslide_tiff_read_tile_data(openslide_t *osr, TIFF *tiff,
                                     int64_t tile_col, int64_t tile_row,

@@ -141,7 +141,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   _openslide_add_tiff_ops(osr, tiff, 0,
 			  0, NULL,
 			  level_count, levels,
-			  _openslide_generic_tiff_tilereader,
+			  _openslide_tiff_read_tile,
 			  quickhash1);
 
 

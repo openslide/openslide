@@ -557,9 +557,9 @@ static void tiff_read_region(openslide_t *osr, TIFF *tiff,
   TIFFRGBAImageEnd(&img);
 }
 
-void _openslide_generic_tiff_tilereader(openslide_t *osr, TIFF *tiff,
-                                        uint32_t *dest,
-                                        int64_t tile_col, int64_t tile_row) {
+void _openslide_tiff_read_tile(openslide_t *osr, TIFF *tiff,
+                               uint32_t *dest,
+                               int64_t tile_col, int64_t tile_row) {
   uint32_t tmp;
 
   // get tile dimensions

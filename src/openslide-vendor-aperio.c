@@ -63,7 +63,7 @@ static void aperio_tiff_tilereader(openslide_t *osr,
     break;
   default:
     // not for us? fallback
-    _openslide_generic_tiff_tilereader(osr, tiff, dest, tile_col, tile_row);
+    _openslide_tiff_read_tile(osr, tiff, dest, tile_col, tile_row);
     return;
   }
 

@@ -212,7 +212,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   _openslide_add_tiff_ops(osr, tiff, 0,
 			  overlap_count / 2, overlaps,
 			  level_count, levels,
-			  _openslide_generic_tiff_tilereader,
+			  _openslide_tiff_read_tile,
 			  quickhash1);
 
   // copy the TIFF resolution props to the standard MPP properties
