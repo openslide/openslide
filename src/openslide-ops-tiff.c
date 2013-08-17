@@ -380,12 +380,9 @@ static void read_tile(openslide_t *osr,
   int64_t tw = l->tile_width;
   int64_t th = l->tile_height;
 
-  int64_t x = tile_x * tw;
-  int64_t y = tile_y * th;
-
   // cache
   struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, x, y, grid,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, grid,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
@@ -395,7 +392,7 @@ static void read_tile(openslide_t *osr,
     _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, x, y, grid,
+    _openslide_cache_put(osr->cache, tile_x, tile_y, grid,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
   }
