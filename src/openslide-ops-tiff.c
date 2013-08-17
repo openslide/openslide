@@ -357,14 +357,15 @@ static void read_tile(openslide_t *osr,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
   struct tiff_level *l = (struct tiff_level *) level;
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->tiffl.dir)
+  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir)
 
   // tile size
-  int64_t tw = l->tiffl.tile_w;
-  int64_t th = l->tiffl.tile_h;
+  int64_t tw = tiffl->tile_w;
+  int64_t th = tiffl->tile_h;
 
   // cache
   struct _openslide_cache_entry *cache_entry;
@@ -372,10 +373,10 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    data->tileread(osr, &l->tiffl, tiff, tiledata, tile_x, tile_y);
+    data->tileread(osr, tiffl, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
-    _openslide_tiff_clip_tile(osr, &l->tiffl, tiledata, tile_x, tile_y);
+    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_x, tile_y);
 
     // put it in the cache
     _openslide_cache_put(osr->cache, tile_x, tile_y, grid,
