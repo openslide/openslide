@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -57,9 +57,8 @@ struct _openslide_tiffopsdata {
 
 struct tiff_level {
   struct _openslide_level base;
+  struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
-
-  tdir_t dir;
 };
 
 struct tiff_associated_image {
@@ -266,11 +265,13 @@ static void destroy(openslide_t *osr) {
 
 
 static void set_dimensions(openslide_t *osr, TIFF *tiff,
-                           struct tiff_level *l) {
+                           struct tiff_level *l,
+                           struct _openslide_tiff_level *tiffl,
+                           tdir_t dir) {
   uint32_t tmp;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
+  SET_DIR_OR_FAIL(osr, tiff, dir)
 
   // figure out tile size
   int64_t tw, th;
@@ -288,6 +289,12 @@ static void set_dimensions(openslide_t *osr, TIFF *tiff,
   // tile size hints
   l->base.tile_w = tw;
   l->base.tile_h = th;
+
+  tiffl->dir = dir;
+  tiffl->image_w = iw;
+  tiffl->image_h = ih;
+  tiffl->tile_w = tw;
+  tiffl->tile_h = th;
 
   // num tiles in each dimension
   int64_t tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
@@ -350,15 +357,13 @@ static void read_tile(openslide_t *osr,
   struct _openslide_tiffopsdata *data = osr->data;
   struct tiff_level *l = (struct tiff_level *) level;
   TIFF *tiff = arg;
-  uint32_t tmp;
 
   // set the directory
-  SET_DIR_OR_FAIL(osr, tiff, l->dir)
+  SET_DIR_OR_FAIL(osr, tiff, l->tiffl.dir)
 
   // tile size
-  int64_t tw, th;
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILEWIDTH, tw)
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_TILELENGTH, th)
+  int64_t tw = l->tiffl.tile_w;
+  int64_t th = l->tiffl.tile_h;
 
   // cache
   struct _openslide_cache_entry *cache_entry;
@@ -401,7 +406,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
-    if (TIFFSetDirectory(tiff, l->dir)) {
+    if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
       _openslide_grid_paint_region(l->grid, cr, tiff,
                                    x / l->base.downsample,
                                    y / l->base.downsample,
@@ -438,7 +443,7 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   struct tiff_level **levels = g_new(struct tiff_level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
     struct tiff_level *l = g_slice_new0(struct tiff_level);
-    l->dir = directories[i];
+    l->tiffl.dir = directories[i];
     levels[i] = l;
   }
   g_free(directories);
@@ -455,12 +460,13 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 
   // set dimensions
   for (int32_t i = 0; i < level_count; i++) {
-    set_dimensions(osr, tiff, levels[i]);
+    struct tiff_level *l = levels[i];
+    set_dimensions(osr, tiff, l, &l->tiffl, l->tiffl.dir);
   }
 
   // generate hash of the smallest level
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->dir,
+                                                levels[level_count - 1]->tiffl.dir,
                                                 property_dir,
                                                 &tmp_err)) {
     _openslide_set_error_from_gerror(osr, tmp_err);

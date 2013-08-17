@@ -244,6 +244,14 @@ void _openslide_grid_label_tile(struct _openslide_grid *grid,
                                 int64_t tile_col, int64_t tile_row);
 
 /* TIFF support */
+struct _openslide_tiff_level {
+  tdir_t dir;
+  int64_t image_w;
+  int64_t image_h;
+  int64_t tile_w;
+  int64_t tile_h;
+};
+
 typedef void (*_openslide_tiff_tilereader_fn)(openslide_t *osr,
 					      TIFF *tiff,
 					      uint32_t *dest,
