@@ -145,7 +145,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 }
 
 
-static const struct _openslide_ops _openslide_tiff_ops = {
+static const struct _openslide_ops trestle_ops = {
   .paint_region = paint_region,
   .destroy = destroy,
 };
@@ -394,7 +394,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   osr->levels = (struct _openslide_level **) levels;
   osr->level_count = level_count;
   osr->data = data;
-  osr->ops = &_openslide_tiff_ops;
+  osr->ops = &trestle_ops;
 
   // copy the TIFF resolution props to the standard MPP properties
   // this is a totally non-standard use of these TIFF tags
