@@ -44,7 +44,6 @@ static const char BACKGROUND_COLOR[] = "Background Color=";
 
 struct _openslide_tiffopsdata {
   struct _openslide_tiffcache *tc;
-  _openslide_tiff_tilereader_fn tileread;
 };
 
 struct tiff_level {
@@ -147,7 +146,6 @@ static void read_tile(openslide_t *osr,
                       struct _openslide_grid *grid,
                       int64_t tile_x, int64_t tile_y,
                       void *arg) {
-  struct _openslide_tiffopsdata *data = osr->data;
   struct tiff_level *l = (struct tiff_level *) level;
   TIFF *tiff = arg;
   uint32_t tmp;
@@ -166,7 +164,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    data->tileread(osr, tiff, tiledata, tile_x, tile_y);
+    _openslide_tiff_read_tile(osr, tiff, tiledata, tile_x, tile_y);
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiff, tiledata, tile_x, tile_y);
@@ -223,12 +221,10 @@ static const struct _openslide_ops _openslide_tiff_ops = {
 
 static void add_trestle_ops(openslide_t *osr,
                             TIFF *tiff,
-                            int32_t property_dir,
                             int32_t overlap_count,
                             int32_t *overlaps,
                             int32_t level_count,
                             int32_t *directories,
-                            _openslide_tiff_tilereader_fn tileread,
                             struct _openslide_hash *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
@@ -249,9 +245,6 @@ static void add_trestle_ops(openslide_t *osr,
   }
   g_free(directories);
   g_free(overlaps);
-
-  // populate private data
-  data->tileread = tileread;
 
   if (osr == NULL) {
     // free now and return
@@ -278,7 +271,7 @@ static void add_trestle_ops(openslide_t *osr,
   // generate hash of the smallest level
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
                                                 levels[level_count - 1]->dir,
-                                                property_dir,
+                                                0,
                                                 &tmp_err)) {
     _openslide_set_error_from_gerror(osr, tmp_err);
     g_clear_error(&tmp_err);
@@ -466,10 +459,9 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   }
 
   // all set, load up the TIFF-specific ops
-  add_trestle_ops(osr, tiff, 0,
+  add_trestle_ops(osr, tiff,
                   overlap_count / 2, overlaps,
                   level_count, levels,
-                  _openslide_tiff_read_tile,
                   quickhash1);
 
   // copy the TIFF resolution props to the standard MPP properties
