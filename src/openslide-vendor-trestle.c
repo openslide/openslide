@@ -257,7 +257,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
-    goto FAIL;
+    return false;
   }
 
   char *tagval;
@@ -267,7 +267,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Trestle slide");
-    goto FAIL;
+    return false;
   }
 
   // parse
@@ -276,7 +276,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     // no description, not trestle
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Trestle slide");
-    goto FAIL;
+    return false;
   }
   parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
 
@@ -285,7 +285,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     if (!TIFFIsTiled(tiff)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                   "TIFF level is not tiled");
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     }
 
     // verify that we can read this compression (hard fail if not)
@@ -293,12 +294,14 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read compression scheme");
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     };
     if (!TIFFIsCODECConfigured(compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unsupported TIFF compression: %u", compression);
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     }
 
     // level ok
@@ -328,6 +331,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
                                     (struct _openslide_level *) l, tiffl,
                                     err)) {
       destroy_data(data, levels, level_count);
+      g_free(overlaps);
       return false;
     }
 
@@ -410,8 +414,4 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   data->tc = _openslide_tiffcache_create(tiff);
 
   return true;
-
- FAIL:
-  g_free(overlaps);
-  return false;
 }
