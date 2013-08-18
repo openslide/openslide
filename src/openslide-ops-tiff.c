@@ -55,7 +55,7 @@ struct _openslide_tiffopsdata {
   _openslide_tiff_tilereader_fn tileread;
 };
 
-struct tiff_level {
+struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
@@ -246,20 +246,20 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
 }
 
 static void destroy_data(struct _openslide_tiffopsdata *data,
-                         struct tiff_level **levels, int32_t level_count) {
+                         struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
   g_slice_free(struct _openslide_tiffopsdata, data);
 
   for (int32_t i = 0; i < level_count; i++) {
     _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct tiff_level, levels[i]);
+    g_slice_free(struct level, levels[i]);
   }
   g_free(levels);
 }
 
 static void destroy(openslide_t *osr) {
   struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level **levels = (struct tiff_level **) osr->levels;
+  struct level **levels = (struct level **) osr->levels;
   destroy_data(data, levels, osr->level_count);
 }
 
@@ -349,7 +349,7 @@ static void read_tile(openslide_t *osr,
 		      int64_t tile_col, int64_t tile_row,
 		      void *arg) {
   struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = (struct tiff_level *) level;
+  struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
 
@@ -395,7 +395,7 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
 			 struct _openslide_level *level,
 			 int32_t w, int32_t h) {
   struct _openslide_tiffopsdata *data = osr->data;
-  struct tiff_level *l = (struct tiff_level *) level;
+  struct level *l = (struct level *) level;
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc);
   if (tiff) {
@@ -433,9 +433,9 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   GError *tmp_err = NULL;
 
   // create levels
-  struct tiff_level **levels = g_new(struct tiff_level *, level_count);
+  struct level **levels = g_new(struct level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
-    struct tiff_level *l = g_slice_new0(struct tiff_level);
+    struct level *l = g_slice_new0(struct level);
     struct _openslide_tiff_level *tiffl = &l->tiffl;
     levels[i] = l;
 
