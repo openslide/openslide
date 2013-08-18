@@ -436,8 +436,26 @@ void _openslide_add_tiff_ops(openslide_t *osr,
   struct tiff_level **levels = g_new(struct tiff_level *, level_count);
   for (int32_t i = 0; i < level_count; i++) {
     struct tiff_level *l = g_slice_new0(struct tiff_level);
-    l->tiffl.dir = directories[i];
+    struct _openslide_tiff_level *tiffl = &l->tiffl;
     levels[i] = l;
+
+    if (!_openslide_tiff_level_init(tiff,
+                                    directories[i],
+                                    (struct _openslide_level *) l,
+                                    tiffl,
+                                    &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      destroy_data(data, levels, level_count);
+      return;
+    }
+
+    l->grid = _openslide_grid_create_simple(osr,
+                                            tiffl->tiles_across,
+                                            tiffl->tiles_down,
+                                            tiffl->tile_w,
+                                            tiffl->tile_h,
+                                            read_tile);
   }
   g_free(directories);
 
@@ -449,27 +467,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
     TIFFClose(tiff);
     destroy_data(data, levels, level_count);
     return;
-  }
-
-  // init TIFF levels and create grid
-  for (int32_t i = 0; i < level_count; i++) {
-    struct tiff_level *l = levels[i];
-    if (!_openslide_tiff_level_init(tiff,
-                                    l->tiffl.dir,
-                                    (struct _openslide_level *) l,
-                                    &l->tiffl,
-                                    &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-      destroy_data(data, levels, level_count);
-      return;
-    }
-    l->grid = _openslide_grid_create_simple(osr,
-                                            l->tiffl.tiles_across,
-                                            l->tiffl.tiles_down,
-                                            l->tiffl.tile_w,
-                                            l->tiffl.tile_h,
-                                            read_tile);
   }
 
   // generate hash of the smallest level
