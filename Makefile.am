@@ -19,12 +19,12 @@ src_libopenslide_la_SOURCES = \
 	src/openslide.c \
 	src/openslide-cache.c \
 	src/openslide-decode-jp2k.c \
+	src/openslide-decode-jpeg.c \
+	src/openslide-decode-tiff.c \
 	src/openslide-error.c \
 	src/openslide-grid.c \
 	src/openslide-hash.c \
 	src/openslide-jdatasrc.c \
-	src/openslide-ops-jpeg.c \
-	src/openslide-ops-tiff.c \
 	src/openslide-tiffdump.c \
 	src/openslide-util.c \
 	src/openslide-vendor-aperio.c \
