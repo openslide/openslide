@@ -265,7 +265,7 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
 
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
                                   GPtrArray *main_image_levels,
-                                  int *out_macro_ifd,
+                                  int *macro_ifd,
                                   GError **err) {
   xmlDocPtr doc = NULL;
   xmlNode *root_element;
@@ -294,7 +294,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   int i;
 
-  *out_macro_ifd = -1;
+  *macro_ifd = -1;
 
   // try to parse the xml
   doc = xmlReadMemory(xml, strlen(xml), "/", NULL, XML_PARSE_NOERROR |
@@ -490,7 +490,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
       if (test_width >= macro_width && test_height >= macro_height) {
         macro_width = test_width;
         macro_height = test_height;
-        *out_macro_ifd = test_ifd;
+        *macro_ifd = test_ifd;
       }
     }
 
