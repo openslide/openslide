@@ -46,7 +46,7 @@ struct _openslide_tiffcache {
 
 // not thread-safe, like libtiff
 struct tiff_file_handle {
-  char *filename;
+  struct _openslide_tiffcache *tc;
   int64_t offset;
   int64_t size;
 };
@@ -668,7 +668,7 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
 
   // don't leave the file handle open between calls
   // also ensures FD_CLOEXEC is set
-  FILE *f = _openslide_fopen(hdl->filename, "rb", NULL);
+  FILE *f = _openslide_fopen(hdl->tc->filename, "rb", NULL);
   if (f == NULL) {
     return 0;
   }
@@ -711,7 +711,6 @@ static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
 static int tiff_do_close(thandle_t th) {
   struct tiff_file_handle *hdl = th;
 
-  g_free(hdl->filename);
   g_slice_free(struct tiff_file_handle, hdl);
   return 0;
 }
@@ -722,9 +721,9 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
-static TIFF *tiff_open(const char *filename) {
+static TIFF *tiff_open(struct _openslide_tiffcache *tc) {
   // open
-  FILE *f = _openslide_fopen(filename, "rb", NULL);
+  FILE *f = _openslide_fopen(tc->filename, "rb", NULL);
   if (f == NULL) {
     return NULL;
   }
@@ -773,12 +772,12 @@ static TIFF *tiff_open(const char *filename) {
 
   // allocate
   struct tiff_file_handle *hdl = g_slice_new0(struct tiff_file_handle);
-  hdl->filename = g_strdup(filename);
+  hdl->tc = tc;
   hdl->size = size;
 
   // TIFFOpen
   // mode: m disables mmap to avoid sigbus and other mmap fragility
-  TIFF *tiff = TIFFClientOpen(filename, "rm", hdl,
+  TIFF *tiff = TIFFClientOpen(tc->filename, "rm", hdl,
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
   if (tiff == NULL) {
@@ -815,7 +814,7 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
     //g_debug("create TIFF");
     // Does not check that we have the same file.  Then again, neither does
     // tiff_do_read.
-    tiff = tiff_open(tc->filename);
+    tiff = tiff_open(tc);
   }
   if (tiff == NULL) {
     g_mutex_lock(tc->lock);
