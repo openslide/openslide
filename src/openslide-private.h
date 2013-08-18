@@ -304,9 +304,7 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  TIFF *tiff,
 					  GError **err);
 
-TIFF *_openslide_tiff_open(const char *filename);
-
-struct _openslide_tiffcache *_openslide_tiffcache_create(TIFF *tiff);
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);
 
 TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc);
 

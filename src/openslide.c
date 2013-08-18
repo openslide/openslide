@@ -175,10 +175,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
 
   // tiff
-  TIFF *tiff = _openslide_tiff_open(filename);
-  if (tiff != NULL) {
-    struct _openslide_tiffcache *tc = _openslide_tiffcache_create(tiff);
-    tiff = _openslide_tiffcache_get(tc);
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  if (tc != NULL) {
+    TIFF *tiff = _openslide_tiffcache_get(tc);
     g_assert(tiff != NULL);
     const _openslide_tiff_vendor_fn *tfn = tiff_formats;
     while (*tfn) {

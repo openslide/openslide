@@ -721,7 +721,7 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
-TIFF *_openslide_tiff_open(const char *filename) {
+static TIFF *tiff_open(const char *filename) {
   // open
   FILE *f = _openslide_fopen(filename, "rb", NULL);
   if (f == NULL) {
@@ -786,12 +786,20 @@ TIFF *_openslide_tiff_open(const char *filename) {
   return tiff;
 }
 
-struct _openslide_tiffcache *_openslide_tiffcache_create(TIFF *tiff) {
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
-  tc->filename = g_strdup(TIFFFileName(tiff));
+  tc->filename = g_strdup(filename);
   tc->cache = g_queue_new();
   tc->lock = g_mutex_new();
+
+  // verify TIFF is valid
+  TIFF *tiff = _openslide_tiffcache_get(tc);
   _openslide_tiffcache_put(tc, tiff);
+  if (tiff == NULL) {
+    // nope
+    _openslide_tiffcache_destroy(tc);
+    tc = NULL;
+  }
   return tc;
 }
 
@@ -805,7 +813,7 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
     //g_debug("create TIFF");
     // Does not check that we have the same file.  Then again, neither does
     // tiff_do_read.
-    tiff = _openslide_tiff_open(tc->filename);
+    tiff = tiff_open(tc->filename);
   }
   return tiff;
 }
