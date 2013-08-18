@@ -58,8 +58,10 @@ static void destroy_data(struct aperio_ops_data *data,
   g_slice_free(struct aperio_ops_data, data);
 
   for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct level, levels[i]);
+    if (levels[i]) {
+      _openslide_grid_destroy(levels[i]->grid);
+      g_slice_free(struct level, levels[i]);
+    }
   }
   g_free(levels);
 }
