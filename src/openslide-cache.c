@@ -21,7 +21,8 @@
 
 #include <config.h>
 
-#include <openslide-cache.h>
+#include "openslide-private.h"
+
 #include <glib.h>
 
 // hash table key

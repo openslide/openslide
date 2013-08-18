@@ -39,7 +39,6 @@
 
 #include "openslide-private.h"
 #include "openslide-tiffdump.h"
-#include "openslide-cache.h"
 
 #include <glib.h>
 #include <setjmp.h>

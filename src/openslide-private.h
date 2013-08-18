@@ -360,6 +360,41 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
 
+/* Cache */
+#define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
+
+struct _openslide_cache_entry;
+
+// constructor/destructor
+struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes);
+
+void _openslide_cache_destroy(struct _openslide_cache *cache);
+
+// cache size
+int _openslide_cache_get_capacity(struct _openslide_cache *cache);
+
+void _openslide_cache_set_capacity(struct _openslide_cache *cache,
+				   int capacity_in_bytes);
+
+// put and get
+void _openslide_cache_put(struct _openslide_cache *cache,
+			  int64_t x,
+			  int64_t y,
+			  struct _openslide_grid *grid,
+			  void *data,
+			  int size_in_bytes,
+			  struct _openslide_cache_entry **entry);
+
+void *_openslide_cache_get(struct _openslide_cache *cache,
+			   int64_t x,
+			   int64_t y,
+			   struct _openslide_grid *grid,
+			   struct _openslide_cache_entry **entry);
+
+// value unref
+void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
+
+
 // external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
 bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,

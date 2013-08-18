@@ -29,7 +29,6 @@
 #include <glib.h>
 #include <libxml/parser.h>
 
-#include "openslide-cache.h"
 #include "openslide-cairo.h"
 
 const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2013 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
