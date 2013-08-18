@@ -301,7 +301,8 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
 
 bool _openslide_add_tiff_associated_image(GHashTable *ht,
 					  const char *name,
-					  TIFF *tiff,
+					  struct _openslide_tiffcache *tc,
+					  tdir_t dir,
 					  GError **err);
 
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);

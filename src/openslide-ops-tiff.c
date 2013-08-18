@@ -63,6 +63,7 @@ struct level {
 
 struct tiff_associated_image {
   struct _openslide_associated_image base;
+  struct _openslide_tiffcache *tc;
   tdir_t directory;
 };
 
@@ -590,9 +591,8 @@ void _openslide_tiff_read_tile_data(openslide_t *osr,
 }
 
 static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
-                                            struct _openslide_associated_image *_img,
+                                            struct tiff_associated_image *img,
                                             uint32_t *dest) {
-  struct tiff_associated_image *img = (struct tiff_associated_image *) _img;
   uint32_t tmp;
   int64_t width, height;
 
@@ -613,16 +613,16 @@ static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
 }
 
 static void tiff_get_associated_image_data(openslide_t *osr,
-                                           struct _openslide_associated_image *img,
+                                           struct _openslide_associated_image *_img,
                                            uint32_t *dest) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  TIFF *tiff = _openslide_tiffcache_get(data->tc);
+  struct tiff_associated_image *img = (struct tiff_associated_image *) _img;
+  TIFF *tiff = _openslide_tiffcache_get(img->tc);
   if (tiff) {
     _tiff_get_associated_image_data(osr, tiff, img, dest);
   } else {
     _openslide_set_error(osr, "Cannot open TIFF file");
   }
-  _openslide_tiffcache_put(data->tc, tiff);
+  _openslide_tiffcache_put(img->tc, tiff);
 }
 
 static void tiff_destroy_associated_image(struct _openslide_associated_image *_img) {
@@ -636,11 +636,16 @@ static const struct _openslide_associated_image_ops tiff_associated_ops = {
   .destroy = tiff_destroy_associated_image,
 };
 
-bool _openslide_add_tiff_associated_image(GHashTable *ht,
-					  const char *name,
-					  TIFF *tiff,
-					  GError **err) {
+static bool _add_associated_image(GHashTable *ht,
+                                  const char *name,
+                                  struct _openslide_tiffcache *tc,
+                                  tdir_t dir,
+                                  TIFF *tiff,
+                                  GError **err) {
   uint32_t tmp;
+
+  // set directory
+  SET_DIR_OR_ERR(tiff, dir, err)
 
   // get the dimensions
   int64_t w, h;
@@ -654,13 +659,31 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
     img->base.ops = &tiff_associated_ops;
     img->base.w = w;
     img->base.h = h;
-    img->directory = TIFFCurrentDirectory(tiff);
+    img->tc = tc;
+    img->directory = dir;
 
     // save
     g_hash_table_insert(ht, g_strdup(name), img);
   }
 
   return true;
+}
+
+bool _openslide_add_tiff_associated_image(GHashTable *ht,
+                                          const char *name,
+                                          struct _openslide_tiffcache *tc,
+                                          tdir_t dir,
+                                          GError **err) {
+  TIFF *tiff = _openslide_tiffcache_get(tc);
+  bool ret = false;
+  if (tiff) {
+    ret = _add_associated_image(ht, name, tc, dir, tiff, err);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot open TIFF file");
+  }
+  _openslide_tiffcache_put(tc, tiff);
+  return ret;
 }
 
 static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {

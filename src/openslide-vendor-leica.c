@@ -579,7 +579,7 @@ bool _openslide_try_leica(openslide_t *osr,
       goto FAIL;
     }
     if (!_openslide_add_tiff_associated_image(osr ? osr->associated_images : NULL,
-                                              "macro", tiff, err)) {
+                                              "macro", tc, macroIFD, err)) {
       goto FAIL;
     }
   }

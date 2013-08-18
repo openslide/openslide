@@ -254,8 +254,11 @@ static void add_properties(GHashTable *ht, char **props) {
 // add the image from the current TIFF directory
 // returns false and sets GError if fatal error
 // true does not necessarily imply an image was added
-static bool add_associated_image(GHashTable *ht, const char *name_if_available,
-				 TIFF *tiff, GError **err) {
+static bool add_associated_image(GHashTable *ht,
+                                 const char *name_if_available,
+                                 struct _openslide_tiffcache *tc,
+                                 TIFF *tiff,
+                                 GError **err) {
   char *name = NULL;
   if (name_if_available) {
     name = g_strdup(name_if_available);
@@ -290,7 +293,9 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
     return true;
   }
 
-  bool result = _openslide_add_tiff_associated_image(ht, name, tiff, err);
+  bool result = _openslide_add_tiff_associated_image(ht, name, tc,
+                                                     TIFFCurrentDirectory(tiff),
+                                                     err);
   g_free(name);
   return result;
 }
@@ -404,7 +409,7 @@ bool _openslide_try_aperio(openslide_t *osr,
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr ? osr->associated_images : NULL,
-                                name, tiff, err)) {
+                                name, tc, tiff, err)) {
 	g_prefix_error(err, "Can't read associated image: ");
 	destroy_data(data, levels, level_count);
 	return false;
