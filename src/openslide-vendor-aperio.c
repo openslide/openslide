@@ -408,30 +408,10 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
    * always stripped.
    */
 
-  // for aperio, the tiled directories are the ones we want
   do {
+    // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(tiff)) {
       level_count++;
-    }
-  } while (TIFFReadDirectory(tiff));
-  levels = g_new(int32_t, level_count);
-
-  TIFFSetDirectory(tiff, 0);
-  i = 0;
-  do {
-    tdir_t dir = TIFFCurrentDirectory(tiff);
-    if (TIFFIsTiled(tiff)) {
-      levels[i++] = dir;
-      //g_debug("tiled directory: %d", dir);
-    } else {
-      // associated image
-      const char *name = (dir == 1) ? "thumbnail" : NULL;
-      if (!add_associated_image(osr ? osr->associated_images : NULL,
-                                name, tiff, err)) {
-	g_prefix_error(err, "Can't read associated image: ");
-	goto FAIL;
-      }
-      //g_debug("associated image: %d", dir);
     }
 
     // check depth
@@ -457,6 +437,26 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unsupported TIFF compression: %u", compression);
       goto FAIL;
+    }
+  } while (TIFFReadDirectory(tiff));
+  levels = g_new(int32_t, level_count);
+
+  TIFFSetDirectory(tiff, 0);
+  i = 0;
+  do {
+    tdir_t dir = TIFFCurrentDirectory(tiff);
+    if (TIFFIsTiled(tiff)) {
+      levels[i++] = dir;
+      //g_debug("tiled directory: %d", dir);
+    } else {
+      // associated image
+      const char *name = (dir == 1) ? "thumbnail" : NULL;
+      if (!add_associated_image(osr ? osr->associated_images : NULL,
+                                name, tiff, err)) {
+	g_prefix_error(err, "Can't read associated image: ");
+	goto FAIL;
+      }
+      //g_debug("associated image: %d", dir);
     }
   } while (TIFFReadDirectory(tiff));
 
