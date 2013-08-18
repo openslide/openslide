@@ -52,7 +52,6 @@ struct tiff_file_handle {
 
 struct _openslide_tiffopsdata {
   struct _openslide_tiffcache *tc;
-  _openslide_tiff_tilereader_fn tileread;
 };
 
 struct level {
@@ -348,7 +347,6 @@ static void read_tile(openslide_t *osr,
 		      struct _openslide_grid *grid,
 		      int64_t tile_col, int64_t tile_row,
 		      void *arg) {
-  struct _openslide_tiffopsdata *data = osr->data;
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
@@ -364,7 +362,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    data->tileread(osr, tiffl, tiff, tiledata, tile_col, tile_row);
+    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
@@ -424,7 +422,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
 			     int32_t property_dir,
 			     int32_t level_count,
 			     int32_t *directories,
-			     _openslide_tiff_tilereader_fn tileread,
 			     struct _openslide_hash *quickhash1) {
   // allocate private data
   struct _openslide_tiffopsdata *data =
@@ -458,9 +455,6 @@ void _openslide_add_tiff_ops(openslide_t *osr,
                                             read_tile);
   }
   g_free(directories);
-
-  // populate private data
-  data->tileread = tileread;
 
   if (osr == NULL) {
     // free now and return
