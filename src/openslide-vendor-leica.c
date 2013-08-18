@@ -264,9 +264,9 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
 }
 
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
+                                  GPtrArray *main_image_levels,
                                   int *out_macro_ifd,
-                                  GList **out_main_image_levels,
-                                  int *level_count, GError **err) {
+                                  GError **err) {
   xmlDocPtr doc = NULL;
   xmlNode *root_element;
   xmlNode *collection;
@@ -295,7 +295,6 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   int i;
 
   *out_macro_ifd = -1;
-  *level_count = 0;
 
   // try to parse the xml
   doc = xmlReadMemory(xml, strlen(xml), "/", NULL, XML_PARSE_NOERROR |
@@ -437,8 +436,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     struct level *l = g_slice_new0(struct level);
     l->tiffl.dir = dir;
 
-    *out_main_image_levels = g_list_prepend(*out_main_image_levels, l);
-    ++*level_count;
+    g_ptr_array_add(main_image_levels, l);
   }
 
   xmlXPathFreeObject(result);
@@ -541,9 +539,7 @@ bool _openslide_try_leica(openslide_t *osr,
                           struct _openslide_tiffcache *tc, TIFF *tiff,
                           struct _openslide_hash *quickhash1,
                           GError **err) {
-  GList *level_list = NULL;
-  int32_t level_count;
-  struct level **levels;
+  GPtrArray *level_array = g_ptr_array_new();
   char *tagval;
   int tiff_result;
 
@@ -566,8 +562,7 @@ bool _openslide_try_leica(openslide_t *osr,
     goto FAIL;
   }
 
-  if (!parse_xml_description(tagval, osr, &macroIFD, &level_list,
-                             &level_count, err)) {
+  if (!parse_xml_description(tagval, osr, level_array, &macroIFD, err)) {
     // unrecognizable xml
     goto FAIL;
   }
@@ -584,8 +579,8 @@ bool _openslide_try_leica(openslide_t *osr,
   }
 
   // initialize and verify levels
-  for (GList *iter = level_list; iter != NULL; iter = iter->next) {
-    struct level *l = iter->data;
+  for (uint32_t n = 0; n < level_array->len; n++) {
+    struct level *l = level_array->pdata[n];
     struct _openslide_tiff_level *tiffl = &l->tiffl;
 
     if (!check_directory(tiff, l->tiffl.dir, err)) {
@@ -608,18 +603,15 @@ bool _openslide_try_leica(openslide_t *osr,
                                             read_tile);
   }
 
-  // copy levels in, while deleting the list
-  levels = g_new(struct level *, level_count);
-  for (int i = 0; i < level_count; i++) {
-    levels[i] = level_list->data;
-    level_list = g_list_delete_link(level_list, level_list);
-  }
-
-  g_assert(level_list == NULL);
-  g_assert(level_count > 0);
-
   // sort levels
-  qsort(levels, level_count, sizeof(levels[0]), width_compare);
+  g_ptr_array_sort(level_array, width_compare);
+
+  // unwrap level array
+  int32_t level_count = level_array->len;
+  g_assert(level_count > 0);
+  struct level **levels =
+    (struct level **) g_ptr_array_free(level_array, false);
+  level_array = NULL;
 
   // allocate private data
   struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
@@ -676,11 +668,14 @@ bool _openslide_try_leica(openslide_t *osr,
   return true;
 
 FAIL:
-  // free the level list
-  for (GList *i = level_list; i != NULL; i = g_list_delete_link(i, i)) {
-    struct level *l = i->data;
-    _openslide_grid_destroy(l->grid);
-    g_slice_free(struct level, l);
+  // free the level array
+  if (level_array) {
+    for (uint32_t n = 0; n < level_array->len; n++) {
+      struct level *l = level_array->pdata[n];
+      _openslide_grid_destroy(l->grid);
+      g_slice_free(struct level, l);
+    }
+    g_ptr_array_free(level_array, true);
   }
 
   return false;

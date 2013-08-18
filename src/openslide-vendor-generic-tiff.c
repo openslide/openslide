@@ -141,8 +141,8 @@ static const struct _openslide_ops generic_tiff_ops = {
 };
 
 static int width_compare(gconstpointer a, gconstpointer b) {
-  const struct level *la = a;
-  const struct level *lb = b;
+  const struct level *la = *(const struct level **) a;
+  const struct level *lb = *(const struct level **) b;
 
   if (la->tiffl.image_w > lb->tiffl.image_w) {
     return -1;
@@ -157,7 +157,7 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
 				 struct _openslide_tiffcache *tc, TIFF *tiff,
 				 struct _openslide_hash *quickhash1,
 				 GError **err) {
-  GList *level_list = NULL;
+  GPtrArray *level_array = g_ptr_array_new();
 
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -166,7 +166,6 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
   }
 
   // accumulate tiled levels
-  int32_t level_count = 0;
   do {
     // confirm that this directory is tiled
     if (!TIFFIsTiled(tiff)) {
@@ -216,22 +215,18 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
                                             tiffl->tile_h,
                                             read_tile);
 
-    // push into list
-    level_list = g_list_prepend(level_list, l);
-    level_count++;
+    // add to array
+    g_ptr_array_add(level_array, l);
   } while (TIFFReadDirectory(tiff));
 
   // sort tiled levels
-  level_list = g_list_sort(level_list, width_compare);
+  g_ptr_array_sort(level_array, width_compare);
 
-  // copy levels in, while deleting the list
-  struct level **levels = g_new(struct level *, level_count);
-  for (int i = 0; i < level_count; i++) {
-    levels[i] = level_list->data;
-    level_list = g_list_delete_link(level_list, level_list);
-  }
-
-  g_assert(level_list == NULL);
+  // unwrap level array
+  int32_t level_count = level_array->len;
+  struct level **levels =
+    (struct level **) g_ptr_array_free(level_array, false);
+  level_array = NULL;
 
   // allocate private data
   struct generic_tiff_ops_data *data =
@@ -272,11 +267,14 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
   return true;
 
  FAIL:
-  // free the level list
-  for (GList *i = level_list; i != NULL; i = g_list_delete_link(i, i)) {
-    struct level *l = i->data;
-    _openslide_grid_destroy(l->grid);
-    g_slice_free(struct level, l);
+  // free the level array
+  if (level_array) {
+    for (uint32_t n = 0; n < level_array->len; n++) {
+      struct level *l = level_array->pdata[n];
+      _openslide_grid_destroy(l->grid);
+      g_slice_free(struct level, l);
+    }
+    g_ptr_array_free(level_array, true);
   }
 
   return false;
