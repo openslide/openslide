@@ -538,7 +538,8 @@ static bool check_directory(TIFF *tiff, uint16 dir_num, GError **err) {
   return true;
 }
 
-bool _openslide_try_leica(openslide_t *osr, TIFF *tiff, 
+bool _openslide_try_leica(openslide_t *osr,
+                          struct _openslide_tiffcache *tc, TIFF *tiff,
                           struct _openslide_hash *quickhash1,
                           GError **err) {
   GList *level_list = NULL;
@@ -623,10 +624,11 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
 
   // allocate private data
   struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
+  data->tc = tc;
 
   if (osr == NULL) {
     // free now and return
-    TIFFClose(tiff);
+    _openslide_tiffcache_put(tc, tiff);
     destroy_data(data, levels, level_count);
     return true;
   }
@@ -668,8 +670,8 @@ bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
   osr->data = data;
   osr->ops = &leica_ops;
 
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
+  // put the TIFF handle
+  _openslide_tiffcache_put(tc, tiff);
 
   return true;
 

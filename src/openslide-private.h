@@ -107,11 +107,15 @@ struct _openslide_ops {
   void (*destroy)(openslide_t *osr);
 };
 
+struct _openslide_tiffcache;
+
 /* vendor detection and parsing */
 typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
 				     struct _openslide_hash *quickhash1,
 				     GError **err);
-typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr, TIFF *tiff,
+typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr,
+					  struct _openslide_tiffcache *tc,
+					  TIFF *tiff,
 					  struct _openslide_hash *quickhash1,
 					  GError **err);
 /*
@@ -130,9 +134,11 @@ typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr, TIFF *tiff,
  */
 
 
-bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_trestle(openslide_t *osr,
+			    struct _openslide_tiffcache *tc, TIFF *tiff,
 			    struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_aperio(openslide_t *osr,
+                           struct _openslide_tiffcache *tc, TIFF *tiff,
 			   struct _openslide_hash *quickhash1, GError **err);
 bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
 			      struct _openslide_hash *quickhash1,
@@ -142,10 +148,12 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char* filename,
 				   GError **err);
 bool _openslide_try_mirax(openslide_t *osr, const char* filename,
 			  struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_leica(openslide_t *osr, TIFF *tiff,
-				 struct _openslide_hash *quickhash1,
-				 GError **err);
-bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_leica(openslide_t *osr,
+                          struct _openslide_tiffcache *tc, TIFF *tiff,
+                          struct _openslide_hash *quickhash1,
+                          GError **err);
+bool _openslide_try_generic_tiff(openslide_t *osr,
+				 struct _openslide_tiffcache *tc, TIFF *tiff,
 				 struct _openslide_hash *quickhash1,
 				 GError **err);
 

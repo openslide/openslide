@@ -133,7 +133,8 @@ static bool try_format(openslide_t *osr, const char *filename,
   return result;
 }
 
-static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
+static bool try_tiff_format(openslide_t *osr,
+			    struct _openslide_tiffcache *tc, TIFF *tiff,
 			    struct _openslide_hash **quickhash1_OUT,
 			    const _openslide_tiff_vendor_fn *format_check,
 			    GError **err) {
@@ -141,7 +142,7 @@ static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);
-  bool result = (*format_check)(osr, tiff,
+  bool result = (*format_check)(osr, tc, tiff,
                                 quickhash1_OUT ? *quickhash1_OUT : NULL,
                                 err);
 
@@ -176,15 +177,19 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   // tiff
   TIFF *tiff = _openslide_tiff_open(filename);
   if (tiff != NULL) {
+    struct _openslide_tiffcache *tc = _openslide_tiffcache_create(tiff);
+    tiff = _openslide_tiffcache_get(tc);
+    g_assert(tiff != NULL);
     const _openslide_tiff_vendor_fn *tfn = tiff_formats;
     while (*tfn) {
-      if (try_tiff_format(osr, tiff, quickhash1_OUT, tfn, &tmp_err)) {
+      if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, tfn, &tmp_err)) {
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
                            OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
         g_propagate_error(err, tmp_err);
-        TIFFClose(tiff);
+        _openslide_tiffcache_put(tc, tiff);
+        _openslide_tiffcache_destroy(tc);
         return false;
       }
       //g_debug("%s", tmp_err->message);
@@ -192,8 +197,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       tfn++;
     }
 
-    // close only if failed
-    TIFFClose(tiff);
+    // destroy only if failed
+    _openslide_tiffcache_put(tc, tiff);
+    _openslide_tiffcache_destroy(tc);
   }
 
 

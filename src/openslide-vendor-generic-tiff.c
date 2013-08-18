@@ -154,7 +154,8 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_generic_tiff(openslide_t *osr,
+				 struct _openslide_tiffcache *tc, TIFF *tiff,
 				 struct _openslide_hash *quickhash1,
 				 GError **err) {
   GList *level_list = NULL;
@@ -236,10 +237,11 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   // allocate private data
   struct generic_tiff_ops_data *data =
     g_slice_new0(struct generic_tiff_ops_data);
+  data->tc = tc;
 
   if (osr == NULL) {
     // free now and return
-    TIFFClose(tiff);
+    _openslide_tiffcache_put(tc, tiff);
     destroy_data(data, levels, level_count);
     return true;
   }
@@ -264,8 +266,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr, TIFF *tiff,
   osr->data = data;
   osr->ops = &generic_tiff_ops;
 
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
+  // put the TIFF handle
+  _openslide_tiffcache_put(tc, tiff);
 
   return true;
 

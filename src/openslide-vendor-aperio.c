@@ -296,7 +296,8 @@ static bool add_associated_image(GHashTable *ht, const char *name_if_available,
 }
 
 
-bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_aperio(openslide_t *osr,
+			   struct _openslide_tiffcache *tc, TIFF *tiff,
 			   struct _openslide_hash *quickhash1,
 			   GError **err) {
   if (!TIFFIsTiled(tiff)) {
@@ -371,6 +372,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 
   // allocate private data
   struct aperio_ops_data *data = g_slice_new0(struct aperio_ops_data);
+  data->tc = tc;
 
   struct level **levels = g_new0(struct level *, level_count);
   int32_t i = 0;
@@ -413,7 +415,7 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
 
   if (osr == NULL) {
     // free now and return
-    TIFFClose(tiff);
+    _openslide_tiffcache_put(tc, tiff);
     destroy_data(data, levels, level_count);
     return true;
   }
@@ -442,8 +444,8 @@ bool _openslide_try_aperio(openslide_t *osr, TIFF *tiff,
   osr->data = data;
   osr->ops = &aperio_ops;
 
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
+  // put the TIFF handle
+  _openslide_tiffcache_put(tc, tiff);
 
   return true;
 }

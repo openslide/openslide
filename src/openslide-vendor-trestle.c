@@ -247,7 +247,8 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
   g_free(path);
 }
 
-bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
+bool _openslide_try_trestle(openslide_t *osr,
+                            struct _openslide_tiffcache *tc, TIFF *tiff,
                             struct _openslide_hash *quickhash1,
                             GError **err) {
   int32_t overlap_count = 0;
@@ -310,13 +311,14 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
 
   if (osr == NULL) {
     // free now and return
-    TIFFClose(tiff);
+    _openslide_tiffcache_put(tc, tiff);
     g_free(overlaps);
     return true;
   }
 
   // create ops data
   struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
+  data->tc = tc;
 
   // create levels
   struct level **levels = g_new0(struct level *, level_count);
@@ -410,8 +412,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   // add associated images
   add_associated_jpeg(osr, tiff, ".Full", "macro");
 
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
+  // put the TIFF handle
+  _openslide_tiffcache_put(tc, tiff);
 
   return true;
 }
