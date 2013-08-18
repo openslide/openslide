@@ -376,7 +376,6 @@ bool _openslide_try_aperio(openslide_t *osr,
 
   // allocate private data
   struct aperio_ops_data *data = g_slice_new0(struct aperio_ops_data);
-  data->tc = tc;
 
   struct level **levels = g_new0(struct level *, level_count);
   int32_t i = 0;
@@ -419,6 +418,7 @@ bool _openslide_try_aperio(openslide_t *osr,
   if (osr == NULL) {
     // free now and return
     _openslide_tiffcache_put(tc, tiff);
+    data->tc = tc;
     destroy_data(data, levels, level_count);
     return true;
   }
@@ -447,8 +447,9 @@ bool _openslide_try_aperio(openslide_t *osr,
   osr->data = data;
   osr->ops = &aperio_ops;
 
-  // put the TIFF handle
+  // put TIFF handle and assume tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
+  data->tc = tc;
 
   return true;
 }

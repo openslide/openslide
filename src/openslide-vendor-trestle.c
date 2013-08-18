@@ -310,13 +310,13 @@ bool _openslide_try_trestle(openslide_t *osr,
   if (osr == NULL) {
     // free now and return
     _openslide_tiffcache_put(tc, tiff);
+    _openslide_tiffcache_destroy(tc);
     g_free(overlaps);
     return true;
   }
 
   // create ops data
   struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
-  data->tc = tc;
 
   // create levels
   struct level **levels = g_new0(struct level *, level_count);
@@ -410,8 +410,9 @@ bool _openslide_try_trestle(openslide_t *osr,
   // add associated images
   add_associated_jpeg(osr, tiff, ".Full", "macro");
 
-  // put the TIFF handle
+  // put TIFF handle and assume tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
+  data->tc = tc;
 
   return true;
 }

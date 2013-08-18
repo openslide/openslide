@@ -236,11 +236,11 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
   // allocate private data
   struct generic_tiff_ops_data *data =
     g_slice_new0(struct generic_tiff_ops_data);
-  data->tc = tc;
 
   if (osr == NULL) {
     // free now and return
     _openslide_tiffcache_put(tc, tiff);
+    data->tc = tc;
     destroy_data(data, levels, level_count);
     return true;
   }
@@ -265,8 +265,9 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
   osr->data = data;
   osr->ops = &generic_tiff_ops;
 
-  // put the TIFF handle
+  // put TIFF handle and assume tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
+  data->tc = tc;
 
   return true;
 
