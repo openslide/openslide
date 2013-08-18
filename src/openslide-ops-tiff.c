@@ -51,16 +51,6 @@ struct tiff_file_handle {
   int64_t size;
 };
 
-struct _openslide_tiffopsdata {
-  struct _openslide_tiffcache *tc;
-};
-
-struct level {
-  struct _openslide_level base;
-  struct _openslide_tiff_level tiffl;
-  struct _openslide_grid *grid;
-};
-
 struct tiff_associated_image {
   struct _openslide_associated_image base;
   struct _openslide_tiffcache *tc;
@@ -246,25 +236,6 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
   return true;
 }
 
-static void destroy_data(struct _openslide_tiffopsdata *data,
-                         struct level **levels, int32_t level_count) {
-  _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct _openslide_tiffopsdata, data);
-
-  for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct level, levels[i]);
-  }
-  g_free(levels);
-}
-
-static void destroy(openslide_t *osr) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct level **levels = (struct level **) osr->levels;
-  destroy_data(data, levels, osr->level_count);
-}
-
-
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
                                 struct _openslide_level *level,
@@ -341,151 +312,6 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
     _openslide_check_cairo_status_possibly_set_error(osr, cr);
     cairo_destroy(cr);
   }
-}
-
-static void read_tile(openslide_t *osr,
-		      cairo_t *cr,
-		      struct _openslide_level *level,
-		      struct _openslide_grid *grid,
-		      int64_t tile_col, int64_t tile_row,
-		      void *arg) {
-  struct level *l = (struct level *) level;
-  struct _openslide_tiff_level *tiffl = &l->tiffl;
-  TIFF *tiff = arg;
-
-  // tile size
-  int64_t tw = tiffl->tile_w;
-  int64_t th = tiffl->tile_h;
-
-  // cache
-  struct _openslide_cache_entry *cache_entry;
-  uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            tile_col, tile_row, grid,
-                                            &cache_entry);
-  if (!tiledata) {
-    tiledata = g_slice_alloc(tw * th * 4);
-    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
-
-    // clip, if necessary
-    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
-
-    // put it in the cache
-    _openslide_cache_put(osr->cache, tile_col, tile_row, grid,
-			 tiledata, tw * th * 4,
-			 &cache_entry);
-  }
-
-  // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-								 CAIRO_FORMAT_ARGB32,
-								 tw, th,
-								 tw * 4);
-  cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
-  cairo_paint(cr);
-
-  //_openslide_grid_label_tile(grid, cr, tile_col, tile_row);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
-}
-
-static void paint_region(openslide_t *osr, cairo_t *cr,
-			 int64_t x, int64_t y,
-			 struct _openslide_level *level,
-			 int32_t w, int32_t h) {
-  struct _openslide_tiffopsdata *data = osr->data;
-  struct level *l = (struct level *) level;
-
-  TIFF *tiff = _openslide_tiffcache_get(data->tc);
-  if (tiff) {
-    if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
-      _openslide_grid_paint_region(l->grid, cr, tiff,
-                                   x / l->base.downsample,
-                                   y / l->base.downsample,
-                                   level, w, h);
-    } else {
-      _openslide_set_error(osr, "Cannot set TIFF directory");
-    }
-  } else {
-    _openslide_set_error(osr, "Cannot open TIFF file");
-  }
-  _openslide_tiffcache_put(data->tc, tiff);
-}
-
-
-static const struct _openslide_ops _openslide_tiff_ops = {
-  .paint_region = paint_region,
-  .destroy = destroy,
-};
-
-void _openslide_add_tiff_ops(openslide_t *osr,
-			     TIFF *tiff,
-			     int32_t property_dir,
-			     int32_t level_count,
-			     int32_t *directories,
-			     struct _openslide_hash *quickhash1) {
-  // allocate private data
-  struct _openslide_tiffopsdata *data =
-    g_slice_new0(struct _openslide_tiffopsdata);
-
-  GError *tmp_err = NULL;
-
-  // create levels
-  struct level **levels = g_new(struct level *, level_count);
-  for (int32_t i = 0; i < level_count; i++) {
-    struct level *l = g_slice_new0(struct level);
-    struct _openslide_tiff_level *tiffl = &l->tiffl;
-    levels[i] = l;
-
-    if (!_openslide_tiff_level_init(tiff,
-                                    directories[i],
-                                    (struct _openslide_level *) l,
-                                    tiffl,
-                                    &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-      destroy_data(data, levels, level_count);
-      return;
-    }
-
-    l->grid = _openslide_grid_create_simple(osr,
-                                            tiffl->tiles_across,
-                                            tiffl->tiles_down,
-                                            tiffl->tile_w,
-                                            tiffl->tile_h,
-                                            read_tile);
-  }
-  g_free(directories);
-
-  if (osr == NULL) {
-    // free now and return
-    TIFFClose(tiff);
-    destroy_data(data, levels, level_count);
-    return;
-  }
-
-  // generate hash of the smallest level
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->tiffl.dir,
-                                                property_dir,
-                                                &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
-
-  // store tiff-specific data into osr
-  g_assert(osr->data == NULL);
-  g_assert(osr->levels == NULL);
-
-  // general osr data
-  osr->levels = (struct _openslide_level **) levels;
-  osr->level_count = level_count;
-  osr->data = data;
-  osr->ops = &_openslide_tiff_ops;
-
-  // create TIFF cache from handle
-  data->tc = _openslide_tiffcache_create(tiff);
 }
 
 static void tiff_read_region(openslide_t *osr, TIFF *tiff,
