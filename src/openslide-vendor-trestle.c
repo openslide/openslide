@@ -316,7 +316,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
   struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
 
   // create levels
-  struct level **levels = g_new(struct level *, level_count);
+  struct level **levels = g_new0(struct level *, level_count);
   bool report_geometry = true;
   for (int32_t i = 0; i < level_count; i++) {
     struct level *l = g_slice_new0(struct level);
