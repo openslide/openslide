@@ -51,7 +51,7 @@ struct tiff_file_handle {
   int64_t size;
 };
 
-struct tiff_associated_image {
+struct associated_image {
   struct _openslide_associated_image base;
   struct _openslide_tiffcache *tc;
   tdir_t directory;
@@ -416,9 +416,9 @@ void _openslide_tiff_read_tile_data(openslide_t *osr,
   *_len = size;
 }
 
-static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
-                                            struct tiff_associated_image *img,
-                                            uint32_t *dest) {
+static void _get_associated_image_data(openslide_t *osr, TIFF *tiff,
+                                       struct associated_image *img,
+                                       uint32_t *dest) {
   uint32_t tmp;
   int64_t width, height;
 
@@ -438,28 +438,28 @@ static void _tiff_get_associated_image_data(openslide_t *osr, TIFF *tiff,
   tiff_read_region(osr, tiff, dest, 0, 0, width, height);
 }
 
-static void tiff_get_associated_image_data(openslide_t *osr,
-                                           struct _openslide_associated_image *_img,
-                                           uint32_t *dest) {
-  struct tiff_associated_image *img = (struct tiff_associated_image *) _img;
+static void get_associated_image_data(openslide_t *osr,
+                                      struct _openslide_associated_image *_img,
+                                      uint32_t *dest) {
+  struct associated_image *img = (struct associated_image *) _img;
   TIFF *tiff = _openslide_tiffcache_get(img->tc);
   if (tiff) {
-    _tiff_get_associated_image_data(osr, tiff, img, dest);
+    _get_associated_image_data(osr, tiff, img, dest);
   } else {
     _openslide_set_error(osr, "Cannot open TIFF file");
   }
   _openslide_tiffcache_put(img->tc, tiff);
 }
 
-static void tiff_destroy_associated_image(struct _openslide_associated_image *_img) {
-  struct tiff_associated_image *img = (struct tiff_associated_image *) _img;
+static void destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct associated_image *img = (struct associated_image *) _img;
 
-  g_slice_free(struct tiff_associated_image, img);
+  g_slice_free(struct associated_image, img);
 }
 
 static const struct _openslide_associated_image_ops tiff_associated_ops = {
-  .get_argb_data = tiff_get_associated_image_data,
-  .destroy = tiff_destroy_associated_image,
+  .get_argb_data = get_associated_image_data,
+  .destroy = destroy_associated_image,
 };
 
 static bool _add_associated_image(GHashTable *ht,
@@ -480,8 +480,7 @@ static bool _add_associated_image(GHashTable *ht,
 
   // possibly load into struct
   if (ht) {
-    struct tiff_associated_image *img =
-      g_slice_new0(struct tiff_associated_image);
+    struct associated_image *img = g_slice_new0(struct associated_image);
     img->base.ops = &tiff_associated_ops;
     img->base.w = w;
     img->base.h = h;

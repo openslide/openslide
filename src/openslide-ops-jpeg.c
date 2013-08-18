@@ -31,7 +31,7 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
-struct jpeg_associated_image {
+struct associated_image {
   struct _openslide_associated_image base;
   char *filename;
   int64_t offset;
@@ -240,10 +240,10 @@ DONE:
 }
 
 
-static void jpeg_get_associated_image_data(openslide_t *osr,
-                                           struct _openslide_associated_image *_img,
-                                           uint32_t *dest) {
-  struct jpeg_associated_image *img = (struct jpeg_associated_image *) _img;
+static void get_associated_image_data(openslide_t *osr,
+                                      struct _openslide_associated_image *_img,
+                                      uint32_t *dest) {
+  struct associated_image *img = (struct associated_image *) _img;
   GError *tmp_err = NULL;
 
   //g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, img->filename, img->offset);
@@ -255,16 +255,16 @@ static void jpeg_get_associated_image_data(openslide_t *osr,
   }
 }
 
-static void jpeg_destroy_associated_image(struct _openslide_associated_image *_img) {
-  struct jpeg_associated_image *img = (struct jpeg_associated_image *) _img;
+static void destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct associated_image *img = (struct associated_image *) _img;
 
   g_free(img->filename);
-  g_slice_free(struct jpeg_associated_image, img);
+  g_slice_free(struct associated_image, img);
 }
 
 static const struct _openslide_associated_image_ops jpeg_associated_ops = {
-  .get_argb_data = jpeg_get_associated_image_data,
-  .destroy = jpeg_destroy_associated_image,
+  .get_argb_data = get_associated_image_data,
+  .destroy = destroy_associated_image,
 };
 
 bool _openslide_add_jpeg_associated_image(GHashTable *ht,
@@ -278,8 +278,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
   }
 
   if (ht) {
-    struct jpeg_associated_image *img =
-      g_slice_new0(struct jpeg_associated_image);
+    struct associated_image *img = g_slice_new0(struct associated_image);
     img->base.ops = &jpeg_associated_ops;
     img->base.w = w;
     img->base.h = h;
