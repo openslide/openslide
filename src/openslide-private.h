@@ -299,7 +299,7 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
                                uint32_t *tiledata,
                                int64_t tile_col, int64_t tile_row);
 
-bool _openslide_add_tiff_associated_image(GHashTable *ht,
+bool _openslide_tiff_add_associated_image(openslide_t *osr,
 					  const char *name,
 					  struct _openslide_tiffcache *tc,
 					  tdir_t dir,
@@ -325,7 +325,7 @@ bool _openslide_jpeg_read(const char *filename,
                           int32_t w, int32_t h,
                           GError **err);
 
-bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+bool _openslide_jpeg_add_associated_image(openslide_t *osr,
 					  const char *name,
 					  const char *filename,
 					  int64_t offset,

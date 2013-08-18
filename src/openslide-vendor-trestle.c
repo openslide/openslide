@@ -242,8 +242,7 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
                                 const char *extension,
                                 const char *name) {
   char *path = get_associated_path(tiff, extension);
-  _openslide_add_jpeg_associated_image(osr->associated_images,
-                                       name, path, 0, NULL);
+  _openslide_jpeg_add_associated_image(osr, name, path, 0, NULL);
   g_free(path);
 }
 

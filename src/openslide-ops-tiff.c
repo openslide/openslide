@@ -462,7 +462,7 @@ static const struct _openslide_associated_image_ops tiff_associated_ops = {
   .destroy = destroy_associated_image,
 };
 
-static bool _add_associated_image(GHashTable *ht,
+static bool _add_associated_image(openslide_t *osr,
                                   const char *name,
                                   struct _openslide_tiffcache *tc,
                                   tdir_t dir,
@@ -479,7 +479,7 @@ static bool _add_associated_image(GHashTable *ht,
   GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, h, err)
 
   // possibly load into struct
-  if (ht) {
+  if (osr) {
     struct associated_image *img = g_slice_new0(struct associated_image);
     img->base.ops = &tiff_associated_ops;
     img->base.w = w;
@@ -488,13 +488,13 @@ static bool _add_associated_image(GHashTable *ht,
     img->directory = dir;
 
     // save
-    g_hash_table_insert(ht, g_strdup(name), img);
+    g_hash_table_insert(osr->associated_images, g_strdup(name), img);
   }
 
   return true;
 }
 
-bool _openslide_add_tiff_associated_image(GHashTable *ht,
+bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           const char *name,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
@@ -502,7 +502,7 @@ bool _openslide_add_tiff_associated_image(GHashTable *ht,
   TIFF *tiff = _openslide_tiffcache_get(tc);
   bool ret = false;
   if (tiff) {
-    ret = _add_associated_image(ht, name, tc, dir, tiff, err);
+    ret = _add_associated_image(osr, name, tc, dir, tiff, err);
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot open TIFF file");

@@ -578,8 +578,8 @@ bool _openslide_try_leica(openslide_t *osr,
     if (!check_directory(tiff, macroIFD, err)) {
       goto FAIL;
     }
-    if (!_openslide_add_tiff_associated_image(osr ? osr->associated_images : NULL,
-                                              "macro", tc, macroIFD, err)) {
+    if (!_openslide_tiff_add_associated_image(osr, "macro",
+                                              tc, macroIFD, err)) {
       goto FAIL;
     }
   }

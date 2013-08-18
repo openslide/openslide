@@ -1827,7 +1827,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 			      NULL);
   if (tmp && *tmp) {
     char *macro_filename = g_build_filename(dirname, tmp, NULL);
-    bool result = _openslide_add_jpeg_associated_image(osr ? osr->associated_images : NULL,
+    bool result = _openslide_jpeg_add_associated_image(osr,
                                                        "macro",
                                                        macro_filename, 0, err);
     g_free(macro_filename);

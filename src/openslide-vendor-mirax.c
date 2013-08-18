@@ -959,7 +959,7 @@ static int32_t *read_slide_position_buffer(const void *buffer,
   return result;
 }
 
-static bool add_associated_image(GHashTable *ht,
+static bool add_associated_image(openslide_t *osr,
                                  FILE *indexfile,
                                  int64_t nonhier_root,
                                  int datafile_count,
@@ -980,7 +980,7 @@ static bool add_associated_image(GHashTable *ht,
   if (read_nonhier_record(indexfile, nonhier_root,
                           datafile_count, datafile_paths, recordno,
                           &path, &size, &offset, err)) {
-    result = _openslide_add_jpeg_associated_image(ht, name, path, offset, err);
+    result = _openslide_jpeg_add_associated_image(osr, name, path, offset, err);
   }
 
   if (!result) {
@@ -990,7 +990,8 @@ static bool add_associated_image(GHashTable *ht,
 }
 
 
-static bool process_indexfile(const char *uuid,
+static bool process_indexfile(openslide_t *osr,
+			      const char *uuid,
 			      int datafile_count,
 			      char **datafile_paths,
 			      int vimslide_position_record,
@@ -998,7 +999,6 @@ static bool process_indexfile(const char *uuid,
 			      int macro_record,
 			      int label_record,
 			      int thumbnail_record,
-			      GHashTable *associated_images,
 			      int zoom_levels,
 			      int images_x,
 			      int images_y,
@@ -1136,7 +1136,7 @@ static bool process_indexfile(const char *uuid,
   }
 
   // read in the associated images
-  if (!add_associated_image(associated_images,
+  if (!add_associated_image(osr,
                             indexfile,
                             nonhier_root,
                             datafile_count,
@@ -1146,7 +1146,7 @@ static bool process_indexfile(const char *uuid,
                             err)) {
     goto DONE;
   }
-  if (!add_associated_image(associated_images,
+  if (!add_associated_image(osr,
                             indexfile,
                             nonhier_root,
                             datafile_count,
@@ -1156,7 +1156,7 @@ static bool process_indexfile(const char *uuid,
                             err)) {
     goto DONE;
   }
-  if (!add_associated_image(associated_images,
+  if (!add_associated_image(osr,
                             indexfile,
                             nonhier_root,
                             datafile_count,
@@ -1388,8 +1388,6 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   char **datafile_paths = NULL;
 
   FILE *indexfile = NULL;
-
-  GHashTable *associated_images = NULL;
 
   int64_t base_w = 0;
   int64_t base_h = 0;
@@ -1816,19 +1814,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", images %d %d, image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->level_w, l->level_h, l->images_across, l->images_down, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }
 
-  if (osr) {
-    associated_images = osr->associated_images;
-  }
-
   // load the position map and build up the tiles
-  if (!process_indexfile(slide_id,
+  if (!process_indexfile(osr,
+			 slide_id,
 			 datafile_count, datafile_paths,
 			 position_nonhier_vimslide_offset,
 			 position_nonhier_stitching_offset,
 			 macro_nonhier_offset,
 			 label_nonhier_offset,
 			 thumbnail_nonhier_offset,
-			 associated_images,
 			 zoom_levels,
 			 images_x, images_y,
 			 slide_zoom_level_sections[0].overlap_x,

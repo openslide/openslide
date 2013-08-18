@@ -267,7 +267,7 @@ static const struct _openslide_associated_image_ops jpeg_associated_ops = {
   .destroy = destroy_associated_image,
 };
 
-bool _openslide_add_jpeg_associated_image(GHashTable *ht,
+bool _openslide_jpeg_add_associated_image(openslide_t *osr,
 					  const char *name,
 					  const char *filename,
 					  int64_t offset,
@@ -277,7 +277,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     return false;
   }
 
-  if (ht) {
+  if (osr) {
     struct associated_image *img = g_slice_new0(struct associated_image);
     img->base.ops = &jpeg_associated_ops;
     img->base.w = w;
@@ -285,7 +285,7 @@ bool _openslide_add_jpeg_associated_image(GHashTable *ht,
     img->filename = g_strdup(filename);
     img->offset = offset;
 
-    g_hash_table_insert(ht, g_strdup(name), img);
+    g_hash_table_insert(osr->associated_images, g_strdup(name), img);
   }
 
   return true;
