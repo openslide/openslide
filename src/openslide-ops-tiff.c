@@ -41,6 +41,7 @@ struct _openslide_tiffcache {
   char *filename;
   GQueue *cache;
   GMutex *lock;
+  int outstanding;
 };
 
 // not thread-safe, like libtiff
@@ -806,6 +807,7 @@ struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
 TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
   //g_debug("get TIFF");
   g_mutex_lock(tc->lock);
+  tc->outstanding++;
   TIFF *tiff = g_queue_pop_head(tc->cache);
   g_mutex_unlock(tc->lock);
 
@@ -814,6 +816,11 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
     // Does not check that we have the same file.  Then again, neither does
     // tiff_do_read.
     tiff = tiff_open(tc->filename);
+  }
+  if (tiff == NULL) {
+    g_mutex_lock(tc->lock);
+    tc->outstanding--;
+    g_mutex_unlock(tc->lock);
   }
   return tiff;
 }
@@ -825,6 +832,8 @@ void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff) {
 
   //g_debug("put TIFF");
   g_mutex_lock(tc->lock);
+  g_assert(tc->outstanding);
+  tc->outstanding--;
   if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
     g_queue_push_head(tc->cache, tiff);
     tiff = NULL;
@@ -846,6 +855,7 @@ void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
   while ((tiff = g_queue_pop_head(tc->cache)) != NULL) {
     TIFFClose(tiff);
   }
+  g_assert(tc->outstanding == 0);
   g_mutex_unlock(tc->lock);
   g_queue_free(tc->cache);
   g_mutex_free(tc->lock);
