@@ -32,7 +32,6 @@
 
 #include <openslide-features.h>
 
-#include <stdio.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
