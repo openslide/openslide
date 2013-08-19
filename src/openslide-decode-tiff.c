@@ -313,21 +313,25 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
   }
 }
 
-static void tiff_read_region(openslide_t *osr, TIFF *tiff,
+static bool tiff_read_region(TIFF *tiff,
                              uint32_t *dest,
                              int64_t x, int64_t y,
-                             int32_t w, int32_t h) {
+                             int32_t w, int32_t h,
+                             GError **err) {
   TIFFRGBAImage img;
   char emsg[1024] = "";
+  bool success = false;
 
   // init
   if (!TIFFRGBAImageOK(tiff, emsg)) {
-    _openslide_set_error(osr, "Failure in TIFFRGBAImageOK: %s", emsg);
-    return;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Failure in TIFFRGBAImageOK: %s", emsg);
+    return false;
   }
   if (!TIFFRGBAImageBegin(&img, tiff, 1, emsg)) {
-    _openslide_set_error(osr, "Failure in TIFFRGBAImageBegin: %s", emsg);
-    return;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Failure in TIFFRGBAImageBegin: %s", emsg);
+    return false;
   }
   img.req_orientation = ORIENTATION_TOPLEFT;
   img.col_offset = x;
@@ -344,13 +348,16 @@ static void tiff_read_region(openslide_t *osr, TIFF *tiff,
 	| ((val << 16) & 0xFF0000)
 	| ((val >> 16) & 0xFF);
     }
+    success = true;
   } else {
-    _openslide_set_error(osr, "TIFFRGBAImageGet failed: %s", emsg);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "TIFFRGBAImageGet failed: %s", emsg);
     memset(dest, 0, w * h * 4);
   }
 
   // done
   TIFFRGBAImageEnd(&img);
+  return success;
 }
 
 void _openslide_tiff_read_tile(openslide_t *osr,
@@ -358,13 +365,18 @@ void _openslide_tiff_read_tile(openslide_t *osr,
                                TIFF *tiff,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row) {
+  GError *tmp_err = NULL;
+
   // set directory
   SET_DIR_OR_FAIL(osr, tiff, tiffl->dir);
 
   // read tile
-  tiff_read_region(osr, tiff, dest,
-                   tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
-                   tiffl->tile_w, tiffl->tile_h);
+  if (!tiff_read_region(tiff, dest,
+                        tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
+                        tiffl->tile_w, tiffl->tile_h, &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 }
 
 void _openslide_tiff_read_tile_data(openslide_t *osr,
@@ -420,6 +432,7 @@ static void _get_associated_image_data(openslide_t *osr, TIFF *tiff,
                                        uint32_t *dest) {
   uint32_t tmp;
   int64_t width, height;
+  GError *tmp_err = NULL;
 
   // g_debug("read TIFF associated image: %d", img->directory);
 
@@ -434,7 +447,10 @@ static void _get_associated_image_data(openslide_t *osr, TIFF *tiff,
   }
 
   // load the image
-  tiff_read_region(osr, tiff, dest, 0, 0, width, height);
+  if (!tiff_read_region(tiff, dest, 0, 0, width, height, &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 }
 
 static void get_associated_image_data(openslide_t *osr,
