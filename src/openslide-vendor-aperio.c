@@ -50,6 +50,7 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+  uint16_t compression;
 };
 
 static void destroy_data(struct aperio_ops_data *data,
@@ -73,19 +74,16 @@ static void destroy(openslide_t *osr) {
 }
 
 static void decode_tile(openslide_t *osr,
-                        struct _openslide_tiff_level *tiffl,
+                        struct level *l,
                         TIFF *tiff,
                         uint32_t *dest,
                         int64_t tile_col, int64_t tile_row) {
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
   GError *tmp_err = NULL;
-
-  // which compression?
-  uint16_t compression_mode;
-  TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression_mode);
 
   // select color space
   enum _openslide_jp2k_colorspace space;
-  switch (compression_mode) {
+  switch (l->compression) {
   case APERIO_COMPRESSION_JP2K_YCBCR:
     space = OPENSLIDE_JP2K_YCBCR;
     break;
@@ -148,7 +146,7 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    decode_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
+    decode_tile(osr, l, tiff, tiledata, tile_col, tile_row);
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
@@ -390,6 +388,14 @@ bool _openslide_try_aperio(openslide_t *osr,
                                               tiffl->tile_w,
                                               tiffl->tile_h,
                                               read_tile);
+
+      // get compression
+      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &l->compression)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Can't read compression scheme");
+        destroy_data(data, levels, level_count);
+        return false;
+      }
     } else {
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
