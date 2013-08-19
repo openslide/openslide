@@ -29,8 +29,6 @@
 #include <glib.h>
 #include <libxml/parser.h>
 
-#include "openslide-cache.h"
-#include "openslide-tilehelper.h"
 #include "openslide-cairo.h"
 
 const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2013 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
@@ -65,10 +63,7 @@ static void __attribute__((constructor)) _openslide_init(void) {
 static void destroy_associated_image(gpointer data) {
   struct _openslide_associated_image *img = data;
 
-  if (img->destroy_ctx != NULL && img->ctx != NULL) {
-    img->destroy_ctx(img->ctx);
-  }
-  g_slice_free(struct _openslide_associated_image, img);
+  img->ops->destroy(img);
 }
 
 static bool level_in_range(openslide_t *osr, int32_t level) {
@@ -137,7 +132,8 @@ static bool try_format(openslide_t *osr, const char *filename,
   return result;
 }
 
-static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
+static bool try_tiff_format(openslide_t *osr,
+			    struct _openslide_tiffcache *tc, TIFF *tiff,
 			    struct _openslide_hash **quickhash1_OUT,
 			    const _openslide_tiff_vendor_fn *format_check,
 			    GError **err) {
@@ -145,7 +141,7 @@ static bool try_tiff_format(openslide_t *osr, TIFF *tiff,
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);
-  bool result = (*format_check)(osr, tiff,
+  bool result = (*format_check)(osr, tc, tiff,
                                 quickhash1_OUT ? *quickhash1_OUT : NULL,
                                 err);
 
@@ -178,17 +174,20 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
 
   // tiff
-  TIFF *tiff = _openslide_tiff_open(filename);
-  if (tiff != NULL) {
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  if (tc != NULL) {
+    TIFF *tiff = _openslide_tiffcache_get(tc);
+    g_assert(tiff != NULL);
     const _openslide_tiff_vendor_fn *tfn = tiff_formats;
     while (*tfn) {
-      if (try_tiff_format(osr, tiff, quickhash1_OUT, tfn, &tmp_err)) {
+      if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, tfn, &tmp_err)) {
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
                            OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
         g_propagate_error(err, tmp_err);
-        TIFFClose(tiff);
+        _openslide_tiffcache_put(tc, tiff);
+        _openslide_tiffcache_destroy(tc);
         return false;
       }
       //g_debug("%s", tmp_err->message);
@@ -196,8 +195,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       tfn++;
     }
 
-    // close only if failed
-    TIFFClose(tiff);
+    // destroy only if failed
+    _openslide_tiffcache_put(tc, tiff);
+    _openslide_tiffcache_destroy(tc);
   }
 
 
@@ -273,35 +273,36 @@ openslide_t *openslide_open(const char *filename) {
       return osr;
     }
   }
+  if (openslide_get_error(osr)) {
+    // Some error paths put the handle in error state instead of returning
+    // a GError.  We shouldn't encourage this, but shouldn't crash either.
+    return osr;
+  }
+  g_assert(osr->levels);
 
   // compute downsamples if not done already
   int64_t blw, blh;
   openslide_get_level0_dimensions(osr, &blw, &blh);
 
-  if (!osr->downsamples) {
-    osr->downsamples = g_new0(double, osr->level_count);
-  }
-  if (osr->downsamples[0] == 0) {
-    osr->downsamples[0] = 1.0;
+  if (osr->level_count && osr->levels[0]->downsample == 0) {
+    osr->levels[0]->downsample = 1.0;
   }
   for (int32_t i = 1; i < osr->level_count; i++) {
-    if (osr->downsamples[i] == 0) {
-      int64_t w, h;
-      openslide_get_level_dimensions(osr, i, &w, &h);
-
-      osr->downsamples[i] =
-        (((double) blh / (double) h) +
-         ((double) blw / (double) w)) / 2.0;
+    struct _openslide_level *l = osr->levels[i];
+    if (l->downsample == 0) {
+      l->downsample =
+        (((double) blh / (double) l->h) +
+         ((double) blw / (double) l->w)) / 2.0;
     }
   }
 
   // check downsamples
   for (int32_t i = 1; i < osr->level_count; i++) {
-    //g_debug("downsample: %g", osr->downsamples[i]);
+    //g_debug("downsample: %g", osr->levels[i]->downsample);
 
-    if (osr->downsamples[i] < osr->downsamples[i - 1]) {
+    if (osr->levels[i]->downsample < osr->levels[i - 1]->downsample) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
-		osr->downsamples[i], osr->downsamples[i - 1]);
+		osr->levels[i]->downsample, osr->levels[i - 1]->downsample);
       openslide_close(osr);
       _openslide_hash_destroy(quickhash1);
       return NULL;
@@ -323,23 +324,20 @@ openslide_t *openslide_open(const char *filename) {
 		      g_strdup_printf("%d", osr->level_count));
   bool should_have_geometry;
   for (int32_t i = 0; i < osr->level_count; i++) {
-    int64_t w, h;
-    openslide_get_level_dimensions(osr, i, &w, &h);
+    struct _openslide_level *l = osr->levels[i];
 
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_WIDTH, i),
-			g_strdup_printf("%" G_GINT64_FORMAT, w));
+			g_strdup_printf("%" G_GINT64_FORMAT, l->w));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_HEIGHT, i),
-			g_strdup_printf("%" G_GINT64_FORMAT, h));
+			g_strdup_printf("%" G_GINT64_FORMAT, l->h));
     g_hash_table_insert(osr->properties,
 			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_DOWNSAMPLE, i),
-			_openslide_format_double(osr->downsamples[i]));
+			_openslide_format_double(l->downsample));
 
     // tile geometry
-    w = h = -1;
-    (osr->ops->get_tile_geometry)(osr, i, &w, &h);
-    bool have_geometry = (w > 0 && h > 0);
+    bool have_geometry = (l->tile_w > 0 && l->tile_h > 0);
     if (i == 0) {
       should_have_geometry = have_geometry;
     }
@@ -349,10 +347,10 @@ openslide_t *openslide_open(const char *filename) {
     if (have_geometry) {
       g_hash_table_insert(osr->properties,
                           g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_WIDTH, i),
-                          g_strdup_printf("%" G_GINT64_FORMAT, w));
+                          g_strdup_printf("%" G_GINT64_FORMAT, l->tile_w));
       g_hash_table_insert(osr->properties,
                           g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_HEIGHT, i),
-                          g_strdup_printf("%" G_GINT64_FORMAT, h));
+                          g_strdup_printf("%" G_GINT64_FORMAT, l->tile_h));
     }
   }
 
@@ -382,8 +380,6 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->associated_image_names);
   g_free(osr->property_names);
 
-  g_free(osr->downsamples);
-
   if (osr->cache) {
     _openslide_cache_destroy(osr->cache);
   }
@@ -412,7 +408,8 @@ void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
     return;
   }
 
-  (osr->ops->get_dimensions)(osr, level, w, h);
+  *w = osr->levels[level]->w;
+  *h = osr->levels[level]->h;
 }
 
 void openslide_get_layer0_dimensions(openslide_t *osr,
@@ -451,13 +448,13 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
   }
 
   // too small, return first
-  if (downsample < osr->downsamples[0]) {
+  if (downsample < osr->levels[0]->downsample) {
     return 0;
   }
 
   // find where we are in the middle
   for (int32_t i = 1; i < osr->level_count; i++) {
-    if (downsample < osr->downsamples[i]) {
+    if (downsample < osr->levels[i]->downsample) {
       return i - 1;
     }
   }
@@ -477,7 +474,7 @@ double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
     return -1.0;
   }
 
-  return osr->downsamples[level];
+  return osr->levels[level]->downsample;
 }
 
 double openslide_get_layer_downsample(openslide_t *osr, int32_t level) {
@@ -521,8 +518,10 @@ static void read_region(openslide_t *osr,
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   if (level_in_range(osr, level)) {
+    struct _openslide_level *l = osr->levels[level];
+
     // offset if given negative coordinates
-    double ds = openslide_get_level_downsample(osr, level);
+    double ds = l->downsample;
     int64_t tx = 0;
     int64_t ty = 0;
     if (x < 0) {
@@ -539,7 +538,7 @@ static void read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      (osr->ops->paint_region)(osr, cr, x, y, level, w, h);
+      (osr->ops->paint_region)(osr, cr, x, y, l, w, h);
     }
   }
 
@@ -709,7 +708,7 @@ void openslide_read_associated_image(openslide_t *osr,
     size_t pixels = img->w * img->h;
     uint32_t *buf = g_new(uint32_t, pixels);
 
-    img->get_argb_data(osr, img->ctx, buf, img->w, img->h);
+    img->ops->get_argb_data(osr, img, buf);
     if (dest && !openslide_get_error(osr)) {
       memcpy(dest, buf, pixels * sizeof(uint32_t));
     }

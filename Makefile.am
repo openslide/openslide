@@ -15,17 +15,24 @@ lib_LTLIBRARIES = src/libopenslide.la
 src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS) $(LIBXML2_LIBS) \
 	$(OPENJPEG_LIBS) $(LIBTIFF_LIBS) $(ZLIB_LIBS)
 
-src_libopenslide_la_SOURCES = src/openslide.c \
-	src/openslide-cache.c src/openslide-tilehelper.c \
-	src/openslide-hash.c src/openslide-error.c src/openslide-util.c \
-	src/openslide-ops-jpeg.c \
+src_libopenslide_la_SOURCES = \
+	src/openslide.c \
+	src/openslide-cache.c \
+	src/openslide-decode-jp2k.c \
+	src/openslide-decode-jpeg.c \
+	src/openslide-decode-tiff.c \
+	src/openslide-error.c \
+	src/openslide-grid.c \
+	src/openslide-hash.c \
+	src/openslide-jdatasrc.c \
+	src/openslide-tiffdump.c \
+	src/openslide-util.c \
+	src/openslide-vendor-aperio.c \
+	src/openslide-vendor-generic-tiff.c \
 	src/openslide-vendor-hamamatsu.c \
-	src/openslide-ops-ngr.c \
-	src/openslide-ops-tiff.c \
-	src/openslide-vendor-trestle.c src/openslide-vendor-aperio.c \
-	src/openslide-vendor-mirax.c src/openslide-vendor-generic-tiff.c \
 	src/openslide-vendor-leica.c \
-	src/openslide-jdatasrc.c src/openslide-tiffdump.c
+	src/openslide-vendor-mirax.c \
+	src/openslide-vendor-trestle.c
 
 if WINDOWS_RESOURCES
 src_libopenslide_la_SOURCES += src/openslide-dll.rc
@@ -40,9 +47,16 @@ src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAG
 src_libopenslide_la_LDFLAGS = -version-info 3:3:3 -no-undefined
 
 
-pkginclude_HEADERS = src/openslide.h src/openslide-features.h
+pkginclude_HEADERS = \
+	src/openslide.h \
+	src/openslide-features.h
 
-noinst_HEADERS = src/openslide-private.h src/openslide-cache.h src/openslide-tilehelper.h src/openslide-hash.h src/openslide-cairo.h src/openslide-tiffdump.h tools/openslide-tools-common.h
+noinst_HEADERS = \
+	src/openslide-cairo.h \
+	src/openslide-hash.h \
+	src/openslide-private.h \
+	src/openslide-tiffdump.h \
+	tools/openslide-tools-common.h
 
 
 

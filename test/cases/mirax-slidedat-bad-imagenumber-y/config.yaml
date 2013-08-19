@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Can't read tiles down$
+error: ^Can't read images down$
 slide: CMU-1.mrxs
 success: false

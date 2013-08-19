@@ -119,8 +119,8 @@ class HierLevel(object):
 
 def read_zoom_level(r, dat, section):
     r('Concat factor', dat.getint(section, 'IMAGE_CONCAT_FACTOR'))
-    r('Tile width', dat.getint(section, 'DIGITIZER_WIDTH'))
-    r('Tile height', dat.getint(section, 'DIGITIZER_HEIGHT'))
+    r('Image width', dat.getint(section, 'DIGITIZER_WIDTH'))
+    r('Image height', dat.getint(section, 'DIGITIZER_HEIGHT'))
     r('Overlap X', dat.getfloat(section, 'OVERLAP_X'))
     r('Overlap Y', dat.getfloat(section, 'OVERLAP_Y'))
 
@@ -182,7 +182,7 @@ def read_nonhier_record(r, datafiles, f, root_position, record):
     return (fileno, position, size)
 
 
-def read_hier_record(r, f, root_position, datafiles, record, tiles_x):
+def read_hier_record(r, f, root_position, datafiles, record, images_x):
     # find start of hier table
     f.seek(root_position)
     # seek to record
@@ -200,25 +200,25 @@ def read_hier_record(r, f, root_position, datafiles, record, tiles_x):
         entries = read_int32(f)
         data_page = read_int32(f)
         for i in range(entries):
-            tile_index = read_int32(f)
+            image_index = read_int32(f)
             position = read_int32(f)
             size = read_int32(f)
             fileno = read_int32(f)
-            r('Tile %5d x %5d' % (tile_index % tiles_x,
-                    tile_index // tiles_x), '%s %10d + %10d' % (
+            r('Image %5d x %5d' % (image_index % images_x,
+                    image_index // images_x), '%s %10d + %10d' % (
                     os.path.basename(datafiles[fileno]), position, size))
 
 
-def read_tile_position_map(r, image_divisions, tiles_x, f, len):
+def read_slide_position_map(r, image_divisions, images_x, f, len):
     assert(len % 9 == 0)
-    images_x = tiles_x // image_divisions
+    positions_x = images_x // image_divisions
     for i in range(len // 9):
         zz = struct.unpack('B', read_len(f, 1))[0]
         x = read_int32(f)
         y = read_int32(f)
         if x != 0 or y != 0 or zz != 0:
-            r('Tile %5d x %5d' % ((i % images_x) * image_divisions,
-                    (i // images_x) * image_divisions),
+            r('Image %5d x %5d' % ((i % positions_x) * image_divisions,
+                    (i // positions_x) * image_divisions),
                     '%8d x %8d  (%3d)' % (x, y, zz))
 
 
@@ -234,8 +234,8 @@ def dump_mirax(path, r=None):
     f = io.open(os.path.join(dirname, 'Slidedat.ini'), encoding='utf-8-sig')
     dat = RawConfigParser()
     dat.readfp(f)
-    tiles_x = dat.getint('GENERAL', 'IMAGENUMBER_X')
-    tiles_y = dat.getint('GENERAL', 'IMAGENUMBER_Y')
+    images_x = dat.getint('GENERAL', 'IMAGENUMBER_X')
+    images_y = dat.getint('GENERAL', 'IMAGENUMBER_Y')
     slide_id = dat.get('GENERAL', 'SLIDE_ID')
     try:
         slide_type = dat.get('GENERAL', 'SLIDE_TYPE')
@@ -250,8 +250,8 @@ def dump_mirax(path, r=None):
     r('Slide version', dat.get('GENERAL', 'SLIDE_VERSION'))
     r('Slide ID', slide_id)
     r('Slide type', slide_type)
-    r('Tiles in X', tiles_x)
-    r('Tiles in Y', tiles_y)
+    r('Images in X', images_x)
+    r('Images in Y', images_y)
     r('Image divisions per side', image_divisions)
 
     # Parse hierarchical tree
@@ -322,11 +322,11 @@ def dump_mirax(path, r=None):
             read_nonhier_record(rrr.child(level.name), datafiles, index,
                     nonhier_root, level.offset)
 
-    # Print tile position map
+    # Print slide position map
     position_keys = set(['index', 'zindex']) & set(nonhier_offsets)
     if position_keys:
         for key in position_keys:
-            rr = r.child('Tile positions')
+            rr = r.child('Slide positions')
             fileno, position, size = read_nonhier_record(rr, datafiles, index,
                     nonhier_root, nonhier_offsets[key])
             f = open(datafiles[fileno])
@@ -335,15 +335,15 @@ def dump_mirax(path, r=None):
                 buf = zlib.decompress(f.read(size))
                 f = StringIO(buf)
                 size = len(buf)
-            read_tile_position_map(rr, image_divisions, tiles_x, f, size)
+            read_slide_position_map(rr, image_divisions, images_x, f, size)
     else:
-        r('Tile positions', 'None')
+        r('Slide positions', 'None')
 
-    # Print tile locations
-    rr = r.child('Tiles')
+    # Print image locations
+    rr = r.child('Images')
     for level in range(slide_zoom_layer.levels):
         read_hier_record(rr.child('Level %d' % level), index, hier_root,
-                datafiles, level, tiles_x)
+                datafiles, level, images_x)
 
 
 if __name__ == '__main__':

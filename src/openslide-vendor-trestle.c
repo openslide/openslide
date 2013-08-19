@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -23,7 +23,7 @@
 /*
  * Trestle (tif) support
  *
- * quickhash comes from what the TIFF backend does
+ * quickhash comes from _openslide_tiff_init_properties_and_hash
  *
  */
 
@@ -41,21 +41,129 @@ static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
 static const char BACKGROUND_COLOR[] = "Background Color=";
 
+struct trestle_ops_data {
+  struct _openslide_tiffcache *tc;
+};
+
+struct level {
+  struct _openslide_level base;
+  struct _openslide_tiff_level tiffl;
+  struct _openslide_grid *grid;
+};
+
+static void destroy_data(struct trestle_ops_data *data,
+                         struct level **levels, int32_t level_count) {
+  _openslide_tiffcache_destroy(data->tc);
+  g_slice_free(struct trestle_ops_data, data);
+
+  for (int32_t i = 0; i < level_count; i++) {
+    if (levels[i]) {
+      _openslide_grid_destroy(levels[i]->grid);
+      g_slice_free(struct level, levels[i]);
+    }
+  }
+  g_free(levels);
+}
+
+static void destroy(openslide_t *osr) {
+  struct trestle_ops_data *data = osr->data;
+  struct level **levels = (struct level **) osr->levels;
+  destroy_data(data, levels, osr->level_count);
+}
+
+
+static void read_tile(openslide_t *osr,
+                      cairo_t *cr,
+                      struct _openslide_level *level,
+                      struct _openslide_grid *grid,
+                      int64_t tile_col, int64_t tile_row,
+                      void *tile G_GNUC_UNUSED,
+                      void *arg) {
+  struct level *l = (struct level *) level;
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
+  TIFF *tiff = arg;
+
+  // tile size
+  int64_t tw = tiffl->tile_w;
+  int64_t th = tiffl->tile_h;
+
+  // cache
+  struct _openslide_cache_entry *cache_entry;
+  uint32_t *tiledata = _openslide_cache_get(osr->cache,
+                                            tile_col, tile_row, grid,
+                                            &cache_entry);
+  if (!tiledata) {
+    tiledata = g_slice_alloc(tw * th * 4);
+    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
+
+    // clip, if necessary
+    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
+
+    // put it in the cache
+    _openslide_cache_put(osr->cache, tile_col, tile_row, grid,
+                         tiledata, tw * th * 4,
+                         &cache_entry);
+  }
+
+  // draw it
+  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                                                 CAIRO_FORMAT_ARGB32,
+                                                                 tw, th,
+                                                                 tw * 4);
+  cairo_set_source_surface(cr, surface, 0, 0);
+  cairo_surface_destroy(surface);
+  cairo_paint(cr);
+
+  //_openslide_grid_label_tile(grid, cr, tile_col, tile_row);
+
+  // done with the cache entry, release it
+  _openslide_cache_entry_unref(cache_entry);
+}
+
+static void paint_region(openslide_t *osr, cairo_t *cr,
+                         int64_t x, int64_t y,
+                         struct _openslide_level *level,
+                         int32_t w, int32_t h) {
+  struct trestle_ops_data *data = osr->data;
+  struct level *l = (struct level *) level;
+
+  TIFF *tiff = _openslide_tiffcache_get(data->tc);
+  if (tiff) {
+    if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
+      _openslide_grid_paint_region(l->grid, cr, tiff,
+                                   x / l->base.downsample,
+                                   y / l->base.downsample,
+                                   level, w, h);
+    } else {
+      _openslide_set_error(osr, "Cannot set TIFF directory");
+    }
+  } else {
+    _openslide_set_error(osr, "Cannot open TIFF file");
+  }
+  _openslide_tiffcache_put(data->tc, tiff);
+}
+
+
+static const struct _openslide_ops trestle_ops = {
+  .paint_region = paint_region,
+  .destroy = destroy,
+};
+
 static void add_properties(GHashTable *ht, char **tags) {
   g_hash_table_insert(ht,
-		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-		      g_strdup("trestle"));
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                      g_strdup("trestle"));
 
   for (char **tag = tags; *tag != NULL; tag++) {
     char **pair = g_strsplit(*tag, "=", 2);
     if (pair) {
       char *name = g_strstrip(pair[0]);
       if (name) {
-	char *value = g_strstrip(pair[1]);
+        char *value = g_strstrip(pair[1]);
 
-	g_hash_table_insert(ht,
-			    g_strdup_printf("trestle.%s", name),
-			    g_strdup(value));
+        g_hash_table_insert(ht,
+                            g_strdup_printf("trestle.%s", name),
+                            g_strdup(value));
       }
     }
     g_strfreev(pair);
@@ -66,9 +174,9 @@ static void add_properties(GHashTable *ht, char **tags) {
 }
 
 static void parse_trestle_image_description(openslide_t *osr,
-					    const char *description,
-					    int32_t *overlap_count_OUT,
-					    int32_t **overlaps_OUT) {
+                                            const char *description,
+                                            int32_t *overlap_count_OUT,
+                                            int32_t **overlaps_OUT) {
   char **first_pass = g_strsplit(description, ";", -1);
 
   int32_t overlap_count = 0;
@@ -90,8 +198,8 @@ static void parse_trestle_image_description(openslide_t *osr,
       int i = 0;
       // skip fieldname
       for (char **cur_str2 = second_pass + 1; *cur_str2 != NULL; cur_str2++) {
-	overlaps[i] = g_ascii_strtoull(*cur_str2, NULL, 10);
-	i++;
+        overlaps[i] = g_ascii_strtoull(*cur_str2, NULL, 10);
+        i++;
       }
 
       g_strfreev(second_pass);
@@ -100,18 +208,18 @@ static void parse_trestle_image_description(openslide_t *osr,
       errno = 0;
       uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
       if (bg || !errno) {
-	if (osr) {
+        if (osr) {
           _openslide_set_background_color_prop(osr->properties,
                                                (bg >> 16) & 0xFF,
                                                (bg >> 8) & 0xFF,
                                                bg & 0xFF);
-	}
+        }
       }
     }
   }
   g_strfreev(first_pass);
 
-  *overlap_count_OUT = overlap_count;
+  *overlap_count_OUT = overlap_count / 2;
   *overlaps_OUT = overlaps;
 }
 
@@ -133,23 +241,22 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
                                 const char *extension,
                                 const char *name) {
   char *path = get_associated_path(tiff, extension);
-  _openslide_add_jpeg_associated_image(osr->associated_images,
-                                       name, path, 0, NULL);
+  _openslide_jpeg_add_associated_image(osr, name, path, 0, NULL);
   g_free(path);
 }
 
-bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
-			    struct _openslide_hash *quickhash1,
-			    GError **err) {
+bool _openslide_try_trestle(openslide_t *osr,
+                            struct _openslide_tiffcache *tc, TIFF *tiff,
+                            struct _openslide_hash *quickhash1,
+                            GError **err) {
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
-  int32_t *levels = NULL;
 
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
-    goto FAIL;
+    return false;
   }
 
   char *tagval;
@@ -159,7 +266,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
       (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Trestle slide");
-    goto FAIL;
+    return false;
   }
 
   // parse
@@ -168,7 +275,7 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     // no description, not trestle
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Trestle slide");
-    goto FAIL;
+    return false;
   }
   parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
 
@@ -177,7 +284,8 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     if (!TIFFIsTiled(tiff)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                   "TIFF level is not tiled");
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     }
 
     // verify that we can read this compression (hard fail if not)
@@ -185,49 +293,126 @@ bool _openslide_try_trestle(openslide_t *osr, TIFF *tiff,
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read compression scheme");
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     };
     if (!TIFFIsCODECConfigured(compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unsupported TIFF compression: %u", compression);
-      goto FAIL;
+      g_free(overlaps);
+      return false;
     }
 
     // level ok
     level_count++;
   } while (TIFFReadDirectory(tiff));
-  levels = g_new(int32_t, level_count);
 
-  // directories are linear
+  if (osr == NULL) {
+    // free now and return
+    _openslide_tiffcache_put(tc, tiff);
+    _openslide_tiffcache_destroy(tc);
+    g_free(overlaps);
+    return true;
+  }
+
+  // create ops data
+  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
+
+  // create levels
+  struct level **levels = g_new0(struct level *, level_count);
+  bool report_geometry = true;
   for (int32_t i = 0; i < level_count; i++) {
-    levels[i] = i;
+    struct level *l = g_slice_new0(struct level);
+    struct _openslide_tiff_level *tiffl = &l->tiffl;
+    levels[i] = l;
+
+    // directories are linear
+    if (!_openslide_tiff_level_init(tiff, i,
+                                    (struct _openslide_level *) l, tiffl,
+                                    err)) {
+      destroy_data(data, levels, level_count);
+      g_free(overlaps);
+      return false;
+    }
+
+    // get overlaps
+    int32_t overlap_x = 0;
+    int32_t overlap_y = 0;
+    if (i < overlap_count) {
+      overlap_x = overlaps[2 * i];
+      overlap_y = overlaps[2 * i + 1];
+      // if any level has overlaps, reporting tile advances would mislead the
+      // application
+      if (overlap_x || overlap_y) {
+        report_geometry = false;
+      }
+    }
+
+    // subtract out the overlaps (there are tiles-1 overlaps in each dimension)
+    if (tiffl->image_w >= tiffl->tile_w) {
+      l->base.w -= (tiffl->tiles_across - 1) * overlap_x;
+    }
+    if (tiffl->image_h >= tiffl->tile_h) {
+      l->base.h -= (tiffl->tiles_down - 1) * overlap_y;
+    }
+
+    // create grid
+    l->grid = _openslide_grid_create_tilemap(osr,
+                                             tiffl->tile_w - overlap_x,
+                                             tiffl->tile_h - overlap_y,
+                                             read_tile, NULL);
+
+    // add tiles
+    for (int64_t y = 0; y < tiffl->tiles_down; y++) {
+      for (int64_t x = 0; x < tiffl->tiles_across; x++) {
+        _openslide_grid_tilemap_add_tile(l->grid,
+                                         x, y,
+                                         0, 0,
+                                         tiffl->tile_w, tiffl->tile_h,
+                                         NULL);
+      }
+    }
+  }
+  g_free(overlaps);
+
+  // clear tile size hints if necessary
+  if (!report_geometry) {
+    for (int32_t i = 0; i < level_count; i++) {
+      levels[i]->base.tile_w = 0;
+      levels[i]->base.tile_h = 0;
+    }
   }
 
-  // add associated images
-  if (osr) {
-    add_associated_jpeg(osr, tiff, ".Full", "macro");
+  // set hash and properties
+  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
+                                                levels[level_count - 1]->tiffl.dir,
+                                                0,
+                                                err)) {
+    destroy_data(data, levels, level_count);
+    return false;
   }
 
-  // all set, load up the TIFF-specific ops
-  _openslide_add_tiff_ops(osr, tiff, 0,
-			  overlap_count / 2, overlaps,
-			  level_count, levels,
-			  _openslide_generic_tiff_tilereader,
-			  quickhash1);
+  // store osr data
+  g_assert(osr->data == NULL);
+  g_assert(osr->levels == NULL);
+  osr->levels = (struct _openslide_level **) levels;
+  osr->level_count = level_count;
+  osr->data = data;
+  osr->ops = &trestle_ops;
 
   // copy the TIFF resolution props to the standard MPP properties
   // this is a totally non-standard use of these TIFF tags
-  if (osr) {
-    _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_X);
-    _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_Y);
-  }
+  _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
+
+  // add associated images
+  add_associated_jpeg(osr, tiff, ".Full", "macro");
+
+  // put TIFF handle and assume tiffcache reference
+  _openslide_tiffcache_put(tc, tiff);
+  data->tc = tc;
 
   return true;
-
- FAIL:
-  g_free(levels);
-  g_free(overlaps);
-  return false;
 }

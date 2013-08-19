@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: "^Can't hash tiles: Couldn't open .*/Data0014.dat: No such file or directory$"
+error: "^Can't hash images: Couldn't open .*/Data0014.dat: No such file or directory$"
 slide: CMU-1.mrxs
 success: false

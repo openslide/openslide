@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: '^hs->tile_w <= 0: 0$'
+error: ^Can't read image width$
 slide: CMU-1.mrxs
 success: false

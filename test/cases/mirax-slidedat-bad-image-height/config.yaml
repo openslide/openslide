@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^tile_index < 0$
+error: ^Can't read image height$
 slide: CMU-1.mrxs
 success: false

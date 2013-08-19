@@ -54,52 +54,6 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 		    strlen(str_to_hash) + 1);
 }
 
-bool _openslide_hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
-                                GError **err) {
-  g_assert(TIFFIsTiled(tiff));
-
-  // get tile count
-  ttile_t count = TIFFNumberOfTiles(tiff);
-
-  // get tile sizes
-  toff_t *sizes;
-  if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot get tile size");
-    return false;  // ok, haven't allocated anything yet
-  }
-  toff_t total = 0;
-  for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
-    total += sizes[tile_no];
-    if (total > (5 << 20)) {
-      // This is a non-pyramidal image or one with a very large top level.
-      // Refuse to calculate a quickhash for it to keep openslide_open()
-      // from taking an arbitrary amount of time.  (#79)
-      hash->enabled = false;
-      return true;  // ok, haven't allocated anything yet
-    }
-  }
-
-  // get offsets
-  toff_t *offsets;
-  if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot get offsets");
-    return false;  // ok, haven't allocated anything yet
-  }
-
-  // hash each tile's raw data
-  const char *filename = TIFFFileName(tiff);
-  for (ttile_t tile_no = 0; tile_no < count; tile_no++) {
-    if (!_openslide_hash_file_part(hash, filename, offsets[tile_no], sizes[tile_no], err)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
                           GError **err) {
   int64_t size = _openslide_fsize(filename, err);
@@ -150,6 +104,13 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   fclose(f);
   return true;
+}
+
+// Invalidate this hash.  Use if this slide is unhashable for some reason.
+void _openslide_hash_disable(struct _openslide_hash *hash) {
+  if (hash) {
+    hash->enabled = false;
+  }
 }
 
 const char *_openslide_hash_get_string(struct _openslide_hash *hash) {

@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-tools-common.h"
@@ -70,6 +71,17 @@ void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info 
   } else if (show_version) {
     fprintf(stderr, version_format, g_get_prgname(), openslide_get_version());
     exit(0);
+  }
+
+  // Remove "--" arguments; g_option_context_parse() doesn't
+  for (int i = 0; i < *argc; i++) {
+    if (!strcmp((*argv)[i], "--")) {
+      for (int j = i + 1; j <= *argc; j++) {
+        (*argv)[j - 1] = (*argv)[j];
+      }
+      --*argc;
+      --i;
+    }
   }
 }
 
