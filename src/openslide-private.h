@@ -269,13 +269,6 @@ bool _openslide_tiff_level_init(TIFF *tiff,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err);
 
-void _openslide_add_tiff_ops(openslide_t *osr,
-			     TIFF *tiff,
-			     int32_t property_dir,
-			     int32_t level_count,
-			     int32_t *directories,
-			     struct _openslide_hash *quickhash1);
-
 bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
                                               TIFF *tiff,
                                               struct _openslide_hash *quickhash1,
