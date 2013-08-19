@@ -299,9 +299,10 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
 					  tdir_t dir,
 					  GError **err);
 
-struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
+                                                         GError **err);
 
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc);
+TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
 
 void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
 

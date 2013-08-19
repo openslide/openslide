@@ -126,8 +126,9 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
                          int32_t w, int32_t h) {
   struct trestle_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
+  GError *tmp_err = NULL;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc);
+  TIFF *tiff = _openslide_tiffcache_get(data->tc, &tmp_err);
   if (tiff) {
     if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
       _openslide_grid_paint_region(l->grid, cr, tiff,
@@ -138,7 +139,8 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
       _openslide_set_error(osr, "Cannot set TIFF directory");
     }
   } else {
-    _openslide_set_error(osr, "Cannot open TIFF file");
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
   }
   _openslide_tiffcache_put(data->tc, tiff);
 }

@@ -441,11 +441,13 @@ static void get_associated_image_data(openslide_t *osr,
                                       struct _openslide_associated_image *_img,
                                       uint32_t *dest) {
   struct associated_image *img = (struct associated_image *) _img;
-  TIFF *tiff = _openslide_tiffcache_get(img->tc);
+  GError *tmp_err = NULL;
+  TIFF *tiff = _openslide_tiffcache_get(img->tc, &tmp_err);
   if (tiff) {
     _get_associated_image_data(osr, tiff, img, dest);
   } else {
-    _openslide_set_error(osr, "Cannot open TIFF file");
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
   }
   _openslide_tiffcache_put(img->tc, tiff);
 }
@@ -498,13 +500,10 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
                                           GError **err) {
-  TIFF *tiff = _openslide_tiffcache_get(tc);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
   bool ret = false;
   if (tiff) {
     ret = _add_associated_image(osr, name, tc, dir, tiff, err);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot open TIFF file");
   }
   _openslide_tiffcache_put(tc, tiff);
   return ret;
@@ -568,9 +567,9 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
-static TIFF *tiff_open(struct _openslide_tiffcache *tc) {
+static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
-  FILE *f = _openslide_fopen(tc->filename, "rb", NULL);
+  FILE *f = _openslide_fopen(tc->filename, "rb", err);
   if (f == NULL) {
     return NULL;
   }
@@ -579,25 +578,30 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc) {
   uint8_t buf[4];
   if (fread(buf, 4, 1, f) != 1) {
     // can't read
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Couldn't read TIFF magic number for %s", tc->filename);
     fclose(f);
     return NULL;
   }
 
   // get size
   if (fseeko(f, 0, SEEK_END) == -1) {
+    _openslide_io_error(err, "Couldn't seek to end of %s", tc->filename);
     fclose(f);
     return NULL;
   }
   int64_t size = ftello(f);
-  fclose(f);
   if (size == -1) {
+    _openslide_io_error(err, "Couldn't ftello() for %s", tc->filename);
+    fclose(f);
     return NULL;
   }
+  fclose(f);
 
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks
   if (buf[0] != buf[1]) {
-    return NULL;
+    goto NOT_TIFF;
   }
   uint16_t version;
   switch (buf[0]) {
@@ -610,10 +614,14 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc) {
     version = (buf[3] << 8) | buf[2];
     break;
   default:
-    return NULL;
+    goto NOT_TIFF;
   }
-  // only accept BigTIFF on libtiff >= 4
-  if (!(version == 42 || (sizeof(toff_t) > 4 && version == 43))) {
+  if (version != 42 && version != 43) {
+    goto NOT_TIFF;
+  }
+  if (version == 43 && sizeof(toff_t) == 4) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "BigTIFF support requires libtiff >= 4");
     return NULL;
   }
 
@@ -628,19 +636,27 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc) {
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
   if (tiff == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid TIFF: %s", tc->filename);
     tiff_do_close(hdl);
   }
   return tiff;
+
+NOT_TIFF:
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+              "Not a TIFF file: %s", tc->filename);
+  return NULL;
 }
 
-struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
+                                                         GError **err) {
   struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
   tc->filename = g_strdup(filename);
   tc->cache = g_queue_new();
   tc->lock = g_mutex_new();
 
   // verify TIFF is valid
-  TIFF *tiff = _openslide_tiffcache_get(tc);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
   _openslide_tiffcache_put(tc, tiff);
   if (tiff == NULL) {
     // nope
@@ -650,7 +666,7 @@ struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   return tc;
 }
 
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
+TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err) {
   //g_debug("get TIFF");
   g_mutex_lock(tc->lock);
   tc->outstanding++;
@@ -661,7 +677,7 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc) {
     //g_debug("create TIFF");
     // Does not check that we have the same file.  Then again, neither does
     // tiff_do_read.
-    tiff = tiff_open(tc);
+    tiff = tiff_open(tc, err);
   }
   if (tiff == NULL) {
     g_mutex_lock(tc->lock);
