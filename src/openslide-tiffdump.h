@@ -24,6 +24,7 @@
 
 #include <config.h>
 
+#include <stdio.h>
 #include <glib.h>
 #include <tiffio.h>
 

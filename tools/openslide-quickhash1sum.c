@@ -19,6 +19,7 @@
  *
  */
 
+#include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-tools-common.h"

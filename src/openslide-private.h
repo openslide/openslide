@@ -32,6 +32,7 @@
 #include "openslide-hash.h"
 
 #include <glib.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <setjmp.h>
 #include <tiffio.h>
