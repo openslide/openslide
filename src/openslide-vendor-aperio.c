@@ -98,21 +98,6 @@ static void decode_tile(openslide_t *osr,
     return;
   }
 
-  // get tile dimensions
-  int32_t tw, th;
-  if (!TIFFSetDirectory(tiff, tiffl->dir)) {
-    _openslide_set_error(osr, "Cannot set TIFF directory");
-    return;
-  }
-  if (!TIFFGetField(tiff, TIFFTAG_TILEWIDTH, &tw)) {
-    _openslide_set_error(osr, "Cannot get tile width");
-    return;
-  }
-  if (!TIFFGetField(tiff, TIFFTAG_TILELENGTH, &th)) {
-    _openslide_set_error(osr, "Cannot get tile height");
-    return;
-  }
-
   // read raw tile
   void *buf;
   int32_t buflen;
@@ -123,14 +108,14 @@ static void decode_tile(openslide_t *osr,
     if (!openslide_get_error(osr)) {
       // a slide with zero-length tiles has been seen in the wild
       // fill with transparent
-      memset(dest, 0, tw * th * 4);
+      memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
     }
     return;  // ok, haven't allocated anything yet
   }
 
   // decompress
   if (!_openslide_jp2k_decode_buffer(dest,
-                                     tw, th,
+                                     tiffl->tile_w, tiffl->tile_h,
                                      buf, buflen,
                                      space,
                                      &tmp_err)) {
