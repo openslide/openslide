@@ -59,9 +59,9 @@ struct _openslide_associated_image {
 /* associated image operations */
 struct _openslide_associated_image_ops {
   // must fail if stored width or height doesn't match the image
-  void (*get_argb_data)(openslide_t *osr,
-                        struct _openslide_associated_image *img,
-                        uint32_t *dest);
+  bool (*get_argb_data)(struct _openslide_associated_image *img,
+                        uint32_t *dest,
+                        GError **err);
   void (*destroy)(struct _openslide_associated_image *img);
 };
 

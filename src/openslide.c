@@ -697,6 +697,8 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
+  GError *tmp_err = NULL;
+
   if (openslide_get_error(osr)) {
     return;
   }
@@ -709,7 +711,10 @@ void openslide_read_associated_image(openslide_t *osr,
     size_t pixels = img->w * img->h;
     uint32_t *buf = g_new(uint32_t, pixels);
 
-    img->ops->get_argb_data(osr, img, buf);
+    if (!img->ops->get_argb_data(img, buf, &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+    }
     if (dest && !openslide_get_error(osr)) {
       memcpy(dest, buf, pixels * sizeof(uint32_t));
     }

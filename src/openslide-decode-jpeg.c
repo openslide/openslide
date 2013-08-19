@@ -240,19 +240,15 @@ DONE:
 }
 
 
-static void get_associated_image_data(openslide_t *osr,
-                                      struct _openslide_associated_image *_img,
-                                      uint32_t *dest) {
+static bool get_associated_image_data(struct _openslide_associated_image *_img,
+                                      uint32_t *dest,
+                                      GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
-  GError *tmp_err = NULL;
 
   //g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, img->filename, img->offset);
 
-  if (!_openslide_jpeg_read(img->filename, img->offset, dest,
-                            img->base.w, img->base.h, &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  return _openslide_jpeg_read(img->filename, img->offset, dest,
+                              img->base.w, img->base.h, err);
 }
 
 static void destroy_associated_image(struct _openslide_associated_image *_img) {

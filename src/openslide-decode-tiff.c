@@ -427,45 +427,44 @@ void _openslide_tiff_read_tile_data(openslide_t *osr,
   *_len = size;
 }
 
-static void _get_associated_image_data(openslide_t *osr, TIFF *tiff,
+static bool _get_associated_image_data(TIFF *tiff,
                                        struct associated_image *img,
-                                       uint32_t *dest) {
+                                       uint32_t *dest,
+                                       GError **err) {
   uint32_t tmp;
   int64_t width, height;
-  GError *tmp_err = NULL;
 
   // g_debug("read TIFF associated image: %d", img->directory);
 
-  SET_DIR_OR_FAIL(osr, tiff, img->directory);
+  SET_DIR_OR_ERR(tiff, img->directory, err);
 
   // ensure dimensions have not changed
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGEWIDTH, width);
-  GET_FIELD_OR_FAIL(osr, tiff, TIFFTAG_IMAGELENGTH, height);
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, width, err);
+  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, height, err);
   if (img->base.w != width || img->base.h != height) {
-    _openslide_set_error(osr, "Unexpected associated image size");
-    return;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected associated image size: "
+                "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
+                "got %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
+                img->base.w, img->base.h, width, height);
+    return false;
   }
 
   // load the image
-  if (!tiff_read_region(tiff, dest, 0, 0, width, height, &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  return tiff_read_region(tiff, dest, 0, 0, width, height, err);
 }
 
-static void get_associated_image_data(openslide_t *osr,
-                                      struct _openslide_associated_image *_img,
-                                      uint32_t *dest) {
+static bool get_associated_image_data(struct _openslide_associated_image *_img,
+                                      uint32_t *dest,
+                                      GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
-  GError *tmp_err = NULL;
-  TIFF *tiff = _openslide_tiffcache_get(img->tc, &tmp_err);
+  TIFF *tiff = _openslide_tiffcache_get(img->tc, err);
+  bool success = false;
   if (tiff) {
-    _get_associated_image_data(osr, tiff, img, dest);
-  } else {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
+    success = _get_associated_image_data(tiff, img, dest, err);
   }
   _openslide_tiffcache_put(img->tc, tiff);
+  return success;
 }
 
 static void destroy_associated_image(struct _openslide_associated_image *_img) {
