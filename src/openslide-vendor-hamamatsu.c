@@ -298,10 +298,10 @@ static uint8_t find_next_ff_marker(FILE *f,
   }
 }
 
-static void _compute_mcu_start(openslide_t *osr,
-			       struct jpeg *jpeg,
+static bool _compute_mcu_start(struct jpeg *jpeg,
 			       FILE *f,
-			       int64_t target) {
+			       int64_t target,
+			       GError **err) {
   // special case for first
   if (jpeg->mcu_starts[0] == -1) {
     struct jpeg_decompress_struct cinfo;
@@ -319,9 +319,9 @@ static void _compute_mcu_start(openslide_t *osr,
       jpeg_start_decompress(&cinfo);
     } else {
       // setjmp returns again
-      _openslide_set_error(osr, "Error initializing JPEG: %s",
-                           jerr.err->message);
-      g_clear_error(&jerr.err);
+      g_propagate_prefixed_error(err, jerr.err, "Error initializing JPEG: ");
+      jpeg_destroy_decompress(&cinfo);
+      return false;
     }
 
     // set the first entry
@@ -346,18 +346,20 @@ static void _compute_mcu_start(openslide_t *osr,
       size_t result = fread(buf, 2, 1, f);
       if (result == 0 ||
           buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-        _openslide_set_error(osr, "Restart marker not found in expected place");
-      } else {
-        //  g_debug("accepted unreliable marker %"G_GINT64_FORMAT, first_good);
-        jpeg->mcu_starts[first_good] = offset;
-        break;
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Restart marker not found in expected place");
+        return false;
       }
+
+      //  g_debug("accepted unreliable marker %"G_GINT64_FORMAT, first_good);
+      jpeg->mcu_starts[first_good] = offset;
+      break;
     }
   }
 
   if (first_good == target) {
     // we're done
-    return;
+    return true;
   }
   //  g_debug("target: %"G_GINT64_FORMAT", first_good: %"G_GINT64_FORMAT, target, first_good);
 
@@ -375,8 +377,9 @@ static void _compute_mcu_start(openslide_t *osr,
 				    &bytes_in_buf);
     g_assert(after_marker_pos > 0 || after_marker_pos == -1);
     if (after_marker_pos == -1) {
-      _openslide_set_error(osr, "after_marker_pos == -1");
-      break;
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "after_marker_pos == -1");
+      return false;
     }
     //g_debug("after_marker_pos: %" G_GINT64_FORMAT, after_marker_pos);
 
@@ -389,20 +392,25 @@ static void _compute_mcu_start(openslide_t *osr,
       jpeg->mcu_starts[1 + first_good++] = after_marker_pos;
     }
   }
+  return true;
 }
 
-static void compute_mcu_start(openslide_t *osr,
+static bool compute_mcu_start(openslide_t *osr,
 			      struct jpeg *jpeg,
 			      FILE *f,
 			      int64_t tileno,
 			      int64_t *header_stop_position,
 			      int64_t *start_position,
-			      int64_t *stop_position) {
+			      int64_t *stop_position,
+			      GError **err) {
   struct vms_ops_data *data = osr->data;
+  bool success = false;
 
   g_mutex_lock(data->restart_marker_mutex);
 
-  _compute_mcu_start(osr, jpeg, f, tileno);
+  if (!_compute_mcu_start(jpeg, f, tileno, err)) {
+    goto OUT;
+  }
 
   // end of header; always computed by _compute_mcu_start
   if (header_stop_position) {
@@ -420,12 +428,18 @@ static void compute_mcu_start(openslide_t *osr,
       // EOF
       *stop_position = jpeg->end_in_file;
     } else {
-      _compute_mcu_start(osr, jpeg, f, tileno + 1);
+      if (!_compute_mcu_start(jpeg, f, tileno + 1, err)) {
+        goto OUT;
+      }
       *stop_position = jpeg->mcu_starts[tileno + 1];
     }
   }
 
+  success = true;
+
+OUT:
   g_mutex_unlock(data->restart_marker_mutex);
+  return success;
 }
 
 static uint32_t *read_from_jpeg(openslide_t *osr,
@@ -455,16 +469,20 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
   gsize row_size = 0;
 
   JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  cinfo.rec_outbuf_height = 0;
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
     int64_t header_stop_position;
     int64_t start_position;
     int64_t stop_position;
-    compute_mcu_start(osr, jpeg, f, tileno,
-                      &header_stop_position,
-                      &start_position,
-                      &stop_position);
+    if (!compute_mcu_start(osr, jpeg, f, tileno,
+                           &header_stop_position,
+                           &start_position,
+                           &stop_position,
+                           &tmp_err)) {
+      goto OUT;
+    }
 
     // set error handler, this will longjmp if necessary
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -477,7 +495,7 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
                                 start_position,
                                 stop_position,
                                 &tmp_err)) {
-      goto OUT;
+      goto OUT_JPEG;
     }
 
     jpeg_read_header(&cinfo, TRUE);
@@ -538,25 +556,28 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
     g_clear_error(&jerr.err);
   }
 
-OUT:
-  // check for GError
-  if (tmp_err) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
-
-  // free buffers
-  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-    g_slice_free1(row_size, buffer[i]);
-  }
-  g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
+OUT_JPEG:
+  (void) 0; // dummy statement for label
 
   // stop jpeg
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
   g_slice_free1(src->buffer_size, src->buffer);
   jpeg_destroy_decompress(&cinfo);
 
+OUT:
+  // free buffers
+  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+    g_slice_free1(row_size, buffer[i]);
+  }
+  g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
+
   fclose(f);
+
+  // check for GError
+  if (tmp_err) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 
   return dest;
 }
@@ -798,10 +819,11 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	}
       }
 
-      compute_mcu_start(osr, jp, current_file, current_mcu_start,
-                        NULL, NULL, NULL);
-      if (openslide_get_error(osr)) {
+      if (!compute_mcu_start(osr, jp, current_file, current_mcu_start,
+                             NULL, NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
+        _openslide_set_error_from_gerror(osr, tmp_err);
+        g_clear_error(&tmp_err);
         break;
       }
 
