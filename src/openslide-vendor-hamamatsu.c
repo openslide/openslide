@@ -446,17 +446,14 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
                                 struct jpeg *jpeg,
                                 int32_t tileno,
                                 int32_t scale_denom,
-                                int32_t w, int32_t h) {
-  GError *tmp_err = NULL;
-
+                                int32_t w, int32_t h,
+                                GError **err) {
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
   // open file
-  FILE *f = _openslide_fopen(jpeg->filename, "rb", &tmp_err);
+  FILE *f = _openslide_fopen(jpeg->filename, "rb", err);
   if (f == NULL) {
     // fail
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
     memset(dest, 0, w * h * 4);
     return dest;
   }
@@ -480,7 +477,7 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
                            &header_stop_position,
                            &start_position,
                            &stop_position,
-                           &tmp_err)) {
+                           err)) {
       goto OUT;
     }
 
@@ -494,7 +491,7 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
                                 header_stop_position,
                                 start_position,
                                 stop_position,
-                                &tmp_err)) {
+                                err)) {
       goto OUT_JPEG;
     }
 
@@ -518,10 +515,10 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
     }
 
     if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
-      _openslide_set_error(osr,
-			   "Dimensional mismatch in read_from_jpeg, "
-			   "expected %dx%d, got %dx%d",
-			   w, h, cinfo.output_width, cinfo.output_height);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Dimensional mismatch in read_from_jpeg, "
+                  "expected %dx%d, got %dx%d",
+                  w, h, cinfo.output_width, cinfo.output_height);
     } else {
       // decompress
       uint32_t *jpeg_dest = dest;
@@ -551,9 +548,7 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
     }
   } else {
     // setjmp returns again
-    _openslide_set_error(osr, "JPEG decompression failed: %s",
-                         jerr.err->message);
-    g_clear_error(&jerr.err);
+    g_propagate_prefixed_error(err, jerr.err, "JPEG decompression failed: ");
   }
 
 OUT_JPEG:
@@ -573,12 +568,6 @@ OUT:
 
   fclose(f);
 
-  // check for GError
-  if (tmp_err) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
-
   return dest;
 }
 
@@ -591,6 +580,7 @@ static void read_jpeg_tile(openslide_t *osr,
                            void *arg G_GNUC_UNUSED) {
   struct jpeg_level *l = (struct jpeg_level *) level;
   struct jpeg_tile *tile = data;
+  GError *tmp_err = NULL;
 
   int32_t tw = l->tile_width;
   int32_t th = l->tile_height;
@@ -609,7 +599,13 @@ static void read_jpeg_tile(openslide_t *osr,
                               tile->jpeg,
                               tile->tileno,
                               l->scale_denom,
-                              tw, th);
+                              tw, th,
+                              &tmp_err);
+    if (tmp_err) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      return;
+    }
 
     _openslide_cache_put(osr->cache,
 			 tile_col, tile_row, grid,
