@@ -518,34 +518,35 @@ static bool read_from_jpeg(openslide_t *osr,
                   "Dimensional mismatch in read_from_jpeg, "
                   "expected %dx%d, got %dx%d",
                   w, h, cinfo.output_width, cinfo.output_height);
-    } else {
-      // decompress
-      uint32_t *jpeg_dest = dest;
-      while (cinfo.output_scanline < cinfo.output_height) {
-	JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
-						   buffer,
-						   cinfo.rec_outbuf_height);
-	//g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
-	//g_debug(" rows read: %d", rows_read);
-	int cur_buffer = 0;
-	while (rows_read > 0) {
-	  // copy a row
-	  int32_t dest_i = 0;
-	  for (int32_t i = 0; i < w; i++) {
-	    jpeg_dest[dest_i++] = 0xFF000000 |      // A
-	      buffer[cur_buffer][i * 3 + 0] << 16 | // R
-	      buffer[cur_buffer][i * 3 + 1] << 8 |  // G
-	      buffer[cur_buffer][i * 3 + 2];        // B
-	  }
-
-	  // advance everything 1 row
-	  cur_buffer++;
-	  jpeg_dest += cinfo.output_width;
-	  rows_read--;
-	}
-      }
-      success = true;
+      goto OUT_JPEG;
     }
+
+    // decompress
+    uint32_t *jpeg_dest = dest;
+    while (cinfo.output_scanline < cinfo.output_height) {
+      JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+                                                 buffer,
+                                                 cinfo.rec_outbuf_height);
+      //g_debug("just read scanline %d", cinfo.output_scanline - rows_read);
+      //g_debug(" rows read: %d", rows_read);
+      int cur_buffer = 0;
+      while (rows_read > 0) {
+        // copy a row
+        int32_t dest_i = 0;
+        for (int32_t i = 0; i < w; i++) {
+          jpeg_dest[dest_i++] = 0xFF000000 |      // A
+            buffer[cur_buffer][i * 3 + 0] << 16 | // R
+            buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+            buffer[cur_buffer][i * 3 + 2];        // B
+        }
+
+        // advance everything 1 row
+        cur_buffer++;
+        jpeg_dest += cinfo.output_width;
+        rows_read--;
+      }
+    }
+    success = true;
   } else {
     // setjmp returns again
     g_propagate_prefixed_error(err, jerr.err, "JPEG decompression failed: ");
