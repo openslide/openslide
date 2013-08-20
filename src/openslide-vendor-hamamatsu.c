@@ -442,20 +442,19 @@ OUT:
   return success;
 }
 
-static uint32_t *read_from_jpeg(openslide_t *osr,
-                                struct jpeg *jpeg,
-                                int32_t tileno,
-                                int32_t scale_denom,
-                                int32_t w, int32_t h,
-                                GError **err) {
-  uint32_t *dest = g_slice_alloc(w * h * 4);
+static bool read_from_jpeg(openslide_t *osr,
+                           struct jpeg *jpeg,
+                           int32_t tileno,
+                           int32_t scale_denom,
+                           uint32_t *dest,
+                           int32_t w, int32_t h,
+                           GError **err) {
+  bool success = false;
 
   // open file
   FILE *f = _openslide_fopen(jpeg->filename, "rb", err);
   if (f == NULL) {
-    // fail
-    memset(dest, 0, w * h * 4);
-    return dest;
+    return false;
   }
 
   // begin decompress
@@ -545,6 +544,7 @@ static uint32_t *read_from_jpeg(openslide_t *osr,
 	  rows_read--;
 	}
       }
+      success = true;
     }
   } else {
     // setjmp returns again
@@ -568,7 +568,7 @@ OUT:
 
   fclose(f);
 
-  return dest;
+  return success;
 }
 
 static void read_jpeg_tile(openslide_t *osr,
@@ -595,15 +595,15 @@ static void read_jpeg_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_from_jpeg(osr,
-                              tile->jpeg,
-                              tile->tileno,
-                              l->scale_denom,
-                              tw, th,
-                              &tmp_err);
-    if (tmp_err) {
+    tiledata = g_slice_alloc(tw * th * 4);
+    if (!read_from_jpeg(osr,
+                        tile->jpeg, tile->tileno,
+                        l->scale_denom,
+                        tiledata, tw, th,
+                        &tmp_err)) {
       _openslide_set_error_from_gerror(osr, tmp_err);
       g_clear_error(&tmp_err);
+      g_slice_free1(tw * th * 4, tiledata);
       return;
     }
 
