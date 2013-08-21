@@ -498,12 +498,13 @@ void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
   g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
 }
 
-static void read_region(openslide_t *osr,
+static bool read_region(openslide_t *osr,
 			cairo_t *cr,
 			int64_t x, int64_t y,
 			int32_t level,
-			int64_t w, int64_t h) {
-  GError *tmp_err = NULL;
+			int64_t w, int64_t h,
+			GError **err) {
+  bool success = true;
 
   // save the old pattern, it's the only thing push/pop won't restore
   cairo_pattern_t *old_source = cairo_get_source(cr);
@@ -541,16 +542,13 @@ static void read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      if (!osr->ops->paint_region(osr, cr, x, y, l, w, h, &tmp_err)) {
-        _openslide_set_error_from_gerror(osr, tmp_err);
-        g_clear_error(&tmp_err);
-      }
+      success = osr->ops->paint_region(osr, cr, x, y, l, w, h, err);
     }
   }
 
   cairo_pop_group_to_source(cr);
 
-  if (!openslide_get_error(osr)) {
+  if (success) {
     // commit, nothing went wrong
     cairo_paint(cr);
   }
@@ -558,6 +556,8 @@ static void read_region(openslide_t *osr,
   // restore old source
   cairo_set_source(cr, old_source);
   cairo_pattern_destroy(old_source);
+
+  return success;
 }
 
 static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
@@ -600,10 +600,8 @@ void openslide_read_region(openslide_t *osr,
   //    amount of RAM.
   const int64_t d = 4096;
   double ds = openslide_get_level_downsample(osr, level);
-  for (int64_t row = 0; !openslide_get_error(osr) && row < (h + d - 1) / d;
-          row++) {
-    for (int64_t col = 0; !openslide_get_error(osr) && col < (w + d - 1) / d;
-            col++) {
+  for (int64_t row = 0; row < (h + d - 1) / d; row++) {
+    for (int64_t col = 0; col < (w + d - 1) / d; col++) {
       // calculate surface coordinates and size
       int64_t sx = x + col * d * ds;     // level 0 plane
       int64_t sy = y + row * d * ds;     // level 0 plane
@@ -626,19 +624,26 @@ void openslide_read_region(openslide_t *osr,
       cairo_surface_destroy(surface);
 
       // paint
-      read_region(osr, cr, sx, sy, level, sw, sh);
+      if (!read_region(osr, cr, sx, sy, level, sw, sh, &tmp_err)) {
+        cairo_destroy(cr);
+        goto OUT;
+      }
 
       // done
       if (!_openslide_check_cairo_status(cr, &tmp_err)) {
-        _openslide_set_error_from_gerror(osr, tmp_err);
-        g_clear_error(&tmp_err);
+        cairo_destroy(cr);
+        goto OUT;
       }
+
       cairo_destroy(cr);
     }
   }
 
-  // ensure we don't return a partial result
-  if (openslide_get_error(osr)) {
+OUT:
+  if (tmp_err) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+    // ensure we don't return a partial result
     memset(dest, 0, w * h * 4);
   }
 }
@@ -659,9 +664,11 @@ void openslide_cairo_read_region(openslide_t *osr,
     return;
   }
 
-  read_region(osr, cr, x, y, level, w, h);
+  if (read_region(osr, cr, x, y, level, w, h, &tmp_err)) {
+    _openslide_check_cairo_status(cr, &tmp_err);
+  }
 
-  if (!_openslide_check_cairo_status(cr, &tmp_err)) {
+  if (tmp_err) {
     _openslide_set_error_from_gerror(osr, tmp_err);
     g_clear_error(&tmp_err);
   }
