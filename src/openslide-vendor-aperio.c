@@ -73,13 +73,12 @@ static void destroy(openslide_t *osr) {
   destroy_data(data, levels, osr->level_count);
 }
 
-static void decode_tile(openslide_t *osr,
-                        struct level *l,
+static bool decode_tile(struct level *l,
                         TIFF *tiff,
                         uint32_t *dest,
-                        int64_t tile_col, int64_t tile_row) {
+                        int64_t tile_col, int64_t tile_row,
+                        GError **err) {
   struct _openslide_tiff_level *tiffl = &l->tiffl;
-  GError *tmp_err = NULL;
 
   // select color space
   enum _openslide_jp2k_colorspace space;
@@ -92,13 +91,9 @@ static void decode_tile(openslide_t *osr,
     break;
   default:
     // not for us? fallback
-    if (!_openslide_tiff_read_tile(tiffl, tiff, dest,
-                                   tile_col, tile_row,
-                                   &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-    }
-    return;
+    return _openslide_tiff_read_tile(tiffl, tiff, dest,
+                                     tile_col, tile_row,
+                                     err);
   }
 
   // read raw tile
@@ -107,30 +102,27 @@ static void decode_tile(openslide_t *osr,
   if (!_openslide_tiff_read_tile_data(tiffl, tiff,
                                       &buf, &buflen,
                                       tile_col, tile_row,
-                                      &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-    return;  // ok, haven't allocated anything yet
+                                      err)) {
+    return false;  // ok, haven't allocated anything yet
   }
   if (!buflen) {
     // a slide with zero-length tiles has been seen in the wild
     // fill with transparent
     memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
-    return;  // ok, haven't allocated anything yet
+    return true;  // ok, haven't allocated anything yet
   }
 
   // decompress
-  if (!_openslide_jp2k_decode_buffer(dest,
-                                     tiffl->tile_w, tiffl->tile_h,
-                                     buf, buflen,
-                                     space,
-                                     &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  bool success = _openslide_jp2k_decode_buffer(dest,
+                                               tiffl->tile_w, tiffl->tile_h,
+                                               buf, buflen,
+                                               space,
+                                               err);
 
   // clean up
   g_free(buf);
+
+  return success;
 }
 
 static void read_tile(openslide_t *osr,
@@ -142,6 +134,7 @@ static void read_tile(openslide_t *osr,
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
+  GError *tmp_err = NULL;
 
   // tile size
   int64_t tw = tiffl->tile_w;
@@ -154,7 +147,12 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    decode_tile(osr, l, tiff, tiledata, tile_col, tile_row);
+    if (!decode_tile(l, tiff, tiledata, tile_col, tile_row, &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      g_slice_free1(tw * th * 4, tiledata);
+      return;
+    }
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
