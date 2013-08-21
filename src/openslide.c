@@ -570,6 +570,8 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t level,
 			   int64_t w, int64_t h) {
+  GError *tmp_err = NULL;
+
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
@@ -622,7 +624,10 @@ void openslide_read_region(openslide_t *osr,
       read_region(osr, cr, sx, sy, level, sw, sh);
 
       // done
-      _openslide_check_cairo_status_possibly_set_error(osr, cr);
+      if (!_openslide_check_cairo_status(cr, &tmp_err)) {
+        _openslide_set_error_from_gerror(osr, tmp_err);
+        g_clear_error(&tmp_err);
+      }
       cairo_destroy(cr);
     }
   }
@@ -639,6 +644,8 @@ void openslide_cairo_read_region(openslide_t *osr,
 				 int64_t x, int64_t y,
 				 int32_t level,
 				 int64_t w, int64_t h) {
+  GError *tmp_err = NULL;
+
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
@@ -649,7 +656,10 @@ void openslide_cairo_read_region(openslide_t *osr,
 
   read_region(osr, cr, x, y, level, w, h);
 
-  _openslide_check_cairo_status_possibly_set_error(osr, cr);
+  if (!_openslide_check_cairo_status(cr, &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 }
 
 

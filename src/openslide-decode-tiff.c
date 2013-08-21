@@ -266,6 +266,8 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
                                struct _openslide_tiff_level *tiffl,
                                uint32_t *tiledata,
                                int64_t tile_col, int64_t tile_row) {
+  GError *tmp_err = NULL;
+
   // get image dimensions
   int64_t iw = tiffl->image_w;
   int64_t ih = tiffl->image_h;
@@ -295,7 +297,10 @@ void _openslide_tiff_clip_tile(openslide_t *osr,
     cairo_rectangle(cr, 0, rh, tw, th - rh);
     cairo_fill(cr);
 
-    _openslide_check_cairo_status_possibly_set_error(osr, cr);
+    if (!_openslide_check_cairo_status(cr, &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+    }
     cairo_destroy(cr);
   }
 }

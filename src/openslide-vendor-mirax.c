@@ -234,6 +234,7 @@ static void read_tile(openslide_t *osr,
                       void *arg G_GNUC_UNUSED) {
   struct level *l = (struct level *) level;
   struct tile *tile = data;
+  GError *tmp_err = NULL;
 
   int iw = l->image_width;
   int ih = l->image_height;
@@ -282,7 +283,10 @@ static void read_tile(openslide_t *osr,
                     ceil(l->tile_w),
                     ceil(l->tile_h));
     cairo_fill(cr2);
-    _openslide_check_cairo_status_possibly_set_error(osr, cr2);
+    if (!_openslide_check_cairo_status(cr2, &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+    }
     cairo_destroy(cr2);
   }
 

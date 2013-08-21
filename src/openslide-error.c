@@ -53,17 +53,6 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
   }
 }
 
-bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr, cairo_t *cr) {
-  cairo_status_t status = cairo_status(cr);
-  if (!status) {
-    return false;
-  }
-
-  // cairo has error, let's set our error from it
-  return _openslide_set_error(osr, "cairo error: %s",
-			      cairo_status_to_string(status));
-}
-
 // internal error propagation
 GQuark _openslide_error_quark(void) {
   return g_quark_from_string("openslide-error-quark");
@@ -79,6 +68,18 @@ void _openslide_io_error(GError **err, const char *fmt, ...) {
               "%s: %s", msg, g_strerror(my_errno));
   g_free(msg);
   va_end(ap);
+}
+
+bool _openslide_check_cairo_status(cairo_t *cr, GError **err) {
+  cairo_status_t status = cairo_status(cr);
+  if (!status) {
+    return true;
+  }
+
+  // cairo has error; set GError from it
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_CAIRO_ERROR,
+              "cairo error: %s", cairo_status_to_string(status));
+  return false;
 }
 
 void _openslide_set_error_from_gerror(openslide_t *osr, GError *err) {

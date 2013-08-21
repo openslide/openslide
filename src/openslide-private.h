@@ -392,8 +392,6 @@ void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
 
 // external error propagation
 bool _openslide_set_error(openslide_t *osr, const char *format, ...);
-bool _openslide_check_cairo_status_possibly_set_error(openslide_t *osr,
-						      cairo_t *cr);
 
 // internal error propagation
 enum OpenSlideError {
@@ -401,11 +399,14 @@ enum OpenSlideError {
   OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
   // file corrupt; hard fail
   OPENSLIDE_ERROR_BAD_DATA,
+  // cairo error; hard fail
+  OPENSLIDE_ERROR_CAIRO_ERROR,
 };
 #define OPENSLIDE_ERROR _openslide_error_quark()
 GQuark _openslide_error_quark(void);
 
 void _openslide_io_error(GError **err, const char *fmt, ...);
+bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
 
 // private properties, for now
