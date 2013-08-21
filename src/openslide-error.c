@@ -34,29 +34,14 @@ const char *openslide_get_error(openslide_t *osr) {
 }
 
 // private error functions
-bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
-  g_assert(format != NULL);
-
-  va_list args;
-
-  // format it for us
-  va_start(args, format);
-  char *newmsg = g_strdup_vprintf(format, args);
-  va_end(args);
-
-  if (!g_atomic_pointer_compare_and_exchange(&osr->error, NULL, newmsg)) {
-    // didn't replace the error, free it
-    g_free(newmsg);
-    return false;
-  } else {
-    // error was set
-    return true;
-  }
-}
-
-void _openslide_set_error_from_gerror(openslide_t *osr, GError *err) {
+void _openslide_propagate_error(openslide_t *osr, GError *err) {
   g_return_if_fail(err);
-  _openslide_set_error(osr, "%s", err->message);
+  gchar *msg = g_strdup(err->message);
+  if (!g_atomic_pointer_compare_and_exchange(&osr->error, NULL, msg)) {
+    // didn't replace the error, free it
+    g_free(msg);
+  }
+  g_error_free(err);
 }
 
 // internal error propagation

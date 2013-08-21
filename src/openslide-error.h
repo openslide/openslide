@@ -24,8 +24,6 @@
 
 /* Private error functions: for use only by external API */
 
-bool _openslide_set_error(openslide_t *osr, const char *format, ...);
-
-void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
+void _openslide_propagate_error(openslide_t *osr, GError *err);
 
 #endif

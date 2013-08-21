@@ -270,8 +270,7 @@ openslide_t *openslide_open(const char *filename) {
       return NULL;
     } else {
       // failed to read slide
-      _openslide_set_error(osr, "%s", tmp_err->message);
-      g_clear_error(&tmp_err);
+      _openslide_propagate_error(osr, tmp_err);
       return osr;
     }
   }
@@ -563,9 +562,11 @@ static bool read_region(openslide_t *osr,
 
 static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
   if (w < 0 || h < 0) {
-    _openslide_set_error(osr,
-			 "negative width (%" G_GINT64_FORMAT ") or negative height (%"
-			 G_GINT64_FORMAT ") not allowed", w, h);
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                                  "negative width "
+                                  "(%"G_GINT64_FORMAT") or negative height "
+                                  "(%"G_GINT64_FORMAT") not allowed", w, h);
+    _openslide_propagate_error(osr, tmp_err);
     return false;
   }
   return true;
@@ -642,8 +643,7 @@ void openslide_read_region(openslide_t *osr,
 
 OUT:
   if (tmp_err) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
+    _openslide_propagate_error(osr, tmp_err);
     // ensure we don't return a partial result
     memset(dest, 0, w * h * 4);
   }
@@ -670,8 +670,7 @@ void openslide_cairo_read_region(openslide_t *osr,
   }
 
   if (tmp_err) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
+    _openslide_propagate_error(osr, tmp_err);
   }
 }
 
@@ -735,8 +734,7 @@ void openslide_read_associated_image(openslide_t *osr,
     uint32_t *buf = g_new(uint32_t, pixels);
 
     if (!img->ops->get_argb_data(img, buf, &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
+      _openslide_propagate_error(osr, tmp_err);
     }
     if (dest && !openslide_get_error(osr)) {
       memcpy(dest, buf, pixels * sizeof(uint32_t));
