@@ -56,20 +56,25 @@ struct associated_image {
   tdir_t directory;
 };
 
-#define SET_DIR_OR_ERR(tiff, i, err)				\
-  if (!TIFFSetDirectory(tiff, i)) {				\
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
-                "Cannot set TIFF directory %d", i);		\
-    return false;						\
-  }
+#define SET_DIR_OR_FAIL(tiff, i, err)					\
+  do {									\
+    if (!TIFFSetDirectory(tiff, i)) {					\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  "Cannot set TIFF directory %d", i);			\
+      return false;							\
+    }									\
+  } while (0)
 
-#define GET_FIELD_OR_ERR(tiff, tag, result, err)		\
-  if (!TIFFGetField(tiff, tag, &tmp)) {				\
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
-                "Cannot get required TIFF tag: %d", tag);	\
-    return false;						\
-  }								\
-  result = tmp;
+#define GET_FIELD_OR_FAIL(tiff, tag, result, err)			\
+  do {									\
+    uint32 tmp;								\
+    if (!TIFFGetField(tiff, tag, &tmp)) {				\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  "Cannot get required TIFF tag: %d", tag);		\
+      return false;							\
+    }									\
+    result = tmp;							\
+  } while (0)
 
 static const char *store_string_property(TIFF *tiff, GHashTable *ht,
 					 const char *name, ttag_t tag) {
@@ -209,14 +214,14 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
   }
 
   // generate hash of the smallest level
-  SET_DIR_OR_ERR(tiff, lowest_resolution_level, err)
+  SET_DIR_OR_FAIL(tiff, lowest_resolution_level, err);
   if (!hash_tiff_tiles(quickhash1, tiff, err)) {
     g_prefix_error(err, "Cannot hash TIFF tiles: ");
     return false;
   }
 
   // load TIFF properties
-  SET_DIR_OR_ERR(tiff, property_dir, err)
+  SET_DIR_OR_FAIL(tiff, property_dir, err);
   store_and_hash_properties(tiff, osr->properties, quickhash1);
 
   return true;
@@ -227,20 +232,18 @@ bool _openslide_tiff_level_init(TIFF *tiff,
                                 struct _openslide_level *level,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err) {
-  uint32_t tmp;
-
   // set the directory
-  SET_DIR_OR_ERR(tiff, dir, err)
+  SET_DIR_OR_FAIL(tiff, dir, err);
 
   // figure out tile size
   int64_t tw, th;
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_TILEWIDTH, tw, err)
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_TILELENGTH, th, err)
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILEWIDTH, tw, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILELENGTH, th, err);
 
   // get image size
   int64_t iw, ih;
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, iw, err)
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, ih, err)
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, iw, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, ih, err);
 
   // safe now, start writing
   level->w = iw;
@@ -357,7 +360,7 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                int64_t tile_col, int64_t tile_row,
                                GError **err) {
   // set directory
-  SET_DIR_OR_ERR(tiff, tiffl->dir, err);
+  SET_DIR_OR_FAIL(tiff, tiffl->dir, err);
 
   // read tile
   return tiff_read_region(tiff, dest,
@@ -375,7 +378,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   *_len = 0;
 
   // set directory
-  SET_DIR_OR_ERR(tiff, tiffl->dir, err);
+  SET_DIR_OR_FAIL(tiff, tiffl->dir, err);
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff,
@@ -420,16 +423,15 @@ static bool _get_associated_image_data(TIFF *tiff,
                                        struct associated_image *img,
                                        uint32_t *dest,
                                        GError **err) {
-  uint32_t tmp;
   int64_t width, height;
 
   // g_debug("read TIFF associated image: %d", img->directory);
 
-  SET_DIR_OR_ERR(tiff, img->directory, err);
+  SET_DIR_OR_FAIL(tiff, img->directory, err);
 
   // ensure dimensions have not changed
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, width, err);
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, height, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, width, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, height, err);
   if (img->base.w != width || img->base.h != height) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected associated image size: "
@@ -473,15 +475,13 @@ static bool _add_associated_image(openslide_t *osr,
                                   tdir_t dir,
                                   TIFF *tiff,
                                   GError **err) {
-  uint32_t tmp;
-
   // set directory
-  SET_DIR_OR_ERR(tiff, dir, err)
+  SET_DIR_OR_FAIL(tiff, dir, err);
 
   // get the dimensions
   int64_t w, h;
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGEWIDTH, w, err)
-  GET_FIELD_OR_ERR(tiff, TIFFTAG_IMAGELENGTH, h, err)
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, w, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, h, err);
 
   // possibly load into struct
   if (osr) {
