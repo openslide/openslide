@@ -592,8 +592,7 @@ static bool read_jpeg_tile(openslide_t *osr,
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            tile_col, tile_row,
-                                            grid,
+                                            level, tile_col, tile_row,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -608,7 +607,7 @@ static bool read_jpeg_tile(openslide_t *osr,
     }
 
     _openslide_cache_put(osr->cache,
-			 tile_col, tile_row, grid,
+			 level, tile_col, tile_row,
 			 tiledata,
 			 tw * th * 4,
 			 &cache_entry);
@@ -1469,7 +1468,7 @@ static bool ngr_read_tile(openslide_t *osr,
   int tilesize = tw * th * 4;
   struct _openslide_cache_entry *cache_entry;
   // look up tile in cache
-  uint32_t *tiledata = _openslide_cache_get(osr->cache, tile_x, tile_y, grid,
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tile_x, tile_y,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -1514,7 +1513,7 @@ static bool ngr_read_tile(openslide_t *osr,
     g_slice_free1(buf_size, buf);
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, tile_x, tile_y, grid,
+    _openslide_cache_put(osr->cache, level, tile_x, tile_y,
                          tiledata,
                          tilesize,
                          &cache_entry);

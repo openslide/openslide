@@ -244,9 +244,9 @@ static bool read_tile(openslide_t *osr,
   // get the image data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
+                                            level,
                                             tile->image->imageno,
                                             0,
-                                            grid,
                                             &cache_entry);
 
   if (!tiledata) {
@@ -256,7 +256,7 @@ static bool read_tile(openslide_t *osr,
     }
 
     _openslide_cache_put(osr->cache,
-                         tile->image->imageno, 0, grid,
+                         level, tile->image->imageno, 0,
                          tiledata,
                          iw * ih * 4,
                          &cache_entry);

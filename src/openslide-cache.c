@@ -27,9 +27,9 @@
 
 // hash table key
 struct _openslide_cache_key {
+  struct _openslide_level *level;
   int64_t x;
   int64_t y;
-  struct _openslide_grid *grid;
 };
 
 // hash table value
@@ -89,7 +89,7 @@ static guint hash_func(gconstpointer key) {
   const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
-  return (guint) (((guint64) c_key->grid) + ((c_key->y << 14) ^ (c_key->x)));
+  return (guint) (((guint64) c_key->level) + ((c_key->y << 14) ^ (c_key->x)));
 }
 
 static gboolean key_equal_func(gconstpointer a,
@@ -97,7 +97,7 @@ static gboolean key_equal_func(gconstpointer a,
   const struct _openslide_cache_key *c_a = a;
   const struct _openslide_cache_key *c_b = b;
 
-  return (c_a->x == c_b->x) && (c_a->y == c_b->y) && (c_a->grid == c_b->grid);
+  return (c_a->level == c_b->level) && (c_a->x == c_b->x) && (c_a->y == c_b->y);
 }
 
 static void hash_destroy_key(gpointer data) {
@@ -181,9 +181,9 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 // the cache retains one reference, and the caller gets another one.  the
 // entry must be unreffed when the caller is done with it.
 void _openslide_cache_put(struct _openslide_cache *cache,
+			  struct _openslide_level *level,
 			  int64_t x,
 			  int64_t y,
-			  struct _openslide_grid *grid,
 			  void *data,
 			  int size_in_bytes,
 			  struct _openslide_cache_entry **_entry) {
@@ -210,9 +210,9 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 
   // create key
   struct _openslide_cache_key *key = g_slice_new(struct _openslide_cache_key);
+  key->level = level;
   key->x = x;
   key->y = y;
-  key->grid = grid;
 
   // create value
   struct _openslide_cache_value *value =
@@ -242,15 +242,15 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 
 // entry must be unreffed when the caller is done with the data
 void *_openslide_cache_get(struct _openslide_cache *cache,
+			   struct _openslide_level *level,
 			   int64_t x,
 			   int64_t y,
-			   struct _openslide_grid *grid,
 			   struct _openslide_cache_entry **_entry) {
   // lock
   g_mutex_lock(cache->mutex);
 
   // create key
-  struct _openslide_cache_key key = { .x = x, .y = y, .grid = grid };
+  struct _openslide_cache_key key = { .level = level, .x = x, .y = y };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
@@ -270,7 +270,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_entry *entry = value->entry;
   g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("cache hit! %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT" %p", entry, x, y, (void *) grid);
+  //g_debug("cache hit! %p %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, (void *) entry, (void *) level, x, y);
 
   // unlock
   g_mutex_unlock(cache->mutex);
