@@ -30,6 +30,7 @@
 #include <libxml/parser.h>
 
 #include "openslide-cairo.h"
+#include "openslide-error.h"
 
 const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2013 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 

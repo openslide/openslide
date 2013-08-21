@@ -394,10 +394,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
 
 
-// external error propagation
-bool _openslide_set_error(openslide_t *osr, const char *format, ...);
-
-// internal error propagation
+/* Internal error propagation */
 enum OpenSlideError {
   // file format unrecognized; try other formats
   OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -410,8 +407,8 @@ enum OpenSlideError {
 GQuark _openslide_error_quark(void);
 
 void _openslide_io_error(GError **err, const char *fmt, ...);
+
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
-void _openslide_set_error_from_gerror(openslide_t *osr, GError *err);
 
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"

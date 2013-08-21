@@ -22,6 +22,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-error.h"
 
 #include <glib.h>
 #include <stdarg.h>
@@ -53,6 +54,11 @@ bool _openslide_set_error(openslide_t *osr, const char *format, ...) {
   }
 }
 
+void _openslide_set_error_from_gerror(openslide_t *osr, GError *err) {
+  g_return_if_fail(err);
+  _openslide_set_error(osr, "%s", err->message);
+}
+
 // internal error propagation
 GQuark _openslide_error_quark(void) {
   return g_quark_from_string("openslide-error-quark");
@@ -80,9 +86,4 @@ bool _openslide_check_cairo_status(cairo_t *cr, GError **err) {
   g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_CAIRO_ERROR,
               "cairo error: %s", cairo_status_to_string(status));
   return false;
-}
-
-void _openslide_set_error_from_gerror(openslide_t *osr, GError *err) {
-  g_return_if_fail(err);
-  _openslide_set_error(osr, "%s", err->message);
 }
