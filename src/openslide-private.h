@@ -276,17 +276,17 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
                                               tdir_t property_dir,
                                               GError **err);
 
-void _openslide_tiff_read_tile(openslide_t *osr,
-                               struct _openslide_tiff_level *tiffl,
+bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                TIFF *tiff,
                                uint32_t *dest,
-                               int64_t tile_col, int64_t tile_row);
+                               int64_t tile_col, int64_t tile_row,
+                               GError **err);
 
-void _openslide_tiff_read_tile_data(openslide_t *osr,
-                                    struct _openslide_tiff_level *tiffl,
+bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
                                     TIFF *tiff,
-                                    void **_buf, int32_t *_len,
-                                    int64_t tile_col, int64_t tile_row);
+                                    void **buf, int32_t *len,
+                                    int64_t tile_col, int64_t tile_row,
+                                    GError **err);
 
 void _openslide_tiff_clip_tile(openslide_t *osr,
                                struct _openslide_tiff_level *tiffl,

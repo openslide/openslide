@@ -92,22 +92,30 @@ static void decode_tile(openslide_t *osr,
     break;
   default:
     // not for us? fallback
-    _openslide_tiff_read_tile(osr, tiffl, tiff, dest, tile_col, tile_row);
+    if (!_openslide_tiff_read_tile(tiffl, tiff, dest,
+                                   tile_col, tile_row,
+                                   &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+    }
     return;
   }
 
   // read raw tile
   void *buf;
   int32_t buflen;
-  _openslide_tiff_read_tile_data(osr, tiffl, tiff,
-                                 &buf, &buflen,
-                                 tile_col, tile_row);
+  if (!_openslide_tiff_read_tile_data(tiffl, tiff,
+                                      &buf, &buflen,
+                                      tile_col, tile_row,
+                                      &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+    return;  // ok, haven't allocated anything yet
+  }
   if (!buflen) {
-    if (!openslide_get_error(osr)) {
-      // a slide with zero-length tiles has been seen in the wild
-      // fill with transparent
-      memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
-    }
+    // a slide with zero-length tiles has been seen in the wild
+    // fill with transparent
+    memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
     return;  // ok, haven't allocated anything yet
   }
 

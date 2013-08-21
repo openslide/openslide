@@ -56,19 +56,6 @@ struct associated_image {
   tdir_t directory;
 };
 
-#define SET_DIR_OR_FAIL(osr, tiff, i)				\
-  if (!TIFFSetDirectory(tiff, i)) {				\
-    _openslide_set_error(osr, "Cannot set TIFF directory");	\
-    return;							\
-  }
-
-#define GET_FIELD_OR_FAIL(osr, tiff, tag, result)		\
-  if (!TIFFGetField(tiff, tag, &tmp)) {				\
-    _openslide_set_error(osr, "Cannot get required TIFF tag: %d", tag);	\
-    return;							\
-  }								\
-  result = tmp;
-
 #define SET_DIR_OR_ERR(tiff, i, err)				\
   if (!TIFFSetDirectory(tiff, i)) {				\
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
@@ -360,36 +347,31 @@ static bool tiff_read_region(TIFF *tiff,
   return success;
 }
 
-void _openslide_tiff_read_tile(openslide_t *osr,
-                               struct _openslide_tiff_level *tiffl,
+bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                TIFF *tiff,
                                uint32_t *dest,
-                               int64_t tile_col, int64_t tile_row) {
-  GError *tmp_err = NULL;
-
+                               int64_t tile_col, int64_t tile_row,
+                               GError **err) {
   // set directory
-  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir);
+  SET_DIR_OR_ERR(tiff, tiffl->dir, err);
 
   // read tile
-  if (!tiff_read_region(tiff, dest,
-                        tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
-                        tiffl->tile_w, tiffl->tile_h, &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  return tiff_read_region(tiff, dest,
+                          tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
+                          tiffl->tile_w, tiffl->tile_h, err);
 }
 
-void _openslide_tiff_read_tile_data(openslide_t *osr,
-                                    struct _openslide_tiff_level *tiffl,
+bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
                                     TIFF *tiff,
                                     void **_buf, int32_t *_len,
-                                    int64_t tile_col, int64_t tile_row) {
+                                    int64_t tile_col, int64_t tile_row,
+                                    GError **err) {
   // initialize out params
   *_buf = NULL;
   *_len = 0;
 
   // set directory
-  SET_DIR_OR_FAIL(osr, tiff, tiffl->dir);
+  SET_DIR_OR_ERR(tiff, tiffl->dir, err);
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff,
@@ -402,29 +384,32 @@ void _openslide_tiff_read_tile_data(openslide_t *osr,
   // get tile size
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    _openslide_set_error(osr, "Cannot get tile size");
-    return;  // ok, haven't allocated anything yet
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot get tile size");
+    return false;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
 
   // a slide with zero-length tiles has been seen in the wild
   if (!tile_size) {
     //g_debug("no data for tile %d", tile_no);
-    return;  // ok, haven't allocated anything yet
+    return true;  // ok, haven't allocated anything yet
   }
 
   // get raw tile
   tdata_t buf = g_malloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
-    _openslide_set_error(osr, "Cannot read raw tile");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot read raw tile");
     g_free(buf);
-    return;
+    return false;
   }
 
   // set outputs
   *_buf = buf;
   *_len = size;
+  return true;
 }
 
 static bool _get_associated_image_data(TIFF *tiff,

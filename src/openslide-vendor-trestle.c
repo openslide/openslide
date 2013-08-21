@@ -82,6 +82,7 @@ static void read_tile(openslide_t *osr,
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
+  GError *tmp_err = NULL;
 
   // tile size
   int64_t tw = tiffl->tile_w;
@@ -94,7 +95,14 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    _openslide_tiff_read_tile(osr, tiffl, tiff, tiledata, tile_col, tile_row);
+    if (!_openslide_tiff_read_tile(tiffl, tiff,
+                                   tiledata, tile_col, tile_row,
+                                   &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      g_slice_free1(tw * th * 4, tiledata);
+      return;
+    }
 
     // clip, if necessary
     _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
