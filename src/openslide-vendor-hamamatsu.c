@@ -819,6 +819,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       if (!compute_mcu_start(osr, jp, current_file, current_mcu_start,
                              NULL, NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
+        fclose(current_file);
         _openslide_set_error_from_gerror(osr, tmp_err);
         g_clear_error(&tmp_err);
         break;
