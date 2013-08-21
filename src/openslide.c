@@ -274,11 +274,6 @@ openslide_t *openslide_open(const char *filename) {
       return osr;
     }
   }
-  if (openslide_get_error(osr)) {
-    // Some error paths put the handle in error state instead of returning
-    // a GError.  We shouldn't encourage this, but shouldn't crash either.
-    return osr;
-  }
   g_assert(osr->levels);
 
   // compute downsamples if not done already
@@ -342,7 +337,7 @@ openslide_t *openslide_open(const char *filename) {
     if (i == 0) {
       should_have_geometry = have_geometry;
     }
-    if (!openslide_get_error(osr) && have_geometry != should_have_geometry) {
+    if (have_geometry != should_have_geometry) {
       g_warning("Inconsistent tile geometry hints between levels");
     }
     if (have_geometry) {
@@ -733,11 +728,12 @@ void openslide_read_associated_image(openslide_t *osr,
     size_t pixels = img->w * img->h;
     uint32_t *buf = g_new(uint32_t, pixels);
 
-    if (!img->ops->get_argb_data(img, buf, &tmp_err)) {
+    if (img->ops->get_argb_data(img, buf, &tmp_err)) {
+      if (dest) {
+        memcpy(dest, buf, pixels * sizeof(uint32_t));
+      }
+    } else {
       _openslide_propagate_error(osr, tmp_err);
-    }
-    if (dest && !openslide_get_error(osr)) {
-      memcpy(dest, buf, pixels * sizeof(uint32_t));
     }
 
     g_free(buf);
