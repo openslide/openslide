@@ -155,7 +155,14 @@ static void read_tile(openslide_t *osr,
     }
 
     // clip, if necessary
-    _openslide_tiff_clip_tile(osr, tiffl, tiledata, tile_col, tile_row);
+    if (!_openslide_tiff_clip_tile(tiffl, tiledata,
+                                   tile_col, tile_row,
+                                   &tmp_err)) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      g_slice_free1(tw * th * 4, tiledata);
+      return;
+    }
 
     // put it in the cache
     _openslide_cache_put(osr->cache, tile_col, tile_row, grid,

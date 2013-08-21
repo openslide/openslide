@@ -288,10 +288,10 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
                                     int64_t tile_col, int64_t tile_row,
                                     GError **err);
 
-void _openslide_tiff_clip_tile(openslide_t *osr,
-                               struct _openslide_tiff_level *tiffl,
+bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
                                uint32_t *tiledata,
-                               int64_t tile_col, int64_t tile_row);
+                               int64_t tile_col, int64_t tile_row,
+                               GError **err);
 
 bool _openslide_tiff_add_associated_image(openslide_t *osr,
 					  const char *name,
