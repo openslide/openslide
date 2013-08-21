@@ -503,6 +503,8 @@ static void read_region(openslide_t *osr,
 			int64_t x, int64_t y,
 			int32_t level,
 			int64_t w, int64_t h) {
+  GError *tmp_err = NULL;
+
   // save the old pattern, it's the only thing push/pop won't restore
   cairo_pattern_t *old_source = cairo_get_source(cr);
   cairo_pattern_reference(old_source);
@@ -539,7 +541,10 @@ static void read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      (osr->ops->paint_region)(osr, cr, x, y, l, w, h);
+      if (!osr->ops->paint_region(osr, cr, x, y, l, w, h, &tmp_err)) {
+        _openslide_set_error_from_gerror(osr, tmp_err);
+        g_clear_error(&tmp_err);
+      }
     }
   }
 

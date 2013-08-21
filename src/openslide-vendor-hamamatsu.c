@@ -633,22 +633,22 @@ static bool read_jpeg_tile(openslide_t *osr,
 }
 
 
-static void vms_paint_region(openslide_t *osr, cairo_t *cr,
+static bool vms_paint_region(openslide_t *osr, cairo_t *cr,
                              int64_t x, int64_t y,
                              struct _openslide_level *level,
-                             int32_t w, int32_t h) {
+                             int32_t w, int32_t h,
+                             GError **err) {
   struct vms_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
-  GError *tmp_err = NULL;
 
   g_mutex_lock(data->restart_marker_cond_mutex);
   // check for background errors
   if (data->restart_marker_thread_error) {
     // propagate error
-    _openslide_set_error_from_gerror(osr, data->restart_marker_thread_error);
-    g_clear_error(&data->restart_marker_thread_error);
+    g_propagate_error(err, data->restart_marker_thread_error);
+    data->restart_marker_thread_error = NULL;
     g_mutex_unlock(data->restart_marker_cond_mutex);
-    return;
+    return false;
   }
   // tell the background thread to pause
   data->restart_marker_users++;
@@ -656,14 +656,11 @@ static void vms_paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
   // paint
-  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
-                                    x / level->downsample,
-                                    y / level->downsample,
-                                    level, w, h,
-                                    &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  bool success = _openslide_grid_paint_region(l->grid, cr, NULL,
+                                              x / level->downsample,
+                                              y / level->downsample,
+                                              level, w, h,
+                                              err);
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -673,6 +670,8 @@ static void vms_paint_region(openslide_t *osr, cairo_t *cr,
     g_cond_signal(data->restart_marker_cond);
   }
   g_mutex_unlock(data->restart_marker_cond_mutex);
+
+  return success;
 }
 
 static void vms_destroy(openslide_t *osr) {
@@ -1538,21 +1537,18 @@ static bool ngr_read_tile(openslide_t *osr,
   return true;
 }
 
-static void ngr_paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
+static bool ngr_paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                              int64_t x, int64_t y,
                              struct _openslide_level *level,
-                             int32_t w, int32_t h) {
+                             int32_t w, int32_t h,
+                             GError **err) {
   struct ngr_level *l = (struct ngr_level *) level;
-  GError *tmp_err = NULL;
 
-  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
-                                    x / level->downsample,
-                                    y / level->downsample,
-                                    level, w, h,
-                                    &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  return _openslide_grid_paint_region(l->grid, cr, NULL,
+                                      x / level->downsample,
+                                      y / level->downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops ngr_ops = {

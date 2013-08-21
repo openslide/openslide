@@ -101,10 +101,11 @@ struct _openslide_level {
 
 /* the function pointer structure for backends */
 struct _openslide_ops {
-  void (*paint_region)(openslide_t *osr, cairo_t *cr,
+  bool (*paint_region)(openslide_t *osr, cairo_t *cr,
 		       int64_t x, int64_t y,
 		       struct _openslide_level *level,
-		       int32_t w, int32_t h);
+		       int32_t w, int32_t h,
+		       GError **err);
   void (*destroy)(openslide_t *osr);
 };
 

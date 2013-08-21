@@ -302,22 +302,18 @@ static bool read_tile(openslide_t *osr,
   return success;
 }
 
-
-static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
+static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                          int64_t x, int64_t y,
                          struct _openslide_level *level,
-                         int32_t w, int32_t h) {
+                         int32_t w, int32_t h,
+                         GError **err) {
   struct level *l = (struct level *) level;
-  GError *tmp_err = NULL;
 
-  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
-                                    x / level->downsample,
-                                    y / level->downsample,
-                                    level, w, h,
-                                    &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-  }
+  return _openslide_grid_paint_region(l->grid, cr, NULL,
+                                      x / level->downsample,
+                                      y / level->downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static void destroy(openslide_t *osr) {

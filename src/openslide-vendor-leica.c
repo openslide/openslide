@@ -141,33 +141,33 @@ static bool read_tile(openslide_t *osr,
   return true;
 }
 
-static void paint_region(openslide_t *osr, cairo_t *cr,
+static bool paint_region(openslide_t *osr, cairo_t *cr,
 			 int64_t x, int64_t y,
 			 struct _openslide_level *level,
-			 int32_t w, int32_t h) {
+			 int32_t w, int32_t h,
+			 GError **err) {
   struct leica_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
-  GError *tmp_err = NULL;
+  bool success = false;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, &tmp_err);
-  if (tiff) {
-    if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
-      if (!_openslide_grid_paint_region(l->grid, cr, tiff,
-                                        x / l->base.downsample,
-                                        y / l->base.downsample,
-                                        level, w, h,
-                                        &tmp_err)) {
-        _openslide_set_error_from_gerror(osr, tmp_err);
-        g_clear_error(&tmp_err);
-      }
-    } else {
-      _openslide_set_error(osr, "Cannot set TIFF directory");
-    }
+  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
+  if (tiff == NULL) {
+    return false;
+  }
+
+  if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
+    success = _openslide_grid_paint_region(l->grid, cr, tiff,
+                                           x / l->base.downsample,
+                                           y / l->base.downsample,
+                                           level, w, h,
+                                           err);
   } else {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Cannot set TIFF directory");
   }
   _openslide_tiffcache_put(data->tc, tiff);
+
+  return success;
 }
 
 static const struct _openslide_ops leica_ops = {
