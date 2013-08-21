@@ -241,12 +241,13 @@ void _openslide_grid_get_bounds(struct _openslide_grid *grid,
                                 double *x, double *y,
                                 double *w, double *h);
 
-void _openslide_grid_paint_region(struct _openslide_grid *grid,
+bool _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   cairo_t *cr,
                                   void *arg,
                                   double x, double y,
                                   struct _openslide_level *level,
-                                  int32_t w, int32_t h);
+                                  int32_t w, int32_t h,
+                                  GError **err);
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 

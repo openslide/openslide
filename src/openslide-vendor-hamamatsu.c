@@ -639,6 +639,7 @@ static void vms_paint_region(openslide_t *osr, cairo_t *cr,
                              int32_t w, int32_t h) {
   struct vms_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
+  GError *tmp_err = NULL;
 
   g_mutex_lock(data->restart_marker_cond_mutex);
   // check for background errors
@@ -655,10 +656,14 @@ static void vms_paint_region(openslide_t *osr, cairo_t *cr,
   g_mutex_unlock(data->restart_marker_cond_mutex);
 
   // paint
-  _openslide_grid_paint_region(l->grid, cr, NULL,
-                               x / level->downsample,
-                               y / level->downsample,
-                               level, w, h);
+  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
+                                    x / level->downsample,
+                                    y / level->downsample,
+                                    level, w, h,
+                                    &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 
   // maybe tell the background thread to resume
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -1538,11 +1543,16 @@ static void ngr_paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                              struct _openslide_level *level,
                              int32_t w, int32_t h) {
   struct ngr_level *l = (struct ngr_level *) level;
+  GError *tmp_err = NULL;
 
-  _openslide_grid_paint_region(l->grid, cr, NULL,
-                               x / level->downsample,
-                               y / level->downsample,
-                               level, w, h);
+  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
+                                    x / level->downsample,
+                                    y / level->downsample,
+                                    level, w, h,
+                                    &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 }
 
 static const struct _openslide_ops ngr_ops = {

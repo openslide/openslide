@@ -152,10 +152,14 @@ static void paint_region(openslide_t *osr, cairo_t *cr,
   TIFF *tiff = _openslide_tiffcache_get(data->tc, &tmp_err);
   if (tiff) {
     if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
-      _openslide_grid_paint_region(l->grid, cr, tiff,
-                                   x / l->base.downsample,
-                                   y / l->base.downsample,
-                                   level, w, h);
+      if (!_openslide_grid_paint_region(l->grid, cr, tiff,
+                                        x / l->base.downsample,
+                                        y / l->base.downsample,
+                                        level, w, h,
+                                        &tmp_err)) {
+        _openslide_set_error_from_gerror(osr, tmp_err);
+        g_clear_error(&tmp_err);
+      }
     } else {
       _openslide_set_error(osr, "Cannot set TIFF directory");
     }

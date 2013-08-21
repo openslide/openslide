@@ -308,11 +308,16 @@ static void paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                          struct _openslide_level *level,
                          int32_t w, int32_t h) {
   struct level *l = (struct level *) level;
+  GError *tmp_err = NULL;
 
-  _openslide_grid_paint_region(l->grid, cr, NULL,
-                               x / level->downsample,
-                               y / level->downsample,
-                               level, w, h);
+  if (!_openslide_grid_paint_region(l->grid, cr, NULL,
+                                    x / level->downsample,
+                                    y / level->downsample,
+                                    level, w, h,
+                                    &tmp_err)) {
+    _openslide_set_error_from_gerror(osr, tmp_err);
+    g_clear_error(&tmp_err);
+  }
 }
 
 static void destroy(openslide_t *osr) {

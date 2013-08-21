@@ -53,11 +53,12 @@ struct grid_ops {
   void (*get_tile_size)(struct _openslide_grid *grid,
                         int64_t tile_col, int64_t tile_row,
                         struct bounds *bounds);
-  void (*paint_region)(struct _openslide_grid *grid,
+  bool (*paint_region)(struct _openslide_grid *grid,
                        cairo_t *cr, void *arg,
                        double x, double y,
                        struct _openslide_level *level,
-                       int32_t w, int32_t h);
+                       int32_t w, int32_t h,
+                       GError **err);
   bool (*read_tile)(struct _openslide_grid *grid,
                     struct region *region,
                     cairo_t *cr,
@@ -143,23 +144,22 @@ static void compute_region(struct _openslide_grid *grid,
   region->offset_y = y - (region->start_tile_y * grid->tile_advance_y);
 }
 
-static void read_tiles(cairo_t *cr,
+static bool read_tiles(cairo_t *cr,
                        struct _openslide_level *level,
                        struct _openslide_grid *grid,
                        struct region *region,
-                       void *arg) {
-  GError *tmp_err = NULL;
-
+                       void *arg,
+                       GError **err) {
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, grid->tile_advance_x, grid->tile_advance_y);
   if (fabs(region->offset_x) >= grid->tile_advance_x) {
-    _openslide_set_error(grid->osr,
-                         "internal error: fabs(offset_x) >= tile_advance_x");
-    return;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "internal error: fabs(offset_x) >= tile_advance_x");
+    return false;
   }
   if (fabs(region->offset_y) >= grid->tile_advance_y) {
-    _openslide_set_error(grid->osr,
-                         "internal error: fabs(offset_y) >= tile_advance_y");
-    return;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "internal error: fabs(offset_y) >= tile_advance_y");
+    return false;
   }
 
   //  cairo_set_source_rgb(cr, 0, 1, 0);
@@ -186,12 +186,10 @@ static void read_tiles(cairo_t *cr,
       cairo_translate(cr, translate_x, translate_y);
       bool success = grid->ops->read_tile(grid, region, cr,
                                           level, tile_x, tile_y,
-                                          arg, &tmp_err);
+                                          arg, err);
       cairo_set_matrix(cr, &matrix);
       if (!success) {
-        _openslide_set_error_from_gerror(grid->osr, tmp_err);
-        g_clear_error(&tmp_err);
-        return;
+        return false;
       }
 
       tile_x--;
@@ -199,6 +197,8 @@ static void read_tiles(cairo_t *cr,
 
     tile_y--;
   }
+
+  return true;
 }
 
 
@@ -219,12 +219,13 @@ static void simple_get_tile_size(struct _openslide_grid *grid,
   bounds->h = grid->tile_advance_y;
 }
 
-static void simple_paint_region(struct _openslide_grid *_grid,
+static bool simple_paint_region(struct _openslide_grid *_grid,
                                 cairo_t *cr,
                                 void *arg,
                                 double x, double y,
                                 struct _openslide_level *level,
-                                int32_t w, int32_t h) {
+                                int32_t w, int32_t h,
+                                GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
   struct region region;
 
@@ -233,12 +234,12 @@ static void simple_paint_region(struct _openslide_grid *_grid,
   // openslide.c:read_region() ensures x/y are nonnegative
   if (region.start_tile_x > grid->tiles_across - 1 ||
       region.start_tile_y > grid->tiles_down - 1) {
-    return;
+    return true;
   }
   region.end_tile_x = MIN(region.end_tile_x, grid->tiles_across);
   region.end_tile_y = MIN(region.end_tile_y, grid->tiles_down);
 
-  read_tiles(cr, level, _grid, &region, arg);
+  return read_tiles(cr, level, _grid, &region, arg, err);
 }
 
 static bool simple_read_tile(struct _openslide_grid *_grid,
@@ -383,12 +384,13 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   return success;
 }
 
-static void tilemap_paint_region(struct _openslide_grid *_grid,
+static bool tilemap_paint_region(struct _openslide_grid *_grid,
                                  cairo_t *cr,
                                  void *arg,
                                  double x, double y,
                                  struct _openslide_level *level,
-                                 int32_t w, int32_t h) {
+                                 int32_t w, int32_t h,
+                                 GError **err) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
   struct region region;
 
@@ -407,7 +409,7 @@ static void tilemap_paint_region(struct _openslide_grid *_grid,
                   -grid->extra_tiles_left * grid->base.tile_advance_x,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
 
-  read_tiles(cr, level, _grid, &region, arg);
+  return read_tiles(cr, level, _grid, &region, arg, err);
 }
 
 static void tilemap_destroy(struct _openslide_grid *_grid) {
@@ -552,13 +554,14 @@ void _openslide_grid_get_bounds(struct _openslide_grid *grid,
   }
 }
 
-void _openslide_grid_paint_region(struct _openslide_grid *grid,
+bool _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   cairo_t *cr,
                                   void *arg,
                                   double x, double y,
                                   struct _openslide_level *level,
-                                  int32_t w, int32_t h) {
-  grid->ops->paint_region(grid, cr, arg, x, y, level, w, h);
+                                  int32_t w, int32_t h,
+                                  GError **err) {
+  return grid->ops->paint_region(grid, cr, arg, x, y, level, w, h, err);
 }
 
 void _openslide_grid_destroy(struct _openslide_grid *grid) {
