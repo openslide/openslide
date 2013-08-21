@@ -573,16 +573,16 @@ OUT:
   return success;
 }
 
-static void read_jpeg_tile(openslide_t *osr,
+static bool read_jpeg_tile(openslide_t *osr,
                            cairo_t *cr,
                            struct _openslide_level *level,
                            struct _openslide_grid *grid,
                            int64_t tile_col, int64_t tile_row,
                            void *data,
-                           void *arg G_GNUC_UNUSED) {
+                           void *arg G_GNUC_UNUSED,
+                           GError **err) {
   struct jpeg_level *l = (struct jpeg_level *) level;
   struct jpeg_tile *tile = data;
-  GError *tmp_err = NULL;
 
   int32_t tw = l->tile_width;
   int32_t th = l->tile_height;
@@ -602,11 +602,9 @@ static void read_jpeg_tile(openslide_t *osr,
                         tile->jpeg, tile->tileno,
                         l->scale_denom,
                         tiledata, tw, th,
-                        &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
+                        err)) {
       g_slice_free1(tw * th * 4, tiledata);
-      return;
+      return false;
     }
 
     _openslide_cache_put(osr->cache,
@@ -630,6 +628,8 @@ static void read_jpeg_tile(openslide_t *osr,
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
+
+  return true;
 }
 
 
@@ -1451,14 +1451,14 @@ static void ngr_destroy(openslide_t *osr) {
   ngr_destroy_levels((struct ngr_level **) osr->levels, osr->level_count);
 }
 
-static void ngr_read_tile(openslide_t *osr,
+static bool ngr_read_tile(openslide_t *osr,
                           cairo_t *cr,
                           struct _openslide_level *level,
                           struct _openslide_grid *grid,
                           int64_t tile_x, int64_t tile_y,
-                          void *arg G_GNUC_UNUSED) {
+                          void *arg G_GNUC_UNUSED,
+                          GError **err) {
   struct ngr_level *l = (struct ngr_level *) level;
-  GError *tmp_err = NULL;
 
   int64_t tw = l->column_width;
   int64_t th = MIN(NGR_TILE_HEIGHT, l->base.h - tile_y * NGR_TILE_HEIGHT);
@@ -1470,11 +1470,9 @@ static void ngr_read_tile(openslide_t *osr,
 
   if (!tiledata) {
     // read the tile data
-    FILE *f = _openslide_fopen(l->filename, "rb", &tmp_err);
+    FILE *f = _openslide_fopen(l->filename, "rb", err);
     if (!f) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-      return;
+      return false;
     }
 
     // compute offset to read
@@ -1491,10 +1489,11 @@ static void ngr_read_tile(openslide_t *osr,
     uint16_t *buf = g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
-      _openslide_set_error(osr, "Cannot read file %s", l->filename);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read file %s", l->filename);
       fclose(f);
       g_slice_free1(buf_size, buf);
-      return;
+      return false;
     }
     fclose(f);
 
@@ -1530,6 +1529,8 @@ static void ngr_read_tile(openslide_t *osr,
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
+
+  return true;
 }
 
 static void ngr_paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,

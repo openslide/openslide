@@ -125,16 +125,16 @@ static bool decode_tile(struct level *l,
   return success;
 }
 
-static void read_tile(openslide_t *osr,
+static bool read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
 		      struct _openslide_grid *grid,
 		      int64_t tile_col, int64_t tile_row,
-		      void *arg) {
+		      void *arg,
+		      GError **err) {
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
-  GError *tmp_err = NULL;
 
   // tile size
   int64_t tw = tiffl->tile_w;
@@ -147,21 +147,17 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    if (!decode_tile(l, tiff, tiledata, tile_col, tile_row, &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
+    if (!decode_tile(l, tiff, tiledata, tile_col, tile_row, err)) {
       g_slice_free1(tw * th * 4, tiledata);
-      return;
+      return false;
     }
 
     // clip, if necessary
     if (!_openslide_tiff_clip_tile(tiffl, tiledata,
                                    tile_col, tile_row,
-                                   &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
+                                   err)) {
       g_slice_free1(tw * th * 4, tiledata);
-      return;
+      return false;
     }
 
     // put it in the cache
@@ -183,6 +179,8 @@ static void read_tile(openslide_t *osr,
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
+
+  return true;
 }
 
 static void paint_region(openslide_t *osr, cairo_t *cr,

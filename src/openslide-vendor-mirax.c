@@ -223,17 +223,18 @@ static uint32_t *read_image(openslide_t *osr,
   return dest;
 }
 
-static void read_tile(openslide_t *osr,
+static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
                       struct _openslide_level *level,
                       struct _openslide_grid *grid,
                       int64_t tile_col G_GNUC_UNUSED,
                       int64_t tile_row G_GNUC_UNUSED,
                       void *data,
-                      void *arg G_GNUC_UNUSED) {
+                      void *arg G_GNUC_UNUSED,
+                      GError **err) {
   struct level *l = (struct level *) level;
   struct tile *tile = data;
-  GError *tmp_err = NULL;
+  bool success = true;
 
   int iw = l->image_width;
   int ih = l->image_height;
@@ -249,11 +250,9 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, tile->image, iw, ih, &tmp_err);
+    tiledata = read_image(osr, tile->image, iw, ih, err);
     if (tiledata == NULL) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-      return;
+      return false;
     }
 
     _openslide_cache_put(osr->cache,
@@ -287,10 +286,7 @@ static void read_tile(openslide_t *osr,
                     ceil(l->tile_w),
                     ceil(l->tile_h));
     cairo_fill(cr2);
-    if (!_openslide_check_cairo_status(cr2, &tmp_err)) {
-      _openslide_set_error_from_gerror(osr, tmp_err);
-      g_clear_error(&tmp_err);
-    }
+    success = _openslide_check_cairo_status(cr2, err);
     cairo_destroy(cr2);
   }
 
@@ -302,6 +298,8 @@ static void read_tile(openslide_t *osr,
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
+
+  return success;
 }
 
 

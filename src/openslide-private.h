@@ -191,20 +191,22 @@ void _openslide_set_background_color_prop(GHashTable *ht,
 // Grid helpers
 struct _openslide_grid;
 
-typedef void (*_openslide_tileread_fn)(openslide_t *osr,
+typedef bool (*_openslide_tileread_fn)(openslide_t *osr,
                                        cairo_t *cr,
                                        struct _openslide_level *level,
                                        struct _openslide_grid *grid,
                                        int64_t tile_col, int64_t tile_row,
-                                       void *arg);
+                                       void *arg,
+                                       GError **err);
 
-typedef void (*_openslide_tilemap_fn)(openslide_t *osr,
+typedef bool (*_openslide_tilemap_fn)(openslide_t *osr,
                                       cairo_t *cr,
                                       struct _openslide_level *level,
                                       struct _openslide_grid *grid,
                                       int64_t tile_col, int64_t tile_row,
                                       void *tile,
-                                      void *arg);
+                                      void *arg,
+                                      GError **err);
 
 typedef void (*_openslide_tilemap_foreach_fn)(struct _openslide_grid *grid,
                                               int64_t tile_col,

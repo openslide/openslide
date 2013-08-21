@@ -58,12 +58,13 @@ struct grid_ops {
                        double x, double y,
                        struct _openslide_level *level,
                        int32_t w, int32_t h);
-  void (*read_tile)(struct _openslide_grid *grid,
+  bool (*read_tile)(struct _openslide_grid *grid,
                     struct region *region,
                     cairo_t *cr,
                     struct _openslide_level *level,
                     int64_t tile_col, int64_t tile_row,
-                    void *arg);
+                    void *arg,
+                    GError **err);
   void (*destroy)(struct _openslide_grid *grid);
 };
 
@@ -147,6 +148,8 @@ static void read_tiles(cairo_t *cr,
                        struct _openslide_grid *grid,
                        struct region *region,
                        void *arg) {
+  GError *tmp_err = NULL;
+
   //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, grid->tile_advance_x, grid->tile_advance_y);
   if (fabs(region->offset_x) >= grid->tile_advance_x) {
     _openslide_set_error(grid->osr,
@@ -181,8 +184,16 @@ static void read_tiles(cairo_t *cr,
                             grid->tile_advance_x) - region->offset_x;
       //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
       cairo_translate(cr, translate_x, translate_y);
-      grid->ops->read_tile(grid, region, cr, level, tile_x, tile_y, arg);
+      bool success = grid->ops->read_tile(grid, region, cr,
+                                          level, tile_x, tile_y,
+                                          arg, &tmp_err);
       cairo_set_matrix(cr, &matrix);
+      if (!success) {
+        _openslide_set_error_from_gerror(grid->osr, tmp_err);
+        g_clear_error(&tmp_err);
+        return;
+      }
+
       tile_x--;
     }
 
@@ -230,15 +241,17 @@ static void simple_paint_region(struct _openslide_grid *_grid,
   read_tiles(cr, level, _grid, &region, arg);
 }
 
-static void simple_read_tile(struct _openslide_grid *_grid,
+static bool simple_read_tile(struct _openslide_grid *_grid,
                              struct region *region G_GNUC_UNUSED,
                              cairo_t *cr,
                              struct _openslide_level *level,
                              int64_t tile_col, int64_t tile_row,
-                             void *arg) {
+                             void *arg,
+                             GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  grid->read_tile(grid->base.osr, cr, level, _grid, tile_col, tile_row, arg);
+  return grid->read_tile(grid->base.osr, cr, level, _grid,
+                         tile_col, tile_row, arg, err);
 }
 
 static void simple_destroy(struct _openslide_grid *_grid) {
@@ -326,12 +339,13 @@ static void tilemap_get_tile_size(struct _openslide_grid *_grid,
   bounds->h = tile->h;
 }
 
-static void tilemap_read_tile(struct _openslide_grid *_grid,
+static bool tilemap_read_tile(struct _openslide_grid *_grid,
                               struct region *region,
                               cairo_t *cr,
                               struct _openslide_level *level,
                               int64_t tile_col, int64_t tile_row,
-                              void *arg) {
+                              void *arg,
+                              GError **err) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
 
   struct grid_tile coords = {
@@ -341,7 +355,7 @@ static void tilemap_read_tile(struct _openslide_grid *_grid,
   struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
     //g_debug("no tile at %"G_GINT64_FORMAT", %"G_GINT64_FORMAT, tile_col, tile_row);
-    return;
+    return true;
   }
 
   double x = tile_col * grid->base.tile_advance_x + tile->offset_x;
@@ -354,7 +368,7 @@ static void tilemap_read_tile(struct _openslide_grid *_grid,
       x >= region->x + region->w ||
       y >= region->y + region->h) {
     //g_debug("skip x %g w %g y %g h %g, region x %g w %"G_GINT32_FORMAT" y %g h %"G_GINT32_FORMAT, x, tile->w, y, tile->h, region->x, region->w, region->y, region->h);
-    return;
+    return true;
   }
 
   //g_debug("tilemap read_tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, dim: %g %g", tile_col, tile_row, tile->offset_x, tile->offset_y, tile->w, tile->h);
@@ -362,10 +376,11 @@ static void tilemap_read_tile(struct _openslide_grid *_grid,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  grid->read_tile(grid->base.osr, cr, level, _grid,
-                  tile->col, tile->row, tile->data,
-                  arg);
+  bool success = grid->read_tile(grid->base.osr, cr, level, _grid,
+                                 tile->col, tile->row, tile->data,
+                                 arg, err);
   cairo_set_matrix(cr, &matrix);
+  return success;
 }
 
 static void tilemap_paint_region(struct _openslide_grid *_grid,
