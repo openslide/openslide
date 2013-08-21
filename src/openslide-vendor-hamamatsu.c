@@ -110,6 +110,7 @@ struct vms_ops_data {
   GMutex *restart_marker_cond_mutex;
   uint32_t restart_marker_users;
   bool restart_marker_thread_stop;
+  GError *restart_marker_thread_error;
 };
 
 struct ngr_level {
@@ -639,8 +640,16 @@ static void vms_paint_region(openslide_t *osr, cairo_t *cr,
   struct vms_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
 
-  // tell the background thread to pause
   g_mutex_lock(data->restart_marker_cond_mutex);
+  // check for background errors
+  if (data->restart_marker_thread_error) {
+    // propagate error
+    _openslide_set_error_from_gerror(osr, data->restart_marker_thread_error);
+    g_clear_error(&data->restart_marker_thread_error);
+    g_mutex_unlock(data->restart_marker_cond_mutex);
+    return;
+  }
+  // tell the background thread to pause
   data->restart_marker_users++;
   //  g_debug("telling thread to pause");
   g_mutex_unlock(data->restart_marker_cond_mutex);
@@ -695,6 +704,11 @@ static void vms_destroy(openslide_t *osr) {
   g_free(data->all_jpegs);
 
   // the background stuff
+  g_mutex_lock(data->restart_marker_cond_mutex);
+  if (data->restart_marker_thread_error) {
+    g_error_free(data->restart_marker_thread_error);
+  }
+  g_mutex_unlock(data->restart_marker_cond_mutex);
   g_mutex_free(data->restart_marker_mutex);
   g_timer_destroy(data->restart_marker_timer);
   g_cond_free(data->restart_marker_cond);
@@ -810,8 +824,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
 	current_file = _openslide_fopen(jp->filename, "rb", &tmp_err);
 	if (current_file == NULL) {
 	  //g_debug("restart_marker_thread_func fopen failed");
-	  _openslide_set_error_from_gerror(osr, tmp_err);
-	  g_clear_error(&tmp_err);
 	  break;
 	}
       }
@@ -820,8 +832,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
                              NULL, NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
         fclose(current_file);
-        _openslide_set_error_from_gerror(osr, tmp_err);
-        g_clear_error(&tmp_err);
         break;
       }
 
@@ -835,6 +845,13 @@ static gpointer restart_marker_thread_func(gpointer d) {
     } else {
       current_jpeg++;
     }
+  }
+
+  // store error, if any
+  if (tmp_err) {
+    g_mutex_lock(data->restart_marker_cond_mutex);
+    data->restart_marker_thread_error = tmp_err;
+    g_mutex_unlock(data->restart_marker_cond_mutex);
   }
 
   //  g_debug("restart_marker_thread_func done!");
