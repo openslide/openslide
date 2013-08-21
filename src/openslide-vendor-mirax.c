@@ -207,19 +207,18 @@ static void tile_free(gpointer data) {
 
 static uint32_t *read_image(openslide_t *osr,
                             struct image *image,
-                            int w, int h) {
+                            int w, int h,
+                            GError **err) {
   struct mirax_ops_data *data = osr->data;
-  GError *tmp_err = NULL;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
   if (!_openslide_jpeg_read(data->datafile_paths[image->fileno],
                             image->start_in_file,
                             dest, w, h,
-                            &tmp_err)) {
-    _openslide_set_error_from_gerror(osr, tmp_err);
-    g_clear_error(&tmp_err);
-    memset(dest, 0, w * h * 4);
+                            err)) {
+    g_slice_free1(w * h * 4, dest);
+    return NULL;
   }
   return dest;
 }
@@ -250,7 +249,12 @@ static void read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, tile->image, iw, ih);
+    tiledata = read_image(osr, tile->image, iw, ih, &tmp_err);
+    if (tiledata == NULL) {
+      _openslide_set_error_from_gerror(osr, tmp_err);
+      g_clear_error(&tmp_err);
+      return;
+    }
 
     _openslide_cache_put(osr->cache,
                          tile->image->imageno, 0, grid,
