@@ -128,7 +128,6 @@ static bool decode_tile(struct level *l,
 static bool read_tile(openslide_t *osr,
 		      cairo_t *cr,
 		      struct _openslide_level *level,
-		      struct _openslide_grid *grid,
 		      int64_t tile_col, int64_t tile_row,
 		      void *arg,
 		      GError **err) {
@@ -175,7 +174,7 @@ static bool read_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
-  //_openslide_grid_label_tile(grid, cr, tile_col, tile_row);
+  //_openslide_grid_label_tile(l->grid, cr, tile_col, tile_row);
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);

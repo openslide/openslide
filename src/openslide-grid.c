@@ -251,7 +251,7 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
                              GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  return grid->read_tile(grid->base.osr, cr, level, _grid,
+  return grid->read_tile(grid->base.osr, cr, level,
                          tile_col, tile_row, arg, err);
 }
 
@@ -377,7 +377,7 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
   cairo_translate(cr, tile->offset_x, tile->offset_y);
-  bool success = grid->read_tile(grid->base.osr, cr, level, _grid,
+  bool success = grid->read_tile(grid->base.osr, cr, level,
                                  tile->col, tile->row, tile->data,
                                  arg, err);
   cairo_set_matrix(cr, &matrix);

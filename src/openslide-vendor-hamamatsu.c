@@ -576,7 +576,6 @@ OUT:
 static bool read_jpeg_tile(openslide_t *osr,
                            cairo_t *cr,
                            struct _openslide_level *level,
-                           struct _openslide_grid *grid,
                            int64_t tile_col, int64_t tile_row,
                            void *data,
                            void *arg G_GNUC_UNUSED,
@@ -623,7 +622,7 @@ static bool read_jpeg_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
-  //_openslide_grid_label_tile(grid, cr, tile_col, tile_row);
+  //_openslide_grid_label_tile(l->grid, cr, tile_col, tile_row);
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
@@ -1457,7 +1456,6 @@ static void ngr_destroy(openslide_t *osr) {
 static bool ngr_read_tile(openslide_t *osr,
                           cairo_t *cr,
                           struct _openslide_level *level,
-                          struct _openslide_grid *grid,
                           int64_t tile_x, int64_t tile_y,
                           void *arg G_GNUC_UNUSED,
                           GError **err) {
@@ -1528,7 +1526,7 @@ static bool ngr_read_tile(openslide_t *osr,
   cairo_surface_destroy(surface);
   cairo_paint(cr);
 
-  //_openslide_grid_label_tile(grid, cr, tile_x, tile_y);
+  //_openslide_grid_label_tile(l->grid, cr, tile_x, tile_y);
 
   // done with the cache entry, release it
   _openslide_cache_entry_unref(cache_entry);
