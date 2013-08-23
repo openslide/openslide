@@ -71,22 +71,40 @@ static void fix_byte_order(void *data, int32_t size, int64_t count,
   }
 }
 
-static int64_t read_uint16(FILE *f, bool big_endian) {
-  uint16_t result;
-  if (fread(&result, sizeof result, 1, f) != 1) {
-    return -1;
-  }
-  fix_byte_order(&result, sizeof(result), 1, big_endian);
-  return result;
-}
+// only sets *ok on failure
+static uint64_t read_uint(FILE *f, int32_t size, bool big_endian, bool *ok) {
+  g_assert(ok != NULL);
 
-static int64_t read_uint32(FILE *f, bool big_endian) {
-  uint32_t result;
-  if (fread(&result, sizeof result, 1, f) != 1) {
-    return -1;
+  uint8_t buf[size];
+  if (fread(buf, size, 1, f) != 1) {
+    *ok = false;
+    return 0;
   }
-  fix_byte_order(&result, sizeof(result), 1, big_endian);
-  return result;
+  fix_byte_order(buf, sizeof(buf), 1, big_endian);
+  switch (size) {
+  case 1: {
+    uint8_t result;
+    memcpy(&result, buf, sizeof(result));
+    return result;
+  }
+  case 2: {
+    uint16_t result;
+    memcpy(&result, buf, sizeof(result));
+    return result;
+  }
+  case 4: {
+    uint32_t result;
+    memcpy(&result, buf, sizeof(result));
+    return result;
+  }
+  case 8: {
+    uint64_t result;
+    memcpy(&result, buf, sizeof(result));
+    return result;
+  }
+  default:
+    g_assert_not_reached();
+  }
 }
 
 static void *read_tiff_tag(FILE *f, int32_t size, int64_t count,
@@ -133,16 +151,15 @@ static void tiffdump_item_destroy(gpointer data) {
   g_slice_free(struct _openslide_tiffdump_item, td);
 }
 
-static GHashTable *read_directory(FILE *f, int64_t *diroff,
+static GHashTable *read_directory(FILE *f, uint32_t *diroff,
 				  GHashTable *loop_detector,
 				  bool big_endian,
 				  GError **err) {
-  int64_t off = *diroff;
+  uint32_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
   int64_t *key = NULL;
-  int64_t nextdiroff = -1;
-  int dircount = -1;
+  bool ok = true;
 
   //  g_debug("diroff: %" PRId64, off);
 
@@ -170,8 +187,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read directory count
-  dircount = read_uint16(f, big_endian);
-  if (dircount == -1) {
+  uint16_t dircount = read_uint(f, 2, big_endian, &ok);
+  if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read dircount");
     goto FAIL;
@@ -186,11 +203,11 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
   // read all directory entries
   for (int i = 0; i < dircount; i++) {
-    int32_t tag = read_uint16(f, big_endian);
-    int32_t type = read_uint16(f, big_endian);
-    int64_t count = read_uint32(f, big_endian);
+    uint16_t tag = read_uint(f, 2, big_endian, &ok);
+    uint16_t type = read_uint(f, 2, big_endian, &ok);
+    uint32_t count = read_uint(f, 4, big_endian, &ok);
 
-    if ((tag == -1) || (type == -1) || (count == -1)) {
+    if (!ok) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Cannot read tag, type, and count");
       goto FAIL;
@@ -265,8 +282,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read the next dir offset
-  nextdiroff = read_uint32(f, big_endian);
-  if (nextdiroff == -1) {
+  uint32_t nextdiroff = read_uint(f, 4, big_endian, &ok);
+  if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read next directory offset");
     goto FAIL;
@@ -303,8 +320,15 @@ GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
 
   //  g_debug("magic: %d", magic);
 
-  int32_t version = read_uint16(f, big_endian);
-  int64_t diroff = read_uint32(f, big_endian);
+  bool ok = true;
+  uint16_t version = read_uint(f, 2, big_endian, &ok);
+  uint32_t diroff = read_uint(f, 4, big_endian, &ok);
+
+  if (!ok) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Can't read TIFF header");
+    return NULL;
+  }
 
   //  g_debug("version: %d", version);
 
