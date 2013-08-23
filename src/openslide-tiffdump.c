@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2010 Carnegie Mellon University
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -356,60 +356,41 @@ static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
 
   if (item->type == TIFF_ASCII) {
     // will only print first string if there are multiple
-    const char *str = _openslide_tiffdump_get_ascii(item);
+    const char *str = _openslide_tiffdump_get_buffer(item);
     if (str[item->count - 1] != '\0') {
       str = "<not null-terminated>";
     }
     printf(" %s", str);
+  } else if (item->type == TIFF_UNDEFINED) {
+    const uint8_t *data = _openslide_tiffdump_get_buffer(item);
+    for (int64_t i = 0; i < item->count; i++) {
+      printf(" %u", data[i]);
+    }
   } else {
     for (int64_t i = 0; i < item->count; i++) {
       switch (item->type) {
       case TIFF_BYTE:
-	printf(" %u", _openslide_tiffdump_get_byte(item, i));
-	break;
-
-      case TIFF_SBYTE:
-	printf(" %d", _openslide_tiffdump_get_sbyte(item, i));
-	break;
-
-      case TIFF_UNDEFINED:
-	printf(" %.2x", _openslide_tiffdump_get_undefined(item, i));
-	break;
-
       case TIFF_SHORT:
-	printf(" %" G_GUINT16_FORMAT, _openslide_tiffdump_get_short(item, i));
-	break;
-
-      case TIFF_SSHORT:
-	printf(" %" G_GINT16_FORMAT, _openslide_tiffdump_get_sshort(item, i));
-	break;
-
       case TIFF_LONG:
-	printf(" %" G_GUINT32_FORMAT, _openslide_tiffdump_get_long(item, i));
-	break;
-
-      case TIFF_SLONG:
-	printf(" %" G_GINT32_FORMAT, _openslide_tiffdump_get_slong(item, i));
-	break;
-
-      case TIFF_FLOAT:
-	printf(" %g", _openslide_tiffdump_get_float(item, i));
+	printf(" %" G_GUINT64_FORMAT, _openslide_tiffdump_get_uint(item, i));
 	break;
 
       case TIFF_IFD:
-	printf(" %.8" G_GINT64_MODIFIER "x", _openslide_tiffdump_get_ifd(item, i));
+	printf(" %.16" G_GINT64_MODIFIER "x",
+	       _openslide_tiffdump_get_uint(item, i));
 	break;
 
-      case TIFF_RATIONAL:
-	printf(" %g", _openslide_tiffdump_get_rational(item, i));
+      case TIFF_SBYTE:
+      case TIFF_SSHORT:
+      case TIFF_SLONG:
+	printf(" %" G_GINT64_FORMAT, _openslide_tiffdump_get_sint(item, i));
 	break;
 
-      case TIFF_SRATIONAL:
-	printf(" %g", _openslide_tiffdump_get_srational(item, i));
-	break;
-
+      case TIFF_FLOAT:
       case TIFF_DOUBLE:
-	printf(" %g", _openslide_tiffdump_get_double(item, i));
+      case TIFF_RATIONAL:
+      case TIFF_SRATIONAL:
+	printf(" %g", _openslide_tiffdump_get_float(item, i));
 	break;
 
       default:
@@ -474,100 +455,72 @@ void _openslide_tiffdump_print(GSList *tiffdump) {
   }
 }
 
-
-static void check_assertions(struct _openslide_tiffdump_item *item,
-			     TIFFDataType type, int64_t i) {
-  g_assert(item->type == type);
-  g_assert(i >= 0);
-  g_assert(i < item->count);
+uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump_item *item,
+                                      int64_t i) {
+  g_assert(i >= 0 && i < item->count);
+  switch (item->type) {
+  case TIFF_BYTE:
+    return ((uint8_t *) item->value)[i];
+  case TIFF_SHORT:
+    return ((uint16_t *) item->value)[i];
+  case TIFF_LONG:
+  case TIFF_IFD:
+    return ((uint32_t *) item->value)[i];
+  default:
+    g_assert_not_reached();
+  }
 }
 
-uint8_t _openslide_tiffdump_get_byte(struct _openslide_tiffdump_item *item,
-				     int64_t i) {
-  check_assertions(item, TIFF_BYTE, i);
-  return ((uint8_t *) item->value)[i];
+int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump_item *item,
+                                     int64_t i) {
+  g_assert(i >= 0 && i < item->count);
+  switch (item->type) {
+  case TIFF_SBYTE:
+    return ((int8_t *) item->value)[i];
+  case TIFF_SSHORT:
+    return ((int16_t *) item->value)[i];
+  case TIFF_SLONG:
+    return ((int32_t *) item->value)[i];
+  default:
+    g_assert_not_reached();
+  }
 }
 
-const char *_openslide_tiffdump_get_ascii(struct _openslide_tiffdump_item *item) {
-  check_assertions(item, TIFF_ASCII, 0);
-  return item->value;
+double _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
+                                     int64_t i) {
+  g_assert(i >= 0 && i < item->count);
+  switch (item->type) {
+  case TIFF_FLOAT: {
+    float val;
+    memcpy(&val, ((uint32_t *) item->value) + i, sizeof(val));
+    return val;
+  }
+  case TIFF_DOUBLE: {
+    double val;
+    memcpy(&val, ((uint64_t *) item->value) + i, sizeof(val));
+    return val;
+  }
+  case TIFF_RATIONAL: {
+    // convert 2 longs into rational
+    uint32_t *val = item->value;
+    return (double) val[i * 2] / (double) val[i * 2 + 1];
+  }
+  case TIFF_SRATIONAL: {
+    // convert 2 slongs into rational
+    int32_t *val = item->value;
+    return (double) val[i * 2] / (double) val[i * 2 + 1];
+  }
+  default:
+    g_assert_not_reached();
+  }
 }
 
-uint16_t _openslide_tiffdump_get_short(struct _openslide_tiffdump_item *item,
-				       int64_t i) {
-  check_assertions(item, TIFF_SHORT, i);
-  return ((uint16_t *) item->value)[i];
-}
-
-uint32_t _openslide_tiffdump_get_long(struct _openslide_tiffdump_item *item,
-				      int64_t i) {
-  check_assertions(item, TIFF_LONG, i);
-  return ((uint32_t *) item->value)[i];
-}
-
-double _openslide_tiffdump_get_rational(struct _openslide_tiffdump_item *item,
-					int64_t i) {
-  check_assertions(item, TIFF_RATIONAL, i);
-
-  // convert 2 longs into rational
-  uint32_t *value = item->value;
-  return (double) value[i * 2] / (double) value[i * 2 + 1];
-}
-
-int8_t _openslide_tiffdump_get_sbyte(struct _openslide_tiffdump_item *item,
-				     int64_t i) {
-  check_assertions(item, TIFF_SBYTE, i);
-  return ((uint8_t *) item->value)[i];
-}
-
-uint8_t _openslide_tiffdump_get_undefined(struct _openslide_tiffdump_item *item,
-					  int64_t i) {
-  check_assertions(item, TIFF_UNDEFINED, i);
-  return ((uint8_t *) item->value)[i];
-}
-
-int16_t _openslide_tiffdump_get_sshort(struct _openslide_tiffdump_item *item,
-				       int64_t i) {
-  check_assertions(item, TIFF_SSHORT, i);
-  return ((uint16_t *) item->value)[i];
-}
-
-int32_t _openslide_tiffdump_get_slong(struct _openslide_tiffdump_item *item,
-				      int64_t i) {
-  check_assertions(item, TIFF_SLONG, i);
-  return ((uint32_t *) item->value)[i];
-}
-
-double _openslide_tiffdump_get_srational(struct _openslide_tiffdump_item *item,
-					 int64_t i) {
-  check_assertions(item, TIFF_SRATIONAL, i);
-
-  // convert 2 slongs into rational
-  uint32_t *value = item->value;
-  return (double) ((int32_t) value[i * 2]) /
-    (double) ((int32_t) value[i * 2 + 1]);
-}
-
-float _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
-				    int64_t i) {
-  check_assertions(item, TIFF_FLOAT, i);
-
-  float val;
-  memcpy(&val, ((uint32_t *) item->value) + i, sizeof val);
-  return val;
-}
-
-double _openslide_tiffdump_get_double(struct _openslide_tiffdump_item *item,
-				      int64_t i) {
-  check_assertions(item, TIFF_DOUBLE, i);
-
-  double val;
-  memcpy(&val, ((uint64_t *) item->value) + i, sizeof val);
-  return val;
-}
-
-int64_t _openslide_tiffdump_get_ifd(struct _openslide_tiffdump_item *item,
-				    int64_t i) {
-  check_assertions(item, TIFF_IFD, i);
-  return ((uint32_t *) item->value)[i];
+const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump_item *item) {
+  switch (item->type) {
+  case TIFF_ASCII:
+  case TIFF_UNDEFINED:
+    return item->value;
+  default:
+    g_assert_not_reached();
+  }
 }
