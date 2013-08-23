@@ -89,149 +89,35 @@ static int64_t read_uint32(FILE *f, bool big_endian) {
   return result;
 }
 
-static bool read_tiff_tag(FILE *f, int64_t size, void *dest,
-			  int64_t offset, uint8_t value[]) {
-  //  g_debug(" reading tiff tag: size: %d, value/offset %u", (int) size, (int) offset);
+static void *read_tiff_tag(FILE *f, int32_t size, int64_t count,
+                           int64_t offset, uint8_t value[],
+                           bool big_endian) {
+  if (size <= 0 || count <= 0 || count > SSIZE_MAX / size) {
+    return NULL;
+  }
+  ssize_t len = size * count;
 
-  if (size <= 4) {
+  void *result = g_try_malloc(len);
+  if (result == NULL) {
+    return NULL;
+  }
+
+  //g_debug("reading tiff tag: len: %"G_GINT64_FORMAT", value/offset %u", len, (unsigned) offset);
+  if (len <= 4) {
     // inline
-    memcpy(dest, value, size);
+    memcpy(result, value, len);
   } else {
     int64_t old_off = ftello(f);
     if (fseeko(f, offset, SEEK_SET) != 0) {
-      return false;
+      goto FAIL;
     }
-    if (fread(dest, size, 1, f) != 1) {
-      return false;
+    if (fread(result, len, 1, f) != 1) {
+      goto FAIL;
     }
     fseeko(f, old_off, SEEK_SET);
   }
 
-  return true;
-}
-
-static void *read_tiff_tag_1(FILE *f,
-			     int64_t count, int64_t offset,
-			     uint8_t value[]) {
-  uint8_t *result = g_try_new(uint8_t, count);
-  if (result == NULL) {
-    goto FAIL;
-  }
-
-  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
-    goto FAIL;
-  }
-
-  /*
-  g_debug("  count %" PRId64, count);
-  for (int i = 0; i < count; i++) {
-    if (i > 50) {
-      g_debug("    ...");
-      break;
-    }
-    g_debug("   %u", result[i]);
-  }
-  g_debug(" ");
-  */
-
-  return result;
-
- FAIL:
-  g_free(result);
-  return NULL;
-}
-
-static void *read_tiff_tag_2(FILE *f,
-			     int64_t count, int64_t offset,
-			     uint8_t value[], bool big_endian) {
-  uint16_t *result = g_try_new(uint16_t, count);
-  if (result == NULL) {
-    goto FAIL;
-  }
-
-  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
-    goto FAIL;
-  }
-
-  fix_byte_order(result, sizeof(*result), count, big_endian);
-
-  /*
-  g_debug("  count %" PRId64, count);
-  for (int i = 0; i < count; i++) {
-    if (i > 50) {
-      g_debug("    ...");
-      break;
-    }
-    g_debug("   %u", result[i]);
-  }
-  g_debug(" ");
-  */
-
-  return result;
-
- FAIL:
-  g_free(result);
-  return NULL;
-}
-
-static void *read_tiff_tag_4(FILE *f,
-			     int64_t count, int64_t offset,
-			     uint8_t value[], bool big_endian) {
-  uint32_t *result = g_try_new(uint32_t, count);
-  if (result == NULL) {
-    goto FAIL;
-  }
-
-  if (!read_tiff_tag(f, count * sizeof *result, result, offset, value)) {
-    goto FAIL;
-  }
-
-  fix_byte_order(result, sizeof(*result), count, big_endian);
-
-  /*
-  g_debug("  count %" PRId64, count);
-  for (int i = 0; i < count; i++) {
-    if (i > 50) {
-      g_debug("    ...");
-      break;
-    }
-    g_debug("   %u", result[i]);
-  }
-  g_debug(" ");
-  */
-
-  return result;
-
- FAIL:
-  g_free(result);
-  return NULL;
-}
-
-static void *read_tiff_tag_8(FILE *f,
-			     int64_t count, int64_t offset,
-			     bool big_endian) {
-  uint64_t *result = g_try_new(uint64_t, count);
-  if (result == NULL) {
-    goto FAIL;
-  }
-
-  if (!read_tiff_tag(f, count * sizeof *result, result, offset, NULL)) {
-    goto FAIL;
-  }
-
-  fix_byte_order(result, sizeof(*result), count, big_endian);
-
-  /*
-  g_debug("  count %" PRId64, count);
-  for (int i = 0; i < count; i++) {
-    if (i > 50) {
-      g_debug("    ...");
-      break;
-    }
-    g_debug("   %" PRIu64, result[i]);
-  }
-  g_debug(" ");
-  */
+  fix_byte_order(result, size, count, big_endian);
 
   return result;
 
@@ -336,28 +222,28 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     case TIFF_ASCII:
     case TIFF_SBYTE:
     case TIFF_UNDEFINED:
-      data->value = read_tiff_tag_1(f, count, offset, value);
+      data->value = read_tiff_tag(f, 1, count, offset, value, big_endian);
       break;
 
     case TIFF_SHORT:
     case TIFF_SSHORT:
-      data->value = read_tiff_tag_2(f, count, offset, value, big_endian);
+      data->value = read_tiff_tag(f, 2, count, offset, value, big_endian);
       break;
 
     case TIFF_LONG:
     case TIFF_SLONG:
     case TIFF_FLOAT:
     case TIFF_IFD:
-      data->value = read_tiff_tag_4(f, count, offset, value, big_endian);
+      data->value = read_tiff_tag(f, 4, count, offset, value, big_endian);
       break;
 
     case TIFF_RATIONAL:
     case TIFF_SRATIONAL:
-      data->value = read_tiff_tag_4(f, count * 2, offset, value, big_endian);
+      data->value = read_tiff_tag(f, 4, count * 2, offset, value, big_endian);
       break;
 
     case TIFF_DOUBLE:
-      data->value = read_tiff_tag_8(f, count, offset, big_endian);
+      data->value = read_tiff_tag(f, 8, count, offset, value, big_endian);
       break;
 
     default:
