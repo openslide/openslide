@@ -32,9 +32,13 @@
 
 #include <tiffio.h>
 
-#ifndef TIFF_VERSION
-// renamed in libtiff 4
-#define TIFF_VERSION TIFF_VERSION_CLASSIC
+#ifndef TIFF_VERSION_BIG
+// tiff.h is from libtiff < 4
+#define TIFF_VERSION_CLASSIC TIFF_VERSION
+#define TIFF_VERSION_BIG 43
+#define TIFF_LONG8 16
+#define TIFF_SLONG8 17
+#define TIFF_IFD8 18
 #endif
 
 
@@ -119,7 +123,8 @@ static uint64_t read_uint(FILE *f, int32_t size, bool big_endian, bool *ok) {
 }
 
 static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
-                             int64_t offset, uint8_t value[],
+                             int64_t offset,
+                             uint8_t value[], int32_t value_len,
                              bool big_endian) {
   if (size <= 0 || count <= 0 || count > SSIZE_MAX / size) {
     return NULL;
@@ -132,7 +137,7 @@ static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
   }
 
   //g_debug("reading tiff value: len: %"G_GINT64_FORMAT", value/offset %u", len, (unsigned) offset);
-  if (len <= 4) {
+  if (len <= value_len) {
     // inline
     memcpy(result, value, len);
   } else {
@@ -164,6 +169,7 @@ static void tiff_item_destroy(gpointer data) {
 
 static GHashTable *read_directory(FILE *f, int64_t *diroff,
 				  GHashTable *loop_detector,
+				  bool bigtiff,
 				  bool big_endian,
 				  GError **err) {
   int64_t off = *diroff;
@@ -197,7 +203,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read directory count
-  uint64_t dircount = read_uint(f, 2, big_endian, &ok);
+  uint64_t dircount = read_uint(f, bigtiff ? 8 : 2, big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read dircount");
@@ -215,7 +221,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   for (uint64_t n = 0; n < dircount; n++) {
     uint16_t tag = read_uint(f, 2, big_endian, &ok);
     uint16_t type = read_uint(f, 2, big_endian, &ok);
-    uint64_t count = read_uint(f, 4, big_endian, &ok);
+    uint64_t count = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
 
     if (!ok) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -226,16 +232,23 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     //    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
 
     // read in the value/offset
-    uint8_t value[4];
-    if (fread(value, 1, 4, f) != 4) {
+    uint8_t value[bigtiff ? 8 : 4];
+    if (fread(value, sizeof(value), 1, f) != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Cannot read value/offset");
       goto FAIL;
     }
 
-    uint32_t offset;
-    memcpy(&offset, value, 4);
-    fix_byte_order(&offset, sizeof(offset), 1, big_endian);
+    uint64_t offset;
+    if (bigtiff) {
+      memcpy(&offset, value, 8);
+      fix_byte_order(&offset, sizeof(offset), 1, big_endian);
+    } else {
+      uint32_t off32;
+      memcpy(&off32, value, 4);
+      fix_byte_order(&off32, sizeof(off32), 1, big_endian);
+      offset = off32;
+    }
 
     // allocate the item
     struct tiff_item *item = g_slice_new(struct tiff_item);
@@ -248,29 +261,36 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     case TIFF_ASCII:
     case TIFF_SBYTE:
     case TIFF_UNDEFINED:
-      item->value = read_tiff_value(f, 1, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 1, count, offset, value, sizeof(value),
+                                    big_endian);
       break;
 
     case TIFF_SHORT:
     case TIFF_SSHORT:
-      item->value = read_tiff_value(f, 2, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 2, count, offset, value, sizeof(value),
+                                    big_endian);
       break;
 
     case TIFF_LONG:
     case TIFF_SLONG:
     case TIFF_FLOAT:
     case TIFF_IFD:
-      item->value = read_tiff_value(f, 4, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 4, count, offset, value, sizeof(value),
+                                    big_endian);
       break;
 
     case TIFF_RATIONAL:
     case TIFF_SRATIONAL:
       item->value = read_tiff_value(f, 4, count * 2, offset, value,
-                                    big_endian);
+                                    sizeof(value), big_endian);
       break;
 
     case TIFF_DOUBLE:
-      item->value = read_tiff_value(f, 8, count, offset, value, big_endian);
+    case TIFF_LONG8:
+    case TIFF_SLONG8:
+    case TIFF_IFD8:
+      item->value = read_tiff_value(f, 8, count, offset, value, sizeof(value),
+                                    big_endian);
       break;
 
     default:
@@ -290,7 +310,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read the next dir offset
-  int64_t nextdiroff = read_uint(f, 4, big_endian, &ok);
+  int64_t nextdiroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read next directory offset");
@@ -327,9 +347,17 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
 
   //  g_debug("magic: %d", magic);
 
+  // read rest of header
   bool ok = true;
   uint16_t version = read_uint(f, 2, big_endian, &ok);
-  int64_t diroff = read_uint(f, 4, big_endian, &ok);
+  bool bigtiff = (version == TIFF_VERSION_BIG);
+  uint16_t offset_size = 0;
+  uint16_t pad = 0;
+  if (bigtiff) {
+    offset_size = read_uint(f, 2, big_endian, &ok);
+    pad = read_uint(f, 2, big_endian, &ok);
+  }
+  int64_t diroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
 
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -339,7 +367,14 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
 
   //  g_debug("version: %d", version);
 
-  if (version != TIFF_VERSION) {
+  // validate
+  if (version == TIFF_VERSION_BIG) {
+    if (offset_size != 8 || pad != 0) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                  "Unexpected value in BigTIFF header");
+      return NULL;
+    }
+  } else if (version != TIFF_VERSION_CLASSIC) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Unrecognized TIFF version");
     return NULL;
@@ -358,7 +393,8 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
   // read all the directories
   while (diroff != 0) {
     // read a directory
-    GHashTable *ht = read_directory(f, &diroff, loop_detector, big_endian, err);
+    GHashTable *ht = read_directory(f, &diroff, loop_detector, bigtiff,
+                                    big_endian, err);
 
     // was the directory successfully read?
     if (ht == NULL) {
@@ -422,11 +458,13 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
       case TIFF_BYTE:
       case TIFF_SHORT:
       case TIFF_LONG:
+      case TIFF_LONG8:
 	printf(" %" G_GUINT64_FORMAT,
 	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
 	break;
 
       case TIFF_IFD:
+      case TIFF_IFD8:
 	printf(" %.16" G_GINT64_MODIFIER "x",
 	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
 	break;
@@ -434,6 +472,7 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
       case TIFF_SBYTE:
       case TIFF_SSHORT:
       case TIFF_SLONG:
+      case TIFF_SLONG8:
 	printf(" %" G_GINT64_FORMAT,
 	       _openslide_tiffdump_get_sint(tiffdump, dir, tag, i));
 	break;
@@ -510,6 +549,9 @@ uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
   case TIFF_LONG:
   case TIFF_IFD:
     return ((uint32_t *) item->value)[i];
+  case TIFF_LONG8:
+  case TIFF_IFD8:
+    return ((uint64_t *) item->value)[i];
   default:
     g_assert_not_reached();
   }
@@ -526,6 +568,8 @@ int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump *tiffdump,
     return ((int16_t *) item->value)[i];
   case TIFF_SLONG:
     return ((int32_t *) item->value)[i];
+  case TIFF_SLONG8:
+    return ((int64_t *) item->value)[i];
   default:
     g_assert_not_reached();
   }
