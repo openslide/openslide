@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <glib.h>
 
-#include <tiffio.h>
+#include <tiff.h>
 
 #ifndef TIFF_VERSION_BIG
 // tiff.h is from libtiff < 4
