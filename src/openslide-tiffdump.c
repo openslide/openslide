@@ -38,6 +38,17 @@
 #endif
 
 
+struct _openslide_tiffdump {
+  GSList *directories;
+};
+
+struct _openslide_tiffdump_item {
+  TIFFDataType type;
+  int64_t count;
+  void *value;
+};
+
+
 static void fix_byte_order(void *data, int32_t size, int64_t count,
                            bool big_endian) {
   switch (size) {
@@ -301,8 +312,7 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
   return NULL;
 }
 
-// returns list of hashtables of (int -> struct _openslide_tiffdump_item)
-GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
+struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
   // read and check magic
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
@@ -338,13 +348,16 @@ GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
     return NULL;
   }
 
+  // allocate struct
+  struct _openslide_tiffdump *tiffdump =
+    g_slice_new0(struct _openslide_tiffdump);
+
   // initialize loop detector
   GHashTable *loop_detector = g_hash_table_new_full(_openslide_int64_hash,
 						    _openslide_int64_equal,
 						    _openslide_int64_free,
 						    NULL);
   // read all the directories
-  GSList *result = NULL;
   while (diroff != 0) {
     // read a directory
     GHashTable *ht = read_directory(f, &diroff, loop_detector, big_endian, err);
@@ -352,41 +365,48 @@ GSList *_openslide_tiffdump_create(FILE *f, GError **err) {
     // was the directory successfully read?
     if (ht == NULL) {
       // no, so destroy everything
-      _openslide_tiffdump_destroy(result);
-      result = NULL;
-      break;
+      _openslide_tiffdump_destroy(tiffdump);
+      g_hash_table_unref(loop_detector);
+      return NULL;
     }
 
     // add result to list
-    result = g_slist_prepend(result, ht);
+    tiffdump->directories = g_slist_prepend(tiffdump->directories, ht);
   }
 
   g_hash_table_unref(loop_detector);
-  return g_slist_reverse(result);
+  tiffdump->directories = g_slist_reverse(tiffdump->directories);
+  return tiffdump;
 }
 
 
-void _openslide_tiffdump_destroy(GSList *tiffdump) {
-  while (tiffdump != NULL) {
-    GHashTable *ht = tiffdump->data;
-    g_hash_table_unref(ht);
-
-    tiffdump = g_slist_delete_link(tiffdump, tiffdump);
+void _openslide_tiffdump_destroy(struct _openslide_tiffdump *tiffdump) {
+  if (tiffdump == NULL) {
+    return;
   }
+  GSList *el = tiffdump->directories;
+  while (el != NULL) {
+    GHashTable *ht = el->data;
+    g_hash_table_unref(ht);
+    el = g_slist_delete_link(el, el);
+  }
+  g_slice_free(struct _openslide_tiffdump, tiffdump);
 }
 
-static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
+static void print_tag(struct _openslide_tiffdump *tiffdump,
+                      int64_t dir, int32_t tag,
+                      struct _openslide_tiffdump_item *item) {
   printf(" %d: type: %d, count: %" G_GINT64_FORMAT "\n ", tag, item->type, item->count);
 
   if (item->type == TIFF_ASCII) {
     // will only print first string if there are multiple
-    const char *str = _openslide_tiffdump_get_buffer(item);
+    const char *str = _openslide_tiffdump_get_buffer(tiffdump, dir, tag);
     if (str[item->count - 1] != '\0') {
       str = "<not null-terminated>";
     }
     printf(" %s", str);
   } else if (item->type == TIFF_UNDEFINED) {
-    const uint8_t *data = _openslide_tiffdump_get_buffer(item);
+    const uint8_t *data = _openslide_tiffdump_get_buffer(tiffdump, dir, tag);
     for (int64_t i = 0; i < item->count; i++) {
       printf(" %u", data[i]);
     }
@@ -396,25 +416,27 @@ static void print_tag(int tag, struct _openslide_tiffdump_item *item) {
       case TIFF_BYTE:
       case TIFF_SHORT:
       case TIFF_LONG:
-	printf(" %" G_GUINT64_FORMAT, _openslide_tiffdump_get_uint(item, i));
+	printf(" %" G_GUINT64_FORMAT,
+	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
 	break;
 
       case TIFF_IFD:
 	printf(" %.16" G_GINT64_MODIFIER "x",
-	       _openslide_tiffdump_get_uint(item, i));
+	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
 	break;
 
       case TIFF_SBYTE:
       case TIFF_SSHORT:
       case TIFF_SLONG:
-	printf(" %" G_GINT64_FORMAT, _openslide_tiffdump_get_sint(item, i));
+	printf(" %" G_GINT64_FORMAT,
+	       _openslide_tiffdump_get_sint(tiffdump, dir, tag, i));
 	break;
 
       case TIFF_FLOAT:
       case TIFF_DOUBLE:
       case TIFF_RATIONAL:
       case TIFF_SRATIONAL:
-	printf(" %g", _openslide_tiffdump_get_float(item, i));
+	printf(" %g", _openslide_tiffdump_get_float(tiffdump, dir, tag, i));
 	break;
 
       default:
@@ -451,37 +473,63 @@ static void save_key(gpointer key, gpointer value G_GNUC_UNUSED,
   h->tags[h->i++] = tag;
 }
 
-static void print_directory(GHashTable *dir) {
-  int count = g_hash_table_size(dir);
+static void print_directory(struct _openslide_tiffdump *tiffdump,
+                            int64_t dir, GHashTable *ht) {
+  int count = g_hash_table_size(ht);
   struct hash_key_helper h = { 0, g_new(int, count) };
-  g_hash_table_foreach(dir, save_key, &h);
+  g_hash_table_foreach(ht, save_key, &h);
 
   qsort(h.tags, count, sizeof (int), int_compare);
   for (int i = 0; i < count; i++) {
     int tag = h.tags[i];
-    print_tag(tag, g_hash_table_lookup(dir, &tag));
+    print_tag(tiffdump, dir, tag, g_hash_table_lookup(ht, &tag));
   }
   g_free(h.tags);
 
   printf("\n");
 }
 
-void _openslide_tiffdump_print(GSList *tiffdump) {
+void _openslide_tiffdump_print(struct _openslide_tiffdump *tiffdump) {
   int i = 0;
 
-  while (tiffdump != NULL) {
+  GSList *el = tiffdump->directories;
+  while (el != NULL) {
     printf("Directory %d\n", i);
 
-    print_directory(tiffdump->data);
+    print_directory(tiffdump, i, el->data);
 
     i++;
-    tiffdump = tiffdump->next;
+    el = el->next;
   }
 }
 
-uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump_item *item,
-                                      int64_t i) {
-  g_assert(i >= 0 && i < item->count);
+int64_t _openslide_tiffdump_get_directory_count(struct _openslide_tiffdump *tiffdump) {
+  return g_slist_length(tiffdump->directories);
+}
+
+static struct _openslide_tiffdump_item *get_item(struct _openslide_tiffdump *tiffdump,
+                                                 int64_t dir, int32_t tag) {
+  GHashTable *ht = g_slist_nth_data(tiffdump->directories, dir);
+  if (ht == NULL) {
+    return NULL;
+  }
+  int64_t tag_val = tag;
+  return g_hash_table_lookup(ht, &tag_val);
+}
+
+int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump,
+                                            int64_t dir, int32_t tag) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  if (item == NULL) {
+    return 0;
+  }
+  return item->count;
+}
+
+uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
+                                      int64_t dir, int32_t tag, int64_t i) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  g_assert(item != NULL && i >= 0 && i < item->count);
   switch (item->type) {
   case TIFF_BYTE:
     return ((uint8_t *) item->value)[i];
@@ -495,9 +543,10 @@ uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump_item *item,
   }
 }
 
-int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump_item *item,
-                                     int64_t i) {
-  g_assert(i >= 0 && i < item->count);
+int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump *tiffdump,
+                                     int64_t dir, int32_t tag, int64_t i) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  g_assert(item != NULL && i >= 0 && i < item->count);
   switch (item->type) {
   case TIFF_SBYTE:
     return ((int8_t *) item->value)[i];
@@ -510,9 +559,10 @@ int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump_item *item,
   }
 }
 
-double _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
-                                     int64_t i) {
-  g_assert(i >= 0 && i < item->count);
+double _openslide_tiffdump_get_float(struct _openslide_tiffdump *tiffdump,
+                                     int64_t dir, int32_t tag, int64_t i) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  g_assert(item != NULL && i >= 0 && i < item->count);
   switch (item->type) {
   case TIFF_FLOAT: {
     float val;
@@ -539,7 +589,10 @@ double _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
   }
 }
 
-const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump_item *item) {
+const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump *tiffdump,
+                                           int64_t dir, int32_t tag) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  g_assert(item != NULL);
   switch (item->type) {
   case TIFF_ASCII:
   case TIFF_UNDEFINED:

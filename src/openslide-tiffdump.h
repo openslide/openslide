@@ -28,35 +28,35 @@
 #include <glib.h>
 #include <tiffio.h>
 
-struct _openslide_tiffdump_item {
-  TIFFDataType type;
-  int64_t count;
-  void *value;
-};
-
-// returns list of hashtables of (int -> struct _openslide_tiffdump)
-GSList *_openslide_tiffdump_create(FILE *f, GError **err);
+// constructor
+struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err);
 
 // destructor
-void _openslide_tiffdump_destroy(GSList *tiffdump);
+void _openslide_tiffdump_destroy(struct _openslide_tiffdump *tiffdump);
 
 // helpful printout?
-void _openslide_tiffdump_print(GSList *tiffdump);
+void _openslide_tiffdump_print(struct _openslide_tiffdump *tiffdump);
 
 // accessors
+int64_t _openslide_tiffdump_get_directory_count(struct _openslide_tiffdump *tiffdump);
+
+int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump,
+                                            int64_t dir, int32_t tag);
+
 // TIFF_BYTE, TIFF_SHORT, TIFF_LONG, TIFF_IFD
-uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump_item *item,
-                                      int64_t i);
+uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
+                                      int64_t dir, int32_t tag, int64_t i);
 
 // TIFF_SBYTE, TIFF_SSHORT, TIFF_SLONG
-int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump_item *item,
-                                     int64_t i);
+int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump *tiffdump,
+                                     int64_t dir, int32_t tag, int64_t i);
 
 // TIFF_FLOAT, TIFF_DOUBLE, TIFF_RATIONAL, TIFF_SRATIONAL
-double _openslide_tiffdump_get_float(struct _openslide_tiffdump_item *item,
-                                     int64_t i);
+double _openslide_tiffdump_get_float(struct _openslide_tiffdump *tiffdump,
+                                     int64_t dir, int32_t tag, int64_t i);
 
 // TIFF_ASCII, TIFF_UNDEFINED
-const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump_item *item);
+const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump *tiffdump,
+                                           int64_t dir, int32_t tag);
 
 #endif
