@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include <glib.h>
 
 #include <tiff.h>
@@ -459,13 +460,13 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
       case TIFF_LONG:
       case TIFF_LONG8:
 	printf(" %" G_GUINT64_FORMAT,
-	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
+	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i, NULL));
 	break;
 
       case TIFF_IFD:
       case TIFF_IFD8:
 	printf(" %.16" G_GINT64_MODIFIER "x",
-	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i));
+	       _openslide_tiffdump_get_uint(tiffdump, dir, tag, i, NULL));
 	break;
 
       case TIFF_SBYTE:
@@ -473,14 +474,15 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
       case TIFF_SLONG:
       case TIFF_SLONG8:
 	printf(" %" G_GINT64_FORMAT,
-	       _openslide_tiffdump_get_sint(tiffdump, dir, tag, i));
+	       _openslide_tiffdump_get_sint(tiffdump, dir, tag, i, NULL));
 	break;
 
       case TIFF_FLOAT:
       case TIFF_DOUBLE:
       case TIFF_RATIONAL:
       case TIFF_SRATIONAL:
-	printf(" %g", _openslide_tiffdump_get_float(tiffdump, dir, tag, i));
+	printf(" %g",
+	       _openslide_tiffdump_get_float(tiffdump, dir, tag, i, NULL));
 	break;
 
       default:
@@ -536,10 +538,28 @@ int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump
   return item->count;
 }
 
-uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
-                                      int64_t dir, int32_t tag, int64_t i) {
+static struct tiff_item *get_and_check_item(struct _openslide_tiffdump *tiffdump,
+                                            int64_t dir, int32_t tag, int64_t i,
+                                            bool *ok) {
   struct tiff_item *item = get_item(tiffdump, dir, tag);
-  g_assert(item != NULL && i >= 0 && i < item->count);
+  if (item == NULL || i < 0 || i >= item->count) {
+    // fail
+    if (ok != NULL) {
+      *ok = false;
+    }
+    return NULL;
+  }
+  return item;
+}
+
+// only sets *ok on failure
+uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
+                                      int64_t dir, int32_t tag, int64_t i,
+                                      bool *ok) {
+  struct tiff_item *item = get_and_check_item(tiffdump, dir, tag, i, ok);
+  if (item == NULL) {
+    return 0;
+  }
   switch (item->type) {
   case TIFF_BYTE:
     return ((uint8_t *) item->value)[i];
@@ -552,14 +572,21 @@ uint64_t _openslide_tiffdump_get_uint(struct _openslide_tiffdump *tiffdump,
   case TIFF_IFD8:
     return ((uint64_t *) item->value)[i];
   default:
-    g_assert_not_reached();
+    if (ok != NULL) {
+      *ok = false;
+    }
+    return 0;
   }
 }
 
+// only sets *ok on failure
 int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump *tiffdump,
-                                     int64_t dir, int32_t tag, int64_t i) {
-  struct tiff_item *item = get_item(tiffdump, dir, tag);
-  g_assert(item != NULL && i >= 0 && i < item->count);
+                                     int64_t dir, int32_t tag, int64_t i,
+                                     bool *ok) {
+  struct tiff_item *item = get_and_check_item(tiffdump, dir, tag, i, ok);
+  if (item == NULL) {
+    return 0;
+  }
   switch (item->type) {
   case TIFF_SBYTE:
     return ((int8_t *) item->value)[i];
@@ -570,14 +597,21 @@ int64_t _openslide_tiffdump_get_sint(struct _openslide_tiffdump *tiffdump,
   case TIFF_SLONG8:
     return ((int64_t *) item->value)[i];
   default:
-    g_assert_not_reached();
+    if (ok != NULL) {
+      *ok = false;
+    }
+    return 0;
   }
 }
 
+// only sets *ok on failure
 double _openslide_tiffdump_get_float(struct _openslide_tiffdump *tiffdump,
-                                     int64_t dir, int32_t tag, int64_t i) {
-  struct tiff_item *item = get_item(tiffdump, dir, tag);
-  g_assert(item != NULL && i >= 0 && i < item->count);
+                                     int64_t dir, int32_t tag, int64_t i,
+                                     bool *ok) {
+  struct tiff_item *item = get_and_check_item(tiffdump, dir, tag, i, ok);
+  if (item == NULL) {
+    return NAN;
+  }
   switch (item->type) {
   case TIFF_FLOAT: {
     float val;
@@ -600,19 +634,24 @@ double _openslide_tiffdump_get_float(struct _openslide_tiffdump *tiffdump,
     return (double) val[i * 2] / (double) val[i * 2 + 1];
   }
   default:
-    g_assert_not_reached();
+    if (ok != NULL) {
+      *ok = false;
+    }
+    return NAN;
   }
 }
 
 const void *_openslide_tiffdump_get_buffer(struct _openslide_tiffdump *tiffdump,
                                            int64_t dir, int32_t tag) {
   struct tiff_item *item = get_item(tiffdump, dir, tag);
-  g_assert(item != NULL);
+  if (item == NULL) {
+    return NULL;
+  }
   switch (item->type) {
   case TIFF_ASCII:
   case TIFF_UNDEFINED:
     return item->value;
   default:
-    g_assert_not_reached();
+    return NULL;
   }
 }
