@@ -447,12 +447,7 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
   printf("\n");
 }
 
-struct hash_key_helper {
-  int i;
-  int *tags;
-};
-
-static int int_compare(const void *a, const void *b) {
+static int int_compare(gconstpointer a, gconstpointer b) {
   int aa = *((int *) a);
   int bb = *((int *) b);
 
@@ -465,26 +460,15 @@ static int int_compare(const void *a, const void *b) {
   }
 }
 
-static void save_key(gpointer key, gpointer value G_GNUC_UNUSED,
-		     gpointer user_data) {
-  int tag = *((int *) key);
-  struct hash_key_helper *h = user_data;
-
-  h->tags[h->i++] = tag;
-}
-
 static void print_directory(struct _openslide_tiffdump *tiffdump,
                             int64_t dir, GHashTable *ht) {
-  int count = g_hash_table_size(ht);
-  struct hash_key_helper h = { 0, g_new(int, count) };
-  g_hash_table_foreach(ht, save_key, &h);
-
-  qsort(h.tags, count, sizeof (int), int_compare);
-  for (int i = 0; i < count; i++) {
-    int tag = h.tags[i];
+  GList *keys = g_hash_table_get_keys(ht);
+  keys = g_list_sort(keys, int_compare);
+  for (GList *el = keys; el; el = el->next) {
+    int tag = *(int *) el->data;
     print_tag(tiffdump, dir, tag, g_hash_table_lookup(ht, &tag));
   }
-  g_free(h.tags);
+  g_list_free(keys);
 
   printf("\n");
 }
