@@ -256,41 +256,38 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     item->count = count;
 
     // load the value
+    int32_t value_size;
     switch (type) {
     case TIFF_BYTE:
     case TIFF_ASCII:
     case TIFF_SBYTE:
     case TIFF_UNDEFINED:
-      item->value = read_tiff_value(f, 1, count, offset, value, sizeof(value),
-                                    big_endian);
+      value_size = 1;
       break;
 
     case TIFF_SHORT:
     case TIFF_SSHORT:
-      item->value = read_tiff_value(f, 2, count, offset, value, sizeof(value),
-                                    big_endian);
+      value_size = 2;
       break;
 
     case TIFF_LONG:
     case TIFF_SLONG:
     case TIFF_FLOAT:
     case TIFF_IFD:
-      item->value = read_tiff_value(f, 4, count, offset, value, sizeof(value),
-                                    big_endian);
+      value_size = 4;
       break;
 
     case TIFF_RATIONAL:
     case TIFF_SRATIONAL:
-      item->value = read_tiff_value(f, 4, count * 2, offset, value,
-                                    sizeof(value), big_endian);
+      value_size = 4;
+      count *= 2;
       break;
 
     case TIFF_DOUBLE:
     case TIFF_LONG8:
     case TIFF_SLONG8:
     case TIFF_IFD8:
-      item->value = read_tiff_value(f, 8, count, offset, value, sizeof(value),
-                                    big_endian);
+      value_size = 8;
       break;
 
     default:
@@ -299,6 +296,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       goto FAIL;
     }
 
+    item->value = read_tiff_value(f, value_size, count, offset,
+                                  value, sizeof(value), big_endian);
     if (item->value == NULL) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Cannot read value");
