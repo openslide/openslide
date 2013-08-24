@@ -208,9 +208,9 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
   //  g_debug("dircount: %d", dircount);
 
 
-  // initial checks passed, initialized the hashtable
-  result = g_hash_table_new_full(g_int_hash, g_int_equal,
-				 g_free, tiffdump_item_destroy);
+  // initial checks passed, initialize the hashtable
+  result = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                                 NULL, tiffdump_item_destroy);
 
   // read all directory entries
   for (int i = 0; i < dircount; i++) {
@@ -287,9 +287,7 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
     }
 
     // add this tag to the hashtable
-    int *key = g_new(int, 1);
-    *key = tag;
-    g_hash_table_insert(result, key, data);
+    g_hash_table_insert(result, GINT_TO_POINTER(tag), data);
   }
 
   // read the next dir offset
@@ -447,9 +445,9 @@ static void print_tag(struct _openslide_tiffdump *tiffdump,
   printf("\n");
 }
 
-static int int_compare(gconstpointer a, gconstpointer b) {
-  int aa = *((int *) a);
-  int bb = *((int *) b);
+static int tag_compare(gconstpointer a, gconstpointer b) {
+  int32_t aa = GPOINTER_TO_INT(a);
+  int32_t bb = GPOINTER_TO_INT(b);
 
   if (aa < bb) {
     return -1;
@@ -463,10 +461,10 @@ static int int_compare(gconstpointer a, gconstpointer b) {
 static void print_directory(struct _openslide_tiffdump *tiffdump,
                             int64_t dir, GHashTable *ht) {
   GList *keys = g_hash_table_get_keys(ht);
-  keys = g_list_sort(keys, int_compare);
+  keys = g_list_sort(keys, tag_compare);
   for (GList *el = keys; el; el = el->next) {
-    int tag = *(int *) el->data;
-    print_tag(tiffdump, dir, tag, g_hash_table_lookup(ht, &tag));
+    int32_t tag = GPOINTER_TO_INT(el->data);
+    print_tag(tiffdump, dir, tag, g_hash_table_lookup(ht, el->data));
   }
   g_list_free(keys);
 
@@ -497,8 +495,7 @@ static struct _openslide_tiffdump_item *get_item(struct _openslide_tiffdump *tif
   if (ht == NULL) {
     return NULL;
   }
-  int64_t tag_val = tag;
-  return g_hash_table_lookup(ht, &tag_val);
+  return g_hash_table_lookup(ht, GINT_TO_POINTER(tag));
 }
 
 int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump,
