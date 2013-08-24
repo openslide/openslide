@@ -389,9 +389,20 @@ void _openslide_tiffdump_destroy(struct _openslide_tiffdump *tiffdump) {
   g_slice_free(struct _openslide_tiffdump, tiffdump);
 }
 
+static struct _openslide_tiffdump_item *get_item(struct _openslide_tiffdump *tiffdump,
+                                                 int64_t dir, int32_t tag) {
+  if (dir < 0 || dir >= tiffdump->directories->len) {
+    return NULL;
+  }
+  return g_hash_table_lookup(tiffdump->directories->pdata[dir],
+                             GINT_TO_POINTER(tag));
+}
+
 static void print_tag(struct _openslide_tiffdump *tiffdump,
-                      int64_t dir, int32_t tag,
-                      struct _openslide_tiffdump_item *item) {
+                      int64_t dir, int32_t tag) {
+  struct _openslide_tiffdump_item *item = get_item(tiffdump, dir, tag);
+  g_assert(item != NULL);
+
   printf(" %d: type: %d, count: %" G_GINT64_FORMAT "\n ", tag, item->type, item->count);
 
   if (item->type == TIFF_ASCII) {
@@ -458,12 +469,10 @@ static int tag_compare(gconstpointer a, gconstpointer b) {
 
 static void print_directory(struct _openslide_tiffdump *tiffdump,
                             int64_t dir) {
-  GHashTable *ht = tiffdump->directories->pdata[dir];
-  GList *keys = g_hash_table_get_keys(ht);
+  GList *keys = g_hash_table_get_keys(tiffdump->directories->pdata[dir]);
   keys = g_list_sort(keys, tag_compare);
   for (GList *el = keys; el; el = el->next) {
-    int32_t tag = GPOINTER_TO_INT(el->data);
-    print_tag(tiffdump, dir, tag, g_hash_table_lookup(ht, el->data));
+    print_tag(tiffdump, dir, GPOINTER_TO_INT(el->data));
   }
   g_list_free(keys);
 
@@ -479,15 +488,6 @@ void _openslide_tiffdump_print(struct _openslide_tiffdump *tiffdump) {
 
 int64_t _openslide_tiffdump_get_directory_count(struct _openslide_tiffdump *tiffdump) {
   return tiffdump->directories->len;
-}
-
-static struct _openslide_tiffdump_item *get_item(struct _openslide_tiffdump *tiffdump,
-                                                 int64_t dir, int32_t tag) {
-  if (dir < 0 || dir >= tiffdump->directories->len) {
-    return NULL;
-  }
-  return g_hash_table_lookup(tiffdump->directories->pdata[dir],
-                             GINT_TO_POINTER(tag));
 }
 
 int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump,
