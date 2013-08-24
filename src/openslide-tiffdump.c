@@ -162,14 +162,13 @@ static void tiff_item_destroy(gpointer data) {
   g_slice_free(struct tiff_item, item);
 }
 
-static GHashTable *read_directory(FILE *f, uint32_t *diroff,
+static GHashTable *read_directory(FILE *f, int64_t *diroff,
 				  GHashTable *loop_detector,
 				  bool big_endian,
 				  GError **err) {
-  uint32_t off = *diroff;
+  int64_t off = *diroff;
   *diroff = 0;
   GHashTable *result = NULL;
-  int64_t *key = NULL;
   bool ok = true;
 
   //  g_debug("diroff: %" PRId64, off);
@@ -187,7 +186,7 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
                 "Loop detected");
     goto FAIL;
   }
-  key = g_slice_new(int64_t);
+  int64_t *key = g_slice_new(int64_t);
   *key = off;
   g_hash_table_insert(loop_detector, key, NULL);
 
@@ -198,14 +197,14 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
   }
 
   // read directory count
-  uint16_t dircount = read_uint(f, 2, big_endian, &ok);
+  uint64_t dircount = read_uint(f, 2, big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read dircount");
     goto FAIL;
   }
 
-  //  g_debug("dircount: %d", dircount);
+  //  g_debug("dircount: %"G_GUINT64_FORMAT, dircount);
 
 
   // initial checks passed, initialize the hashtable
@@ -213,10 +212,10 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
                                  NULL, tiff_item_destroy);
 
   // read all directory entries
-  for (int i = 0; i < dircount; i++) {
+  for (uint64_t n = 0; n < dircount; n++) {
     uint16_t tag = read_uint(f, 2, big_endian, &ok);
     uint16_t type = read_uint(f, 2, big_endian, &ok);
-    uint32_t count = read_uint(f, 4, big_endian, &ok);
+    uint64_t count = read_uint(f, 4, big_endian, &ok);
 
     if (!ok) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -291,7 +290,7 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
   }
 
   // read the next dir offset
-  uint32_t nextdiroff = read_uint(f, 4, big_endian, &ok);
+  int64_t nextdiroff = read_uint(f, 4, big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read next directory offset");
@@ -330,7 +329,7 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
 
   bool ok = true;
   uint16_t version = read_uint(f, 2, big_endian, &ok);
-  uint32_t diroff = read_uint(f, 4, big_endian, &ok);
+  int64_t diroff = read_uint(f, 4, big_endian, &ok);
 
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
