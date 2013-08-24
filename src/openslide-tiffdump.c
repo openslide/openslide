@@ -118,9 +118,9 @@ static uint64_t read_uint(FILE *f, int32_t size, bool big_endian, bool *ok) {
   }
 }
 
-static void *read_tiff_tag(FILE *f, int32_t size, int64_t count,
-                           int64_t offset, uint8_t value[],
-                           bool big_endian) {
+static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
+                             int64_t offset, uint8_t value[],
+                             bool big_endian) {
   if (size <= 0 || count <= 0 || count > SSIZE_MAX / size) {
     return NULL;
   }
@@ -131,7 +131,7 @@ static void *read_tiff_tag(FILE *f, int32_t size, int64_t count,
     return NULL;
   }
 
-  //g_debug("reading tiff tag: len: %"G_GINT64_FORMAT", value/offset %u", len, (unsigned) offset);
+  //g_debug("reading tiff value: len: %"G_GINT64_FORMAT", value/offset %u", len, (unsigned) offset);
   if (len <= 4) {
     // inline
     memcpy(result, value, len);
@@ -249,28 +249,29 @@ static GHashTable *read_directory(FILE *f, uint32_t *diroff,
     case TIFF_ASCII:
     case TIFF_SBYTE:
     case TIFF_UNDEFINED:
-      item->value = read_tiff_tag(f, 1, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 1, count, offset, value, big_endian);
       break;
 
     case TIFF_SHORT:
     case TIFF_SSHORT:
-      item->value = read_tiff_tag(f, 2, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 2, count, offset, value, big_endian);
       break;
 
     case TIFF_LONG:
     case TIFF_SLONG:
     case TIFF_FLOAT:
     case TIFF_IFD:
-      item->value = read_tiff_tag(f, 4, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 4, count, offset, value, big_endian);
       break;
 
     case TIFF_RATIONAL:
     case TIFF_SRATIONAL:
-      item->value = read_tiff_tag(f, 4, count * 2, offset, value, big_endian);
+      item->value = read_tiff_value(f, 4, count * 2, offset, value,
+                                    big_endian);
       break;
 
     case TIFF_DOUBLE:
-      item->value = read_tiff_tag(f, 8, count, offset, value, big_endian);
+      item->value = read_tiff_value(f, 8, count, offset, value, big_endian);
       break;
 
     default:
