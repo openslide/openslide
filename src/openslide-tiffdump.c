@@ -39,7 +39,7 @@
 
 
 struct _openslide_tiffdump {
-  GSList *directories;
+  GPtrArray *directories;
 };
 
 struct _openslide_tiffdump_item {
@@ -349,6 +349,7 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
   // allocate struct
   struct _openslide_tiffdump *tiffdump =
     g_slice_new0(struct _openslide_tiffdump);
+  tiffdump->directories = g_ptr_array_new();
 
   // initialize loop detector
   GHashTable *loop_detector = g_hash_table_new_full(_openslide_int64_hash,
@@ -364,16 +365,15 @@ struct _openslide_tiffdump *_openslide_tiffdump_create(FILE *f, GError **err) {
     if (ht == NULL) {
       // no, so destroy everything
       _openslide_tiffdump_destroy(tiffdump);
-      g_hash_table_unref(loop_detector);
-      return NULL;
+      tiffdump = NULL;
+      break;
     }
 
-    // add result to list
-    tiffdump->directories = g_slist_prepend(tiffdump->directories, ht);
+    // add result to array
+    g_ptr_array_add(tiffdump->directories, ht);
   }
 
   g_hash_table_unref(loop_detector);
-  tiffdump->directories = g_slist_reverse(tiffdump->directories);
   return tiffdump;
 }
 
@@ -382,12 +382,10 @@ void _openslide_tiffdump_destroy(struct _openslide_tiffdump *tiffdump) {
   if (tiffdump == NULL) {
     return;
   }
-  GSList *el = tiffdump->directories;
-  while (el != NULL) {
-    GHashTable *ht = el->data;
-    g_hash_table_unref(ht);
-    el = g_slist_delete_link(el, el);
+  for (uint32_t n = 0; n < tiffdump->directories->len; n++) {
+    g_hash_table_unref(tiffdump->directories->pdata[n]);
   }
+  g_ptr_array_free(tiffdump->directories, true);
   g_slice_free(struct _openslide_tiffdump, tiffdump);
 }
 
@@ -459,7 +457,8 @@ static int tag_compare(gconstpointer a, gconstpointer b) {
 }
 
 static void print_directory(struct _openslide_tiffdump *tiffdump,
-                            int64_t dir, GHashTable *ht) {
+                            int64_t dir) {
+  GHashTable *ht = tiffdump->directories->pdata[dir];
   GList *keys = g_hash_table_get_keys(ht);
   keys = g_list_sort(keys, tag_compare);
   for (GList *el = keys; el; el = el->next) {
@@ -472,30 +471,23 @@ static void print_directory(struct _openslide_tiffdump *tiffdump,
 }
 
 void _openslide_tiffdump_print(struct _openslide_tiffdump *tiffdump) {
-  int i = 0;
-
-  GSList *el = tiffdump->directories;
-  while (el != NULL) {
-    printf("Directory %d\n", i);
-
-    print_directory(tiffdump, i, el->data);
-
-    i++;
-    el = el->next;
+  for (uint32_t n = 0; n < tiffdump->directories->len; n++) {
+    printf("Directory %u\n", n);
+    print_directory(tiffdump, n);
   }
 }
 
 int64_t _openslide_tiffdump_get_directory_count(struct _openslide_tiffdump *tiffdump) {
-  return g_slist_length(tiffdump->directories);
+  return tiffdump->directories->len;
 }
 
 static struct _openslide_tiffdump_item *get_item(struct _openslide_tiffdump *tiffdump,
                                                  int64_t dir, int32_t tag) {
-  GHashTable *ht = g_slist_nth_data(tiffdump->directories, dir);
-  if (ht == NULL) {
+  if (dir < 0 || dir >= tiffdump->directories->len) {
     return NULL;
   }
-  return g_hash_table_lookup(ht, GINT_TO_POINTER(tag));
+  return g_hash_table_lookup(tiffdump->directories->pdata[dir],
+                             GINT_TO_POINTER(tag));
 }
 
 int64_t _openslide_tiffdump_get_value_count(struct _openslide_tiffdump *tiffdump,
