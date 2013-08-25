@@ -130,6 +130,15 @@ struct ngr_level {
   int32_t column_width;
 };
 
+enum OpenSlideHamamatsuError {
+  // JPEG does not contain restart markers
+  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
+};
+static GQuark _openslide_hamamatsu_error_quark(void) {
+  return g_quark_from_string("openslide-hamamatsu-error-quark");
+}
+#define OPENSLIDE_HAMAMATSU_ERROR _openslide_hamamatsu_error_quark()
+
 /*
  * Source manager for doing fancy things with libjpeg and restart markers,
  * initially copied from jdatasrc.c from IJG libjpeg.
@@ -921,7 +930,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
       goto DONE;
     }
     if (cinfo.restart_interval == 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_HAMAMATSU_ERROR,
+                  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
                   "No restart markers");
       goto DONE;
     }
@@ -1961,6 +1971,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
   struct _openslide_tifflike *tl = NULL;
   GPtrArray *jpeg_array = g_ptr_array_new();
   GPtrArray *level_array = g_ptr_array_new();
+  GError *tmp_err = NULL;
   bool success = false;
 
   // open file
@@ -2000,8 +2011,6 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
       _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPOFFSETS, 0, &ok);
     int64_t num_bytes =
       _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPBYTECOUNTS, 0, &ok);
-    int64_t mcu_start_count =
-      _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, 0, &ok);
 
@@ -2021,11 +2030,6 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     if (lens > 0) {
       // is a pyramid level
 
-      if (!mcu_start_count) {
-        // non-tiled image
-        g_debug("skipping non-tiled image %"G_GINT64_FORMAT, dir);
-        continue;
-      }
       if (width > 65535 || height > 65535) {
         // invalid JPEG
         g_debug("skipping high-resolution image %"G_GINT64_FORMAT, dir);
@@ -2038,11 +2042,19 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
         _openslide_io_error(err, "Couldn't fseek %s", filename);
         goto DONE;
       }
-      if (!verify_jpeg(f, &jp_w, &jp_h, &jp_tw, &jp_th, NULL, err)) {
-        g_prefix_error(err,
-                       "Can't verify JPEG for directory %"G_GINT64_FORMAT": ",
-                       dir);
-        goto DONE;
+      if (!verify_jpeg(f, &jp_w, &jp_h, &jp_tw, &jp_th, NULL, &tmp_err)) {
+        if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
+                            OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
+          // non-tiled image
+          g_debug("skipping non-tiled image %"G_GINT64_FORMAT, dir);
+          g_clear_error(&tmp_err);
+          continue;
+        } else {
+          g_propagate_prefixed_error(err, tmp_err,
+                                     "Can't verify JPEG for directory "
+                                     "%"G_GINT64_FORMAT": ", dir);
+          goto DONE;
+        }
       }
       if (width != jp_w || height != jp_h) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
