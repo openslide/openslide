@@ -2046,9 +2046,10 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
         if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
           // non-tiled image
-          g_debug("skipping non-tiled image %"G_GINT64_FORMAT, dir);
+          g_debug("non-tiled image %"G_GINT64_FORMAT, dir);
           g_clear_error(&tmp_err);
-          continue;
+          jp_w = jp_tw = width;
+          jp_h = jp_th = height;
         } else {
           g_propagate_prefixed_error(err, tmp_err,
                                      "Can't verify JPEG for directory "
