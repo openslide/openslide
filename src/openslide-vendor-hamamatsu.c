@@ -67,6 +67,7 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 
 struct jpeg {
   char *filename;
+  int64_t start_in_file;
   int64_t end_in_file;
 
   int32_t tiles_across;
@@ -152,6 +153,7 @@ static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
 
 static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                    FILE *infile,
+                                   int64_t header_start_position,
                                    int64_t header_stop_position,
                                    int64_t start_position,
                                    int64_t stop_position,
@@ -172,17 +174,19 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   src->pub.term_source = term_source;
 
   // check for problems
-  if ((header_stop_position == -1) ||
+  if ((header_start_position == -1) || (header_stop_position == -1) ||
       (start_position == -1) || (stop_position == -1) ||
-      (0 >= header_stop_position) ||
+      (header_start_position >= header_stop_position) ||
       (header_stop_position > start_position) ||
       (start_position >= stop_position)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                "Can't do random access JPEG read: "
+	       "header_start_position: %" G_GINT64_FORMAT ", "
 	       "header_stop_position: %" G_GINT64_FORMAT ", "
 	       "start_position: %" G_GINT64_FORMAT ", "
 	       "stop_position: %" G_GINT64_FORMAT,
-	       header_stop_position, start_position, stop_position);
+	       header_start_position, header_stop_position,
+	       start_position, stop_position);
 
     src->buffer_size = 0;
     src->pub.bytes_in_buffer = 0;
@@ -191,7 +195,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   // compute size of buffer and allocate
-  int header_length = header_stop_position;
+  int header_length = header_stop_position - header_start_position;
   int data_length = stop_position - start_position;
 
   src->buffer_size = header_length + data_length;
@@ -201,8 +205,8 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   src->pub.next_input_byte = src->buffer;
 
   // read in the 2 parts
-  //  g_debug("reading header");
-  fseeko(infile, 0, SEEK_SET);
+  //  g_debug("reading header from %"G_GINT64_FORMAT, header_start_position);
+  fseeko(infile, header_start_position, SEEK_SET);
   if (!fread(src->buffer, header_length, 1, infile)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot read header in JPEG");
@@ -309,7 +313,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
     jmp_buf env;
 
     // init jpeg
-    fseeko(f, 0, SEEK_SET);
+    fseeko(f, jpeg->start_in_file, SEEK_SET);
 
     if (setjmp(env) == 0) {
       cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -487,6 +491,7 @@ static bool read_from_jpeg(openslide_t *osr,
     jpeg_create_decompress(&cinfo);
 
     if (!jpeg_random_access_src(&cinfo, f,
+                                jpeg->start_in_file,
                                 header_stop_position,
                                 start_position,
                                 stop_position,
