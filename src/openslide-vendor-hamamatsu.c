@@ -709,7 +709,9 @@ static void jpeg_do_destroy(openslide_t *osr) {
   data->restart_marker_thread_stop = true;
   g_cond_signal(data->restart_marker_cond);
   g_mutex_unlock(data->restart_marker_cond_mutex);
-  g_thread_join(data->restart_marker_thread);
+  if (data->restart_marker_thread) {
+    g_thread_join(data->restart_marker_thread);
+  }
 
   // jpegs and levels
   jpeg_destroy_data(data->jpeg_count, data->all_jpegs,
@@ -1193,6 +1195,7 @@ static void init_jpeg_ops(openslide_t *osr,
   // for debugging
   if (false) {
     g_thread_join(data->restart_marker_thread);
+    data->restart_marker_thread = NULL;
     verify_mcu_starts(data);
   }
 
