@@ -241,6 +241,30 @@ static void jpeg_tile_free(gpointer data) {
   g_slice_free(struct jpeg_tile, data);
 }
 
+static void jpeg_destroy_data(int32_t num_jpegs, struct jpeg **jpegs,
+                              int32_t level_count,
+                              struct jpeg_level **levels) {
+  // each jpeg in turn
+  for (int32_t i = 0; i < num_jpegs; i++) {
+    struct jpeg *jpeg = jpegs[i];
+    g_free(jpeg->filename);
+    g_free(jpeg->mcu_starts);
+    g_free(jpeg->unreliable_mcu_starts);
+    g_slice_free(struct jpeg, jpeg);
+  }
+
+  // the JPEG array
+  g_free(jpegs);
+
+  // each level in turn
+  for (int32_t i = 0; i < level_count; i++) {
+    jpeg_level_free(levels[i]);
+  }
+
+  // the level array
+  g_free(levels);
+}
+
 static uint8_t find_next_ff_marker(FILE *f,
 				   uint8_t *buf_start,
 				   uint8_t **buf,
@@ -687,27 +711,9 @@ static void jpeg_do_destroy(openslide_t *osr) {
   g_mutex_unlock(data->restart_marker_cond_mutex);
   g_thread_join(data->restart_marker_thread);
 
-  // each jpeg in turn
-  for (int32_t i = 0; i < data->jpeg_count; i++) {
-    struct jpeg *jpeg = data->all_jpegs[i];
-    g_free(jpeg->filename);
-    g_free(jpeg->mcu_starts);
-    g_free(jpeg->unreliable_mcu_starts);
-    g_slice_free(struct jpeg, jpeg);
-  }
-
-  // each level in turn
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    struct jpeg_level *l = (struct jpeg_level *) osr->levels[i];
-    _openslide_grid_destroy(l->grid);
-    g_slice_free(struct jpeg_level, l);
-  }
-
-  // the level array
-  g_free(osr->levels);
-
-  // the JPEG array
-  g_free(data->all_jpegs);
+  // jpegs and levels
+  jpeg_destroy_data(data->jpeg_count, data->all_jpegs,
+                    osr->level_count, (struct jpeg_level **) osr->levels);
 
   // the background stuff
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -1415,19 +1421,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
   } else {
     // destroy
-    for (int i = 0; i < num_jpegs; i++) {
-      g_free(jpegs[i]->filename);
-      g_free(jpegs[i]->mcu_starts);
-      g_free(jpegs[i]->unreliable_mcu_starts);
-      g_slice_free(struct jpeg, jpegs[i]);
-    }
-    g_free(jpegs);
-
-    for (int32_t i = 0; i < level_count; i++) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct jpeg_level, levels[i]);
-    }
-    g_free(levels);
+    jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
   }
 
   return success;
