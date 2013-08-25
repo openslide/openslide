@@ -1407,32 +1407,13 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   g_debug("num_jpegs: %d", num_jpegs);
   */
 
-  if (osr == NULL) {
-    // free now and return
-    for (int32_t i = 0; i < num_jpegs; i++) {
-      g_free(jpegs[i]->filename);
-      g_free(jpegs[i]->mcu_starts);
-      g_free(jpegs[i]->unreliable_mcu_starts);
-      g_slice_free(struct jpeg, jpegs[i]);
-    }
-    g_free(jpegs);
-
-    for (int32_t i = 0; i < level_count; i++) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct jpeg_level, levels[i]);
-    }
-    g_free(levels);
-
-    return true;
-  }
-
-  // init ops
-  init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
-
   success = true;
 
  DONE:
-  if (!success) {
+  if (success && osr) {
+    // init ops
+    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
+  } else {
     // destroy
     for (int i = 0; i < num_jpegs; i++) {
       g_free(jpegs[i]->filename);
