@@ -89,8 +89,6 @@ struct jpeg_level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
-  int32_t tiles_across;
-  int32_t tiles_down;
   int32_t tile_width;
   int32_t tile_height;
 
@@ -1102,9 +1100,6 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
 
       // create a derived level
       struct jpeg_level *sd_l = g_slice_new0(struct jpeg_level);
-      sd_l->tiles_across = l->tiles_across;
-      sd_l->tiles_down = l->tiles_down;
-
       sd_l->scale_denom = scale_denom;
 
       sd_l->base.w = l->base.w / scale_denom;
@@ -1333,11 +1328,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
     if (file_y == 0) {
       l->base.w += w;
-      l->tiles_across += jp->tiles_across;
     }
     if (file_x == 0) {
       l->base.h += h;
-      l->tiles_down += jp->tiles_down;
     }
 
     // set some values (don't accumulate)
@@ -1392,7 +1385,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       int64_t x = file_x * jpeg0_ta + local_tile_x;
       int64_t y = file_y * jpeg0_td + local_tile_y;
 
-      //g_debug("inserting tile: jpeg %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", l->tiles_across: %d, key: %" G_GINT64_FORMAT, i, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, l->tiles_across, *key);
+      //g_debug("inserting tile: jpeg %d tileno %d, %gx%g, file: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", key: %" G_GINT64_FORMAT, i, t->tileno, jp->tile_width, jp->tile_height, file_x, file_y, local_tile_x, local_tile_y, x, y, *key);
 
       _openslide_grid_tilemap_add_tile(l->grid,
                                        x, y, 0, 0,
@@ -1406,7 +1399,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     struct jpeg_level *l = levels[i];
     g_debug("level %d", i);
     g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
-    g_debug(" tiles %d %d", l->tiles_across, l->tiles_down);
     g_debug(" tile size %d %d", l->tile_width, l->tile_height);
   }
 
