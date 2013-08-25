@@ -1158,6 +1158,45 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
   *_levels = levels;
 }
 
+static void init_jpeg_ops(openslide_t *osr,
+                          int32_t level_count, struct jpeg_level **levels,
+                          int32_t num_jpegs, struct jpeg **jpegs) {
+  // allocate private data
+  g_assert(osr->data == NULL);
+  struct hamamatsu_jpeg_ops_data *data =
+    g_slice_new0(struct hamamatsu_jpeg_ops_data);
+  data->jpeg_count = num_jpegs;
+  data->all_jpegs = jpegs;
+  osr->data = data;
+
+  // create scale_denom levels
+  create_scaled_jpeg_levels(osr, &level_count, &levels);
+
+  // populate the level count and array
+  g_assert(osr->levels == NULL);
+  osr->level_count = level_count;
+  osr->levels = (struct _openslide_level **) levels;
+
+  // init background thread for finding restart markers
+  data->restart_marker_timer = g_timer_new();
+  data->restart_marker_mutex = g_mutex_new();
+  data->restart_marker_cond = g_cond_new();
+  data->restart_marker_cond_mutex = g_mutex_new();
+  data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
+						osr,
+						TRUE,
+						NULL);
+
+  // for debugging
+  if (false) {
+    g_thread_join(data->restart_marker_thread);
+    verify_mcu_starts(data);
+  }
+
+  // set ops
+  osr->ops = &hamamatsu_jpeg_ops;
+}
+
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
 				int num_jpeg_cols,
@@ -1387,40 +1426,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     return true;
   }
 
-  // allocate private data
-  g_assert(osr->data == NULL);
-  struct hamamatsu_jpeg_ops_data *data =
-    g_slice_new0(struct hamamatsu_jpeg_ops_data);
-  data->jpeg_count = num_jpegs;
-  data->all_jpegs = jpegs;
-  osr->data = data;
-
-  // create scale_denom levels
-  create_scaled_jpeg_levels(osr, &level_count, &levels);
-
-  // populate the level count and array
-  g_assert(osr->levels == NULL);
-  osr->level_count = level_count;
-  osr->levels = (struct _openslide_level **) levels;
-
-  // init background thread for finding restart markers
-  data->restart_marker_timer = g_timer_new();
-  data->restart_marker_mutex = g_mutex_new();
-  data->restart_marker_cond = g_cond_new();
-  data->restart_marker_cond_mutex = g_mutex_new();
-  data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
-						osr,
-						TRUE,
-						NULL);
-
-  // for debugging
-  if (false) {
-    g_thread_join(data->restart_marker_thread);
-    verify_mcu_starts(data);
-  }
-
-  // set ops
-  osr->ops = &hamamatsu_jpeg_ops;
+  // init ops
+  init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
 
   success = true;
 
