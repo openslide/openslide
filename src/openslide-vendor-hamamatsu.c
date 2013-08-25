@@ -97,7 +97,7 @@ struct jpeg_level {
   int32_t scale_denom;
 };
 
-struct vms_ops_data {
+struct hamamatsu_jpeg_ops_data {
   int32_t jpeg_count;
   struct jpeg **all_jpegs;
 
@@ -407,7 +407,7 @@ static bool compute_mcu_start(openslide_t *osr,
 			      int64_t *start_position,
 			      int64_t *stop_position,
 			      GError **err) {
-  struct vms_ops_data *data = osr->data;
+  struct hamamatsu_jpeg_ops_data *data = osr->data;
   bool success = false;
 
   g_mutex_lock(data->restart_marker_mutex);
@@ -590,7 +590,7 @@ static bool read_jpeg_tile(openslide_t *osr,
   int32_t tw = l->tile_width;
   int32_t th = l->tile_height;
 
-  //g_debug("vms read_tile: dim: %d %d", tile->jpeg->tile_width, tile->jpeg->tile_height);
+  //g_debug("hamamatsu read_tile: dim: %d %d", tile->jpeg->tile_width, tile->jpeg->tile_height);
 
   // get the jpeg data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -635,12 +635,12 @@ static bool read_jpeg_tile(openslide_t *osr,
 }
 
 
-static bool vms_paint_region(openslide_t *osr, cairo_t *cr,
-                             int64_t x, int64_t y,
-                             struct _openslide_level *level,
-                             int32_t w, int32_t h,
-                             GError **err) {
-  struct vms_ops_data *data = osr->data;
+static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
+                              int64_t x, int64_t y,
+                              struct _openslide_level *level,
+                              int32_t w, int32_t h,
+                              GError **err) {
+  struct hamamatsu_jpeg_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
 
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -676,8 +676,8 @@ static bool vms_paint_region(openslide_t *osr, cairo_t *cr,
   return success;
 }
 
-static void vms_destroy(openslide_t *osr) {
-  struct vms_ops_data *data = osr->data;
+static void jpeg_do_destroy(openslide_t *osr) {
+  struct hamamatsu_jpeg_ops_data *data = osr->data;
 
   // tell the thread to finish and wait
   g_mutex_lock(data->restart_marker_cond_mutex);
@@ -721,12 +721,12 @@ static void vms_destroy(openslide_t *osr) {
   g_mutex_free(data->restart_marker_cond_mutex);
 
   // the structure
-  g_slice_free(struct vms_ops_data, data);
+  g_slice_free(struct hamamatsu_jpeg_ops_data, data);
 }
 
-static const struct _openslide_ops vms_ops = {
-  .paint_region = vms_paint_region,
-  .destroy = vms_destroy,
+static const struct _openslide_ops hamamatsu_jpeg_ops = {
+  .paint_region = jpeg_paint_region,
+  .destroy = jpeg_do_destroy,
 };
 
 static gint width_compare(gconstpointer a, gconstpointer b) {
@@ -739,7 +739,7 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
 }
 
 // warning: calls g_assert for trivial things, use only for debugging
-static void verify_mcu_starts(struct vms_ops_data *data) {
+static void verify_mcu_starts(struct hamamatsu_jpeg_ops_data *data) {
   g_debug("verifying mcu starts");
 
   int32_t current_jpeg = 0;
@@ -772,7 +772,7 @@ static void verify_mcu_starts(struct vms_ops_data *data) {
 
 static gpointer restart_marker_thread_func(gpointer d) {
   openslide_t *osr = d;
-  struct vms_ops_data *data = osr->data;
+  struct hamamatsu_jpeg_ops_data *data = osr->data;
 
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
@@ -1389,7 +1389,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
   // allocate private data
   g_assert(osr->data == NULL);
-  struct vms_ops_data *data = g_slice_new0(struct vms_ops_data);
+  struct hamamatsu_jpeg_ops_data *data =
+    g_slice_new0(struct hamamatsu_jpeg_ops_data);
   data->jpeg_count = num_jpegs;
   data->all_jpegs = jpegs;
   osr->data = data;
@@ -1419,7 +1420,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   }
 
   // set ops
-  osr->ops = &vms_ops;
+  osr->ops = &hamamatsu_jpeg_ops;
 
   success = true;
 
