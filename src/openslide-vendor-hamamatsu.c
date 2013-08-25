@@ -38,7 +38,6 @@
 #include <config.h>
 
 #include "openslide-private.h"
-#include "openslide-tiffdump.h"
 
 #include <glib.h>
 #include <setjmp.h>
@@ -1982,13 +1981,13 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     return false;
   }
 
-  struct _openslide_tiffdump *dump = _openslide_tiffdump_create(f, err);
-  if (!dump) {
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(f, err);
+  if (!tl) {
     fclose(f);
     return false;
   }
-  _openslide_tiffdump_print(dump);
-  _openslide_tiffdump_destroy(dump);
+  _openslide_tifflike_print(tl);
+  _openslide_tifflike_destroy(tl);
   fclose(f);
 
   /* XXX function is incomplete */

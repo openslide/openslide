@@ -21,11 +21,11 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-decode-jp2k.c \
 	src/openslide-decode-jpeg.c \
 	src/openslide-decode-tiff.c \
+	src/openslide-decode-tifflike.c \
 	src/openslide-error.c \
 	src/openslide-grid.c \
 	src/openslide-hash.c \
 	src/openslide-jdatasrc.c \
-	src/openslide-tiffdump.c \
 	src/openslide-util.c \
 	src/openslide-vendor-aperio.c \
 	src/openslide-vendor-generic-tiff.c \
@@ -56,7 +56,6 @@ noinst_HEADERS = \
 	src/openslide-error.h \
 	src/openslide-hash.h \
 	src/openslide-private.h \
-	src/openslide-tiffdump.h \
 	tools/openslide-tools-common.h
 
 
