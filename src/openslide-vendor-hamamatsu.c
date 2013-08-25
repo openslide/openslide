@@ -53,6 +53,7 @@
 
 #define NGR_TILE_HEIGHT 64
 
+// VMS/VMU
 static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char GROUP_VMU[] = "Uncompressed Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
@@ -64,6 +65,11 @@ static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static const char KEY_MACRO_IMAGE[] = "MacroImage";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
+
+// NDPI
+static const char NDPI_SOFTWARE[] = "NDP.scan";
+#define NDPI_SOURCELENS 65421
+#define NDPI_MCU_STARTS 65426
 
 struct jpeg {
   char *filename;
@@ -1951,27 +1957,170 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 				   struct _openslide_hash *quickhash1,
 				   GError **err) {
-  FILE *f = _openslide_fopen(filename, "rb", NULL);
+  FILE *f = NULL;
+  struct _openslide_tifflike *tl = NULL;
+  GPtrArray *jpeg_array = g_ptr_array_new();
+  GPtrArray *level_array = g_ptr_array_new();
+  bool success = false;
+
+  // open file
+  f = _openslide_fopen(filename, "rb", err);
   if (!f) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Can't open file");
-    return false;
+    goto DONE;
   }
 
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(f, err);
+  // parse TIFF
+  tl = _openslide_tifflike_create(f, err);
   if (!tl) {
-    fclose(f);
-    return false;
+    goto DONE;
   }
-  _openslide_tifflike_print(tl);
+
+  // check for NDPI
+  const char *software = _openslide_tifflike_get_buffer(tl, 0,
+                                                        TIFFTAG_SOFTWARE);
+  if (software == NULL ||
+      strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unexpected or missing Software tag");
+    goto DONE;
+  }
+
+  // walk directories
+  int64_t directories = _openslide_tifflike_get_directory_count(tl);
+  for (int64_t dir = 0; dir < directories; dir++) {
+    // read tags
+    bool ok = true;
+    int64_t width =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_IMAGEWIDTH, 0, &ok);
+    int64_t height =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_IMAGELENGTH, 0, &ok);
+    int64_t rows_per_strip =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_ROWSPERSTRIP, 0, &ok);
+    int64_t start_in_file =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPOFFSETS, 0, &ok);
+    int64_t num_bytes =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPBYTECOUNTS, 0, &ok);
+    int64_t mcu_start_count =
+      _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
+    double lens =
+      _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, 0, &ok);
+
+    // check results
+    if (!ok) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Missing TIFF tag in directory %"G_GINT64_FORMAT, dir);
+      goto DONE;
+    }
+    if (height != rows_per_strip) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unexpected rows per strip %"G_GINT64_FORMAT" "
+                  "(height %"G_GINT64_FORMAT")", rows_per_strip, height);
+      goto DONE;
+    }
+
+    if (lens > 0) {
+      // is a pyramid level
+
+      if (!mcu_start_count) {
+        // non-tiled image
+        g_debug("skipping non-tiled image %"G_GINT64_FORMAT, dir);
+        continue;
+      }
+      if (width > 65535 || height > 65535) {
+        // invalid JPEG
+        g_debug("skipping high-resolution image %"G_GINT64_FORMAT, dir);
+        continue;
+      }
+
+      // verify JPEG
+      int32_t jp_w, jp_h, jp_tw, jp_th;
+      if (fseeko(f, start_in_file, SEEK_SET)) {
+        _openslide_io_error(err, "Couldn't fseek %s", filename);
+        goto DONE;
+      }
+      if (!verify_jpeg(f, &jp_w, &jp_h, &jp_tw, &jp_th, NULL, err)) {
+        g_prefix_error(err,
+                       "Can't verify JPEG for directory %"G_GINT64_FORMAT": ",
+                       dir);
+        goto DONE;
+      }
+      if (width != jp_w || height != jp_h) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "JPEG dimension mismatch for directory "
+                    "%"G_GINT64_FORMAT": "
+                    "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
+                    "found %dx%d",
+                    dir, width, height, jp_w, jp_h);
+        goto DONE;
+      }
+
+      // init jpeg
+      struct jpeg *jp = g_slice_new0(struct jpeg);
+      jp->filename = g_strdup(filename);
+      jp->start_in_file = start_in_file;
+      jp->end_in_file = start_in_file + num_bytes;
+      jp->width = width;
+      jp->height = height;
+      jp->tiles_across = width / jp_tw;
+      jp->tiles_down = height / jp_th;
+      jp->tile_width = jp_tw;
+      jp->tile_height = jp_th;
+      jp->tile_count = jp->tiles_across * jp->tiles_down;
+      jp->mcu_starts = g_new(int64_t, jp->tile_count);
+      // init all to -1
+      for (int32_t i = 0; i < jp->tile_count; i++) {
+        jp->mcu_starts[i] = -1;
+      }
+      g_ptr_array_add(jpeg_array, jp);
+
+      // init level
+      struct jpeg_level *l = g_slice_new0(struct jpeg_level);
+      init_level_from_jpeg(osr, l, jp,
+                           0, 0,
+                           jp->tiles_across, jp->tiles_down);
+      g_ptr_array_add(level_array, l);
+
+    } else if (lens == -1) {
+      // macro image
+      if (!_openslide_jpeg_add_associated_image(osr, "macro",
+                                                filename, start_in_file,
+                                                err)) {
+        goto DONE;
+      }
+    }
+  }
+
+  success = true;
+
+DONE:
+  // free
   _openslide_tifflike_destroy(tl);
-  fclose(f);
+  if (f) {
+    fclose(f);
+  }
 
-  /* XXX function is incomplete */
-  (void) osr;
-  (void) quickhash1;
+  // unwrap jpegs
+  int32_t num_jpegs = jpeg_array->len;
+  struct jpeg **jpegs = (struct jpeg **) g_ptr_array_free(jpeg_array, false);
 
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-              "NDPI not supported");
-  return false;
+  // unwrap levels
+  int32_t level_count = level_array->len;
+  struct jpeg_level **levels =
+    (struct jpeg_level **) g_ptr_array_free(level_array, false);
+
+  if (success && osr) {
+    // init ops
+    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
+    // disable quickhash for now
+    _openslide_hash_disable(quickhash1);
+    // set vendor
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                        g_strdup("hamamatsu"));
+  } else {
+    // destroy
+    jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
+  }
+
+  return success;
 }
