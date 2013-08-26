@@ -2084,6 +2084,29 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
       for (int32_t i = 0; i < jp->tile_count; i++) {
         jp->mcu_starts[i] = -1;
       }
+
+      // read MCU starts, if this directory is tiled
+      if (jp->tile_count > 1) {
+        int64_t mcu_start_count =
+          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
+        if (mcu_start_count == jp->tile_count) {
+          g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
+          jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
+          ok = true;
+          for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+            jp->unreliable_mcu_starts[tile] =
+              _openslide_tifflike_get_uint(tl, dir, NDPI_MCU_STARTS, tile,
+                                           &ok) + jp->start_in_file;
+            //g_debug("mcu start at %"G_GINT64_FORMAT, jp->unreliable_mcu_starts[tile]);
+          }
+          if (!ok) {
+            g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
+            g_free(jp->unreliable_mcu_starts);
+            jp->unreliable_mcu_starts = NULL;
+          }
+        }
+      }
+
       g_ptr_array_add(jpeg_array, jp);
 
       // init level
