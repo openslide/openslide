@@ -1181,7 +1181,8 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
 
 static void init_jpeg_ops(openslide_t *osr,
                           int32_t level_count, struct jpeg_level **levels,
-                          int32_t num_jpegs, struct jpeg **jpegs) {
+                          int32_t num_jpegs, struct jpeg **jpegs,
+                          bool background_thread) {
   // allocate private data
   g_assert(osr->data == NULL);
   struct hamamatsu_jpeg_ops_data *data =
@@ -1203,15 +1204,21 @@ static void init_jpeg_ops(openslide_t *osr,
   data->restart_marker_mutex = g_mutex_new();
   data->restart_marker_cond = g_cond_new();
   data->restart_marker_cond_mutex = g_mutex_new();
-  data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
-						osr,
-						TRUE,
-						NULL);
+  if (background_thread) {
+    data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
+                                                  osr,
+                                                  TRUE,
+                                                  NULL);
+  }
 
   // for debugging
   if (false) {
-    g_thread_join(data->restart_marker_thread);
-    data->restart_marker_thread = NULL;
+    if (background_thread) {
+      g_thread_join(data->restart_marker_thread);
+      data->restart_marker_thread = NULL;
+    } else {
+      restart_marker_thread_func(osr);
+    }
     verify_mcu_starts(data);
   }
 
@@ -1423,7 +1430,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
  DONE:
   if (success && osr) {
     // init ops
-    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
+    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs, true);
   } else {
     // destroy
     jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
@@ -1973,6 +1980,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
   GPtrArray *level_array = g_ptr_array_new();
   GError *tmp_err = NULL;
   bool success = false;
+  bool restart_marker_scan = false;
 
   // open file
   f = _openslide_fopen(filename, "rb", err);
@@ -2089,6 +2097,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
       if (jp->tile_count > 1) {
         int64_t mcu_start_count =
           _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
+
         if (mcu_start_count == jp->tile_count) {
           g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
           jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
@@ -2104,6 +2113,12 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
             g_free(jp->unreliable_mcu_starts);
             jp->unreliable_mcu_starts = NULL;
           }
+        }
+
+        if (jp->unreliable_mcu_starts == NULL) {
+          // no marker positions; scan for them in the background
+          g_debug("enabling restart marker thread for directory %"G_GINT64_FORMAT, dir);
+          restart_marker_scan = true;
         }
       }
 
@@ -2146,7 +2161,8 @@ DONE:
 
   if (success && osr) {
     // init ops
-    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs);
+    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs,
+                  restart_marker_scan);
     // disable quickhash for now
     _openslide_hash_disable(quickhash1);
     // set vendor
