@@ -189,8 +189,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   src->pub.term_source = term_source;
 
   // check for problems
-  if ((header_start_position == -1) || (header_stop_position == -1) ||
-      (start_position == -1) || (stop_position == -1) ||
+  if ((0 > header_start_position) ||
       (header_start_position >= header_stop_position) ||
       (header_stop_position > start_position) ||
       (start_position >= stop_position)) {
@@ -498,11 +497,13 @@ static bool compute_mcu_start(openslide_t *osr,
   // end of header; always computed by _compute_mcu_start
   if (header_stop_position) {
     *header_stop_position = jpeg->mcu_starts[0];
+    g_assert(*header_stop_position != -1);
   }
 
   // start of data stream
   if (start_position) {
     *start_position = jpeg->mcu_starts[tileno];
+    g_assert(*start_position != -1);
   }
 
   // end of data stream
@@ -516,6 +517,7 @@ static bool compute_mcu_start(openslide_t *osr,
       }
       *stop_position = jpeg->mcu_starts[tileno + 1];
     }
+    g_assert(*stop_position != -1);
   }
 
   success = true;
