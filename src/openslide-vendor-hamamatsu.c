@@ -70,6 +70,8 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 static const char NDPI_SOFTWARE[] = "NDP.scan";
 #define NDPI_SOURCELENS 65421
 #define NDPI_MCU_STARTS 65426
+#define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
+#define JPEG_MAX_DIMENSION_LOW (JPEG_MAX_DIMENSION & 0xff)
 
 struct jpeg {
   char *filename;
@@ -86,6 +88,8 @@ struct jpeg {
   int32_t tile_count;
   int64_t *mcu_starts;
   int64_t *unreliable_mcu_starts;
+
+  int64_t sof_position;
 };
 
 struct jpeg_tile {
@@ -169,6 +173,7 @@ static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
 static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                    FILE *infile,
                                    int64_t header_start_position,
+                                   int64_t sof_position,
                                    int64_t header_stop_position,
                                    int64_t start_position,
                                    int64_t stop_position,
@@ -190,17 +195,19 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 
   // check for problems
   if ((0 > header_start_position) ||
-      (header_start_position >= header_stop_position) ||
+      (header_start_position >= sof_position) ||
+      (sof_position + 9 >= header_stop_position) ||
       (start_position != -1 &&
        ((header_stop_position > start_position) ||
         (start_position >= stop_position)))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                "Can't do random access JPEG read: "
 	       "header_start_position: %" G_GINT64_FORMAT ", "
+	       "sof_position: %" G_GINT64_FORMAT ", "
 	       "header_stop_position: %" G_GINT64_FORMAT ", "
 	       "start_position: %" G_GINT64_FORMAT ", "
 	       "stop_position: %" G_GINT64_FORMAT,
-	       header_start_position, header_stop_position,
+	       header_start_position, sof_position, header_stop_position,
 	       start_position, stop_position);
 
     src->buffer_size = 0;
@@ -248,6 +255,25 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     }
     src->buffer[src->buffer_size - 1] = JPEG_EOI;
   }
+
+  // check for overlarge or 0 X/Y in SOF (some NDPI JPEGs have this)
+  // change them to a value libjpeg will accept
+  int64_t size_offset = sof_position - header_start_position + 5;
+  uint16_t y = (src->buffer[size_offset + 0] << 8) +
+                src->buffer[size_offset + 1];
+  if (y > JPEG_MAX_DIMENSION || y == 0) {
+    //g_debug("fixing up SOF Y");
+    src->buffer[size_offset + 0] = JPEG_MAX_DIMENSION_HIGH;
+    src->buffer[size_offset + 1] = JPEG_MAX_DIMENSION_LOW;
+  }
+  uint16_t x = (src->buffer[size_offset + 2] << 8) +
+                src->buffer[size_offset + 3];
+  if (x > JPEG_MAX_DIMENSION || x == 0) {
+    //g_debug("fixing up SOF X");
+    src->buffer[size_offset + 2] = JPEG_MAX_DIMENSION_HIGH;
+    src->buffer[size_offset + 3] = JPEG_MAX_DIMENSION_LOW;
+  }
+
   return true;
 }
 
@@ -292,7 +318,9 @@ static void jpeg_destroy_data(int32_t num_jpegs, struct jpeg **jpegs,
   g_free(levels);
 }
 
-static bool find_bitstream_start(FILE *f, GError **err) {
+static bool find_bitstream_start(FILE *f,
+                                 int64_t *sof_position,
+                                 GError **err) {
   uint8_t buf[2];
   uint8_t marker_byte;
   uint16_t len;
@@ -315,6 +343,14 @@ static bool find_bitstream_start(FILE *f, GError **err) {
     if (marker_byte == 0xD8) {
       // SOI; no marker segment
       continue;
+    }
+
+    // check for SOF
+    if ((marker_byte >= 0xC0 && marker_byte <= 0xC3) ||
+        (marker_byte >= 0xC5 && marker_byte <= 0xC7) ||
+        (marker_byte >= 0xC9 && marker_byte <= 0xCB) ||
+        (marker_byte >= 0xCD && marker_byte <= 0xCF)) {
+      *sof_position = pos;
     }
 
     // read length
@@ -411,7 +447,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
     // walk through marker segments in header
     fseeko(f, jpeg->start_in_file, SEEK_SET);
 
-    if (!find_bitstream_start(f, err)) {
+    if (!find_bitstream_start(f, &jpeg->sof_position, err)) {
       g_prefix_error(err, "Reading JPEG header: ");
       return false;
     }
@@ -488,6 +524,7 @@ static bool compute_mcu_start(openslide_t *osr,
 			      struct jpeg *jpeg,
 			      FILE *f,
 			      int64_t tileno,
+			      int64_t *sof_position,
 			      int64_t *header_stop_position,
 			      int64_t *start_position,
 			      int64_t *stop_position,
@@ -499,6 +536,11 @@ static bool compute_mcu_start(openslide_t *osr,
 
   if (!_compute_mcu_start(jpeg, f, tileno, err)) {
     goto OUT;
+  }
+
+  // SOF position; always computed by _compute_mcu_start
+  if (sof_position) {
+    *sof_position = jpeg->sof_position;
   }
 
   // end of header; always computed by _compute_mcu_start
@@ -561,10 +603,12 @@ static bool read_from_jpeg(openslide_t *osr,
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
+    int64_t sof_position;
     int64_t header_stop_position;
     int64_t start_position;
     int64_t stop_position;
     if (!compute_mcu_start(osr, jpeg, f, tileno,
+                           &sof_position,
                            &header_stop_position,
                            &start_position,
                            &stop_position,
@@ -580,6 +624,7 @@ static bool read_from_jpeg(openslide_t *osr,
 
     if (!jpeg_random_access_src(&cinfo, f,
                                 jpeg->start_in_file,
+                                sof_position,
                                 header_stop_position,
                                 start_position,
                                 stop_position,
@@ -906,7 +951,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       }
 
       if (!compute_mcu_start(osr, jp, current_file, current_mcu_start,
-                             NULL, NULL, NULL, &tmp_err)) {
+                             NULL, NULL, NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
         fclose(current_file);
         break;
@@ -955,7 +1000,8 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
 
   // find limits of JPEG header
   int64_t header_start = ftello(f);
-  if (!find_bitstream_start(f, err)) {
+  int64_t sof_position;
+  if (!find_bitstream_start(f, &sof_position, err)) {
     return false;
   }
   int64_t header_stop = ftello(f);
@@ -964,7 +1010,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
     if (!jpeg_random_access_src(&cinfo, f,
-                                header_start, header_stop,
+                                header_start, sof_position, header_stop,
                                 -1, -1, err)) {
       goto DONE;
     }
