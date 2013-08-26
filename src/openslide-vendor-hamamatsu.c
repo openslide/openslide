@@ -245,6 +245,12 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   return true;
 }
 
+// does not destroy cinfo
+static void random_access_src_destroy(j_decompress_ptr cinfo) {
+  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;   // sorry
+  g_slice_free1(src->buffer_size, src->buffer);
+}
+
 static void jpeg_level_free(gpointer data) {
   //g_debug("level_free: %p", data);
   struct jpeg_level *l = data;
@@ -634,8 +640,7 @@ OUT_JPEG:
   (void) 0; // dummy statement for label
 
   // stop jpeg
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo.src;   // sorry
-  g_slice_free1(src->buffer_size, src->buffer);
+  random_access_src_destroy(&cinfo);
   jpeg_destroy_decompress(&cinfo);
 
 OUT:
