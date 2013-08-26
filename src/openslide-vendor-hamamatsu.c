@@ -191,8 +191,9 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   // check for problems
   if ((0 > header_start_position) ||
       (header_start_position >= header_stop_position) ||
-      (header_stop_position > start_position) ||
-      (start_position >= stop_position)) {
+      (start_position != -1 &&
+       ((header_stop_position > start_position) ||
+        (start_position >= stop_position)))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                "Can't do random access JPEG read: "
 	       "header_start_position: %" G_GINT64_FORMAT ", "
@@ -210,7 +211,10 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 
   // compute size of buffer and allocate
   int header_length = header_stop_position - header_start_position;
-  int data_length = stop_position - start_position;
+  int data_length = 0;
+  if (start_position != -1) {
+    data_length = stop_position - start_position;
+  }
 
   src->buffer_size = header_length + data_length;
   src->pub.bytes_in_buffer = src->buffer_size;
@@ -226,21 +230,24 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                 "Cannot read header in JPEG");
     return false;
   }
-  //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
-  fseeko(infile, start_position, SEEK_SET);
-  if (!fread(src->buffer + header_length, data_length, 1, infile)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot read data in JPEG");
-    return false;
-  }
 
-  // change the final byte to EOI
-  if (src->buffer[src->buffer_size - 2] != 0xFF) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Expected 0xFF byte at end of JPEG data");
-    return false;
+  if (data_length) {
+    //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
+    fseeko(infile, start_position, SEEK_SET);
+    if (!fread(src->buffer + header_length, data_length, 1, infile)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read data in JPEG");
+      return false;
+    }
+
+    // change the final byte to EOI
+    if (src->buffer[src->buffer_size - 2] != 0xFF) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Expected 0xFF byte at end of JPEG data");
+      return false;
+    }
+    src->buffer[src->buffer_size - 1] = JPEG_EOI;
   }
-  src->buffer[src->buffer_size - 1] = JPEG_EOI;
   return true;
 }
 
@@ -946,10 +953,21 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
     *comment = NULL;
   }
 
+  // find limits of JPEG header
+  int64_t header_start = ftello(f);
+  if (!find_bitstream_start(f, err)) {
+    return false;
+  }
+  int64_t header_stop = ftello(f);
+
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
-    _openslide_jpeg_stdio_src(&cinfo, f);
+    if (!jpeg_random_access_src(&cinfo, f,
+                                header_start, header_stop,
+                                -1, -1, err)) {
+      goto DONE;
+    }
 
     int header_result;
 
@@ -1026,6 +1044,7 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   success = true;
 
 DONE:
+  random_access_src_destroy(&cinfo);
   jpeg_destroy_decompress(&cinfo);
   return success;
 }
