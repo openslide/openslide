@@ -280,6 +280,55 @@ static void jpeg_destroy_data(int32_t num_jpegs, struct jpeg **jpegs,
   g_free(levels);
 }
 
+static bool find_bitstream_start(FILE *f, GError **err) {
+  uint8_t buf[2];
+  uint8_t marker_byte;
+  uint16_t len;
+  int64_t pos;
+
+  while (true) {
+    // read marker
+    pos = ftello(f);
+    if (fread(buf, sizeof(buf), 1, f) != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG marker");
+      return false;
+    }
+    if (buf[0] != 0xFF) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Expected marker at %"G_GINT64_FORMAT", found none", pos);
+      return false;
+    }
+    marker_byte = buf[1];
+    if (marker_byte == 0xD8) {
+      // SOI; no marker segment
+      continue;
+    }
+
+    // read length
+    if (fread(buf, sizeof(buf), 1, f) != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't read JPEG marker length");
+      return false;
+    }
+    memcpy(&len, buf, sizeof(len));
+    len = GUINT16_FROM_BE(len);
+
+    // seek
+    if (fseek(f, pos + sizeof(buf) + len, SEEK_SET)) {
+      _openslide_io_error(err, "Couldn't seek");
+      return false;
+    }
+
+    // check for SOS
+    if (marker_byte == 0xDA) {
+      // found it; done
+      //g_debug("found bitstream start at %"G_GINT64_FORMAT, ftello(f));
+      return true;
+    }
+  }
+}
+
 static uint8_t find_next_ff_marker(FILE *f,
 				   uint8_t *buf_start,
 				   uint8_t **buf,
@@ -347,31 +396,16 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
 			       GError **err) {
   // special case for first
   if (jpeg->mcu_starts[0] == -1) {
-    struct jpeg_decompress_struct cinfo;
-    struct _openslide_jpeg_error_mgr jerr;
-    jmp_buf env;
-
-    // init jpeg
+    // walk through marker segments in header
     fseeko(f, jpeg->start_in_file, SEEK_SET);
 
-    if (setjmp(env) == 0) {
-      cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
-      jpeg_create_decompress(&cinfo);
-      _openslide_jpeg_stdio_src(&cinfo, f);
-      jpeg_read_header(&cinfo, TRUE);
-      jpeg_start_decompress(&cinfo);
-    } else {
-      // setjmp returns again
-      g_propagate_prefixed_error(err, jerr.err, "Error initializing JPEG: ");
-      jpeg_destroy_decompress(&cinfo);
+    if (!find_bitstream_start(f, err)) {
+      g_prefix_error(err, "Reading JPEG header: ");
       return false;
     }
 
     // set the first entry
-    jpeg->mcu_starts[0] = ftello(f) - cinfo.src->bytes_in_buffer;
-
-    // done
-    jpeg_destroy_decompress(&cinfo);
+    jpeg->mcu_starts[0] = ftello(f);
   }
 
   // walk backwards to find the first non -1 offset
