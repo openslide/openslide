@@ -989,11 +989,6 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
   jmp_buf env;
   bool success = false;
 
-  *w = 0;
-  *h = 0;
-  *tw = 0;
-  *th = 0;
-
   if (comment) {
     *comment = NULL;
   }
