@@ -981,7 +981,9 @@ static gpointer restart_marker_thread_func(gpointer d) {
 }
 
 // returns w and h and tw and th and comment as a convenience
-static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
+// if !use_jpeg_dimensions, use *w and *h instead of setting them
+static bool verify_jpeg(FILE *f, bool use_jpeg_dimensions,
+			int32_t *w, int32_t *h,
 			int32_t *tw, int32_t *th,
 			char **comment, GError **err) {
   struct jpeg_decompress_struct cinfo;
@@ -1050,32 +1052,39 @@ static bool verify_jpeg(FILE *f, int32_t *w, int32_t *h,
       jpeg_save_markers(&cinfo, JPEG_COM, 0);  // stop saving
     }
 
-    *w = cinfo.output_width;
-    *h = cinfo.output_height;
+    if (use_jpeg_dimensions) {
+      *w = cinfo.output_width;
+      *h = cinfo.output_height;
+    }
 
-    if (cinfo.restart_interval > cinfo.MCUs_per_row) {
+    int32_t mcu_width = DCTSIZE;
+    int32_t mcu_height = DCTSIZE;
+    if (cinfo.comps_in_scan > 1) {
+      mcu_width = cinfo.max_h_samp_factor * DCTSIZE;
+      mcu_height = cinfo.max_v_samp_factor * DCTSIZE;
+    }
+
+    // don't trust cinfo.MCUs_per_row, since it's based on libjpeg's belief
+    // about the image width instead of the actual value
+    uint32_t mcus_per_row = (*w / mcu_width) + !!(*w % mcu_width);
+
+    if (cinfo.restart_interval > mcus_per_row) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Restart interval greater than MCUs per row");
       goto DONE;
     }
 
-    *tw = *w / (cinfo.MCUs_per_row / cinfo.restart_interval);
-    *th = *h / cinfo.MCU_rows_in_scan;
-    int leftover_mcus = cinfo.MCUs_per_row % cinfo.restart_interval;
+    int leftover_mcus = mcus_per_row % cinfo.restart_interval;
     if (leftover_mcus != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Inconsistent restart marker spacing within row");
       goto DONE;
     }
 
+    *tw = mcu_width * cinfo.restart_interval;
+    *th = mcu_height;
 
-    //  g_debug("w: %d, h: %d, restart_interval: %d\n"
-    //	 "mcus_per_row: %d, mcu_rows_in_scan: %d\n"
-    //	 "leftover mcus: %d",
-    //	 cinfo.output_width, cinfo.output_height,
-    //	 cinfo.restart_interval,
-    //	 cinfo.MCUs_per_row, cinfo.MCU_rows_in_scan,
-    //	 leftover_mcus);
+    //g_debug("size: %d %d, tile size: %d %d, mcu size: %d %d, restart_interval: %d, mcus_per_row: %u, leftover mcus: %d", *w, *h, *tw, *th, mcu_width, mcu_height, cinfo.restart_interval, mcus_per_row, leftover_mcus);
   } else {
     // setjmp has returned again
     g_propagate_error(err, jerr.err);
@@ -1422,7 +1431,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, &jp->width, &jp->height,
+    if (!verify_jpeg(f, true,
+                     &jp->width, &jp->height,
                      &jp->tile_width, &jp->tile_height,
                      comment_ptr, err)) {
       g_prefix_error(err, "Can't verify JPEG %d: ", i);
@@ -2139,19 +2149,22 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     if (lens > 0) {
       // is a pyramid level
 
-      if (width > 65535 || height > 65535) {
-        // invalid JPEG
-        g_debug("skipping high-resolution image %"G_GINT64_FORMAT, dir);
-        continue;
-      }
+      // will the JPEG image dimensions be valid?
+      bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
+                               height <= JPEG_MAX_DIMENSION);
 
       // verify JPEG
-      int32_t jp_w, jp_h, jp_tw, jp_th;
+      int32_t jp_w = width;  // overwritten if dimensions_valid
+      int32_t jp_h = height; // overwritten if dimensions_valid
+      int32_t jp_tw, jp_th;
       if (fseeko(f, start_in_file, SEEK_SET)) {
         _openslide_io_error(err, "Couldn't fseek %s", filename);
         goto DONE;
       }
-      if (!verify_jpeg(f, &jp_w, &jp_h, &jp_tw, &jp_th, NULL, &tmp_err)) {
+      if (!verify_jpeg(f, dimensions_valid,
+                       &jp_w, &jp_h,
+                       &jp_tw, &jp_th,
+                       NULL, &tmp_err)) {
         if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
           // non-tiled image
