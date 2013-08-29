@@ -396,18 +396,27 @@ struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err) {
 
     // was the directory successfully read?
     if (ht == NULL) {
-      // no, so destroy everything
-      _openslide_tifflike_destroy(tl);
-      tl = NULL;
-      break;
+      goto FAIL;
     }
 
     // add result to array
     g_ptr_array_add(tl->directories, ht);
   }
 
+  // ensure there are directories
+  if (tl->directories->len == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "TIFF contains no directories");
+    goto FAIL;
+  }
+
   g_hash_table_unref(loop_detector);
   return tl;
+
+FAIL:
+  _openslide_tifflike_destroy(tl);
+  g_hash_table_unref(loop_detector);
+  return NULL;
 }
 
 
