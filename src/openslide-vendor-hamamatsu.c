@@ -29,9 +29,10 @@
  */
 
 /*
- * Hamamatsu (VMS, VMU) support
+ * Hamamatsu (VMS, VMU, NDPI) support
  *
- * quickhash comes from VMS/VMU file and map2 file
+ * VMS/VMU quickhash comes from VMS/VMU file and map2 file
+ * NDPI quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
  */
 
@@ -2117,6 +2118,8 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 
   // walk directories
   int64_t directories = _openslide_tifflike_get_directory_count(tl);
+  int64_t min_width = INT64_MAX;
+  int64_t min_width_dir = 0;
   for (int64_t dir = 0; dir < directories; dir++) {
     // read tags
     bool ok = true;
@@ -2148,6 +2151,12 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 
     if (lens > 0) {
       // is a pyramid level
+
+      // is smallest level?
+      if (width < min_width) {
+        min_width = width;
+        min_width_dir = dir;
+      }
 
       // will the JPEG image dimensions be valid?
       bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
@@ -2255,6 +2264,14 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     }
   }
 
+  // init properties and set hash
+  if (!_openslide_tifflike_init_properties_and_hash(osr, filename, tl,
+                                                    quickhash1,
+                                                    min_width_dir, 0,
+                                                    err)) {
+    goto DONE;
+  }
+
   success = true;
 
 DONE:
@@ -2277,8 +2294,6 @@ DONE:
     // init ops
     init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs,
                   restart_marker_scan);
-    // disable quickhash for now
-    _openslide_hash_disable(quickhash1);
     // set vendor
     g_hash_table_insert(osr->properties,
                         g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
