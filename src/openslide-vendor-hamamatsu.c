@@ -2177,7 +2177,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
         if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
           // non-tiled image
-          g_debug("non-tiled image %"G_GINT64_FORMAT, dir);
+          //g_debug("non-tiled image %"G_GINT64_FORMAT, dir);
           g_clear_error(&tmp_err);
           jp_w = jp_tw = width;
           jp_h = jp_th = height;
@@ -2222,7 +2222,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
           _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
 
         if (mcu_start_count == jp->tile_count) {
-          g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
+          //g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
           jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
           ok = true;
           for (int64_t tile = 0; tile < mcu_start_count; tile++) {
@@ -2232,7 +2232,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
             //g_debug("mcu start at %"G_GINT64_FORMAT, jp->unreliable_mcu_starts[tile]);
           }
           if (!ok) {
-            g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
+            //g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
             g_free(jp->unreliable_mcu_starts);
             jp->unreliable_mcu_starts = NULL;
           }
@@ -2240,7 +2240,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 
         if (jp->unreliable_mcu_starts == NULL) {
           // no marker positions; scan for them in the background
-          g_debug("enabling restart marker thread for directory %"G_GINT64_FORMAT, dir);
+          //g_debug("enabling restart marker thread for directory %"G_GINT64_FORMAT, dir);
           restart_marker_scan = true;
         }
       }
