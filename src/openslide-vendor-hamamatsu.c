@@ -74,6 +74,7 @@ static const char NDPI_SOFTWARE[] = "NDP.scan";
 #define NDPI_YOFFSET 65423
 #define NDPI_MCU_STARTS 65426
 #define NDPI_REFERENCE 65427
+#define NDPI_PROPERTY_MAP 65449
 #define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
 #define JPEG_MAX_DIMENSION_LOW (JPEG_MAX_DIMENSION & 0xff)
 
@@ -2169,6 +2170,23 @@ static void ndpi_set_props(openslide_t *osr,
                      "hamamatsu.YOffsetFromSlideCentre");
   ndpi_set_string_prop(ht, tl, dir, NDPI_REFERENCE,
                        "hamamatsu.Reference");
+
+  // ASCII property map
+  const char *props = _openslide_tifflike_get_buffer(tl, dir,
+                                                     NDPI_PROPERTY_MAP);
+  if (props) {
+    char **records = g_strsplit(props, "\r\n", 0);
+    for (char **cur_record = records; *cur_record; cur_record++) {
+      char **pair = g_strsplit(*cur_record, "=", 2);
+      if (pair[0] && pair[0][0] && pair[1] && pair[1][0]) {
+        g_hash_table_insert(ht,
+                            g_strdup_printf("hamamatsu.%s", pair[0]),
+                            g_strdup(pair[1]));
+      }
+      g_strfreev(pair);
+    }
+    g_strfreev(records);
+  }
 }
 
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
