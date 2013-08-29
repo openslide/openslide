@@ -141,13 +141,13 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
     const char *result;
 
     switch(resolution_unit) {
-    case 1:
+    case RESUNIT_NONE:
       result = "none";
       break;
-    case 2:
+    case RESUNIT_INCH:
       result = "inch";
       break;
-    case 3:
+    case RESUNIT_CENTIMETER:
       result = "centimeter";
       break;
     default:
