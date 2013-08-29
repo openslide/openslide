@@ -70,7 +70,10 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 // NDPI
 static const char NDPI_SOFTWARE[] = "NDP.scan";
 #define NDPI_SOURCELENS 65421
+#define NDPI_XOFFSET 65422
+#define NDPI_YOFFSET 65423
 #define NDPI_MCU_STARTS 65426
+#define NDPI_REFERENCE 65427
 #define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
 #define JPEG_MAX_DIMENSION_LOW (JPEG_MAX_DIMENSION & 0xff)
 
@@ -2083,6 +2086,91 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   return success;
 }
 
+static void ndpi_set_sint_prop(GHashTable *ht,
+                               struct _openslide_tifflike *tl,
+                               int64_t dir, int32_t tag,
+                               const char *property_name) {
+  bool ok = true;
+  int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, 0, &ok);
+  if (ok) {
+    g_hash_table_insert(ht, g_strdup(property_name),
+                        g_strdup_printf("%"G_GINT64_FORMAT, value));
+  }
+}
+
+static void ndpi_set_float_prop(GHashTable *ht,
+                                struct _openslide_tifflike *tl,
+                                int64_t dir, int32_t tag,
+                                const char *property_name) {
+  bool ok = true;
+  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
+  if (ok) {
+    g_hash_table_insert(ht, g_strdup(property_name),
+                        _openslide_format_double(value));
+  }
+}
+
+static void ndpi_set_resolution_prop(GHashTable *ht,
+                                     struct _openslide_tifflike *tl,
+                                     int64_t dir, int32_t tag,
+                                     const char *property_name) {
+  bool ok = true;
+  uint64_t unit = _openslide_tifflike_get_uint(tl, dir,
+                                               TIFFTAG_RESOLUTIONUNIT, 0, &ok);
+  if (!ok) {
+    unit = RESUNIT_INCH;  // default
+    ok = true;
+  }
+  double res = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
+
+  if (ok && unit == RESUNIT_CENTIMETER) {
+    g_hash_table_insert(ht, g_strdup(property_name),
+                        _openslide_format_double(10000.0 / res));
+  }
+}
+
+static void ndpi_set_string_prop(GHashTable *ht,
+                                 struct _openslide_tifflike *tl,
+                                 int64_t dir, int32_t tag,
+                                 const char *property_name) {
+  const char *value = _openslide_tifflike_get_buffer(tl, dir, tag);
+  if (value) {
+    g_hash_table_insert(ht, g_strdup(property_name), g_strdup(value));
+  }
+}
+
+static void ndpi_set_props(openslide_t *osr,
+                           struct _openslide_tifflike *tl, int64_t dir) {
+  if (!osr) {
+    return;
+  }
+  GHashTable *ht = osr->properties;
+
+  // vendor
+  g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                      g_strdup("hamamatsu"));
+
+  // MPP
+  ndpi_set_resolution_prop(ht, tl, dir, TIFFTAG_XRESOLUTION,
+                           OPENSLIDE_PROPERTY_NAME_MPP_X);
+  ndpi_set_resolution_prop(ht, tl, dir, TIFFTAG_YRESOLUTION,
+                           OPENSLIDE_PROPERTY_NAME_MPP_Y);
+
+  // objective power
+  ndpi_set_float_prop(ht, tl, dir, NDPI_SOURCELENS,
+                      "hamamatsu.SourceLens");
+  ndpi_set_float_prop(ht, tl, dir, NDPI_SOURCELENS,
+                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+
+  // misc properties
+  ndpi_set_sint_prop(ht, tl, dir, NDPI_XOFFSET,
+                     "hamamatsu.XOffsetFromSlideCentre");
+  ndpi_set_sint_prop(ht, tl, dir, NDPI_YOFFSET,
+                     "hamamatsu.YOffsetFromSlideCentre");
+  ndpi_set_string_prop(ht, tl, dir, NDPI_REFERENCE,
+                       "hamamatsu.Reference");
+}
+
 bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 				   struct _openslide_hash *quickhash1,
 				   GError **err) {
@@ -2271,6 +2359,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
                                                     err)) {
     goto DONE;
   }
+  ndpi_set_props(osr, tl, 0);
 
   success = true;
 
@@ -2294,10 +2383,6 @@ DONE:
     // init ops
     init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs,
                   restart_marker_scan);
-    // set vendor
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                        g_strdup("hamamatsu"));
   } else {
     // destroy
     jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
