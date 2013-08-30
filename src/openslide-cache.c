@@ -89,7 +89,8 @@ static guint hash_func(gconstpointer key) {
   const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
-  return (guint) (((guint64) c_key->level) + ((c_key->y << 14) ^ (c_key->x)));
+  return (guint) (((uint64_t) c_key->level) ^
+                  ((34369 * (uint64_t) c_key->y) + ((uint64_t) c_key->x)));
 }
 
 static gboolean key_equal_func(gconstpointer a,

@@ -292,7 +292,7 @@ static guint grid_tile_hash_func(gconstpointer key) {
   const struct grid_tile *tile = key;
 
   // assume 32-bit hash
-  return (guint) ((tile->row << 16) ^ (tile->col));
+  return (guint) ((34369 * (uint64_t) tile->row) + ((uint64_t) tile->col));
 }
 
 static gboolean grid_tile_hash_key_equal(gconstpointer a, gconstpointer b) {
