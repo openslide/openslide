@@ -1394,7 +1394,7 @@ static void init_level_from_jpeg(openslide_t *osr,
 
 static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpegs, char **image_filenames,
-				int num_jpeg_cols,
+				int num_jpeg_cols, int num_jpeg_rows,
 				FILE *optimisation_file,
 				GError **err) {
   bool success = false;
@@ -1466,9 +1466,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // file is done now
     fclose(f);
 
-    // because map file is last, ensure that all tw and th are the
-    // same for 0 through num_jpegs-2
-    //    g_debug("tile size: %d %d", tw, th);
+    // because map file is last, ensure that all tile_{width,height} are the
+    // same, and that all tiles_{across,down} are the same except in the last
+    // column/row, for 0 through num_jpegs-2
     if (i == 0) {
       jpeg0_tw = jp->tile_width;
       jpeg0_th = jp->tile_height;
@@ -1476,10 +1476,23 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       jpeg0_td = jp->tiles_down;
     } else if (i != (num_jpegs - 1)) {
       // not map file (still within level 0)
-      g_assert(jpeg0_tw != 0 && jpeg0_th != 0);
+      g_assert(jpeg0_tw != 0 && jpeg0_th != 0 &&
+               jpeg0_ta != 0 && jpeg0_td != 0);
       if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Tile size not consistent");
+        goto DONE;
+      }
+      if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
+          jp->tiles_across != jpeg0_ta) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tiles across not consistent");
+        goto DONE;
+      }
+      if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
+          jp->tiles_down != jpeg0_td) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tiles down not consistent");
         goto DONE;
       }
     }
@@ -2037,7 +2050,7 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
     // do all the jpeg stuff
     success = hamamatsu_vms_part2(osr,
 				  num_images, image_filenames,
-				  num_cols,
+				  num_cols, num_rows,
 				  optimisation_file,
 				  err);
 
