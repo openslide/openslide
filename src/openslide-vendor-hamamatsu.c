@@ -1341,10 +1341,12 @@ static void init_jpeg_ops(openslide_t *osr,
   osr->ops = &hamamatsu_jpeg_ops;
 }
 
-static void init_level_from_jpegs(openslide_t *osr,
-                                  struct jpeg_level *l,
-                                  struct jpeg **jpegs,
-                                  int32_t jpeg_cols, int32_t jpeg_rows) {
+static struct jpeg_level *create_jpeg_level(openslide_t *osr,
+                                            struct jpeg **jpegs,
+                                            int32_t jpeg_cols,
+                                            int32_t jpeg_rows) {
+  struct jpeg_level *l = g_slice_new0(struct jpeg_level);
+
   // accumulate dimensions
   for (int32_t x = 0; x < jpeg_cols; x++) {
     struct jpeg *jp = jpegs[x];
@@ -1395,6 +1397,8 @@ static void init_level_from_jpegs(openslide_t *osr,
       }
     }
   }
+
+  return l;
 }
 
 static bool hamamatsu_vms_part2(openslide_t *osr,
@@ -1402,19 +1406,14 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 				int num_jpeg_cols, int num_jpeg_rows,
 				FILE *optimisation_file,
 				GError **err) {
+  struct jpeg_level **levels = NULL;
+  int32_t level_count = 0;
   bool success = false;
 
   // initialize individual jpeg structs
   struct jpeg **jpegs = g_new0(struct jpeg *, num_jpegs);
   for (int i = 0; i < num_jpegs; i++) {
     jpegs[i] = g_slice_new0(struct jpeg);
-  }
-
-  // init levels: base image + map
-  int32_t level_count = 2;
-  struct jpeg_level **levels = g_new0(struct jpeg_level *, level_count);
-  for (int32_t i = 0; i < level_count; i++) {
-    levels[i] = g_slice_new0(struct jpeg_level);
   }
 
   // process jpegs
@@ -1522,13 +1521,13 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
   }
 
-  // build level 0 (base)
-  init_level_from_jpegs(osr, levels[0], jpegs,
-                        num_jpeg_cols, num_jpeg_rows);
-
-  // build level 1 (map)
-  init_level_from_jpegs(osr, levels[1], &jpegs[num_jpegs - 1],
-                        1, 1);
+  // create levels: base image + map
+  level_count = 2;
+  levels = g_new0(struct jpeg_level *, level_count);
+  // base
+  levels[0] = create_jpeg_level(osr, jpegs, num_jpeg_cols, num_jpeg_rows);
+  // map
+  levels[1] = create_jpeg_level(osr, &jpegs[num_jpegs - 1], 1, 1);
 
   /*
   for (int32_t i = 0; i < level_count; i++) {
@@ -2353,9 +2352,8 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 
       g_ptr_array_add(jpeg_array, jp);
 
-      // init level
-      struct jpeg_level *l = g_slice_new0(struct jpeg_level);
-      init_level_from_jpegs(osr, l, &jp, 1, 1);
+      // create level
+      struct jpeg_level *l = create_jpeg_level(osr, &jp, 1, 1);
       g_ptr_array_add(level_array, l);
 
     } else if (lens == -1) {
