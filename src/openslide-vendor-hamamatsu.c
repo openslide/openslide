@@ -1341,54 +1341,59 @@ static void init_jpeg_ops(openslide_t *osr,
   osr->ops = &hamamatsu_jpeg_ops;
 }
 
-// call once for each jpeg in the level
-static void init_level_from_jpeg(openslide_t *osr,
-                                 struct jpeg_level *l, struct jpeg *jp,
-                                 int32_t jpeg_x, int32_t jpeg_y,
-                                 int32_t jpeg0_ta, int32_t jpeg0_td) {
-  // accumulate level dimensions
-  if (jpeg_y == 0) {
+static void init_level_from_jpegs(openslide_t *osr,
+                                  struct jpeg_level *l,
+                                  struct jpeg **jpegs,
+                                  int32_t jpeg_cols, int32_t jpeg_rows) {
+  // accumulate dimensions
+  for (int32_t x = 0; x < jpeg_cols; x++) {
+    struct jpeg *jp = jpegs[x];
     l->base.w += jp->width;
   }
-  if (jpeg_x == 0) {
+  for (int32_t y = 0; y < jpeg_rows; y++) {
+    struct jpeg *jp = jpegs[y * jpeg_cols];
     l->base.h += jp->height;
   }
 
-  // set some values (don't accumulate)
+  // init values
+  l->tile_width = jpegs[0]->tile_width;
+  l->tile_height = jpegs[0]->tile_height;
   l->scale_denom = 1;
-  l->tile_width = jp->tile_width;
-  l->tile_height = jp->tile_height;
+
   // tile size hints
-  l->base.tile_w = jp->tile_width;
-  l->base.tile_h = jp->tile_height;
+  l->base.tile_w = l->tile_width;
+  l->base.tile_h = l->tile_height;
 
   // create grid
-  if (l->grid == NULL) {
-    l->grid = _openslide_grid_create_tilemap(osr,
-                                             l->tile_width, l->tile_height,
-                                             read_jpeg_tile, jpeg_tile_free);
-  }
+  l->grid = _openslide_grid_create_tilemap(osr,
+                                           l->tile_width, l->tile_height,
+                                           read_jpeg_tile, jpeg_tile_free);
 
   // add tiles
-  for (int32_t tileno = 0; tileno < jp->tile_count; tileno++) {
-    struct jpeg_tile *t = g_slice_new0(struct jpeg_tile);
+  for (int32_t jpeg_y = 0; jpeg_y < jpeg_rows; jpeg_y++) {
+    for (int32_t jpeg_x = 0; jpeg_x < jpeg_cols; jpeg_x++) {
+      struct jpeg *jp = jpegs[jpeg_y * jpeg_cols + jpeg_x];
+      for (int32_t tileno = 0; tileno < jp->tile_count; tileno++) {
+        struct jpeg_tile *t = g_slice_new0(struct jpeg_tile);
 
-    int32_t tile_x = tileno % jp->tiles_across;
-    int32_t tile_y = tileno / jp->tiles_across;
+        int32_t tile_x = tileno % jp->tiles_across;
+        int32_t tile_y = tileno / jp->tiles_across;
 
-    t->jpeg = jp;
-    t->tileno = tileno;
+        t->jpeg = jp;
+        t->tileno = tileno;
 
-    // compute tile coordinates
-    int64_t x = jpeg_x * jpeg0_ta + tile_x;
-    int64_t y = jpeg_y * jpeg0_td + tile_y;
+        // compute tile coordinates
+        int64_t x = jpeg_x * jpegs[0]->tiles_across + tile_x;
+        int64_t y = jpeg_y * jpegs[0]->tiles_down + tile_y;
 
-    //g_debug("inserting tile: tileno %d, %gx%g, jpeg: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", t->tileno, jp->tile_width, jp->tile_height, jpeg_x, jpeg_y, tile_x, tile_y, x, y);
+        //g_debug("inserting tile: tileno %d, %gx%g, jpeg: %d %d, local: %d %d, global: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", t->tileno, jp->tile_width, jp->tile_height, jpeg_x, jpeg_y, tile_x, tile_y, x, y);
 
-    _openslide_grid_tilemap_add_tile(l->grid,
-                                     x, y, 0, 0,
-                                     l->tile_width, l->tile_height,
-                                     t);
+        _openslide_grid_tilemap_add_tile(l->grid,
+                                         x, y, 0, 0,
+                                         l->tile_width, l->tile_height,
+                                         t);
+      }
+    }
   }
 }
 
@@ -1517,31 +1522,13 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
   }
 
-  // at this point, jpeg0_ta and jpeg0_td are set to values from 0,0 in level 0
+  // build level 0 (base)
+  init_level_from_jpegs(osr, levels[0], jpegs,
+                        num_jpeg_cols, num_jpeg_rows);
 
-  // build levels
-  for (int i = 0; i < num_jpegs; i++) {
-    int32_t level;
-    int32_t file_x;
-    int32_t file_y;
-    if (i != num_jpegs - 1) {
-      // base (level 0)
-      level = 0;
-      file_x = i % num_jpeg_cols;
-      file_y = i / num_jpeg_cols;
-    } else {
-      // map (level 1)
-      level = 1;
-      file_x = 0;
-      file_y = 0;
-    }
-
-    //g_debug("processing file %d %d %d", file_x, file_y, level);
-
-    init_level_from_jpeg(osr, levels[level], jpegs[i],
-                         file_x, file_y,
-                         jpeg0_ta, jpeg0_td);
-  }
+  // build level 1 (map)
+  init_level_from_jpegs(osr, levels[1], &jpegs[num_jpegs - 1],
+                        1, 1);
 
   /*
   for (int32_t i = 0; i < level_count; i++) {
@@ -2368,9 +2355,7 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
 
       // init level
       struct jpeg_level *l = g_slice_new0(struct jpeg_level);
-      init_level_from_jpeg(osr, l, jp,
-                           0, 0,
-                           jp->tiles_across, jp->tiles_down);
+      init_level_from_jpegs(osr, l, &jp, 1, 1);
       g_ptr_array_add(level_array, l);
 
     } else if (lens == -1) {
