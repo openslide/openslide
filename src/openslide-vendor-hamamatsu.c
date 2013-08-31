@@ -2193,8 +2193,11 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
   bool restart_marker_scan = false;
 
   // open file
-  f = _openslide_fopen(filename, "rb", err);
+  f = _openslide_fopen(filename, "rb", &tmp_err);
   if (!f) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
     goto DONE;
   }
 
