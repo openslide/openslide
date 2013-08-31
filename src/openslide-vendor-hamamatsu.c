@@ -537,6 +537,12 @@ static bool compute_mcu_start(openslide_t *osr,
   struct hamamatsu_jpeg_ops_data *data = osr->data;
   bool success = false;
 
+  if (tileno < 0 || tileno >= jpeg->tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid tileno %"G_GINT64_FORMAT, tileno);
+    return false;
+  }
+
   g_mutex_lock(data->restart_marker_mutex);
 
   if (!_compute_mcu_start(jpeg, f, tileno, err)) {
