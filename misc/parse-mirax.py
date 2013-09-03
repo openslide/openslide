@@ -119,6 +119,7 @@ class HierLevel(object):
 
 def read_zoom_level(r, dat, section):
     r('Concat factor', dat.getint(section, 'IMAGE_CONCAT_FACTOR'))
+    r('Image format', dat.get(section, 'IMAGE_FORMAT'))
     r('Image width', dat.getint(section, 'DIGITIZER_WIDTH'))
     r('Image height', dat.getint(section, 'DIGITIZER_HEIGHT'))
     r('Overlap X', dat.getfloat(section, 'OVERLAP_X'))

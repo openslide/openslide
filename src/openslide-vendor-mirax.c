@@ -139,6 +139,12 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
     }								\
   } while(0)
 
+enum image_format {
+  FORMAT_UNKNOWN,
+  FORMAT_JPEG,
+  FORMAT_PNG,
+};
+
 struct slide_zoom_level_section {
   int concat_exponent;
 
@@ -149,6 +155,7 @@ struct slide_zoom_level_section {
 
   uint32_t fill_rgb;
 
+  enum image_format image_format;
   int image_w;
   int image_h;
 };
@@ -182,6 +189,7 @@ struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
+  enum image_format image_format;
   int32_t image_width;
   int32_t image_height;
 
@@ -207,16 +215,33 @@ static void tile_free(gpointer data) {
 
 static uint32_t *read_image(openslide_t *osr,
                             struct image *image,
+                            enum image_format format,
                             int w, int h,
                             GError **err) {
   struct mirax_ops_data *data = osr->data;
+  bool result = false;
 
   uint32_t *dest = g_slice_alloc(w * h * 4);
 
-  if (!_openslide_jpeg_read(data->datafile_paths[image->fileno],
-                            image->start_in_file,
-                            dest, w, h,
-                            err)) {
+  switch (format) {
+  case FORMAT_JPEG:
+    result = _openslide_jpeg_read(data->datafile_paths[image->fileno],
+                                  image->start_in_file,
+                                  dest, w, h,
+                                  err);
+    break;
+  case FORMAT_PNG:
+    result = _openslide_png_read(data->datafile_paths[image->fileno],
+                                 image->start_in_file,
+                                 dest, w, h,
+                                 err);
+    break;
+  default:
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unknown image format %d", format);
+  }
+
+  if (!result) {
     g_slice_free1(w * h * 4, dest);
     return NULL;
   }
@@ -249,7 +274,7 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, tile->image, iw, ih, err);
+    tiledata = read_image(osr, tile->image, l->image_format, iw, ih, err);
     if (tiledata == NULL) {
       return false;
     }
@@ -964,6 +989,18 @@ static int32_t *read_slide_position_buffer(const void *buffer,
   return result;
 }
 
+static enum image_format parse_image_format(const char *name, GError **err) {
+  if (!strcmp(name, "JPEG")) {
+    return FORMAT_JPEG;
+  } else if (!strcmp(name, "PNG")) {
+    return FORMAT_PNG;
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unrecognized image format: %s", name);
+    return FORMAT_UNKNOWN;
+  }
+}
+
 static bool add_associated_image(openslide_t *osr,
                                  FILE *indexfile,
                                  int64_t nonhier_root,
@@ -1588,16 +1625,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       (bgr & 0x0000FF00) |
       ((bgr >> 16) & 0x000000FF);
 
-    // verify we are JPEG
+    // read image format
     READ_KEY_OR_FAIL(tmp, slidedat, group, KEY_IMAGE_FORMAT,
 		     value, "Can't read image format");
-    if (strcmp(tmp, "JPEG") != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Level %d not JPEG", i);
-      goto FAIL;
-    }
+    hs->image_format = parse_image_format(tmp, err);
     g_free(tmp);
     tmp = NULL;
+    if (hs->image_format == FORMAT_UNKNOWN) {
+      goto FAIL;
+    }
   }
 
   // load position stuff
@@ -1793,6 +1829,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
     l->base.w = base_w / lp->image_concat;  // image_concat is powers of 2
     l->base.h = base_h / lp->image_concat;
+    l->image_format = hs->image_format;
     l->image_width = hs->image_w;  // raw image size
     l->image_height = hs->image_h;
 

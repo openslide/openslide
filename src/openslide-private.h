@@ -399,6 +399,13 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
 
+/* PNG support */
+bool _openslide_png_read(const char *filename,
+                         int64_t offset,
+                         uint32_t *dest,
+                         int64_t w, int64_t h,
+                         GError **err);
+
 /* Cache */
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
 
