@@ -143,6 +143,7 @@ enum image_format {
   FORMAT_UNKNOWN,
   FORMAT_JPEG,
   FORMAT_PNG,
+  FORMAT_BMP,
 };
 
 struct slide_zoom_level_section {
@@ -235,6 +236,12 @@ static uint32_t *read_image(openslide_t *osr,
                                  image->start_in_file,
                                  dest, w, h,
                                  err);
+    break;
+  case FORMAT_BMP:
+    result = _openslide_gdkpixbuf_read(data->datafile_paths[image->fileno],
+                                       image->start_in_file,
+                                       dest, w, h,
+                                       err);
     break;
   default:
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -994,6 +1001,8 @@ static enum image_format parse_image_format(const char *name, GError **err) {
     return FORMAT_JPEG;
   } else if (!strcmp(name, "PNG")) {
     return FORMAT_PNG;
+  } else if (!strcmp(name, "BMP24")) {
+    return FORMAT_BMP;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unrecognized image format: %s", name);

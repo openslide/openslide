@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include <glib.h>
+#include <glib-object.h>
 #include <libxml/parser.h>
 
 #include "openslide-cairo.h"
@@ -59,6 +60,8 @@ static void __attribute__((constructor)) _openslide_init(void) {
   if (!g_thread_supported()) {
     g_thread_init(NULL);
   }
+  // initialize GObject
+  g_type_init();
   // init libxml2
   xmlInitParser();
   openslide_was_dynamically_loaded = true;

@@ -406,6 +406,13 @@ bool _openslide_png_read(const char *filename,
                          int64_t w, int64_t h,
                          GError **err);
 
+/* Formats supported by gdk-pixbuf (BMP, PNM, etc.) */
+bool _openslide_gdkpixbuf_read(const char *filename,
+                               int64_t offset,
+                               uint32_t *dest,
+                               int32_t w, int32_t h,
+                               GError **err);
+
 /* Cache */
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
 

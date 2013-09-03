@@ -13,11 +13,13 @@ ACLOCAL_AMFLAGS=-I m4
 lib_LTLIBRARIES = src/libopenslide.la
 
 src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS) $(LIBXML2_LIBS) \
-	$(OPENJPEG_LIBS) $(LIBTIFF_LIBS) $(LIBPNG_LIBS) $(ZLIB_LIBS)
+	$(OPENJPEG_LIBS) $(LIBTIFF_LIBS) $(LIBPNG_LIBS) $(GDKPIXBUF_LIBS) \
+	$(ZLIB_LIBS)
 
 src_libopenslide_la_SOURCES = \
 	src/openslide.c \
 	src/openslide-cache.c \
+	src/openslide-decode-gdkpixbuf.c \
 	src/openslide-decode-jp2k.c \
 	src/openslide-decode-jpeg.c \
 	src/openslide-decode-png.c \
@@ -43,7 +45,7 @@ endif
 .rc.lo:
 	$(AM_V_GEN)$(LIBTOOL) $(AM_V_lt) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --tag=RC --mode=compile $(RC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) -i "$<" -o "$@"
 
-src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(LIBXML2_CFLAGS) $(OPENJPEG_CFLAGS) $(LIBTIFF_CFLAGS) $(LIBPNG_CFLAGS) $(ZLIB_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
+src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(LIBXML2_CFLAGS) $(OPENJPEG_CFLAGS) $(LIBTIFF_CFLAGS) $(LIBPNG_CFLAGS) $(GDKPIXBUF_CFLAGS) $(ZLIB_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" -I$(top_srcdir)/src
 
 src_libopenslide_la_LDFLAGS = -version-info 3:3:3 -no-undefined
 
