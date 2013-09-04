@@ -131,14 +131,14 @@ bool _openslide_png_read(const char *filename,
       // need BGRA
       // RGB -> BGR, RGBA -> BGRA
       png_set_bgr(png);
-      // BGR -> BGRA
-      png_set_add_alpha(png, 0xff, PNG_FILLER_AFTER);
+      // BGR -> BGRx (BGR + filler)
+      png_set_filler(png, 0xff, PNG_FILLER_AFTER);
     } else {
       // need ARGB
       // RGBA -> ARGB
       png_set_swap_alpha(png);
-      // RGB -> ARGB
-      png_set_add_alpha(png, 0xff, PNG_FILLER_BEFORE);
+      // RGB -> xRGB (filler + RGB)
+      png_set_filler(png, 0xff, PNG_FILLER_BEFORE);
     }
 
     // check buffer size
@@ -148,6 +148,17 @@ bool _openslide_png_read(const char *filename,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unexpected bufsize %u for %"G_GINT64_FORMAT" pixels",
                   rowbytes, w);
+      goto DONE;
+    }
+
+    // alpha channel is not supported
+    // When adding support for PNGs with alpha, we will need to premultiply
+    // the RGB channels.  libpng >= 1.5.4 supports premultiplied alpha via
+    // png_set_alpha_mode().
+    int color_type = png_get_color_type(png, info);
+    if (color_type != PNG_COLOR_TYPE_RGB) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported color type %d", color_type);
       goto DONE;
     }
 
