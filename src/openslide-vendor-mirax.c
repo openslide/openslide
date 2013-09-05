@@ -64,6 +64,10 @@ static const char KEY_HIER_d_VAL_d_SECTION[] = "HIER_%d_VAL_%d_SECTION";
 static const char KEY_NONHIER_d_NAME[] = "NONHIER_%d_NAME";
 static const char KEY_NONHIER_d_COUNT[] = "NONHIER_%d_COUNT";
 static const char KEY_NONHIER_d_VAL_d[] = "NONHIER_%d_VAL_%d";
+static const char KEY_NONHIER_d_VAL_d_SECTION[] = "NONHIER_%d_VAL_%d_SECTION";
+static const char KEY_MACRO_IMAGE_TYPE[] = "THUMBNAIL_IMAGE_TYPE";
+static const char KEY_LABEL_IMAGE_TYPE[] = "BARCODE_IMAGE_TYPE";
+static const char KEY_THUMBNAIL_IMAGE_TYPE[] = "PREVIEW_IMAGE_TYPE";
 static const char VALUE_VIMSLIDE_POSITION_BUFFER[] = "VIMSLIDE_POSITION_BUFFER";
 static const char VALUE_STITCHING_INTENSITY_LAYER[] = "StitchingIntensityLayer";
 static const char VALUE_SCAN_DATA_LAYER[] = "Scan data layer";
@@ -1360,6 +1364,7 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 				  const char *group,
 				  const char *target_name,
 				  const char *target_value,
+				  char **section_name,
 				  GError **err) {
   int name_count;
   int name_index;
@@ -1386,6 +1391,21 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 
     if (strcmp(target_value, value) == 0) {
       g_free(value);
+
+      if (section_name != NULL) {
+        char *section_key = g_strdup_printf(KEY_NONHIER_d_VAL_d_SECTION,
+                                            name_index, i);
+        *section_name = g_key_file_get_value(keyfile, group, section_key,
+                                             NULL);
+        g_free(section_key);
+
+        if (!*section_name) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                      "Can't read section name");
+          return -1;
+        }
+      }
+
       return offset;
     }
 
@@ -1395,6 +1415,47 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
   }
 
   return -1;
+}
+
+static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
+                                               int nonhier_count,
+                                               const char *group,
+                                               const char *target_name,
+                                               const char *target_value,
+                                               const char *target_format_key,
+                                               GError **err) {
+  char *section_name;
+  int offset = get_nonhier_val_offset(keyfile,
+                                      nonhier_count,
+                                      group,
+                                      target_name,
+                                      target_value,
+                                      &section_name,
+                                      err);
+  if (offset == -1) {
+    return -1;
+  }
+
+  char *format = g_key_file_get_value(keyfile, section_name,
+                                      target_format_key, NULL);
+  g_free(section_name);
+  if (format == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't read associated image format");
+    return -1;
+  }
+
+  // verify image format
+  // we have only ever seen JPEG
+  if (parse_image_format(format, err) != FORMAT_JPEG) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unsupported associated image format: %s", format);
+    g_free(format);
+    return -1;
+  }
+  g_free(format);
+
+  return offset;
 }
 
 bool _openslide_try_mirax(openslide_t *osr, const char *filename,
@@ -1664,26 +1725,29 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   // associated images
-  macro_nonhier_offset = get_nonhier_val_offset(slidedat,
-						nonhier_count,
-						GROUP_HIERARCHICAL,
-						VALUE_SCAN_DATA_LAYER,
-						VALUE_SCAN_DATA_LAYER_MACRO,
-						&tmp_err);
+  macro_nonhier_offset = get_associated_image_nonhier_offset(slidedat,
+                                                             nonhier_count,
+                                                             GROUP_HIERARCHICAL,
+                                                             VALUE_SCAN_DATA_LAYER,
+                                                             VALUE_SCAN_DATA_LAYER_MACRO,
+                                                             KEY_MACRO_IMAGE_TYPE,
+                                                             &tmp_err);
   SUCCESSFUL_OR_FAIL(tmp_err);
-  label_nonhier_offset = get_nonhier_val_offset(slidedat,
-						nonhier_count,
-						GROUP_HIERARCHICAL,
-						VALUE_SCAN_DATA_LAYER,
-						VALUE_SCAN_DATA_LAYER_LABEL,
-						&tmp_err);
+  label_nonhier_offset = get_associated_image_nonhier_offset(slidedat,
+                                                             nonhier_count,
+                                                             GROUP_HIERARCHICAL,
+                                                             VALUE_SCAN_DATA_LAYER,
+                                                             VALUE_SCAN_DATA_LAYER_LABEL,
+                                                             KEY_LABEL_IMAGE_TYPE,
+                                                             &tmp_err);
   SUCCESSFUL_OR_FAIL(tmp_err);
-  thumbnail_nonhier_offset = get_nonhier_val_offset(slidedat,
-						    nonhier_count,
-						    GROUP_HIERARCHICAL,
-						    VALUE_SCAN_DATA_LAYER,
-						    VALUE_SCAN_DATA_LAYER_THUMBNAIL,
-						    &tmp_err);
+  thumbnail_nonhier_offset = get_associated_image_nonhier_offset(slidedat,
+                                                                 nonhier_count,
+                                                                 GROUP_HIERARCHICAL,
+                                                                 VALUE_SCAN_DATA_LAYER,
+                                                                 VALUE_SCAN_DATA_LAYER_THUMBNAIL,
+                                                                 KEY_THUMBNAIL_IMAGE_TYPE,
+                                                                 &tmp_err);
   SUCCESSFUL_OR_FAIL(tmp_err);
 
   /*

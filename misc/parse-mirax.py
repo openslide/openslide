@@ -262,13 +262,18 @@ def dump_mirax(path, r=None):
     # Parse nonhierarchical tree
     nonhier_tree = NonHierTree(dat)
     nonhier_offsets = {}
+    associated_image_formats = {}
     # Associated images (may be missing)
-    for key, level in (('macro', 'ScanDataLayer_SlideThumbnail'),
-            ('label', 'ScanDataLayer_SlideBarcode'),
-            ('thumbnail', 'ScanDataLayer_SlidePreview')):
+    for key, level, format_key in (
+            ('macro', 'ScanDataLayer_SlideThumbnail', 'THUMBNAIL_IMAGE_TYPE'),
+            ('label', 'ScanDataLayer_SlideBarcode', 'BARCODE_IMAGE_TYPE'),
+            ('thumbnail', 'ScanDataLayer_SlidePreview', 'PREVIEW_IMAGE_TYPE')):
         try:
-            nonhier_offsets[key] = nonhier_tree.get_layer_by_name(
-                    'Scan data layer').get_level_by_name(level).offset
+            associated_level = nonhier_tree.get_layer_by_name(
+                    'Scan data layer').get_level_by_name(level)
+            nonhier_offsets[key] = associated_level.offset
+            associated_image_formats[key] = dat.get(associated_level.section,
+                    format_key)
         except KeyError:
             pass
     # Position map (may be missing)
@@ -306,8 +311,10 @@ def dump_mirax(path, r=None):
     rr = r.child('Associated images')
     for associated in 'macro', 'label', 'thumbnail':
         if associated in nonhier_offsets:
-            read_nonhier_record(rr.child(associated), datafiles, index,
-                    nonhier_root, nonhier_offsets[associated])
+            rrr = rr.child(associated)
+            read_nonhier_record(rrr, datafiles, index, nonhier_root,
+                    nonhier_offsets[associated])
+            rrr('Format', associated_image_formats[associated])
 
     # Print slidedat zoom levels
     rr = r.child('Zoom levels')
