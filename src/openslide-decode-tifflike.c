@@ -47,7 +47,7 @@ struct _openslide_tifflike {
 };
 
 struct tiff_item {
-  TIFFDataType type;
+  uint16_t type;
   int64_t count;
   void *value;
 };
@@ -252,7 +252,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
     // allocate the item
     struct tiff_item *item = g_slice_new(struct tiff_item);
-    item->type = (TIFFDataType) type;
+    item->type = type;
     item->count = count;
 
     // load the value
