@@ -96,14 +96,12 @@ static const char KEY_DIGITIZER_WIDTH[] = "DIGITIZER_WIDTH";
 static const char KEY_DIGITIZER_HEIGHT[] = "DIGITIZER_HEIGHT";
 static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
 
-#define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE, FAIL_MSG)	\
+#define READ_KEY_OR_FAIL(TARGET, KEYFILE, GROUP, KEY, TYPE)		\
   do {									\
     GError *tmp_err = NULL;						\
     TARGET = g_key_file_get_ ## TYPE(KEYFILE, GROUP, KEY, &tmp_err);	\
     if (tmp_err != NULL) {						\
-      g_clear_error(&tmp_err);						\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
-                  FAIL_MSG);						\
+      g_propagate_error(err, tmp_err);					\
       goto FAIL;							\
     }									\
   } while(0)
@@ -1299,6 +1297,8 @@ static int get_nonhier_name_offset_helper(GKeyFile *keyfile,
 					  int *name_count_out,
 					  int *name_index_out,
 					  GError **err) {
+  GError *tmp_err = NULL;
+
   *name_count_out = 0;
   *name_index_out = 0;
 
@@ -1308,24 +1308,24 @@ static int get_nonhier_name_offset_helper(GKeyFile *keyfile,
 
     // look at a key's value
     char *key = g_strdup_printf(KEY_NONHIER_d_NAME, i);
-    char *value = g_key_file_get_value(keyfile, group,
-				       key, NULL);
+    char *value = g_key_file_get_value(keyfile, group, key, err);
     g_free(key);
 
     if (!value) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read value for nonhier name");
       return -1;
     }
 
     // save count for this name
     key = g_strdup_printf(KEY_NONHIER_d_COUNT, i);
-    int count = g_key_file_get_integer(keyfile, group,
-				       key, NULL);
+    int count = g_key_file_get_integer(keyfile, group, key, &tmp_err);
     g_free(key);
     if (!count) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read nonhier val count");
+      if (tmp_err) {
+        g_propagate_error(err, tmp_err);
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Nonhier val count is zero");
+      }
       g_free(value);
       return -1;
     }
@@ -1379,13 +1379,10 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
 
   for (int i = 0; i < name_count; i++) {
     char *key = g_strdup_printf(KEY_NONHIER_d_VAL_d, name_index, i);
-    char *value = g_key_file_get_value(keyfile, group,
-				       key, NULL);
+    char *value = g_key_file_get_value(keyfile, group, key, err);
     g_free(key);
 
     if (!value) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read value for nonhier key");
       return -1;
     }
 
@@ -1395,13 +1392,10 @@ static int get_nonhier_val_offset(GKeyFile *keyfile,
       if (section_name != NULL) {
         char *section_key = g_strdup_printf(KEY_NONHIER_d_VAL_d_SECTION,
                                             name_index, i);
-        *section_name = g_key_file_get_value(keyfile, group, section_key,
-                                             NULL);
+        *section_name = g_key_file_get_value(keyfile, group, section_key, err);
         g_free(section_key);
 
         if (!*section_name) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                      "Can't read section name");
           return -1;
         }
       }
@@ -1437,11 +1431,9 @@ static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
   }
 
   char *format = g_key_file_get_value(keyfile, section_name,
-                                      target_format_key, NULL);
+                                      target_format_key, err);
   g_free(section_name);
   if (format == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Couldn't read associated image format");
     return -1;
   }
 
@@ -1543,16 +1535,15 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_GENERAL);
 
   READ_KEY_OR_FAIL(slide_version, slidedat, GROUP_GENERAL,
-		   KEY_SLIDE_VERSION, value, "Can't read slide version");
+                   KEY_SLIDE_VERSION, value);
   READ_KEY_OR_FAIL(slide_id, slidedat, GROUP_GENERAL,
-		   KEY_SLIDE_ID, value, "Can't read slide id");
+                   KEY_SLIDE_ID, value);
   READ_KEY_OR_FAIL(images_x, slidedat, GROUP_GENERAL,
-		   KEY_IMAGENUMBER_X, integer, "Can't read images across");
+                   KEY_IMAGENUMBER_X, integer);
   READ_KEY_OR_FAIL(images_y, slidedat, GROUP_GENERAL,
-		   KEY_IMAGENUMBER_Y, integer, "Can't read images down");
+                   KEY_IMAGENUMBER_Y, integer);
   READ_KEY_OR_FAIL(objective_magnification, slidedat, GROUP_GENERAL,
-		   KEY_OBJECTIVE_MAGNIFICATION, integer,
-		   "Can't read objective magnification");
+                   KEY_OBJECTIVE_MAGNIFICATION, integer);
 
   image_divisions = g_key_file_get_integer(slidedat, GROUP_GENERAL,
 					   KEY_CAMERA_IMAGE_DIVISIONS_PER_SIDE,
@@ -1571,9 +1562,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_HIERARCHICAL);
 
   READ_KEY_OR_FAIL(hier_count, slidedat, GROUP_HIERARCHICAL,
-		   KEY_HIER_COUNT, integer, "Can't read hier count");
+                   KEY_HIER_COUNT, integer);
   READ_KEY_OR_FAIL(nonhier_count, slidedat, GROUP_HIERARCHICAL,
-		   KEY_NONHIER_COUNT, integer, "Can't read nonhier count");
+                   KEY_NONHIER_COUNT, integer);
 
   POSITIVE_OR_FAIL(hier_count);
   NON_NEGATIVE_OR_FAIL(nonhier_count);
@@ -1581,13 +1572,10 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   // find key for slide zoom level
   for (int i = 0; i < hier_count; i++) {
     char *key = g_strdup_printf(KEY_HIER_d_NAME, i);
-    char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL,
-				       key, NULL);
+    char *value = g_key_file_get_value(slidedat, GROUP_HIERARCHICAL, key, err);
     g_free(key);
 
     if (!value) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read value for hier name");
       goto FAIL;
     }
 
@@ -1615,9 +1603,9 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   READ_KEY_OR_FAIL(index_filename, slidedat, GROUP_HIERARCHICAL,
-		   KEY_INDEXFILE, value, "Can't read index filename");
+                   KEY_INDEXFILE, value);
   READ_KEY_OR_FAIL(zoom_levels, slidedat, GROUP_HIERARCHICAL,
-		   key_slide_zoom_level_count, integer, "Can't read zoom levels");
+                   key_slide_zoom_level_count, integer);
   POSITIVE_OR_FAIL(zoom_levels);
 
 
@@ -1625,8 +1613,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   for (int i = 0; i < zoom_levels; i++) {
     tmp = g_strdup_printf(KEY_HIER_d_VAL_d_SECTION, slide_zoom_level_value, i);
 
-    READ_KEY_OR_FAIL(slide_zoom_level_section_names[i], slidedat, GROUP_HIERARCHICAL,
-		     tmp, value, "Can't read section name");
+    READ_KEY_OR_FAIL(slide_zoom_level_section_names[i], slidedat,
+                     GROUP_HIERARCHICAL, tmp, value);
 
     g_free(tmp);
     tmp = NULL;
@@ -1636,7 +1624,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_DATAFILE);
 
   READ_KEY_OR_FAIL(datafile_count, slidedat, GROUP_DATAFILE,
-		   KEY_FILE_COUNT, integer, "Can't read datafile count");
+                   KEY_FILE_COUNT, integer);
   POSITIVE_OR_FAIL(datafile_count);
 
   datafile_paths = g_new0(char *, datafile_count + 1);
@@ -1644,8 +1632,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     tmp = g_strdup_printf(KEY_d_FILE, i);
 
     gchar *name;
-    READ_KEY_OR_FAIL(name, slidedat, GROUP_DATAFILE,
-		     tmp, value, "Can't read datafile name");
+    READ_KEY_OR_FAIL(name, slidedat, GROUP_DATAFILE, tmp, value);
     datafile_paths[i] = g_build_filename(dirname, name, NULL);
     g_free(name);
 
@@ -1664,22 +1651,16 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
     HAVE_GROUP_OR_FAIL(slidedat, group);
 
     READ_KEY_OR_FAIL(hs->concat_exponent, slidedat, group,
-		     KEY_IMAGE_CONCAT_FACTOR,
-		     integer, "Can't read image concat exponent");
-    READ_KEY_OR_FAIL(hs->overlap_x, slidedat, group, KEY_OVERLAP_X,
-		     double, "Can't read overlap X");
-    READ_KEY_OR_FAIL(hs->overlap_y, slidedat, group, KEY_OVERLAP_Y,
-		     double, "Can't read overlap Y");
-    READ_KEY_OR_FAIL(hs->mpp_x, slidedat, group, KEY_MPP_X,
-		     double, "Can't read micrometers/pixel X");
-    READ_KEY_OR_FAIL(hs->mpp_y, slidedat, group, KEY_MPP_Y,
-		     double, "Can't read micrometers/pixel Y");
-    READ_KEY_OR_FAIL(bgr, slidedat, group, KEY_IMAGE_FILL_COLOR_BGR,
-		     integer, "Can't read image fill color");
+                     KEY_IMAGE_CONCAT_FACTOR, integer);
+    READ_KEY_OR_FAIL(hs->overlap_x, slidedat, group, KEY_OVERLAP_X, double);
+    READ_KEY_OR_FAIL(hs->overlap_y, slidedat, group, KEY_OVERLAP_Y, double);
+    READ_KEY_OR_FAIL(hs->mpp_x, slidedat, group, KEY_MPP_X, double);
+    READ_KEY_OR_FAIL(hs->mpp_y, slidedat, group, KEY_MPP_Y, double);
+    READ_KEY_OR_FAIL(bgr, slidedat, group, KEY_IMAGE_FILL_COLOR_BGR, integer);
     READ_KEY_OR_FAIL(hs->image_w, slidedat, group, KEY_DIGITIZER_WIDTH,
-		     integer, "Can't read image width");
+                     integer);
     READ_KEY_OR_FAIL(hs->image_h, slidedat, group, KEY_DIGITIZER_HEIGHT,
-		     integer, "Can't read image height");
+                     integer);
 
     if (i == 0) {
       NON_NEGATIVE_OR_FAIL(hs->concat_exponent);
@@ -1696,8 +1677,7 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
       ((bgr >> 16) & 0x000000FF);
 
     // read image format
-    READ_KEY_OR_FAIL(tmp, slidedat, group, KEY_IMAGE_FORMAT,
-		     value, "Can't read image format");
+    READ_KEY_OR_FAIL(tmp, slidedat, group, KEY_IMAGE_FORMAT, value);
     hs->image_format = parse_image_format(tmp, err);
     g_free(tmp);
     tmp = NULL;

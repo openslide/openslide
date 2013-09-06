@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Can't read value for hier name$
+error: ^Key file does not have key 'HIER_0_NAME'$
 slide: CMU-1.mrxs
 success: false

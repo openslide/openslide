@@ -1,4 +1,4 @@
 base: Mirax/CMU-1.zip
-error: ^Can't read slide version$
+error: ^Key file does not have key 'SLIDE_VERSION'$
 slide: CMU-1.mrxs
 success: false
