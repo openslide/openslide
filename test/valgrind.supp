@@ -1,0 +1,16 @@
+# Valgrind suppressions
+
+# The GType initializer "possibly leaks" many things
+{
+   g_type_init() leaks
+   Memcheck:Leak
+   ...
+   fun:g_type_init_with_debug_flags
+   fun:_openslide_init
+}
+{
+   New GObject constructor leaks
+   Memcheck:Leak
+   ...
+   fun:gobject_init_ctor
+}

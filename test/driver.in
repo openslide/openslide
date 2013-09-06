@@ -34,6 +34,7 @@ import textwrap
 import yaml
 from zipfile import ZipFile
 
+VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
 CASEROOT = '!!SRCDIR!!/cases'
 SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
 WORKROOT = '!!BUILDDIR!!/_slidedata'
@@ -98,6 +99,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
+                '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--leak-check=full'] + args
     return subprocess.Popen(args, env=env, **kwargs)
 
