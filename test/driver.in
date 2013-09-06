@@ -210,6 +210,7 @@ def pack(testname):
     conf = _load_test_config(testname)
     slide = conf['base']
 
+    total_size = 0
     for relpath in _list_slide_files(slide):
         origpath = os.path.join(PRISTINE, slide, relpath)
         newpath = os.path.join(CASEROOT, testname, 'slide', relpath)
@@ -226,10 +227,17 @@ def pack(testname):
             if not filecmp.cmp(origpath, newpath, shallow=False):
                 subprocess.check_call(['xdelta3', 'encode', '-9', '-s',
                         origpath, newpath, deltapath])
+                total_size += os.stat(deltapath).st_size
         else:
             open(whiteoutpath, 'w').close()
 
     rmtree(os.path.join(CASEROOT, testname, 'slide'))
+
+    total_size_kb = total_size >> 10
+    if total_size_kb:
+        print 'Delta: %d KB' % total_size_kb
+    else:
+        print 'Delta: %d bytes' % total_size
 
 
 def _unpack_one(testname):
