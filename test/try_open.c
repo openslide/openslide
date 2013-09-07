@@ -119,7 +119,7 @@ static GOptionEntry options[] = {
    "Check for specified property value", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
    "Read specified region", "\"X Y LEVEL W H\""},
-  {NULL},
+  {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
 int main(int argc, char **argv) {
