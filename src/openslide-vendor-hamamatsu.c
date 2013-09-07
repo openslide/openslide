@@ -2257,6 +2257,16 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
       if (width < min_width) {
         min_width = width;
         min_width_dir = dir;
+      } else {
+        // Slide may have multiple focal planes.  We should ignore
+        // planes != 0, but we don't know which TIFF tag specifies the
+        // plane.  This slide's levels seem to be in a strange order, and
+        // we don't want to accidentally merge levels from different planes,
+        // so reject the slide for safety.
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unexpected slide layout; contact "
+                    "<openslide-users@lists.andrew.cmu.edu> for assistance");
+        goto DONE;
       }
 
       // will the JPEG image dimensions be valid?
