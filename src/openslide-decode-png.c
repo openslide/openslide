@@ -22,12 +22,14 @@
 
 #include <config.h>
 
+// libpng < 1.5 breaks the build if setjmp.h is included before png.h
+#include <png.h>
+
 #include "openslide-private.h"
 
 #include <glib.h>
 #include <setjmp.h>
 #include <stdio.h>
-#include <png.h>
 
 struct png_error_ctx {
   jmp_buf env;
