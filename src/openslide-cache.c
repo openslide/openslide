@@ -25,6 +25,14 @@
 
 #include <glib.h>
 
+#if defined(HAVE_UINTPTR_T) || defined(uintptr_t)
+#define ptr_int uintptr_t
+#else
+// Do our best; we'll get a compiler warning in hash_func() but at least
+// things will work
+#define ptr_int uint64_t
+#endif
+
 // hash table key
 struct _openslide_cache_key {
   struct _openslide_level *level;
@@ -89,7 +97,7 @@ static guint hash_func(gconstpointer key) {
   const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
-  return (guint) (((uint64_t) c_key->level) ^
+  return (guint) (((ptr_int) c_key->level) ^
                   ((34369 * (uint64_t) c_key->y) + ((uint64_t) c_key->x)));
 }
 
