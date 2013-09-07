@@ -589,7 +589,7 @@ static bool read_from_jpeg(openslide_t *osr,
                            struct jpeg *jpeg,
                            int32_t tileno,
                            int32_t scale_denom,
-                           uint32_t *dest,
+                           uint32_t * const dest,
                            int32_t w, int32_t h,
                            GError **err) {
   bool success = false;

@@ -135,7 +135,7 @@ DONE:
 
 bool _openslide_jpeg_read(const char *filename,
                           int64_t offset,
-                          uint32_t *_dest,
+                          uint32_t * const _dest,
                           int32_t w, int32_t h,
                           GError **err) {
   bool result = false;

@@ -62,7 +62,7 @@ static void fail(const char *format, ...) {
 
 static void write_png(openslide_t *osr, FILE *f,
 		      int64_t x, int64_t y, int32_t level,
-		      int32_t w, int32_t h) {
+		      int32_t w, const int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
 						NULL, NULL, NULL);
   if (!png_ptr) {

@@ -60,8 +60,13 @@ bool _openslide_png_read(const char *filename,
                          GError **err) {
   png_struct *png = NULL;
   png_info *info = NULL;
-  png_byte **rows = NULL;
   bool success = false;
+
+  // allocate row pointers
+  png_byte **rows = g_slice_alloc(h * sizeof(*rows));
+  for (int64_t y = 0; y < h; y++) {
+    rows[y] = (png_byte *) &dest[y * w];
+  }
 
   // open and seek
   FILE *f = _openslide_fopen(filename, "rb", err);
@@ -89,12 +94,6 @@ bool _openslide_png_read(const char *filename,
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Couldn't initialize PNG info");
     goto DONE;
-  }
-
-  // allocate row pointers
-  rows = g_slice_alloc(h * sizeof(*rows));
-  for (int64_t y = 0; y < h; y++) {
-    rows[y] = (png_byte *) &dest[y * w];
   }
 
   if (!setjmp(ectx.env)) {
@@ -175,10 +174,10 @@ bool _openslide_png_read(const char *filename,
   }
 
 DONE:
-  g_slice_free1(h * sizeof(*rows), rows);
   png_destroy_read_struct(&png, &info, NULL);
   if (f) {
     fclose(f);
   }
+  g_slice_free1(h * sizeof(*rows), rows);
   return success;
 }
