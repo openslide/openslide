@@ -333,14 +333,10 @@ static bool tiff_read_region(TIFF *tiff,
 
   // draw it
   if (TIFFRGBAImageGet(&img, dest, w, h)) {
-    // permute
-    uint32_t *p = dest;
-    uint32_t *end = dest + w * h;
-    while (p < end) {
-      uint32_t val = *p;
-      *p++ = (val & 0xFF00FF00)
-	| ((val << 16) & 0xFF0000)
-	| ((val >> 16) & 0xFF);
+    // convert ABGR -> ARGB
+    for (uint32_t *p = dest; p < dest + w * h; p++) {
+      uint32_t val = GUINT32_SWAP_LE_BE(*p);
+      *p = (val << 24) | (val >> 8);
     }
     success = true;
   } else {
