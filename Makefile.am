@@ -43,7 +43,7 @@ MAINTAINERCLEANFILES = src/openslide-tables.c
 EXTRA_PROGRAMS = src/make-tables
 if !CROSS_COMPILING
 src/openslide-tables.c: src/make-tables
-	$(AM_V_GEN)src/make-tables$(EXEEXT) $@
+	$(AM_V_GEN)src/make-tables$(EXEEXT) "$@"
 endif
 
 if WINDOWS_RESOURCES
@@ -97,8 +97,8 @@ test_parallel_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
 		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
-		-e 's:!!VERSION!!:$(VERSION):g' $< > $@ && \
-		chmod +x $@
+		-e 's:!!VERSION!!:$(VERSION):g' "$<" > "$@" && \
+		chmod +x "$@"
 
 
 # tools
