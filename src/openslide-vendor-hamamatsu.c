@@ -1348,7 +1348,7 @@ static bool init_jpeg_ops(openslide_t *osr,
   }
 
   // for debugging
-  if (_openslide_debug(OPENSLIDE_DEBUG_HAMAMATSU_TILES)) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS)) {
     if (background_thread) {
       g_thread_join(data->restart_marker_thread);
       data->restart_marker_thread = NULL;

@@ -204,7 +204,7 @@ static bool read_tiles(cairo_t *cr,
 static void label_tile(struct _openslide_grid *grid,
                        cairo_t *cr,
                        int64_t tile_col, int64_t tile_row) {
-  if (!_openslide_debug(OPENSLIDE_DEBUG_GRID)) {
+  if (!_openslide_debug(OPENSLIDE_DEBUG_TILES)) {
     return;
   }
 

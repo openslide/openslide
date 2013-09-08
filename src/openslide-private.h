@@ -294,8 +294,8 @@ bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 
 /* Debug flags */
 enum _openslide_debug_flag {
-  OPENSLIDE_DEBUG_GRID,
-  OPENSLIDE_DEBUG_HAMAMATSU_TILES,
+  OPENSLIDE_DEBUG_JPEG_MARKERS,
+  OPENSLIDE_DEBUG_TILES,
   OPENSLIDE_DEBUG_UNSUPPORTED,
 };
 
