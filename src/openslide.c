@@ -38,19 +38,27 @@ const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
-static const _openslide_vendor_fn non_tiff_formats[] = {
-  _openslide_try_mirax,
-  _openslide_try_hamamatsu,
-  _openslide_try_hamamatsu_ndpi, // it is a tiff format? but not to libtiff
-  NULL
+#define FORMAT(name) { #name, _openslide_try_ ## name }
+
+static const struct format {
+  const char *name;
+  _openslide_vendor_fn handler;
+} non_tiff_formats[] = {
+  FORMAT(mirax),
+  FORMAT(hamamatsu),
+  FORMAT(hamamatsu_ndpi), // it is a tiff format? but not to libtiff
+  {NULL, NULL}
 };
 
-static const _openslide_tiff_vendor_fn tiff_formats[] = {
-  _openslide_try_trestle,
-  _openslide_try_aperio,
-  _openslide_try_leica,
-  _openslide_try_generic_tiff,
-  NULL
+static const struct tiff_format {
+  const char *name;
+  _openslide_tiff_vendor_fn handler;
+} tiff_formats[] = {
+  FORMAT(trestle),
+  FORMAT(aperio),
+  FORMAT(leica),
+  FORMAT(generic_tiff),
+  {NULL, NULL}
 };
 
 static bool openslide_was_dynamically_loaded;
@@ -109,35 +117,36 @@ static void free_quickhash1_if_failed(bool result,
   }
 }
 
-static void fixup_format_error(bool result, GError **err) {
+static void fixup_format_error(const char *name, bool result, GError **err) {
   // check for error-handling bugs in detector
 
   if (!result && err && !*err) {
-    g_warning("Format detector failed without setting error");
+    g_warning("%s format detector failed without setting error", name);
     // assume the worst
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unknown error");
   }
 
   if (result && err && *err) {
-    g_warning("Format detector succeeded but set error: %s", (*err)->message);
+    g_warning("%s format detector succeeded but set error: %s", name,
+              (*err)->message);
     g_clear_error(err);
   }
 }
 
 static bool try_format(openslide_t *osr, const char *filename,
 		       struct _openslide_hash **quickhash1_OUT,
-		       const _openslide_vendor_fn *format_check,
+		       const struct format *format,
 		       GError **err) {
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
-  bool result = (*format_check)(osr, filename,
+  bool result = format->handler(osr, filename,
                                 quickhash1_OUT ? *quickhash1_OUT : NULL,
                                 err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
-  fixup_format_error(result, err);
+  fixup_format_error(format->name, result, err);
 
   return result;
 }
@@ -145,18 +154,18 @@ static bool try_format(openslide_t *osr, const char *filename,
 static bool try_tiff_format(openslide_t *osr,
 			    struct _openslide_tiffcache *tc, TIFF *tiff,
 			    struct _openslide_hash **quickhash1_OUT,
-			    const _openslide_tiff_vendor_fn *format_check,
+			    const struct tiff_format *format,
 			    GError **err) {
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);
-  bool result = (*format_check)(osr, tc, tiff,
+  bool result = format->handler(osr, tc, tiff,
                                 quickhash1_OUT ? *quickhash1_OUT : NULL,
                                 err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
-  fixup_format_error(result, err);
+  fixup_format_error(format->name, result, err);
 
   return result;
 }
@@ -167,9 +176,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   GError *tmp_err = NULL;
 
   // non-tiff
-  const _openslide_vendor_fn *fn = non_tiff_formats;
-  while (*fn) {
-    if (try_format(osr, filename, quickhash1_OUT, fn, &tmp_err)) {
+  for (const struct format *format = non_tiff_formats;
+       format->name; format++) {
+    if (try_format(osr, filename, quickhash1_OUT, format, &tmp_err)) {
       return true;
     }
     if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -179,7 +188,6 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
     }
     //g_debug("%s", tmp_err->message);
     g_clear_error(&tmp_err);
-    fn++;
   }
 
 
@@ -189,9 +197,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   if (tc != NULL) {
     TIFF *tiff = _openslide_tiffcache_get(tc, NULL);
     g_assert(tiff != NULL);
-    const _openslide_tiff_vendor_fn *tfn = tiff_formats;
-    while (*tfn) {
-      if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, tfn, &tmp_err)) {
+    for (const struct tiff_format *format = tiff_formats;
+         format->name; format++) {
+      if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, format, &tmp_err)) {
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -203,7 +211,6 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       }
       //g_debug("%s", tmp_err->message);
       g_clear_error(&tmp_err);
-      tfn++;
     }
 
     // destroy only if failed
