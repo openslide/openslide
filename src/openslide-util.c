@@ -33,6 +33,19 @@
 #include <fcntl.h>
 #endif
 
+static const char DEBUG_ENV_VAR[] = "OPENSLIDE_DEBUG";
+
+static const struct debug_option {
+  const char *kw;
+  enum _openslide_debug_flag flag;
+  const char *desc;
+} debug_options[] = {
+  {"grid", OPENSLIDE_DEBUG_GRID, "render tile outlines"},
+  {NULL, 0, NULL}
+};
+
+static uint32_t debug_flags;
+
 
 guint _openslide_int64_hash(gconstpointer v) {
   int64_t i = *((const int64_t *) v);
@@ -219,4 +232,35 @@ void _openslide_set_background_color_prop(GHashTable *ht,
 
   g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
                       g_strdup_printf("%.02X%.02X%.02X", r, g, b));
+}
+
+// note: g_getenv() is not reentrant
+void _openslide_debug_init(void) {
+  const char *debug_str = g_getenv(DEBUG_ENV_VAR);
+  if (!debug_str) {
+    return;
+  }
+
+  char **keywords = g_strsplit(debug_str, ",", 0);
+  for (char **kw = keywords; *kw; kw++) {
+    g_strstrip(*kw);
+    if (!g_ascii_strcasecmp(*kw, "help")) {
+      g_message("%s options (comma-delimited):", DEBUG_ENV_VAR);
+      for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
+        g_message("   %-12s - %s", opt->kw, opt->desc);
+      }
+    } else {
+      for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
+        if (!g_ascii_strcasecmp(*kw, opt->kw)) {
+          debug_flags |= 1 << opt->flag;
+          break;
+        }
+      }
+    }
+  }
+  g_strfreev(keywords);
+}
+
+bool _openslide_debug(enum _openslide_debug_flag flag) {
+  return !!(debug_flags & (1 << flag));
 }

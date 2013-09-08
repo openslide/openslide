@@ -201,6 +201,37 @@ static bool read_tiles(cairo_t *cr,
   return true;
 }
 
+static void label_tile(struct _openslide_grid *grid,
+                       cairo_t *cr,
+                       int64_t tile_col, int64_t tile_row) {
+  if (!_openslide_debug(OPENSLIDE_DEBUG_GRID)) {
+    return;
+  }
+
+  struct bounds bounds = {0, 0, 0, 0};
+  grid->ops->get_tile_size(grid, tile_col, tile_row, &bounds);
+
+  cairo_save(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+  cairo_set_source_rgba(cr, 0.6, 0, 0, 0.3);
+  cairo_rectangle(cr, 0, 0, bounds.w, bounds.h);
+  cairo_stroke(cr);
+
+  cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
+  char *str = g_strdup_printf("%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT,
+                              tile_col, tile_row);
+  cairo_text_extents_t extents;
+  cairo_text_extents(cr, str, &extents);
+  cairo_move_to(cr,
+                (bounds.w - extents.width) / 2,
+                (bounds.h - extents.height) / 2);
+  cairo_show_text(cr, str);
+  g_free(str);
+
+  cairo_restore(cr);
+}
+
 
 
 static void simple_get_bounds(struct _openslide_grid *_grid,
@@ -251,8 +282,12 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
                              GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  return grid->read_tile(grid->base.osr, cr, level,
-                         tile_col, tile_row, arg, err);
+  if (!grid->read_tile(grid->base.osr, cr, level,
+                       tile_col, tile_row, arg, err)) {
+    return false;
+  }
+  label_tile(_grid, cr, tile_col, tile_row);
+  return true;
 }
 
 static void simple_destroy(struct _openslide_grid *_grid) {
@@ -380,6 +415,9 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   bool success = grid->read_tile(grid->base.osr, cr, level,
                                  tile->col, tile->row, tile->data,
                                  arg, err);
+  if (success) {
+    label_tile(_grid, cr, tile_col, tile_row);
+  }
   cairo_set_matrix(cr, &matrix);
   return success;
 }
@@ -569,32 +607,4 @@ void _openslide_grid_destroy(struct _openslide_grid *grid) {
     return;
   }
   grid->ops->destroy(grid);
-}
-
-// debugging function
-void _openslide_grid_label_tile(struct _openslide_grid *grid,
-                                cairo_t *cr,
-                                int64_t tile_col, int64_t tile_row) {
-  struct bounds bounds = {0, 0, 0, 0};
-  grid->ops->get_tile_size(grid, tile_col, tile_row, &bounds);
-
-  cairo_save(cr);
-  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-
-  cairo_set_source_rgba(cr, 0.6, 0, 0, 0.3);
-  cairo_rectangle(cr, 0, 0, bounds.w, bounds.h);
-  cairo_stroke(cr);
-
-  cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
-  char *str = g_strdup_printf("%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT,
-                              tile_col, tile_row);
-  cairo_text_extents_t extents;
-  cairo_text_extents(cr, str, &extents);
-  cairo_move_to(cr,
-                (bounds.w - extents.width) / 2,
-                (bounds.h - extents.height) / 2);
-  cairo_show_text(cr, str);
-  g_free(str);
-
-  cairo_restore(cr);
 }

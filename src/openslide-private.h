@@ -240,10 +240,6 @@ bool _openslide_grid_paint_region(struct _openslide_grid *grid,
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 
-void _openslide_grid_label_tile(struct _openslide_grid *grid,
-                                cairo_t *cr,
-                                int64_t tile_col, int64_t tile_row);
-
 
 /* Cache */
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
@@ -295,6 +291,15 @@ GQuark _openslide_error_quark(void);
 void _openslide_io_error(GError **err, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
+
+/* Debug flags */
+enum _openslide_debug_flag {
+  OPENSLIDE_DEBUG_GRID,
+};
+
+void _openslide_debug_init(void);
+
+bool _openslide_debug(enum _openslide_debug_flag flag);
 
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"

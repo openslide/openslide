@@ -65,6 +65,8 @@ static void __attribute__((constructor)) _openslide_init(void) {
   g_type_init();
   // init libxml2
   xmlInitParser();
+  // parse debug options
+  _openslide_debug_init();
   openslide_was_dynamically_loaded = true;
 }
 
