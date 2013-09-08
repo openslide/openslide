@@ -895,29 +895,23 @@ static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
-  while(current_jpeg < num_jpegs) {
+  for (current_jpeg = 0; current_jpeg < num_jpegs; current_jpeg++) {
     struct jpeg *jp = jpegs[current_jpeg];
     CHK(jp->filename);
-
-    if (current_mcu_start > 0) {
+    f = _openslide_fopen(jp->filename, "rb", NULL);
+    CHK(f);
+    for (current_mcu_start = 1; current_mcu_start < jp->tile_count;
+         current_mcu_start++) {
       int64_t offset = jp->mcu_starts[current_mcu_start];
       CHK(offset != -1);
-      f = _openslide_fopen(jp->filename, "rb", NULL);
-      CHK(f);
       fseeko(f, offset - 2, SEEK_SET);
       int prefix = getc(f);
       CHK(prefix == 0xFF);
       int marker = getc(f);
       CHK(marker >= 0xD0 && marker <= 0xD7);
-      fclose(f);
-      f = NULL;
     }
-
-    current_mcu_start++;
-    if (current_mcu_start >= jp->tile_count) {
-      current_mcu_start = 0;
-      current_jpeg++;
-    }
+    fclose(f);
+    f = NULL;
   }
   return true;
 }
