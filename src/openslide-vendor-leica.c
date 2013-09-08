@@ -49,7 +49,10 @@ static const xmlChar LEICA_ATTR_Z_PLANE[] = "z";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)	\
   do {							\
-    if (!parse_int_attr(NODE, NAME, &OUT, err))  {	\
+    GError *tmp_err = NULL;				\
+    OUT = parse_int_attr(NODE, NAME, &tmp_err);		\
+    if (tmp_err)  {					\
+      g_propagate_error(err, tmp_err);			\
       goto FAIL;					\
     }							\
   } while (0)
@@ -188,29 +191,26 @@ static int width_compare(const void *a, const void *b) {
   }
 }
 
-static bool parse_int_attr(xmlNode *node, const xmlChar *name,
-                           int64_t *out, GError **err) {
+static int64_t parse_int_attr(xmlNode *node, const xmlChar *name,
+                              GError **err) {
   xmlChar *value = xmlGetProp(node, name);
-  int64_t result;
-  gchar *endptr;
-
   if (value == NULL) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "No integer attribute \"%s\"", name);
-    return false;
+    return -1;
   }
 
-  result = g_ascii_strtoll((gchar *) value, &endptr, 10);
+  gchar *endptr;
+  int64_t result = g_ascii_strtoll((gchar *) value, &endptr, 10);
   if (value[0] == 0 || endptr[0] != 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Invalid integer attribute \"%s\"", name);
     xmlFree(value);
-    return false;
+    return -1;
   }
 
   xmlFree(value);
-  *out = result;
-  return true;
+  return result;
 }
 
 // returns NULL if no matches
