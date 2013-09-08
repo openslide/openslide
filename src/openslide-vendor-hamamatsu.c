@@ -40,6 +40,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
+#include "openslide-decode-tifflike.h"
 
 #include <glib.h>
 #include <setjmp.h>
@@ -49,6 +50,7 @@
 #include <math.h>
 
 #include <jpeglib.h>
+#include <tiff.h>
 #include <cairo.h>
 
 #include "openslide-hash.h"
