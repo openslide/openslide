@@ -23,6 +23,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-gdkpixbuf.h"
 
 #include <glib.h>
 #include <glib-object.h>

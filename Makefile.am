@@ -56,7 +56,10 @@ pkginclude_HEADERS = \
 
 noinst_HEADERS = \
 	src/openslide-cairo.h \
+	src/openslide-decode-gdkpixbuf.h \
+	src/openslide-decode-jp2k.h \
 	src/openslide-decode-jpeg.h \
+	src/openslide-decode-png.h \
 	src/openslide-decode-tiff.h \
 	src/openslide-decode-tifflike.h \
 	src/openslide-error.h \

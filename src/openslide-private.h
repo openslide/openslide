@@ -38,9 +38,6 @@
 
 #include <cairo.h>
 
-#include <openjpeg.h>
-
-
 /* the associated image structure */
 struct _openslide_associated_image {
   const struct _openslide_associated_image_ops *ops;
@@ -247,31 +244,6 @@ void _openslide_grid_label_tile(struct _openslide_grid *grid,
                                 cairo_t *cr,
                                 int64_t tile_col, int64_t tile_row);
 
-/* JPEG 2000 support */
-enum _openslide_jp2k_colorspace {
-  OPENSLIDE_JP2K_RGB,
-  OPENSLIDE_JP2K_YCBCR,
-};
-
-bool _openslide_jp2k_decode_buffer(uint32_t *dest,
-                                   int32_t w, int32_t h,
-                                   void *data, int32_t datalen,
-                                   enum _openslide_jp2k_colorspace space,
-                                   GError **err);
-
-/* PNG support */
-bool _openslide_png_read(const char *filename,
-                         int64_t offset,
-                         uint32_t *dest,
-                         int64_t w, int64_t h,
-                         GError **err);
-
-/* Formats supported by gdk-pixbuf (BMP, PNM, etc.) */
-bool _openslide_gdkpixbuf_read(const char *filename,
-                               int64_t offset,
-                               uint32_t *dest,
-                               int32_t w, int32_t h,
-                               GError **err);
 
 /* Cache */
 #define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32

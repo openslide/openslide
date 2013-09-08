@@ -26,6 +26,7 @@
 #include <png.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-png.h"
 
 #include <glib.h>
 #include <setjmp.h>

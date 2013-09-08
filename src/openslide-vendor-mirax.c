@@ -31,7 +31,9 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-gdkpixbuf.h"
 #include "openslide-decode-jpeg.h"
+#include "openslide-decode-png.h"
 
 #include <glib.h>
 #include <stdlib.h>
