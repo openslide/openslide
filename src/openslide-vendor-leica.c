@@ -188,7 +188,7 @@ static int width_compare(const void *a, const void *b) {
   }
 }
 
-static bool parse_int_attr(xmlNodePtr node, const xmlChar *name,
+static bool parse_int_attr(xmlNode *node, const xmlChar *name,
                            int64_t *out, GError **err) {
   xmlChar *value = xmlGetProp(node, name);
   int64_t result;
@@ -214,9 +214,9 @@ static bool parse_int_attr(xmlNodePtr node, const xmlChar *name,
 }
 
 // returns NULL if no matches
-static xmlXPathObjectPtr eval_xpath(const char *xpath,
-                                    xmlXPathContextPtr context) {
-  xmlXPathObjectPtr result;
+static xmlXPathObject *eval_xpath(const char *xpath,
+                                  xmlXPathContext *context) {
+  xmlXPathObject *result;
 
   result = xmlXPathEvalExpression(BAD_CAST xpath, context);
   if (result && (result->nodesetval == NULL ||
@@ -230,8 +230,8 @@ static xmlXPathObjectPtr eval_xpath(const char *xpath,
 static void set_prop_from_content(openslide_t *osr,
                                   const char *property_name,
                                   const char *xpath,
-                                  xmlXPathContextPtr context) {
-  xmlXPathObjectPtr result;
+                                  xmlXPathContext *context) {
+  xmlXPathObject *result;
 
   result = eval_xpath(xpath, context);
   if (result) {
@@ -250,8 +250,8 @@ static void set_prop_from_attribute(openslide_t *osr,
                                     const char *property_name,
                                     const char *xpath,
                                     const char *attribute_name,
-                                    xmlXPathContextPtr context) {
-  xmlXPathObjectPtr result;
+                                    xmlXPathContext *context) {
+  xmlXPathObject *result;
 
   result = eval_xpath(xpath, context);
   if (result) {
@@ -286,7 +286,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                   GPtrArray *main_image_levels,
                                   int *macro_ifd,
                                   GError **err) {
-  xmlDocPtr doc = NULL;
+  xmlDoc *doc = NULL;
   xmlNode *root_element;
   xmlNode *collection;
 
@@ -295,9 +295,9 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   xmlNode *image;
 
-  xmlXPathContextPtr context = NULL;
-  xmlXPathObjectPtr images_result = NULL;
-  xmlXPathObjectPtr result = NULL;
+  xmlXPathContext *context = NULL;
+  xmlXPathObject *images_result = NULL;
+  xmlXPathObject *result = NULL;
 
   int64_t collection_width;
   int64_t collection_height;
