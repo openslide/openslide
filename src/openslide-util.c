@@ -246,19 +246,22 @@ void _openslide_debug_init(void) {
   }
 
   char **keywords = g_strsplit(debug_str, ",", 0);
+  bool printed_help = false;
   for (char **kw = keywords; *kw; kw++) {
     g_strstrip(*kw);
-    if (!g_ascii_strcasecmp(*kw, "help")) {
+    bool found = false;
+    for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
+      if (!g_ascii_strcasecmp(*kw, opt->kw)) {
+        debug_flags |= 1 << opt->flag;
+        found = true;
+        break;
+      }
+    }
+    if (!found && !printed_help) {
+      printed_help = true;
       g_message("%s options (comma-delimited):", DEBUG_ENV_VAR);
       for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
         g_message("   %-15s - %s", opt->kw, opt->desc);
-      }
-    } else {
-      for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
-        if (!g_ascii_strcasecmp(*kw, opt->kw)) {
-          debug_flags |= 1 << opt->flag;
-          break;
-        }
       }
     }
   }
