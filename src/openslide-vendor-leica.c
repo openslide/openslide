@@ -227,41 +227,16 @@ static xmlXPathObject *eval_xpath(const char *xpath,
   return result;
 }
 
-static void set_prop_from_content(openslide_t *osr,
-                                  const char *property_name,
-                                  const char *xpath,
-                                  xmlXPathContext *context) {
-  xmlXPathObject *result;
-
-  result = eval_xpath(xpath, context);
-  if (result) {
-    xmlChar *str = xmlNodeGetContent(result->nodesetval->nodeTab[0]);
-    if (osr && str) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(property_name),
-                          g_strdup((char *) str));
-    }
-    xmlFree(str);
-  }
-  xmlXPathFreeObject(result);
-}
-
-static void set_prop_from_attribute(openslide_t *osr,
-                                    const char *property_name,
-                                    const char *xpath,
-                                    const char *attribute_name,
-                                    xmlXPathContext *context) {
-  xmlXPathObject *result;
-
-  result = eval_xpath(xpath, context);
-  if (result) {
-    xmlChar *str = xmlGetProp(result->nodesetval->nodeTab[0],
-                              BAD_CAST attribute_name);
-    if (osr && str) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(property_name),
-                          g_strdup((char *) str));
-    }
+static void set_prop_from_xpath(openslide_t *osr,
+                                xmlXPathContext *ctx,
+                                const char *property_name,
+                                const char *xpath) {
+  xmlXPathObject *result = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
+  if (osr && result && result->nodesetval && result->nodesetval->nodeNr) {
+    xmlChar *str = xmlXPathCastToString(result);
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property_name),
+                        g_strdup((char *) str));
     xmlFree(str);
   }
   xmlXPathFreeObject(result);
@@ -366,8 +341,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = NULL;
 
   // read barcode
-  set_prop_from_content(osr, "leica.barcode",
-                        "/l:scn/l:collection/l:barcode", context);
+  set_prop_from_xpath(osr, context, "leica.barcode",
+                      "/l:scn/l:collection/l:barcode/text()");
 
   // read collection's size
   PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X, collection_width);
@@ -462,24 +437,18 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = NULL;
 
   // add some more properties from the main image
-  set_prop_from_attribute(osr, "leica.device-model",
-                          "l:device", "model",
-                          context);
-  set_prop_from_attribute(osr, "leica.device-version",
-                          "l:device", "version",
-                          context);
-  set_prop_from_content(osr, "leica.creation-date",
-                        "l:creationDate",
-                        context);
-  set_prop_from_content(osr, "leica.objective",
-                        "l:scanSettings/l:objectiveSettings/l:objective",
-                        context);
-  set_prop_from_content(osr, "leica.aperture",
-                        "l:scanSettings/l:illuminationSettings/l:numericalAperture",
-                        context);
-  set_prop_from_content(osr, "leica.illumination-source",
-                        "l:scanSettings/l:illuminationSettings/l:illuminationSource",
-                        context);
+  set_prop_from_xpath(osr, context, "leica.device-model",
+                      "l:device/@model");
+  set_prop_from_xpath(osr, context, "leica.device-version",
+                      "l:device/@version");
+  set_prop_from_xpath(osr, context, "leica.creation-date",
+                      "l:creationDate/text()");
+  set_prop_from_xpath(osr, context, "leica.objective",
+                      "l:scanSettings/l:objectiveSettings/l:objective/text()");
+  set_prop_from_xpath(osr, context, "leica.aperture",
+                      "l:scanSettings/l:illuminationSettings/l:numericalAperture/text()");
+  set_prop_from_xpath(osr, context, "leica.illumination-source",
+                      "l:scanSettings/l:illuminationSettings/l:illuminationSource/text()");
 
   // copy objective to standard property
   if (osr) {
