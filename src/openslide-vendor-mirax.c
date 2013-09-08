@@ -31,6 +31,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-jpeg.h"
 
 #include <glib.h>
 #include <stdlib.h>
