@@ -25,30 +25,13 @@
 #include "openslide-private.h"
 #include "openslide-decode-jp2k.h"
 
-#include <math.h>
 #include <openjpeg.h>
-
-static GOnce ycbcr_tables_inited = G_ONCE_INIT;
-static int16_t R_Cr[256];
-static int16_t G_CbCr[256][256];
-static int16_t B_Cb[256];
-
-static void *init_ycbcr_tables(void *arg G_GNUC_UNUSED) {
-  for (int i = 0; i < 256; i++) {
-    R_Cr[i] = round(1.402 * (i - 128));
-    B_Cb[i] = round(1.772 * (i - 128));
-    for (int j = 0; j < 256; j++) {
-      G_CbCr[i][j] = round(-0.34414 * (i - 128) - 0.71414 * (j - 128));
-    }
-  }
-  return NULL;
-}
 
 static void write_pixel_ycbcr(uint32_t *dest,
                               uint8_t c0, uint8_t c1, uint8_t c2) {
-  int16_t R = c0 + R_Cr[c2];
-  int16_t G = c0 + G_CbCr[c1][c2];
-  int16_t B = c0 + B_Cb[c1];
+  int16_t R = c0 + _openslide_R_Cr[c2];
+  int16_t G = c0 + _openslide_G_CbCr[c1][c2];
+  int16_t B = c0 + _openslide_B_Cb[c1];
 
   R = CLAMP(R, 0, 255);
   G = CLAMP(G, 0, 255);
@@ -79,7 +62,6 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
 
   switch (space) {
   case OPENSLIDE_JP2K_YCBCR:
-    g_once(&ycbcr_tables_inited, init_ycbcr_tables, NULL);
     for (int y = 0; y < h; y++) {
       for (int x = 0; x < w; x++) {
         uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];

@@ -30,6 +30,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-grid.c \
 	src/openslide-hash.c \
 	src/openslide-jdatasrc.c \
+	src/openslide-tables.c \
 	src/openslide-util.c \
 	src/openslide-vendor-aperio.c \
 	src/openslide-vendor-generic-tiff.c \
@@ -37,6 +38,13 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-vendor-leica.c \
 	src/openslide-vendor-mirax.c \
 	src/openslide-vendor-trestle.c
+
+MAINTAINERCLEANFILES = src/openslide-tables.c
+EXTRA_PROGRAMS = src/make-tables
+if !CROSS_COMPILING
+src/openslide-tables.c: src/make-tables
+	$(AM_V_GEN)src/make-tables$(EXEEXT) $@
+endif
 
 if WINDOWS_RESOURCES
 src_libopenslide_la_SOURCES += src/openslide-dll.rc

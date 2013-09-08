@@ -304,6 +304,12 @@ bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_WIDTH "openslide.level[%d].tile-width"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_LEVEL_TILE_HEIGHT "openslide.level[%d].tile-height"
 
+/* Tables */
+// YCbCr -> RGB chroma contributions
+extern const int16_t _openslide_R_Cr[256];
+extern const int16_t _openslide_G_CbCr[256][256];
+extern const int16_t _openslide_B_Cb[256];
+
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),
 // still needs these declarations for ABI compat
 // TODO: remove if soname bump

@@ -34,6 +34,9 @@ Makefile.in
 
 /mingw32-config.cache
 
+/src/make-tables
+/src/openslide-tables.c
+
 /test/_slidedata
 /test/driver
 /test/parallel
