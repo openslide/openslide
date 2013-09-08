@@ -36,7 +36,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
-#include <errno.h>
 
 struct generic_tiff_ops_data {
   struct _openslide_tiffcache *tc;
