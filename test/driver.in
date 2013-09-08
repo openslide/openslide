@@ -92,8 +92,10 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
     env = os.environ.copy()
     env.update(
         G_DEBUG='gc-friendly',
+        G_MESSAGES_DEBUG='',
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
+        OPENSLIDE_DEBUG='',
     )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
