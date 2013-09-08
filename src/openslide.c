@@ -22,6 +22,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-tiff.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -30,6 +30,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-tiff.h"
 
 #include <glib.h>
 #include <string.h>

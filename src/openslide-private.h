@@ -247,62 +247,6 @@ void _openslide_grid_label_tile(struct _openslide_grid *grid,
                                 cairo_t *cr,
                                 int64_t tile_col, int64_t tile_row);
 
-/* TIFF support */
-struct _openslide_tiff_level {
-  tdir_t dir;
-  int64_t image_w;
-  int64_t image_h;
-  int64_t tile_w;
-  int64_t tile_h;
-  int64_t tiles_across;
-  int64_t tiles_down;
-};
-
-bool _openslide_tiff_level_init(TIFF *tiff,
-                                tdir_t dir,
-                                struct _openslide_level *level,
-                                struct _openslide_tiff_level *tiffl,
-                                GError **err);
-
-bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
-                                              TIFF *tiff,
-                                              struct _openslide_hash *quickhash1,
-                                              tdir_t lowest_resolution_level,
-                                              tdir_t property_dir,
-                                              GError **err);
-
-bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
-                               TIFF *tiff,
-                               uint32_t *dest,
-                               int64_t tile_col, int64_t tile_row,
-                               GError **err);
-
-bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
-                                    TIFF *tiff,
-                                    void **buf, int32_t *len,
-                                    int64_t tile_col, int64_t tile_row,
-                                    GError **err);
-
-bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
-                               uint32_t *tiledata,
-                               int64_t tile_col, int64_t tile_row,
-                               GError **err);
-
-bool _openslide_tiff_add_associated_image(openslide_t *osr,
-					  const char *name,
-					  struct _openslide_tiffcache *tc,
-					  tdir_t dir,
-					  GError **err);
-
-struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
-                                                         GError **err);
-
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
-
-void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
-
-void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
-
 /* TIFF container support (for formats violating the TIFF spec) */
 struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err);
 

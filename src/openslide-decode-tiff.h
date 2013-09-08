@@ -1,0 +1,90 @@
+/*
+ *  OpenSlide, a library for reading whole slide image files
+ *
+ *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  All rights reserved.
+ *
+ *  OpenSlide is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as
+ *  published by the Free Software Foundation, version 2.1.
+ *
+ *  OpenSlide is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU Lesser General Public License for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public
+ *  License along with OpenSlide. If not, see
+ *  <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#ifndef OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
+#define OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
+
+#include "openslide-private.h"
+#include "openslide-hash.h"
+
+#include <stdint.h>
+#include <glib.h>
+#include <tiffio.h>
+
+struct _openslide_tiff_level {
+  tdir_t dir;
+  int64_t image_w;
+  int64_t image_h;
+  int64_t tile_w;
+  int64_t tile_h;
+  int64_t tiles_across;
+  int64_t tiles_down;
+};
+
+bool _openslide_tiff_level_init(TIFF *tiff,
+                                tdir_t dir,
+                                struct _openslide_level *level,
+                                struct _openslide_tiff_level *tiffl,
+                                GError **err);
+
+bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
+                                              TIFF *tiff,
+                                              struct _openslide_hash *quickhash1,
+                                              tdir_t lowest_resolution_level,
+                                              tdir_t property_dir,
+                                              GError **err);
+
+bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
+                               TIFF *tiff,
+                               uint32_t *dest,
+                               int64_t tile_col, int64_t tile_row,
+                               GError **err);
+
+bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
+                                    TIFF *tiff,
+                                    void **buf, int32_t *len,
+                                    int64_t tile_col, int64_t tile_row,
+                                    GError **err);
+
+bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
+                               uint32_t *tiledata,
+                               int64_t tile_col, int64_t tile_row,
+                               GError **err);
+
+bool _openslide_tiff_add_associated_image(openslide_t *osr,
+                                          const char *name,
+                                          struct _openslide_tiffcache *tc,
+                                          tdir_t dir,
+                                          GError **err);
+
+
+/* TIFF handles are not thread-safe, so we have a handle cache for
+   multithreaded access */
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
+                                                         GError **err);
+
+TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
+
+void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
+
+void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
+
+#endif
