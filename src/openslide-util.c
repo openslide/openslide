@@ -41,6 +41,8 @@ static const struct debug_option {
   const char *desc;
 } debug_options[] = {
   {"grid", OPENSLIDE_DEBUG_GRID, "render tile outlines"},
+  {"unsupported", OPENSLIDE_DEBUG_UNSUPPORTED,
+   "log unsupported-format errors"},
   {NULL, 0, NULL}
 };
 

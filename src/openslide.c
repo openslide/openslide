@@ -186,7 +186,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       g_propagate_error(err, tmp_err);
       return false;
     }
-    //g_debug("%s", tmp_err->message);
+    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+      g_message("%s: %s", format->name, tmp_err->message);
+    }
     g_clear_error(&tmp_err);
   }
 
@@ -209,7 +211,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
         _openslide_tiffcache_destroy(tc);
         return false;
       }
-      //g_debug("%s", tmp_err->message);
+      if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+        g_message("%s: %s", format->name, tmp_err->message);
+      }
       g_clear_error(&tmp_err);
     }
 
