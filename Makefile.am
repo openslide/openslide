@@ -25,6 +25,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-decode-png.c \
 	src/openslide-decode-tiff.c \
 	src/openslide-decode-tifflike.c \
+	src/openslide-decode-xml.c \
 	src/openslide-error.c \
 	src/openslide-grid.c \
 	src/openslide-hash.c \
@@ -62,6 +63,7 @@ noinst_HEADERS = \
 	src/openslide-decode-png.h \
 	src/openslide-decode-tiff.h \
 	src/openslide-decode-tifflike.h \
+	src/openslide-decode-xml.h \
 	src/openslide-error.h \
 	src/openslide-hash.h \
 	src/openslide-private.h \
