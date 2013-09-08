@@ -41,6 +41,8 @@ static const struct debug_option {
   const char *desc;
 } debug_options[] = {
   {"grid", OPENSLIDE_DEBUG_GRID, "render tile outlines"},
+  {"hamamatsu-tiles", OPENSLIDE_DEBUG_HAMAMATSU_TILES,
+   "verify Hamamatsu tile starts"},
   {"unsupported", OPENSLIDE_DEBUG_UNSUPPORTED,
    "log unsupported-format errors"},
   {NULL, 0, NULL}
@@ -249,7 +251,7 @@ void _openslide_debug_init(void) {
     if (!g_ascii_strcasecmp(*kw, "help")) {
       g_message("%s options (comma-delimited):", DEBUG_ENV_VAR);
       for (const struct debug_option *opt = debug_options; opt->kw; opt++) {
-        g_message("   %-12s - %s", opt->kw, opt->desc);
+        g_message("   %-15s - %s", opt->kw, opt->desc);
       }
     } else {
       for (const struct debug_option *opt = debug_options; opt->kw; opt++) {

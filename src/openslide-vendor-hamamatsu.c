@@ -874,36 +874,52 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
   return (w1 < w2) - (w1 > w2);
 }
 
-// warning: calls g_assert for trivial things, use only for debugging
-static void verify_mcu_starts(struct hamamatsu_jpeg_ops_data *data) {
-  g_debug("verifying mcu starts");
+#define CHK(ASSERTION)							\
+  do {									\
+    if (!(ASSERTION)) {							\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  "Invalid MCU starts: JPEG %d, tile %d, "		\
+                  "assertion: " # ASSERTION,				\
+                  current_jpeg, current_mcu_start);			\
+      if (f) {								\
+        fclose(f);							\
+      }									\
+      return false;							\
+    }									\
+  } while (0)
 
+// for debugging
+static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
+                              GError **err) {
+  FILE *f = NULL;
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
-  while(current_jpeg < data->jpeg_count) {
-    struct jpeg *jp = data->all_jpegs[current_jpeg];
+  while(current_jpeg < num_jpegs) {
+    struct jpeg *jp = jpegs[current_jpeg];
+    CHK(jp->filename);
 
-    g_assert(jp->filename);
     if (current_mcu_start > 0) {
       int64_t offset = jp->mcu_starts[current_mcu_start];
-      g_assert(offset != -1);
-      FILE *f = _openslide_fopen(jp->filename, "rb", NULL);
-      g_assert(f);
+      CHK(offset != -1);
+      f = _openslide_fopen(jp->filename, "rb", NULL);
+      CHK(f);
       fseeko(f, offset - 2, SEEK_SET);
-      g_assert(getc(f) == 0xFF);
+      int prefix = getc(f);
+      CHK(prefix == 0xFF);
       int marker = getc(f);
-      g_assert(marker >= 0xD0 && marker <= 0xD7);
+      CHK(marker >= 0xD0 && marker <= 0xD7);
       fclose(f);
+      f = NULL;
     }
 
     current_mcu_start++;
     if (current_mcu_start >= jp->tile_count) {
       current_mcu_start = 0;
       current_jpeg++;
-      g_debug("done verifying jpeg %d", current_jpeg);
     }
   }
+  return true;
 }
 
 static gpointer restart_marker_thread_func(gpointer d) {
@@ -1303,10 +1319,12 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
   *_levels = levels;
 }
 
-static void init_jpeg_ops(openslide_t *osr,
+// consumes levels/jpegs, even on failure
+static bool init_jpeg_ops(openslide_t *osr,
                           int32_t level_count, struct jpeg_level **levels,
                           int32_t num_jpegs, struct jpeg **jpegs,
-                          bool background_thread) {
+                          bool background_thread,
+                          GError **err) {
   // allocate private data
   g_assert(osr->data == NULL);
   struct hamamatsu_jpeg_ops_data *data =
@@ -1336,18 +1354,23 @@ static void init_jpeg_ops(openslide_t *osr,
   }
 
   // for debugging
-  if (false) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_HAMAMATSU_TILES)) {
     if (background_thread) {
       g_thread_join(data->restart_marker_thread);
       data->restart_marker_thread = NULL;
     } else {
       restart_marker_thread_func(osr);
     }
-    verify_mcu_starts(data);
+    if (!verify_mcu_starts(num_jpegs, jpegs, err)) {
+      jpeg_do_destroy(osr);
+      return false;
+    }
   }
 
   // set ops
   osr->ops = &hamamatsu_jpeg_ops;
+
+  return true;
 }
 
 static struct jpeg_level *create_jpeg_level(openslide_t *osr,
@@ -1539,7 +1562,10 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
  DONE:
   if (success && osr) {
     // init ops
-    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs, true);
+    success = init_jpeg_ops(osr,
+                            level_count, levels,
+                            num_jpegs, jpegs,
+                            true, err);
   } else {
     // destroy
     jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
@@ -2400,8 +2426,10 @@ DONE:
 
   if (success && osr) {
     // init ops
-    init_jpeg_ops(osr, level_count, levels, num_jpegs, jpegs,
-                  restart_marker_scan);
+    success = init_jpeg_ops(osr,
+                            level_count, levels,
+                            num_jpegs, jpegs,
+                            restart_marker_scan, err);
   } else {
     // destroy
     jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
