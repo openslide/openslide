@@ -209,38 +209,16 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                   GPtrArray *main_image_levels,
                                   int *macro_ifd,
                                   GError **err) {
-  xmlDoc *doc = NULL;
-  xmlNode *collection;
-
-  xmlNode *main_image = NULL;
-  xmlNode *macro_image = NULL;
-
-  xmlNode *image;
-
   xmlXPathContext *context = NULL;
   xmlXPathObject *images_result = NULL;
   xmlXPathObject *result = NULL;
-
-  int64_t collection_width;
-  int64_t collection_height;
-
-  int64_t macro_width = 0;
-  int64_t macro_height = 0;
-
-  int64_t test_width;
-  int64_t test_height;
-  int64_t test_ifd;
-
-  bool success = false;
-
-  int i;
-
   GError *tmp_err = NULL;
+  bool success = false;
 
   *macro_ifd = -1;
 
   // try to parse the xml
-  doc = _openslide_xml_parse(xml, &tmp_err);
+  xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
   if (doc == NULL) {
     // not leica
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -276,7 +254,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     goto FAIL;
   }
 
-  collection = result->nodesetval->nodeTab[0];
+  xmlNode *collection = result->nodesetval->nodeTab[0];
   xmlXPathFreeObject(result);
   result = NULL;
 
@@ -285,6 +263,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                      "/d:scn/d:collection/d:barcode/text()");
 
   // read collection's size
+  int64_t collection_width, collection_height;
   PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X, collection_width);
   PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y, collection_height);
 
@@ -298,8 +277,10 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   // loop through all image nodes to find the main image and the macro
-  for (i = 0; i < images_result->nodesetval->nodeNr; i++) {
-    image = images_result->nodesetval->nodeTab[i];
+  xmlNode *main_image = NULL;
+  xmlNode *macro_image = NULL;
+  for (int i = 0; i < images_result->nodesetval->nodeNr; i++) {
+    xmlNode *image = images_result->nodesetval->nodeTab[i];
 
     context->node = image;
     result = _openslide_xml_xpath_eval(context, "d:view");
@@ -310,6 +291,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
       goto FAIL;
     }
 
+    int64_t test_width, test_height;
     PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
                                 LEICA_ATTR_SIZE_X, test_width);
     PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
@@ -352,7 +334,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   // add all the IFDs of the main image to the level list
-  for (i = 0; i < result->nodesetval->nodeNr; i++) {
+  for (int i = 0; i < result->nodesetval->nodeNr; i++) {
     xmlChar *z = xmlGetProp(result->nodesetval->nodeTab[i],
                             BAD_CAST LEICA_ATTR_Z_PLANE);
     if (z && strcmp((char *) z, "0")) {
@@ -407,7 +389,10 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
       goto FAIL;
     }
 
-    for (i = 0; i < result->nodesetval->nodeNr; i++) {
+    int64_t macro_width = 0;
+    int64_t macro_height = 0;
+    for (int i = 0; i < result->nodesetval->nodeNr; i++) {
+      int64_t test_width, test_height, test_ifd;
       PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
                                   LEICA_ATTR_SIZE_X, test_width);
       PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
@@ -468,10 +453,6 @@ bool _openslide_try_leica(openslide_t *osr,
                           struct _openslide_hash *quickhash1,
                           GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
-  char *tagval;
-  int tiff_result;
-
-  int macroIFD;  // which IFD contains the macro image
 
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -480,17 +461,19 @@ bool _openslide_try_leica(openslide_t *osr,
   }
 
   // get the xml description
-  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
+  char *image_desc;
+  int tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc);
 
   // check if it containes the XML namespace string before we invoke
   // the parser
-  if (!tiff_result || (strstr(tagval, (const char *) LEICA_XMLNS) == NULL)) {
+  if (!tiff_result || !strstr(image_desc, LEICA_XMLNS)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Leica slide");
     goto FAIL;
   }
 
-  if (!parse_xml_description(tagval, osr, level_array, &macroIFD, err)) {
+  int macroIFD;  // which IFD contains the macro image
+  if (!parse_xml_description(image_desc, osr, level_array, &macroIFD, err)) {
     // unrecognizable xml
     goto FAIL;
   }
