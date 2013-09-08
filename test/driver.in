@@ -80,12 +80,12 @@ def _load_test_config(testname):
         return yaml.safe_load(fh)
 
 
-def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
-        **kwargs):
+def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
+        args=[], **kwargs):
     '''Start the specified test from the testdir directory against the
-    specified slide, running under Valgrind if requested.  args are appended
-    to the command line.  kwargs are passed to the Popen constructor.  Return
-    the Popen instance.'''
+    specified slide, running under Valgrind if requested.  debug options are
+    passed in OPENSLIDE_DEBUG.  args are appended to the command line.
+    kwargs are passed to the Popen constructor.  Return the Popen instance.'''
 
     if testdir is None:
         testdir = '!!BUILDDIR!!'
@@ -95,7 +95,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
         G_MESSAGES_DEBUG='',
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
-        OPENSLIDE_DEBUG='',
+        OPENSLIDE_DEBUG=','.join(debug),
     )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
@@ -106,13 +106,13 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, args=[],
     return subprocess.Popen(args, env=env, **kwargs)
 
 
-def _try_open_slide(slidefile, valgrind=False, testdir=None, properties={},
-        regions=[]):
+def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
+        properties={}, regions=[]):
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
     success, error message on failure.  properties is a map of slide
     properties and their expected values.  regions is a list of region
-    tuples (x, y, level, w, h).'''
+    tuples (x, y, level, w, h).  debug is a list of OPENSLIDE_DEBUG options.'''
 
     args = []
     for k, v in properties.iteritems():
@@ -120,7 +120,8 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, properties={},
     for region in regions:
         args.extend(['-r', ' '.join(str(d) for d in region)])
     proc = _launch_test('try_open', slidefile, valgrind=valgrind, args=args,
-            testdir=testdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            testdir=testdir, debug=debug, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
     out, err = proc.communicate()
     if proc.returncode or out or err:
         return out + err
@@ -290,7 +291,8 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
             properties=conf.get('properties', {}),
-            regions=conf.get('regions', []))
+            regions=conf.get('regions', []),
+            debug=conf.get('debug', []))
 
     if result is None and not conf['success']:
         print '%s: unexpected success' % testname
