@@ -209,7 +209,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                   GPtrArray *main_image_levels,
                                   int *macro_ifd,
                                   GError **err) {
-  xmlXPathContext *context = NULL;
+  xmlXPathContext *ctx = NULL;
   xmlXPathObject *images_result = NULL;
   xmlXPathObject *result = NULL;
   GError *tmp_err = NULL;
@@ -235,7 +235,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   }
 
   // create XPATH context to query the document
-  context = _openslide_xml_xpath_create(doc);
+  ctx = _openslide_xml_xpath_create(doc);
 
   // the recognizable structure is the following:
   /*
@@ -246,7 +246,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
         image
   */
 
-  result = _openslide_xml_xpath_eval(context, "/d:scn/d:collection");
+  result = _openslide_xml_xpath_eval(ctx, "/d:scn/d:collection");
   // the root node should only have one child, named collection, otherwise fail
   if (result == NULL || result->nodesetval->nodeNr != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -259,7 +259,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = NULL;
 
   // read barcode
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.barcode",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.barcode",
                                      "/d:scn/d:collection/d:barcode/text()");
 
   // read collection's size
@@ -268,8 +268,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y, collection_height);
 
   // get the image nodes
-  context->node = collection;
-  images_result = _openslide_xml_xpath_eval(context, "d:image");
+  ctx->node = collection;
+  images_result = _openslide_xml_xpath_eval(ctx, "d:image");
   if (!images_result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't find any images");
@@ -282,8 +282,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   for (int i = 0; i < images_result->nodesetval->nodeNr; i++) {
     xmlNode *image = images_result->nodesetval->nodeTab[i];
 
-    context->node = image;
-    result = _openslide_xml_xpath_eval(context, "d:view");
+    ctx->node = image;
+    result = _openslide_xml_xpath_eval(ctx, "d:view");
 
     if (result == NULL || result->nodesetval->nodeNr != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -324,8 +324,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     goto FAIL;
   }
 
-  context->node = main_image;
-  result = _openslide_xml_xpath_eval(context, "d:pixels/d:dimension");
+  ctx->node = main_image;
+  result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
 
   if (!result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -359,17 +359,17 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   result = NULL;
 
   // add some more properties from the main image
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.device-model",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.device-model",
                                      "d:device/@model");
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.device-version",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.device-version",
                                      "d:device/@version");
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.creation-date",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.creation-date",
                                      "d:creationDate/text()");
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.objective",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.objective",
                                      "d:scanSettings/d:objectiveSettings/d:objective/text()");
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.aperture",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.aperture",
                                      "d:scanSettings/d:illuminationSettings/d:numericalAperture/text()");
-  _openslide_xml_set_prop_from_xpath(osr, context, "leica.illumination-source",
+  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.illumination-source",
                                      "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
 
   // copy objective to standard property
@@ -380,8 +380,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // process macro image
   if (macro_image != NULL) {
-    context->node = macro_image;
-    result = _openslide_xml_xpath_eval(context, "d:pixels/d:dimension");
+    ctx->node = macro_image;
+    result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
 
     if (!result) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -416,7 +416,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 FAIL:
   xmlXPathFreeObject(result);
   xmlXPathFreeObject(images_result);
-  xmlXPathFreeContext(context);
+  xmlXPathFreeContext(ctx);
   if (doc != NULL) {
     xmlFreeDoc(doc);
   }
