@@ -422,30 +422,6 @@ FAIL:
   return success;
 }
 
-static bool check_directory(TIFF *tiff, uint16 dir_num, GError **err) {
-  if (TIFFSetDirectory(tiff, dir_num) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't find directory");
-    return false;
-  }
-
-  // verify that we can read this compression (hard fail if not)
-  uint16_t compression;
-  if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't read compression scheme");
-    return false;
-  }
-
-  if (!TIFFIsCODECConfigured(compression)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Unsupported TIFF compression: %u", compression);
-    return false;
-  }
-
-  return true;
-}
-
 bool _openslide_try_leica(openslide_t *osr,
                           struct _openslide_tiffcache *tc, TIFF *tiff,
                           struct _openslide_hash *quickhash1,
@@ -478,9 +454,6 @@ bool _openslide_try_leica(openslide_t *osr,
 
   // add macro image if found
   if (macroIFD != -1) {
-    if (!check_directory(tiff, macroIFD, err)) {
-      goto FAIL;
-    }
     if (!_openslide_tiff_add_associated_image(osr, "macro",
                                               tc, macroIFD, err)) {
       goto FAIL;
@@ -492,15 +465,25 @@ bool _openslide_try_leica(openslide_t *osr,
     struct level *l = level_array->pdata[n];
     struct _openslide_tiff_level *tiffl = &l->tiffl;
 
-    if (!check_directory(tiff, l->tiffl.dir, err)) {
-      goto FAIL;
-    }
-
+    // sets directory
     if (!_openslide_tiff_level_init(tiff,
                                     l->tiffl.dir,
                                     (struct _openslide_level *) l,
                                     tiffl,
                                     err)) {
+      goto FAIL;
+    }
+
+    // verify that we can read this compression (hard fail if not)
+    uint16_t compression;
+    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read compression scheme");
+      goto FAIL;
+    }
+    if (!TIFFIsCODECConfigured(compression)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
 

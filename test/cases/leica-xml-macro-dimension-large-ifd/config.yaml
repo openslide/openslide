@@ -1,4 +1,4 @@
 base: Leica/Leica-1.scn
-error: "^Can't find directory$"
+error: ^Cannot set TIFF directory 42$
 slide: Leica-1.scn
 success: false

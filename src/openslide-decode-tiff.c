@@ -480,6 +480,15 @@ static bool _add_associated_image(openslide_t *osr,
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, w, err);
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, h, err);
 
+  // check compression
+  uint16_t compression;
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, compression, err);
+  if (!TIFFIsCODECConfigured(compression)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unsupported TIFF compression: %u", compression);
+    return false;
+  }
+
   // possibly load into struct
   if (osr) {
     struct associated_image *img = g_slice_new0(struct associated_image);
