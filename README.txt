@@ -27,16 +27,16 @@ Requirements
 ============
 
 This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x,
-GDK-PixBuf, libxml2, cairo >= 1.2, and glib >= 2.16.  Leica support requires
-libtiff >= 4.
+GDK-PixBuf, libxml2, cairo >= 1.2, and glib >= 2.16.  Leica and Ventana
+support require libtiff >= 4.
 
 
 Features
 ========
 
-The library can read Aperio, Hamamatsu, Leica, MIRAX, and Trestle formats,
-as well as TIFF files that conform to a simple convention. (InterScope
-files tend to be readable as this generic TIFF.)
+The library can read Aperio, Hamamatsu, Leica, MIRAX, Trestle, and Ventana
+formats, as well as TIFF files that conform to a simple convention.
+(InterScope files tend to be readable as this generic TIFF.)
 
 More information about formats is here:
 http://openslide.org/formats/

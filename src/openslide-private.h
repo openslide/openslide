@@ -144,6 +144,9 @@ bool _openslide_try_leica(openslide_t *osr,
                           struct _openslide_tiffcache *tc, TIFF *tiff,
                           struct _openslide_hash *quickhash1,
                           GError **err);
+bool _openslide_try_ventana(openslide_t *osr,
+                            struct _openslide_tiffcache *tc, TIFF *tiff,
+                            struct _openslide_hash *quickhash1, GError **err);
 bool _openslide_try_generic_tiff(openslide_t *osr,
 				 struct _openslide_tiffcache *tc, TIFF *tiff,
 				 struct _openslide_hash *quickhash1,

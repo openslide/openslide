@@ -57,6 +57,7 @@ static const struct tiff_format {
   FORMAT(trestle),
   FORMAT(aperio),
   FORMAT(leica),
+  FORMAT(ventana),
   FORMAT(generic_tiff),
   {NULL, NULL}
 };
