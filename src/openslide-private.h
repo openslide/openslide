@@ -241,6 +241,8 @@ bool _openslide_grid_paint_region(struct _openslide_grid *grid,
                                   int32_t w, int32_t h,
                                   GError **err);
 
+void _openslide_grid_draw_tile_info(cairo_t *cr, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
+
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 
 

@@ -20,6 +20,7 @@
  */
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <math.h>
 #include <glib.h>
 #include <cairo.h>
@@ -607,4 +608,32 @@ void _openslide_grid_destroy(struct _openslide_grid *grid) {
     return;
   }
   grid->ops->destroy(grid);
+}
+
+void _openslide_grid_draw_tile_info(cairo_t *cr, const char *fmt, ...) {
+  if (!_openslide_debug(OPENSLIDE_DEBUG_TILES)) {
+    return;
+  }
+
+  cairo_save(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+  cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
+
+  va_list ap;
+  va_start(ap, fmt);
+  char *str = g_strdup_vprintf(fmt, ap);
+  char **lines = g_strsplit(str, "\n", 0);
+  int count = g_strv_length(lines);
+  g_free(str);
+  va_end(ap);
+
+  cairo_font_extents_t extents;
+  cairo_font_extents(cr, &extents);
+  for (int i = 0; i < count; i++) {
+    cairo_move_to(cr, 5, i * extents.height + extents.ascent + 5);
+    cairo_show_text(cr, lines[i]);
+  }
+
+  g_strfreev(lines);
+  cairo_restore(cr);
 }
