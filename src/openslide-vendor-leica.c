@@ -335,8 +335,8 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
 
   // add all the IFDs of the main image to the level list
   for (int i = 0; i < result->nodesetval->nodeNr; i++) {
-    xmlChar *z = xmlGetProp(result->nodesetval->nodeTab[i],
-                            BAD_CAST LEICA_ATTR_Z_PLANE);
+    xmlNode *dimension = result->nodesetval->nodeTab[i];
+    xmlChar *z = xmlGetProp(dimension, BAD_CAST LEICA_ATTR_Z_PLANE);
     if (z && strcmp((char *) z, "0")) {
       // accept only IFDs from z-plane 0
       // TODO: support multiple z-planes
@@ -346,8 +346,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     xmlFree(z);
 
     int64_t dir;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
-                                LEICA_ATTR_IFD, dir);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, dir);
 
     struct level *l = g_slice_new0(struct level);
     l->tiffl.dir = dir;
@@ -392,13 +391,11 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     int64_t macro_width = 0;
     int64_t macro_height = 0;
     for (int i = 0; i < result->nodesetval->nodeNr; i++) {
+      xmlNode *dimension = result->nodesetval->nodeTab[i];
       int64_t test_width, test_height, test_ifd;
-      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
-                                  LEICA_ATTR_SIZE_X, test_width);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
-                                  LEICA_ATTR_SIZE_Y, test_height);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[i],
-                                  LEICA_ATTR_IFD, test_ifd);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_X, test_width);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_Y, test_height);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, test_ifd);
 
       if (test_width >= macro_width && test_height >= macro_height) {
         macro_width = test_width;
