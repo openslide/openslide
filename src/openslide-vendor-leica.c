@@ -244,17 +244,14 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
         image
   */
 
-  result = _openslide_xml_xpath_eval(ctx, "/d:scn/d:collection");
   // the root node should only have one child, named collection, otherwise fail
-  if (result == NULL || result->nodesetval->nodeNr != 1) {
+  xmlNode *collection = _openslide_xml_xpath_get_node(ctx,
+                                                      "/d:scn/d:collection");
+  if (!collection) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't find collection element");
     goto FAIL;
   }
-
-  xmlNode *collection = result->nodesetval->nodeTab[0];
-  xmlXPathFreeObject(result);
-  result = NULL;
 
   // read barcode
   _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.barcode",
@@ -284,15 +281,12 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     ctx->node = image;
 
     // get view node
-    result = _openslide_xml_xpath_eval(ctx, "d:view");
-    if (result == NULL || result->nodesetval->nodeNr != 1) {
+    xmlNode *view = _openslide_xml_xpath_get_node(ctx, "d:view");
+    if (!view) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't find view node");
       goto FAIL;
     }
-    xmlNode *view = result->nodesetval->nodeTab[0];
-    xmlXPathFreeObject(result);
-    result = NULL;
 
     // get view dimensions
     int64_t clicks_across, clicks_down;

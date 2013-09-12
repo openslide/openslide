@@ -106,6 +106,18 @@ xmlXPathObject *_openslide_xml_xpath_eval(xmlXPathContext *ctx,
   return result;
 }
 
+// return NULL unless exactly one match
+xmlNode *_openslide_xml_xpath_get_node(xmlXPathContext *ctx,
+                                       const char *xpath) {
+  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, xpath);
+  xmlNode *obj = NULL;
+  if (result && result->nodesetval->nodeNr == 1) {
+    obj = result->nodesetval->nodeTab[0];
+  }
+  xmlXPathFreeObject(result);
+  return obj;
+}
+
 void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,
