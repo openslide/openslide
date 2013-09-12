@@ -45,6 +45,16 @@ static const char THUMBNAIL_DESCRIPTION[] = "Thumbnail";
 static const char INITIAL_ROOT_TAG[] = "iScan";
 static const char ATTR_Z_LAYERS[] = "Z-layers";
 
+#define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
+  do {								\
+    GError *tmp_err = NULL;					\
+    OUT = _openslide_xml_parse_int_attr(NODE, NAME, &tmp_err);	\
+    if (tmp_err)  {						\
+      g_propagate_error(err, tmp_err);				\
+      goto FAIL;						\
+    }								\
+  } while (0)
+
 struct ventana_ops_data {
   struct _openslide_tiffcache *tc;
 };
@@ -189,22 +199,23 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 static bool parse_initial_xml(openslide_t *osr, const char *xml,
                               GError **err) {
+  xmlDoc *doc = NULL;
   GError *tmp_err = NULL;
 
   // quick check for plausible XML string before parsing
   if (!strstr(xml, INITIAL_ROOT_TAG)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "%s not in XMLPacket", INITIAL_ROOT_TAG);
-    return false;
+    goto FAIL;
   }
 
   // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
+  doc = _openslide_xml_parse(xml, &tmp_err);
   if (!doc) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "%s", tmp_err->message);
     g_clear_error(&tmp_err);
-    return false;
+    goto FAIL;
   }
   xmlNode *root = xmlDocGetRootElement(doc);
 
@@ -212,24 +223,18 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Root tag not %s", INITIAL_ROOT_TAG);
-    xmlFreeDoc(doc);
-    return false;
+    goto FAIL;
   }
 
   // okay, assume Ventana slide
 
   // we don't know how to handle multiple Z layers
-  int64_t z_layers = _openslide_xml_parse_int_attr(root, ATTR_Z_LAYERS,
-                                                   &tmp_err);
-  if (tmp_err) {
-    g_propagate_error(err, tmp_err);
-    xmlFreeDoc(doc);
-    return false;
-  } else if (z_layers != 1) {
+  int64_t z_layers;
+  PARSE_INT_ATTRIBUTE_OR_FAIL(root, ATTR_Z_LAYERS, z_layers);
+  if (z_layers != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Slides with multiple Z layers are not supported");
-    xmlFreeDoc(doc);
-    return false;
+    goto FAIL;
   }
 
   if (osr) {
@@ -256,6 +261,12 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   // clean up
   xmlFreeDoc(doc);
   return true;
+
+FAIL:
+  if (doc) {
+    xmlFreeDoc(doc);
+  }
+  return false;
 }
 
 bool _openslide_try_ventana(openslide_t *osr,
