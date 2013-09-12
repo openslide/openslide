@@ -280,6 +280,20 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     xmlNode *image = images_result->nodesetval->nodeTab[i];
     ctx->node = image;
 
+    // we only support brightfield
+    xmlNode *illumination_node = _openslide_xml_xpath_get_node(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource");
+    if (!illumination_node) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read illumination");
+      goto FAIL;
+    }
+    xmlChar *illumination = xmlNodeGetContent(illumination_node);
+    if (xmlStrcmp(illumination, BAD_CAST "brightfield")) {
+      xmlFree(illumination);
+      continue;
+    }
+    xmlFree(illumination);
+
     // get view node
     xmlNode *view = _openslide_xml_xpath_get_node(ctx, "d:view");
     if (!view) {
