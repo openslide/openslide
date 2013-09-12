@@ -261,9 +261,11 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
                                      "/d:scn/d:collection/d:barcode/text()");
 
   // read collection's size
-  int64_t collection_width, collection_height;
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X, collection_width);
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y, collection_height);
+  int64_t collection_clicks_across, collection_clicks_down;
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X,
+                              collection_clicks_across);
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y,
+                              collection_clicks_down);
 
   // get the image nodes
   ctx->node = collection;
@@ -279,27 +281,27 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   xmlNode *macro_image = NULL;
   for (int i = 0; i < images_result->nodesetval->nodeNr; i++) {
     xmlNode *image = images_result->nodesetval->nodeTab[i];
-
     ctx->node = image;
-    result = _openslide_xml_xpath_eval(ctx, "d:view");
 
+    // get view node
+    result = _openslide_xml_xpath_eval(ctx, "d:view");
     if (result == NULL || result->nodesetval->nodeNr != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't find view node");
       goto FAIL;
     }
-
-    int64_t test_width, test_height;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
-                                LEICA_ATTR_SIZE_X, test_width);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(result->nodesetval->nodeTab[0],
-                                LEICA_ATTR_SIZE_Y, test_height);
-
+    xmlNode *view = result->nodesetval->nodeTab[0];
     xmlXPathFreeObject(result);
     result = NULL;
 
+    // get view dimensions
+    int64_t clicks_across, clicks_down;
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_X, clicks_across);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_Y, clicks_down);
+
     // we assume that the macro's dimensions are the same as the collection's
-    if (test_width == collection_width && test_height == collection_height) {
+    if (clicks_across == collection_clicks_across &&
+        clicks_down == collection_clicks_down) {
       if (macro_image != NULL) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Found multiple macro images");
