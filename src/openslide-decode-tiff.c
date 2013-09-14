@@ -247,21 +247,25 @@ bool _openslide_tiff_level_init(TIFF *tiff,
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, ih, err);
 
   // safe now, start writing
-  level->w = iw;
-  level->h = ih;
-  // tile size hints
-  level->tile_w = tw;
-  level->tile_h = th;
+  if (level) {
+    level->w = iw;
+    level->h = ih;
+    // tile size hints
+    level->tile_w = tw;
+    level->tile_h = th;
+  }
 
-  tiffl->dir = dir;
-  tiffl->image_w = iw;
-  tiffl->image_h = ih;
-  tiffl->tile_w = tw;
-  tiffl->tile_h = th;
+  if (tiffl) {
+    tiffl->dir = dir;
+    tiffl->image_w = iw;
+    tiffl->image_h = ih;
+    tiffl->tile_w = tw;
+    tiffl->tile_h = th;
 
-  // num tiles in each dimension
-  tiffl->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
-  tiffl->tiles_down = (ih / th) + !!(ih % th);
+    // num tiles in each dimension
+    tiffl->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
+    tiffl->tiles_down = (ih / th) + !!(ih % th);
+  }
 
   return true;
 }

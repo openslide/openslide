@@ -517,8 +517,7 @@ static bool create_levels_from_collection(openslide_t *osr,
 
       // select and examine TIFF directory
       if (!_openslide_tiff_level_init(tiff, dimension->dir,
-                                      (struct _openslide_level *) l,
-                                      tiffl,
+                                      NULL, tiffl,
                                       err)) {
         g_slice_free(struct level, l);
         return false;
@@ -530,11 +529,6 @@ static bool create_levels_from_collection(openslide_t *osr,
       l->offset_x = image->clicks_offset_x / dimension->clicks_per_pixel;
       l->offset_y = image->clicks_offset_y / dimension->clicks_per_pixel;
       //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dimension->dir, dimension->clicks_per_pixel, l->offset_x, l->offset_y);
-
-      // clear tile size hints, since the offset will not be a multiple of
-      // the tile size
-      l->base.tile_w = 0;
-      l->base.tile_h = 0;
 
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
