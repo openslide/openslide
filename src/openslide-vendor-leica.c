@@ -36,6 +36,7 @@
 #include <glib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <tiffio.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -43,6 +44,8 @@
 static const char LEICA_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 static const char LEICA_ATTR_SIZE_X[] = "sizeX";
 static const char LEICA_ATTR_SIZE_Y[] = "sizeY";
+static const char LEICA_ATTR_OFFSET_X[] = "offsetX";
+static const char LEICA_ATTR_OFFSET_Y[] = "offsetY";
 static const char LEICA_ATTR_IFD[] = "ifd";
 static const char LEICA_ATTR_Z_PLANE[] = "z";
 
@@ -64,6 +67,9 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+
+  int64_t offset_x;
+  int64_t offset_y;
 };
 
 static void destroy_data(struct leica_ops_data *data,
@@ -156,9 +162,10 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   }
 
   if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
+    x = x / l->base.downsample - l->offset_x;
+    y = y / l->base.downsample - l->offset_y,
     success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                           x / l->base.downsample,
-                                           y / l->base.downsample,
+                                           x, y,
                                            level, w, h,
                                            err);
   } else {
@@ -275,6 +282,9 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
   // loop through all image nodes to find the main image and the macro
   xmlNode *main_image = NULL;
   xmlNode *macro_image = NULL;
+  int64_t main_image_clicks_across = 0;
+  int64_t main_image_offset_x_clicks = 0;
+  int64_t main_image_offset_y_clicks = 0;
   for (int i = 0; i < images_result->nodesetval->nodeNr; i++) {
     xmlNode *image = images_result->nodesetval->nodeTab[i];
     ctx->node = image;
@@ -302,9 +312,11 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
     }
 
     // get view dimensions
-    int64_t clicks_across, clicks_down;
+    int64_t clicks_across, clicks_down, offset_x_clicks, offset_y_clicks;
     PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_X, clicks_across);
     PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_Y, clicks_down);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_X, offset_x_clicks);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_Y, offset_y_clicks);
 
     // we assume that the macro's dimensions are the same as the collection's
     if (clicks_across == collection_clicks_across &&
@@ -322,6 +334,9 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
         goto FAIL;
       }
       main_image = image;
+      main_image_clicks_across = clicks_across;
+      main_image_offset_x_clicks = offset_x_clicks;
+      main_image_offset_y_clicks = offset_y_clicks;
     }
   }
 
@@ -355,7 +370,9 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
 
     // read attributes
     int64_t dir;
+    int64_t width;
     PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, dir);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_X, width);
 
     // create level
     struct level *l = g_slice_new0(struct level);
@@ -369,6 +386,19 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
       g_slice_free(struct level, l);
       goto FAIL;
     }
+
+    // set level size and offset
+    double clicks_per_pixel = (double) main_image_clicks_across / width;
+    l->base.w = ceil(collection_clicks_across / clicks_per_pixel);
+    l->base.h = ceil(collection_clicks_down / clicks_per_pixel);
+    l->offset_x = main_image_offset_x_clicks / clicks_per_pixel;
+    l->offset_y = main_image_offset_y_clicks / clicks_per_pixel;
+    //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dir, clicks_per_pixel, l->offset_x, l->offset_y);
+
+    // clear tile size hints, since the offset will not be a multiple of
+    // the tile size
+    l->base.tile_w = 0;
+    l->base.tile_h = 0;
 
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;

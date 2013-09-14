@@ -151,7 +151,7 @@ static bool read_tiles(cairo_t *cr,
                        struct region *region,
                        void *arg,
                        GError **err) {
-  //g_debug("offset: %g %g, advance: %g %g", offset_x, offset_y, grid->tile_advance_x, grid->tile_advance_y);
+  //g_debug("offset: %g %g, advance: %g %g", region->offset_x, region->offset_y, grid->tile_advance_x, grid->tile_advance_y);
   if (fabs(region->offset_x) >= grid->tile_advance_x) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "internal error: fabs(offset_x) >= tile_advance_x");
@@ -263,11 +263,24 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
 
   compute_region(_grid, x, y, w, h, &region);
 
-  // openslide.c:read_region() ensures x/y are nonnegative
-  if (region.start_tile_x > grid->tiles_across - 1 ||
+  // check if completely outside grid
+  if (region.end_tile_x <= 0 ||
+      region.end_tile_y <= 0 ||
+      region.start_tile_x > grid->tiles_across - 1 ||
       region.start_tile_y > grid->tiles_down - 1) {
     return true;
   }
+
+  // bound on left/top
+  int64_t skipped_tiles_x = -MIN(region.start_tile_x, 0);
+  int64_t skipped_tiles_y = -MIN(region.start_tile_y, 0);
+  cairo_translate(cr,
+                  skipped_tiles_x * grid->base.tile_advance_x,
+                  skipped_tiles_y * grid->base.tile_advance_y);
+  region.start_tile_x += skipped_tiles_x;
+  region.start_tile_y += skipped_tiles_y;
+
+  // bound on right/bottom
   region.end_tile_x = MIN(region.end_tile_x, grid->tiles_across);
   region.end_tile_y = MIN(region.end_tile_y, grid->tiles_down);
 
