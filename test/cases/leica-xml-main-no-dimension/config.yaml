@@ -1,4 +1,4 @@
 base: Leica/Leica-1.scn
-error: "^Can't find any dimensions in the main image$"
+error: "^Can't find any dimensions in image$"
 slide: Leica-1.scn
 success: false

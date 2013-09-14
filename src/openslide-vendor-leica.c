@@ -72,6 +72,41 @@ struct level {
   int64_t offset_y;
 };
 
+struct collection {
+  char *barcode;
+
+  int64_t clicks_across;
+  int64_t clicks_down;
+
+  GPtrArray *images;
+};
+
+struct image {
+  char *creation_date;
+  char *device_model;
+  char *device_version;
+  char *illumination_source;
+
+  // doubles, but not parsed
+  char *objective;
+  char *aperture;
+
+  bool is_macro;
+  int64_t clicks_across;
+  int64_t clicks_down;
+  int64_t clicks_offset_x;
+  int64_t clicks_offset_y;
+
+  GPtrArray *dimensions;
+};
+
+struct dimension {
+  int64_t dir;
+  int64_t width;
+  int64_t height;
+  double clicks_per_pixel;
+};
+
 static void destroy_data(struct leica_ops_data *data,
                          struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
@@ -182,13 +217,39 @@ static const struct _openslide_ops leica_ops = {
   .destroy = destroy,
 };
 
-static int width_compare(const void *a, const void *b) {
-  const struct level *la = *(const struct level **) a;
-  const struct level *lb = *(const struct level **) b;
+static void collection_free(struct collection *collection) {
+  if (!collection) {
+    return;
+  }
+  for (uint32_t image_num = 0; image_num < collection->images->len;
+       image_num++) {
+    struct image *image = collection->images->pdata[image_num];
+    for (uint32_t dimension_num = 0; dimension_num < image->dimensions->len;
+         dimension_num++) {
+      struct dimension *dimension = image->dimensions->pdata[dimension_num];
+      g_slice_free(struct dimension, dimension);
+    }
+    g_ptr_array_free(image->dimensions, true);
+    g_free(image->creation_date);
+    g_free(image->device_model);
+    g_free(image->device_version);
+    g_free(image->illumination_source);
+    g_free(image->objective);
+    g_free(image->aperture);
+    g_slice_free(struct image, image);
+  }
+  g_ptr_array_free(collection->images, true);
+  g_free(collection->barcode);
+  g_slice_free(struct collection, collection);
+}
 
-  if (la->tiffl.image_w > lb->tiffl.image_w) {
+static int dimension_compare(const void *a, const void *b) {
+  const struct dimension *da = *(const struct dimension **) a;
+  const struct dimension *db = *(const struct dimension **) b;
+
+  if (da->width > db->width) {
     return -1;
-  } else if (la->tiffl.image_w == lb->tiffl.image_w) {
+  } else if (da->width == db->width) {
     return 0;
   } else {
     return 1;
@@ -210,16 +271,14 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
   }
 }
 
-static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
-                                  const char *xml, GPtrArray *levels,
-                                  int *macro_ifd, GError **err) {
+static struct collection *parse_xml_description(const char *xml,
+                                                GError **err) {
   xmlXPathContext *ctx = NULL;
   xmlXPathObject *images_result = NULL;
   xmlXPathObject *result = NULL;
+  struct collection *collection = NULL;
   GError *tmp_err = NULL;
   bool success = false;
-
-  *macro_ifd = -1;
 
   // try to parse the xml
   xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
@@ -247,31 +306,35 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
       collection
         barcode
         image
+          dimension
+          dimension
         image
+          dimension
+          dimension
   */
 
-  // the root node should only have one child, named collection, otherwise fail
-  xmlNode *collection = _openslide_xml_xpath_get_node(ctx,
-                                                      "/d:scn/d:collection");
-  if (!collection) {
+  // get collection node
+  xmlNode *collection_node = _openslide_xml_xpath_get_node(ctx,
+                                                           "/d:scn/d:collection");
+  if (!collection_node) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't find collection element");
     goto FAIL;
   }
 
-  // read barcode
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.barcode",
-                                     "/d:scn/d:collection/d:barcode/text()");
+  // create collection struct
+  collection = g_slice_new0(struct collection);
+  collection->images = g_ptr_array_new();
 
-  // read collection's size
-  int64_t collection_clicks_across, collection_clicks_down;
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_X,
-                              collection_clicks_across);
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection, LEICA_ATTR_SIZE_Y,
-                              collection_clicks_down);
+  collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
+
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection_node, LEICA_ATTR_SIZE_X,
+                              collection->clicks_across);
+  PARSE_INT_ATTRIBUTE_OR_FAIL(collection_node, LEICA_ATTR_SIZE_Y,
+                              collection->clicks_down);
 
   // get the image nodes
-  ctx->node = collection;
+  ctx->node = collection_node;
   images_result = _openslide_xml_xpath_eval(ctx, "d:image");
   if (!images_result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -279,15 +342,10 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
     goto FAIL;
   }
 
-  // loop through all image nodes to find the main image and the macro
-  xmlNode *main_image = NULL;
-  xmlNode *macro_image = NULL;
-  int64_t main_image_clicks_across = 0;
-  int64_t main_image_offset_x_clicks = 0;
-  int64_t main_image_offset_y_clicks = 0;
+  // create image structs
   for (int i = 0; i < images_result->nodesetval->nodeNr; i++) {
-    xmlNode *image = images_result->nodesetval->nodeTab[i];
-    ctx->node = image;
+    xmlNode *image_node = images_result->nodesetval->nodeTab[i];
+    ctx->node = image_node;
 
     // we only support brightfield
     char *illumination = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
@@ -310,180 +368,80 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
       goto FAIL;
     }
 
-    // get view dimensions
-    int64_t clicks_across, clicks_down, offset_x_clicks, offset_y_clicks;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_X, clicks_across);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_Y, clicks_down);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_X, offset_x_clicks);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_Y, offset_y_clicks);
+    // create image struct
+    struct image *image = g_slice_new0(struct image);
+    image->dimensions = g_ptr_array_new();
 
-    // we assume that the macro's dimensions are the same as the collection's
-    if (clicks_across == collection_clicks_across &&
-        clicks_down == collection_clicks_down) {
-      if (macro_image != NULL) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                    "Found multiple macro images");
-        goto FAIL;
-      }
-      macro_image = image;
-    } else {
-      if (main_image != NULL) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                    "Found multiple main images");
-        goto FAIL;
-      }
-      main_image = image;
-      main_image_clicks_across = clicks_across;
-      main_image_offset_x_clicks = offset_x_clicks;
-      main_image_offset_y_clicks = offset_y_clicks;
-    }
-  }
+    image->creation_date = _openslide_xml_xpath_get_string(ctx, "d:creationDate/text()");
+    image->device_model = _openslide_xml_xpath_get_string(ctx, "d:device/@model");
+    image->device_version = _openslide_xml_xpath_get_string(ctx, "d:device/@version");
+    image->illumination_source = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
+    image->objective = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:objectiveSettings/d:objective/text()");
+    image->aperture = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:numericalAperture/text()");
 
-  if (main_image == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't find main image node");
-    goto FAIL;
-  }
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_X,
+                                image->clicks_across);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_Y,
+                                image->clicks_down);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_X,
+                                image->clicks_offset_x);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_Y,
+                                image->clicks_offset_y);
 
-  ctx->node = main_image;
-  result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
+    image->is_macro = (image->clicks_offset_x == 0 &&
+                       image->clicks_offset_y == 0 &&
+                       image->clicks_across == collection->clicks_across &&
+                       image->clicks_down == collection->clicks_down);
 
-  if (!result) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't find any dimensions in the main image");
-    goto FAIL;
-  }
-
-  // add all the IFDs of the main image to the level list
-  for (int i = 0; i < result->nodesetval->nodeNr; i++) {
-    xmlNode *dimension = result->nodesetval->nodeTab[i];
-
-    // accept only IFDs from z-plane 0
-    // TODO: support multiple z-planes
-    xmlChar *z = xmlGetProp(dimension, BAD_CAST LEICA_ATTR_Z_PLANE);
-    if (z && strcmp((char *) z, "0")) {
-      xmlFree(z);
-      continue;
-    }
-    xmlFree(z);
-
-    // read attributes
-    int64_t dir;
-    int64_t width;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, dir);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_X, width);
-
-    // create level
-    struct level *l = g_slice_new0(struct level);
-    struct _openslide_tiff_level *tiffl = &l->tiffl;
-
-    // select and examine TIFF directory
-    if (!_openslide_tiff_level_init(tiff, dir,
-                                    (struct _openslide_level *) l,
-                                    tiffl,
-                                    err)) {
-      g_slice_free(struct level, l);
-      goto FAIL;
-    }
-
-    // set level size and offset
-    double clicks_per_pixel = (double) main_image_clicks_across / width;
-    l->base.w = ceil(collection_clicks_across / clicks_per_pixel);
-    l->base.h = ceil(collection_clicks_down / clicks_per_pixel);
-    l->offset_x = main_image_offset_x_clicks / clicks_per_pixel;
-    l->offset_y = main_image_offset_y_clicks / clicks_per_pixel;
-    //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dir, clicks_per_pixel, l->offset_x, l->offset_y);
-
-    // clear tile size hints, since the offset will not be a multiple of
-    // the tile size
-    l->base.tile_w = 0;
-    l->base.tile_h = 0;
-
-    // verify that we can read this compression (hard fail if not)
-    uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read compression scheme");
-      g_slice_free(struct level, l);
-      goto FAIL;
-    }
-    if (!TIFFIsCODECConfigured(compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Unsupported TIFF compression: %u", compression);
-      g_slice_free(struct level, l);
-      goto FAIL;
-    }
-
-    // create grid
-    l->grid = _openslide_grid_create_simple(osr,
-                                            tiffl->tiles_across,
-                                            tiffl->tiles_down,
-                                            tiffl->tile_w,
-                                            tiffl->tile_h,
-                                            read_tile);
-
-    // add it
-    g_ptr_array_add(levels, l);
-  }
-
-  xmlXPathFreeObject(result);
-  result = NULL;
-
-  // add some more properties from the main image
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.device-model",
-                                     "d:device/@model");
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.device-version",
-                                     "d:device/@version");
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.creation-date",
-                                     "d:creationDate/text()");
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.objective",
-                                     "d:scanSettings/d:objectiveSettings/d:objective/text()");
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.aperture",
-                                     "d:scanSettings/d:illuminationSettings/d:numericalAperture/text()");
-  _openslide_xml_set_prop_from_xpath(osr, ctx, "leica.illumination-source",
-                                     "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
-
-  // copy objective to standard property
-  if (osr) {
-    _openslide_duplicate_int_prop(osr->properties, "leica.objective",
-                                  OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-  }
-
-  // process macro image
-  if (macro_image != NULL) {
-    ctx->node = macro_image;
+    // get dimensions
+    ctx->node = image_node;
     result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
-
     if (!result) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't find any dimensions in the macro image");
+                  "Can't find any dimensions in image");
       goto FAIL;
     }
 
-    int64_t macro_width = 0;
-    int64_t macro_height = 0;
+    // create dimension structs
     for (int i = 0; i < result->nodesetval->nodeNr; i++) {
-      xmlNode *dimension = result->nodesetval->nodeTab[i];
-      int64_t test_width, test_height, test_ifd;
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_X, test_width);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_SIZE_Y, test_height);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, test_ifd);
+      xmlNode *dimension_node = result->nodesetval->nodeTab[i];
 
-      if (test_width >= macro_width && test_height >= macro_height) {
-        macro_width = test_width;
-        macro_height = test_height;
-        *macro_ifd = test_ifd;
+      // accept only dimensions from z-plane 0
+      // TODO: support multiple z-planes
+      xmlChar *z = xmlGetProp(dimension_node, BAD_CAST LEICA_ATTR_Z_PLANE);
+      if (z && strcmp((char *) z, "0")) {
+        xmlFree(z);
+        continue;
       }
-    }
+      xmlFree(z);
 
+      struct dimension *dimension = g_slice_new0(struct dimension);
+
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_IFD,
+                                  dimension->dir);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_SIZE_X,
+                                  dimension->width);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_SIZE_Y,
+                                  dimension->height);
+
+      dimension->clicks_per_pixel =
+        (double) image->clicks_across / dimension->width;
+
+      g_ptr_array_add(image->dimensions, dimension);
+    }
     xmlXPathFreeObject(result);
     result = NULL;
+
+    // sort dimensions
+    g_ptr_array_sort(image->dimensions, dimension_compare);
+
+    // add image
+    g_ptr_array_add(collection->images, image);
   }
 
   success = true;
 
 FAIL:
-  // parent will free levels
   xmlXPathFreeObject(result);
   xmlXPathFreeObject(images_result);
   xmlXPathFreeContext(ctx);
@@ -491,7 +449,156 @@ FAIL:
     xmlFreeDoc(doc);
   }
 
-  return success;
+  if (success) {
+    return collection;
+  } else {
+    collection_free(collection);
+    return NULL;
+  }
+}
+
+static void set_prop(openslide_t *osr, const char *name, const char *value) {
+  if (osr && value) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(name),
+                        g_strdup(value));
+  }
+}
+
+// parent must free levels on failure
+static bool create_levels_from_collection(openslide_t *osr,
+                                          struct _openslide_tiffcache *tc,
+                                          TIFF *tiff,
+                                          struct collection *collection,
+                                          GPtrArray *levels, GError **err) {
+  // set barcode property
+  set_prop(osr, "leica.barcode", collection->barcode);
+
+  // process main image
+  bool have_main_image = false;
+  for (uint32_t image_num = 0; image_num < collection->images->len;
+       image_num++) {
+    struct image *image = collection->images->pdata[image_num];
+
+    if (image->is_macro) {
+      continue;
+    }
+
+    if (!have_main_image) {
+      // first main image
+
+      // add some properties
+      set_prop(osr, "leica.aperture", image->aperture);
+      set_prop(osr, "leica.creation-date", image->creation_date);
+      set_prop(osr, "leica.device-model", image->device_model);
+      set_prop(osr, "leica.device-version", image->device_version);
+      set_prop(osr, "leica.illumination-source", image->illumination_source);
+      set_prop(osr, "leica.objective", image->objective);
+
+      // copy objective to standard property
+      if (osr) {
+        _openslide_duplicate_int_prop(osr->properties, "leica.objective",
+                                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+      }
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Found multiple main images");
+      return false;
+    }
+
+    // add all the IFDs to the level list
+    for (uint32_t dimension_num = 0; dimension_num < image->dimensions->len;
+         dimension_num++) {
+      struct dimension *dimension = image->dimensions->pdata[dimension_num];
+
+      // create level
+      struct level *l = g_slice_new0(struct level);
+      struct _openslide_tiff_level *tiffl = &l->tiffl;
+
+      // select and examine TIFF directory
+      if (!_openslide_tiff_level_init(tiff, dimension->dir,
+                                      (struct _openslide_level *) l,
+                                      tiffl,
+                                      err)) {
+        g_slice_free(struct level, l);
+        return false;
+      }
+
+      // set level size and offset
+      l->base.w = ceil(collection->clicks_across / dimension->clicks_per_pixel);
+      l->base.h = ceil(collection->clicks_down / dimension->clicks_per_pixel);
+      l->offset_x = image->clicks_offset_x / dimension->clicks_per_pixel;
+      l->offset_y = image->clicks_offset_y / dimension->clicks_per_pixel;
+      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dimension->dir, dimension->clicks_per_pixel, l->offset_x, l->offset_y);
+
+      // clear tile size hints, since the offset will not be a multiple of
+      // the tile size
+      l->base.tile_w = 0;
+      l->base.tile_h = 0;
+
+      // verify that we can read this compression (hard fail if not)
+      uint16_t compression;
+      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Can't read compression scheme");
+        g_slice_free(struct level, l);
+        return false;
+      }
+      if (!TIFFIsCODECConfigured(compression)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unsupported TIFF compression: %u", compression);
+        g_slice_free(struct level, l);
+        return false;
+      }
+
+      // create grid
+      l->grid = _openslide_grid_create_simple(osr,
+                                              tiffl->tiles_across,
+                                              tiffl->tiles_down,
+                                              tiffl->tile_w,
+                                              tiffl->tile_h,
+                                              read_tile);
+
+      // add level
+      g_ptr_array_add(levels, l);
+    }
+
+    have_main_image = true;
+  }
+
+  if (!have_main_image) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't find main image");
+    return false;
+  }
+
+  // process macro image
+  bool have_macro_image = false;
+  for (uint32_t image_num = 0; image_num < collection->images->len;
+       image_num++) {
+    struct image *image = collection->images->pdata[image_num];
+
+    if (!image->is_macro) {
+      continue;
+    }
+
+    if (have_macro_image) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Found multiple macro images");
+      return false;
+    }
+
+    // add associated image with largest dimension
+    struct dimension *dimension = image->dimensions->pdata[0];
+    if (!_openslide_tiff_add_associated_image(osr, "macro", tc,
+                                              dimension->dir, err)) {
+      return false;
+    }
+
+    have_macro_image = true;
+  }
+
+  return true;
 }
 
 bool _openslide_try_leica(openslide_t *osr,
@@ -518,23 +625,19 @@ bool _openslide_try_leica(openslide_t *osr,
     goto FAIL;
   }
 
-  // read XML, initialize and verify levels
-  int macroIFD;  // which IFD contains the macro image
-  if (!parse_xml_description(osr, tiff, image_desc, level_array,
-                             &macroIFD, err)) {
+  // read XML
+  struct collection *collection = parse_xml_description(image_desc, err);
+  if (!collection) {
     goto FAIL;
   }
 
-  // add macro image if found
-  if (macroIFD != -1) {
-    if (!_openslide_tiff_add_associated_image(osr, "macro",
-                                              tc, macroIFD, err)) {
-      goto FAIL;
-    }
+  // initialize and verify levels
+  if (!create_levels_from_collection(osr, tc, tiff, collection,
+                                     level_array, err)) {
+    collection_free(collection);
+    goto FAIL;
   }
-
-  // sort levels
-  g_ptr_array_sort(level_array, width_compare);
+  collection_free(collection);
 
   // unwrap level array
   int32_t level_count = level_array->len;
