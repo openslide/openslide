@@ -118,17 +118,30 @@ xmlNode *_openslide_xml_xpath_get_node(xmlXPathContext *ctx,
   return obj;
 }
 
+char *_openslide_xml_xpath_get_string(xmlXPathContext *ctx,
+                                      const char *xpath) {
+  xmlXPathObject *result = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
+  char *str = NULL;
+  if (result && result->nodesetval && result->nodesetval->nodeNr) {
+    xmlChar *xmlstr = xmlXPathCastToString(result);
+    str = g_strdup((char *) xmlstr);
+    xmlFree(xmlstr);
+  }
+  xmlXPathFreeObject(result);
+  return str;
+}
+
 void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,
                                         const char *xpath) {
-  xmlXPathObject *result = xmlXPathEvalExpression(BAD_CAST xpath, ctx);
-  if (osr && result && result->nodesetval && result->nodesetval->nodeNr) {
-    xmlChar *str = xmlXPathCastToString(result);
+  if (!osr) {
+    return;
+  }
+  char *str = _openslide_xml_xpath_get_string(ctx, xpath);
+  if (str) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
-                        g_strdup((char *) str));
-    xmlFree(str);
+                        str);
   }
-  xmlXPathFreeObject(result);
 }

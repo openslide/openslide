@@ -46,6 +46,9 @@ xmlXPathObject *_openslide_xml_xpath_eval(xmlXPathContext *ctx,
 xmlNode *_openslide_xml_xpath_get_node(xmlXPathContext *ctx,
                                        const char *xpath);
 
+char *_openslide_xml_xpath_get_string(xmlXPathContext *ctx,
+                                      const char *xpath);
+
 void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,

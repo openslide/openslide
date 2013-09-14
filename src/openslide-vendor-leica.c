@@ -290,18 +290,17 @@ static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
     ctx->node = image;
 
     // we only support brightfield
-    xmlNode *illumination_node = _openslide_xml_xpath_get_node(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource");
-    if (!illumination_node) {
+    char *illumination = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
+    if (!illumination) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read illumination");
       goto FAIL;
     }
-    xmlChar *illumination = xmlNodeGetContent(illumination_node);
-    if (xmlStrcmp(illumination, BAD_CAST "brightfield")) {
-      xmlFree(illumination);
+    if (strcmp(illumination, "brightfield")) {
+      g_free(illumination);
       continue;
     }
-    xmlFree(illumination);
+    g_free(illumination);
 
     // get view node
     xmlNode *view = _openslide_xml_xpath_get_node(ctx, "d:view");
