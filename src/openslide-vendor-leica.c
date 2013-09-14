@@ -203,9 +203,9 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
   }
 }
 
-static bool parse_xml_description(const char *xml, openslide_t *osr, 
-                                  GPtrArray *levels, int *macro_ifd,
-                                  GError **err) {
+static bool parse_xml_description(openslide_t *osr, TIFF *tiff,
+                                  const char *xml, GPtrArray *levels,
+                                  int *macro_ifd, GError **err) {
   xmlXPathContext *ctx = NULL;
   xmlXPathObject *images_result = NULL;
   xmlXPathObject *result = NULL;
@@ -343,21 +343,57 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   // add all the IFDs of the main image to the level list
   for (int i = 0; i < result->nodesetval->nodeNr; i++) {
     xmlNode *dimension = result->nodesetval->nodeTab[i];
+
+    // accept only IFDs from z-plane 0
+    // TODO: support multiple z-planes
     xmlChar *z = xmlGetProp(dimension, BAD_CAST LEICA_ATTR_Z_PLANE);
     if (z && strcmp((char *) z, "0")) {
-      // accept only IFDs from z-plane 0
-      // TODO: support multiple z-planes
       xmlFree(z);
       continue;
     }
     xmlFree(z);
 
+    // read attributes
     int64_t dir;
     PARSE_INT_ATTRIBUTE_OR_FAIL(dimension, LEICA_ATTR_IFD, dir);
 
+    // create level
     struct level *l = g_slice_new0(struct level);
-    l->tiffl.dir = dir;
+    struct _openslide_tiff_level *tiffl = &l->tiffl;
 
+    // select and examine TIFF directory
+    if (!_openslide_tiff_level_init(tiff, dir,
+                                    (struct _openslide_level *) l,
+                                    tiffl,
+                                    err)) {
+      g_slice_free(struct level, l);
+      goto FAIL;
+    }
+
+    // verify that we can read this compression (hard fail if not)
+    uint16_t compression;
+    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Can't read compression scheme");
+      g_slice_free(struct level, l);
+      goto FAIL;
+    }
+    if (!TIFFIsCODECConfigured(compression)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Unsupported TIFF compression: %u", compression);
+      g_slice_free(struct level, l);
+      goto FAIL;
+    }
+
+    // create grid
+    l->grid = _openslide_grid_create_simple(osr,
+                                            tiffl->tiles_across,
+                                            tiffl->tiles_down,
+                                            tiffl->tile_w,
+                                            tiffl->tile_h,
+                                            read_tile);
+
+    // add it
     g_ptr_array_add(levels, l);
   }
 
@@ -418,6 +454,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
   success = true;
 
 FAIL:
+  // parent will free levels
   xmlXPathFreeObject(result);
   xmlXPathFreeObject(images_result);
   xmlXPathFreeContext(ctx);
@@ -452,9 +489,10 @@ bool _openslide_try_leica(openslide_t *osr,
     goto FAIL;
   }
 
+  // read XML, initialize and verify levels
   int macroIFD;  // which IFD contains the macro image
-  if (!parse_xml_description(image_desc, osr, level_array, &macroIFD, err)) {
-    // unrecognizable xml
+  if (!parse_xml_description(osr, tiff, image_desc, level_array,
+                             &macroIFD, err)) {
     goto FAIL;
   }
 
@@ -464,41 +502,6 @@ bool _openslide_try_leica(openslide_t *osr,
                                               tc, macroIFD, err)) {
       goto FAIL;
     }
-  }
-
-  // initialize and verify levels
-  for (uint32_t n = 0; n < level_array->len; n++) {
-    struct level *l = level_array->pdata[n];
-    struct _openslide_tiff_level *tiffl = &l->tiffl;
-
-    // sets directory
-    if (!_openslide_tiff_level_init(tiff,
-                                    l->tiffl.dir,
-                                    (struct _openslide_level *) l,
-                                    tiffl,
-                                    err)) {
-      goto FAIL;
-    }
-
-    // verify that we can read this compression (hard fail if not)
-    uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read compression scheme");
-      goto FAIL;
-    }
-    if (!TIFFIsCODECConfigured(compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Unsupported TIFF compression: %u", compression);
-      goto FAIL;
-    }
-
-    l->grid = _openslide_grid_create_simple(osr,
-                                            tiffl->tiles_across,
-                                            tiffl->tiles_down,
-                                            tiffl->tile_w,
-                                            tiffl->tile_h,
-                                            read_tile);
   }
 
   // sort levels
