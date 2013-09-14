@@ -204,8 +204,7 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
 }
 
 static bool parse_xml_description(const char *xml, openslide_t *osr, 
-                                  GPtrArray *main_image_levels,
-                                  int *macro_ifd,
+                                  GPtrArray *levels, int *macro_ifd,
                                   GError **err) {
   xmlXPathContext *ctx = NULL;
   xmlXPathObject *images_result = NULL;
@@ -359,7 +358,7 @@ static bool parse_xml_description(const char *xml, openslide_t *osr,
     struct level *l = g_slice_new0(struct level);
     l->tiffl.dir = dir;
 
-    g_ptr_array_add(main_image_levels, l);
+    g_ptr_array_add(levels, l);
   }
 
   xmlXPathFreeObject(result);
