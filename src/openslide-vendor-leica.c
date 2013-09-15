@@ -48,6 +48,7 @@ static const char LEICA_ATTR_OFFSET_X[] = "offsetX";
 static const char LEICA_ATTR_OFFSET_Y[] = "offsetY";
 static const char LEICA_ATTR_IFD[] = "ifd";
 static const char LEICA_ATTR_Z_PLANE[] = "z";
+static const char LEICA_VALUE_BRIGHTFIELD[] = "brightfield";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
   do {								\
@@ -452,14 +453,45 @@ static void set_prop(openslide_t *osr, const char *name, const char *value) {
   }
 }
 
+// For compatibility, slides with 0-1 macro images, 1 brightfield main image,
+// and no other main images quickhash the smallest main image dimension
+// in z-plane 0.
+// All other slides quickhash the lowest-resolution brightfield macro image.
+static bool should_use_legacy_quickhash(const struct collection *collection) {
+  uint32_t brightfield_main_images = 0;
+  uint32_t macro_images = 0;
+  for (uint32_t image_num = 0; image_num < collection->images->len;
+       image_num++) {
+    struct image *image = collection->images->pdata[image_num];
+    if (image->is_macro) {
+      macro_images++;
+    } else {
+      if (!image->illumination_source ||
+          strcmp(image->illumination_source, LEICA_VALUE_BRIGHTFIELD)) {
+        return false;
+      }
+      brightfield_main_images++;
+    }
+  }
+  return (brightfield_main_images == 1 && macro_images <= 1);
+}
+
 // parent must free levels on failure
 static bool create_levels_from_collection(openslide_t *osr,
                                           struct _openslide_tiffcache *tc,
                                           TIFF *tiff,
                                           struct collection *collection,
-                                          GPtrArray *levels, GError **err) {
+                                          GPtrArray *levels,
+                                          int64_t *quickhash_dir,
+                                          GError **err) {
+  *quickhash_dir = -1;
+
   // set barcode property
   set_prop(osr, "leica.barcode", collection->barcode);
+
+  // determine quickhash mode
+  bool legacy_quickhash = should_use_legacy_quickhash(collection);
+  //g_debug("legacy quickhash %s", legacy_quickhash ? "true" : "false");
 
   // process main image
   bool have_main_image = false;
@@ -473,7 +505,7 @@ static bool create_levels_from_collection(openslide_t *osr,
 
     // we only support brightfield
     if (!image->illumination_source ||
-        strcmp(image->illumination_source, "brightfield")) {
+        strcmp(image->illumination_source, LEICA_VALUE_BRIGHTFIELD)) {
       continue;
     }
 
@@ -550,6 +582,13 @@ static bool create_levels_from_collection(openslide_t *osr,
       g_ptr_array_add(levels, l);
     }
 
+    // set quickhash directory in legacy mode
+    if (legacy_quickhash) {
+      struct dimension *dimension =
+        image->dimensions->pdata[image->dimensions->len - 1];
+      *quickhash_dir = dimension->dir;
+    }
+
     have_main_image = true;
   }
 
@@ -588,9 +627,23 @@ static bool create_levels_from_collection(openslide_t *osr,
       return false;
     }
 
+    // use smallest macro dimension for quickhash
+    if (!legacy_quickhash) {
+      dimension = image->dimensions->pdata[image->dimensions->len - 1];
+      *quickhash_dir = dimension->dir;
+    }
+
     have_macro_image = true;
   }
 
+  if (*quickhash_dir == -1) {
+    // e.g., new-style quickhash but no macro image
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't locate TIFF directory for quickhash");
+    return false;
+  }
+
+  g_debug("quickhash directory %"G_GINT64_FORMAT, *quickhash_dir);
   return true;
 }
 
@@ -625,8 +678,9 @@ bool _openslide_try_leica(openslide_t *osr,
   }
 
   // initialize and verify levels
+  int64_t quickhash_dir;
   if (!create_levels_from_collection(osr, tc, tiff, collection,
-                                     level_array, err)) {
+                                     level_array, &quickhash_dir, err)) {
     collection_free(collection);
     goto FAIL;
   }
@@ -664,7 +718,7 @@ bool _openslide_try_leica(openslide_t *osr,
 
   // set hash and properties
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->tiffl.dir,
+                                                quickhash_dir,
                                                 levels[0]->tiffl.dir,
                                                 err)) {
     destroy_data(data, levels, level_count);
