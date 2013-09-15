@@ -347,19 +347,6 @@ static struct collection *parse_xml_description(const char *xml,
     xmlNode *image_node = images_result->nodesetval->nodeTab[i];
     ctx->node = image_node;
 
-    // we only support brightfield
-    char *illumination = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:illuminationSource/text()");
-    if (!illumination) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Can't read illumination");
-      goto FAIL;
-    }
-    if (strcmp(illumination, "brightfield")) {
-      g_free(illumination);
-      continue;
-    }
-    g_free(illumination);
-
     // get view node
     xmlNode *view = _openslide_xml_xpath_get_node(ctx, "d:view");
     if (!view) {
@@ -484,6 +471,12 @@ static bool create_levels_from_collection(openslide_t *osr,
       continue;
     }
 
+    // we only support brightfield
+    if (!image->illumination_source ||
+        strcmp(image->illumination_source, "brightfield")) {
+      continue;
+    }
+
     if (!have_main_image) {
       // first main image
 
@@ -573,6 +566,12 @@ static bool create_levels_from_collection(openslide_t *osr,
     struct image *image = collection->images->pdata[image_num];
 
     if (!image->is_macro) {
+      continue;
+    }
+
+    // we only support brightfield
+    if (!image->illumination_source ||
+        strcmp(image->illumination_source, LEICA_VALUE_BRIGHTFIELD)) {
       continue;
     }
 
