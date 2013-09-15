@@ -271,6 +271,10 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
     return true;
   }
 
+  // save
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
   // bound on left/top
   int64_t skipped_tiles_x = -MIN(region.start_tile_x, 0);
   int64_t skipped_tiles_y = -MIN(region.start_tile_y, 0);
@@ -284,7 +288,13 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
   region.end_tile_x = MIN(region.end_tile_x, grid->tiles_across);
   region.end_tile_y = MIN(region.end_tile_y, grid->tiles_down);
 
-  return read_tiles(cr, level, _grid, &region, arg, err);
+  // read
+  bool result = read_tiles(cr, level, _grid, &region, arg, err);
+
+  // restore
+  cairo_set_matrix(cr, &matrix);
+
+  return result;
 }
 
 static bool simple_read_tile(struct _openslide_grid *_grid,
@@ -452,6 +462,10 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
   //g_debug("advances: %g %g", grid->base.tile_advance_x, grid->base.tile_advance_y);
   //g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 
+  // save
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
   // accommodate extra tiles being drawn
   region.start_tile_x -= grid->extra_tiles_left;
   region.start_tile_y -= grid->extra_tiles_top;
@@ -461,7 +475,13 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
                   -grid->extra_tiles_left * grid->base.tile_advance_x,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
 
-  return read_tiles(cr, level, _grid, &region, arg, err);
+  // read
+  bool result = read_tiles(cr, level, _grid, &region, arg, err);
+
+  // restore
+  cairo_set_matrix(cr, &matrix);
+
+  return result;
 }
 
 static void tilemap_destroy(struct _openslide_grid *_grid) {
