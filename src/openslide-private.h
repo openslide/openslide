@@ -264,7 +264,7 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 
 // put and get
 void _openslide_cache_put(struct _openslide_cache *cache,
-			  struct _openslide_level *level,
+			  void *plane,  // coordinate plane (level or grid)
 			  int64_t x,
 			  int64_t y,
 			  void *data,
@@ -272,7 +272,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 			  struct _openslide_cache_entry **entry);
 
 void *_openslide_cache_get(struct _openslide_cache *cache,
-			   struct _openslide_level *level,
+			   void *plane,
 			   int64_t x,
 			   int64_t y,
 			   struct _openslide_cache_entry **entry);
