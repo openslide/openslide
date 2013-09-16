@@ -1,4 +1,0 @@
-base: Leica/Leica-1.scn
-error: ^Found multiple main images$
-slide: Leica-1.scn
-success: false

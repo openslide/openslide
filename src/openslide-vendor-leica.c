@@ -66,6 +66,11 @@ struct leica_ops_data {
 
 struct level {
   struct _openslide_level base;
+  GPtrArray *areas;
+};
+
+// a TIFF directory within a level
+struct area {
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
 
@@ -73,6 +78,12 @@ struct level {
   int64_t offset_y;
 };
 
+struct read_tile_args {
+  TIFF *tiff;
+  struct area *area;
+};
+
+/* structs representing data parsed from ImageDescription XML */
 struct collection {
   char *barcode;
 
@@ -108,14 +119,22 @@ struct dimension {
   double clicks_per_pixel;
 };
 
+static void destroy_level(struct level *l) {
+  for (uint32_t n = 0; n < l->areas->len; n++) {
+    struct area *area = l->areas->pdata[n];
+    _openslide_grid_destroy(area->grid);
+    g_slice_free(struct area, area);
+  }
+  g_slice_free(struct level, l);
+}
+
 static void destroy_data(struct leica_ops_data *data,
                          struct level **levels, int32_t level_count) {
   _openslide_tiffcache_destroy(data->tc);
   g_slice_free(struct leica_ops_data, data);
 
   for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct level, levels[i]);
+    destroy_level(levels[i]);
   }
   g_free(levels);
 }
@@ -128,13 +147,12 @@ static void destroy(openslide_t *osr) {
 
 static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
-                      struct _openslide_level *level,
+                      struct _openslide_level *level G_GNUC_UNUSED,
                       int64_t tile_col, int64_t tile_row,
                       void *arg,
                       GError **err) {
-  struct level *l = (struct level *) level;
-  struct _openslide_tiff_level *tiffl = &l->tiffl;
-  TIFF *tiff = arg;
+  struct read_tile_args *args = arg;
+  struct _openslide_tiff_level *tiffl = &args->area->tiffl;
 
   // tile size
   int64_t tw = tiffl->tile_w;
@@ -143,11 +161,11 @@ static bool read_tile(openslide_t *osr,
   // cache
   struct _openslide_cache_entry *cache_entry;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
-                                            level, tile_col, tile_row,
+                                            args->area, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
     tiledata = g_slice_alloc(tw * th * 4);
-    if (!_openslide_tiff_read_tile(tiffl, tiff,
+    if (!_openslide_tiff_read_tile(tiffl, args->tiff,
                                    tiledata, tile_col, tile_row,
                                    err)) {
       g_slice_free1(tw * th * 4, tiledata);
@@ -163,7 +181,8 @@ static bool read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    _openslide_cache_put(osr->cache, level, tile_col, tile_row,
+    _openslide_cache_put(osr->cache,
+			 args->area, tile_col, tile_row,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
   }
@@ -190,26 +209,38 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
 			 GError **err) {
   struct leica_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
-  bool success = false;
+  bool success = true;
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
   if (tiff == NULL) {
     return false;
   }
 
-  if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
-    x = x / l->base.downsample - l->offset_x;
-    y = y / l->base.downsample - l->offset_y,
-    success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                           x, y,
-                                           level, w, h,
-                                           err);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Cannot set TIFF directory");
-  }
-  _openslide_tiffcache_put(data->tc, tiff);
+  for (uint32_t n = 0; n < l->areas->len; n++) {
+    struct area *area = l->areas->pdata[n];
 
+    if (!TIFFSetDirectory(tiff, area->tiffl.dir)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot set TIFF directory");
+      success = false;
+      break;
+    }
+
+    struct read_tile_args args = {
+      .tiff = tiff,
+      .area = area,
+    };
+    int64_t ax = x / l->base.downsample - area->offset_x;
+    int64_t ay = y / l->base.downsample - area->offset_y;
+    success = _openslide_grid_paint_region(area->grid, cr, &args,
+                                           ax, ay, level, w, h,
+                                           err);
+    if (!success) {
+      break;
+    }
+  }
+
+  _openslide_tiffcache_put(data->tc, tiff);
   return success;
 }
 
@@ -494,7 +525,7 @@ static bool create_levels_from_collection(openslide_t *osr,
   //g_debug("legacy quickhash %s", legacy_quickhash ? "true" : "false");
 
   // process main image
-  bool have_main_image = false;
+  struct image *first_main_image = NULL;
   for (uint32_t image_num = 0; image_num < collection->images->len;
        image_num++) {
     struct image *image = collection->images->pdata[image_num];
@@ -509,8 +540,9 @@ static bool create_levels_from_collection(openslide_t *osr,
       continue;
     }
 
-    if (!have_main_image) {
+    if (!first_main_image) {
       // first main image
+      first_main_image = image;
 
       // add some properties
       set_prop(osr, "leica.aperture", image->aperture);
@@ -525,9 +557,15 @@ static bool create_levels_from_collection(openslide_t *osr,
         _openslide_duplicate_int_prop(osr->properties, "leica.objective",
                                       OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
       }
-    } else {
+    }
+
+    // verify that it's safe to composite this main image with the others
+    if (strcmp(image->illumination_source,
+               first_main_image->illumination_source) ||
+        strcmp(image->objective, first_main_image->objective) ||
+        image->dimensions->len != first_main_image->dimensions->len) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Found multiple main images");
+                  "Slides with dissimilar main images are not supported");
       return false;
     }
 
@@ -536,63 +574,86 @@ static bool create_levels_from_collection(openslide_t *osr,
          dimension_num++) {
       struct dimension *dimension = image->dimensions->pdata[dimension_num];
 
-      // create level
-      struct level *l = g_slice_new0(struct level);
-      struct _openslide_tiff_level *tiffl = &l->tiffl;
+      struct level *l;
+      if (image == first_main_image) {
+        // no level yet; create it
+        l = g_slice_new0(struct level);
+        l->areas = g_ptr_array_new();
+
+        // set size
+        l->base.w = ceil(collection->clicks_across /
+                         dimension->clicks_per_pixel);
+        l->base.h = ceil(collection->clicks_down /
+                         dimension->clicks_per_pixel);
+
+        g_ptr_array_add(levels, l);
+      } else {
+        // get level
+        g_assert(dimension_num < levels->len);
+        l = levels->pdata[dimension_num];
+
+        // verify compatible resolution, with some tolerance for rounding
+        struct dimension *first_image_dimension =
+          first_main_image->dimensions->pdata[dimension_num];
+        double resolution_similarity = 1 - fabs(dimension->clicks_per_pixel -
+          first_image_dimension->clicks_per_pixel) /
+          first_image_dimension->clicks_per_pixel;
+        //g_debug("resolution similarity %g", resolution_similarity);
+        if (resolution_similarity < 0.98) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                      "Inconsistent main image resolutions");
+          return false;
+        }
+      }
+
+      // create area
+      struct area *area = g_slice_new0(struct area);
+      struct _openslide_tiff_level *tiffl = &area->tiffl;
+      g_ptr_array_add(l->areas, area);
 
       // select and examine TIFF directory
       if (!_openslide_tiff_level_init(tiff, dimension->dir,
                                       NULL, tiffl,
                                       err)) {
-        g_slice_free(struct level, l);
         return false;
       }
 
-      // set level size and offset
-      l->base.w = ceil(collection->clicks_across / dimension->clicks_per_pixel);
-      l->base.h = ceil(collection->clicks_down / dimension->clicks_per_pixel);
-      l->offset_x = image->clicks_offset_x / dimension->clicks_per_pixel;
-      l->offset_y = image->clicks_offset_y / dimension->clicks_per_pixel;
-      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dimension->dir, dimension->clicks_per_pixel, l->offset_x, l->offset_y);
+      // set area offset
+      area->offset_x = image->clicks_offset_x / dimension->clicks_per_pixel;
+      area->offset_y = image->clicks_offset_y / dimension->clicks_per_pixel;
+      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dimension->dir, dimension->clicks_per_pixel, area->offset_x, area->offset_y);
 
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Can't read compression scheme");
-        g_slice_free(struct level, l);
         return false;
       }
       if (!TIFFIsCODECConfigured(compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Unsupported TIFF compression: %u", compression);
-        g_slice_free(struct level, l);
         return false;
       }
 
       // create grid
-      l->grid = _openslide_grid_create_simple(osr,
-                                              tiffl->tiles_across,
-                                              tiffl->tiles_down,
-                                              tiffl->tile_w,
-                                              tiffl->tile_h,
-                                              read_tile);
-
-      // add level
-      g_ptr_array_add(levels, l);
+      area->grid = _openslide_grid_create_simple(osr,
+                                                 tiffl->tiles_across,
+                                                 tiffl->tiles_down,
+                                                 tiffl->tile_w,
+                                                 tiffl->tile_h,
+                                                 read_tile);
     }
 
     // set quickhash directory in legacy mode
-    if (legacy_quickhash) {
+    if (legacy_quickhash && image == first_main_image) {
       struct dimension *dimension =
         image->dimensions->pdata[image->dimensions->len - 1];
       *quickhash_dir = dimension->dir;
     }
-
-    have_main_image = true;
   }
 
-  if (!have_main_image) {
+  if (!first_main_image) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't find main image");
     return false;
@@ -643,7 +704,7 @@ static bool create_levels_from_collection(openslide_t *osr,
     return false;
   }
 
-  g_debug("quickhash directory %"G_GINT64_FORMAT, *quickhash_dir);
+  //g_debug("quickhash directory %"G_GINT64_FORMAT, *quickhash_dir);
   return true;
 }
 
@@ -704,22 +765,12 @@ bool _openslide_try_leica(openslide_t *osr,
     return true;
   }
 
-  // set MPP properties
-  if (!TIFFSetDirectory(tiff, levels[0]->tiffl.dir)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't read directory");
-    destroy_data(data, levels, level_count);
-    return false;
-  }
-  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
-                      TIFFTAG_XRESOLUTION);
-  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
-                      TIFFTAG_YRESOLUTION);
-
   // set hash and properties
+  struct area *property_area = levels[0]->areas->pdata[0];
+  tdir_t property_dir = property_area->tiffl.dir;
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
                                                 quickhash_dir,
-                                                levels[0]->tiffl.dir,
+                                                property_dir,
                                                 err)) {
     destroy_data(data, levels, level_count);
     return false;
@@ -732,6 +783,18 @@ bool _openslide_try_leica(openslide_t *osr,
   // (in case pyramid level 0 is also directory 0)
   g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
+
+  // set MPP properties
+  if (!TIFFSetDirectory(tiff, property_dir)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't read directory");
+    destroy_data(data, levels, level_count);
+    return false;
+  }
+  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
+                      TIFFTAG_XRESOLUTION);
+  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
+                      TIFFTAG_YRESOLUTION);
 
   // store osr data
   g_assert(osr->data == NULL);
@@ -751,9 +814,7 @@ FAIL:
   // free the level array
   if (level_array) {
     for (uint32_t n = 0; n < level_array->len; n++) {
-      struct level *l = level_array->pdata[n];
-      _openslide_grid_destroy(l->grid);
-      g_slice_free(struct level, l);
+      destroy_level(level_array->pdata[n]);
     }
     g_ptr_array_free(level_array, true);
   }
