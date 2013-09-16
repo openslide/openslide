@@ -66,6 +66,7 @@ struct leica_ops_data {
 
 struct level {
   struct _openslide_level base;
+  double clicks_per_pixel;
   GPtrArray *areas;
 };
 
@@ -74,8 +75,8 @@ struct area {
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
 
-  int64_t offset_x;
-  int64_t offset_y;
+  int64_t clicks_offset_x;
+  int64_t clicks_offset_y;
 };
 
 struct read_tile_args {
@@ -230,8 +231,10 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
       .tiff = tiff,
       .area = area,
     };
-    int64_t ax = x / l->base.downsample - area->offset_x;
-    int64_t ay = y / l->base.downsample - area->offset_y;
+    int64_t ax = x / l->base.downsample -
+                 area->clicks_offset_x / l->clicks_per_pixel;
+    int64_t ay = y / l->base.downsample -
+                 area->clicks_offset_y / l->clicks_per_pixel;
     success = _openslide_grid_paint_region(area->grid, cr, &args,
                                            ax, ay, level, w, h,
                                            err);
@@ -579,18 +582,16 @@ static bool create_levels_from_collection(openslide_t *osr,
         // no level yet; create it
         l = g_slice_new0(struct level);
         l->areas = g_ptr_array_new();
-
-        // set size
-        l->base.w = ceil(collection->clicks_across /
-                         dimension->clicks_per_pixel);
-        l->base.h = ceil(collection->clicks_down /
-                         dimension->clicks_per_pixel);
-
+        l->clicks_per_pixel = dimension->clicks_per_pixel;
         g_ptr_array_add(levels, l);
       } else {
         // get level
         g_assert(dimension_num < levels->len);
         l = levels->pdata[dimension_num];
+
+        // minimize click density
+        l->clicks_per_pixel = MIN(l->clicks_per_pixel,
+                                  dimension->clicks_per_pixel);
 
         // verify compatible resolution, with some tolerance for rounding
         struct dimension *first_image_dimension =
@@ -619,9 +620,9 @@ static bool create_levels_from_collection(openslide_t *osr,
       }
 
       // set area offset
-      area->offset_x = image->clicks_offset_x / dimension->clicks_per_pixel;
-      area->offset_y = image->clicks_offset_y / dimension->clicks_per_pixel;
-      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g, offset %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, dimension->dir, dimension->clicks_per_pixel, area->offset_x, area->offset_y);
+      area->clicks_offset_x = image->clicks_offset_x;
+      area->clicks_offset_y = image->clicks_offset_y;
+      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g", dimension->dir, dimension->clicks_per_pixel);
 
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
@@ -657,6 +658,14 @@ static bool create_levels_from_collection(openslide_t *osr,
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't find main image");
     return false;
+  }
+
+  // now we have minimized click densities; set level sizes
+  for (uint32_t level_num = 0; level_num < levels->len; level_num++) {
+    struct level *l = levels->pdata[level_num];
+    l->base.w = ceil(collection->clicks_across / l->clicks_per_pixel);
+    l->base.h = ceil(collection->clicks_down / l->clicks_per_pixel);
+    //g_debug("level %d, clicks/pixel %g", level_num, l->clicks_per_pixel);
   }
 
   // process macro image
