@@ -34,7 +34,7 @@
 #include "openslide-cairo.h"
 #include "openslide-error.h"
 
-const char _openslide_release_info[] = "OpenSlide " PACKAGE_VERSION ", copyright (C) 2007-2013 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
+const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2013 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
@@ -762,5 +762,5 @@ void openslide_read_associated_image(openslide_t *osr,
 }
 
 const char *openslide_get_version(void) {
-  return PACKAGE_VERSION;
+  return SUFFIXED_VERSION;
 }

@@ -29,6 +29,21 @@ AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$RC != x])
 WINDOWS_VERSIONINFO=$(echo "${VERSION}.0.0.0" | cut -f1-4 -d. | tr . ,)
 AC_SUBST([WINDOWS_VERSIONINFO])
 
+# Suffix appended to version string
+AC_ARG_WITH([version-suffix],
+            AS_HELP_STRING([--with-version-suffix=STRING],
+                           [suffix to append to the package version string]))
+AC_MSG_CHECKING([version string])
+if test "x$with_version_suffix" != "x"; then
+  SUFFIXED_VERSION="$VERSION-$with_version_suffix"
+else
+  SUFFIXED_VERSION="$VERSION"
+fi
+AC_MSG_RESULT([$SUFFIXED_VERSION])
+AC_DEFINE_UNQUOTED([SUFFIXED_VERSION], ["$SUFFIXED_VERSION"],
+                   [Define to the package version string including any suffix.])
+AC_SUBST([SUFFIXED_VERSION])
+
 
 # Check for recent pkg-config which supports Requires.private
 # (snippet taken from cairo configure.in)

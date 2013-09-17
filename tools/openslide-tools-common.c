@@ -27,7 +27,7 @@
 #include "openslide-tools-common.h"
 #include "config.h"
 
-static const char *version_format = "%s " PACKAGE_VERSION ", "
+static const char *version_format = "%s " SUFFIXED_VERSION ", "
 "using OpenSlide %s\n"
 "Copyright (C) 2007-2013 Carnegie Mellon University and others\n"
 "\n"

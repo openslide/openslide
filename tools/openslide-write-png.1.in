@@ -22,7 +22,7 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-WRITE-PNG 1 2012-02-24 "OpenSlide @PACKAGE_VERSION@" "User Commands"
+.TH OPENSLIDE-WRITE-PNG 1 2012-02-24 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
