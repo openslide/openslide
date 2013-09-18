@@ -40,8 +40,9 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-vendor-trestle.c \
 	src/openslide-vendor-ventana.c
 
-MAINTAINERCLEANFILES = src/openslide-tables.c
 EXTRA_PROGRAMS = src/make-tables
+CLEANFILES = src/make-tables
+MAINTAINERCLEANFILES = src/openslide-tables.c
 # Depending directly on src/make-tables causes needless regeneration of
 # openslide-tables.c.  As the lesser of evils, recursively invoke make.
 src/openslide-tables.c: src/make-tables.c
@@ -83,7 +84,7 @@ noinst_HEADERS = \
 
 noinst_PROGRAMS = test/test test/try_open test/parallel
 noinst_SCRIPTS = test/driver
-CLEANFILES  = test/driver
+CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
 
 test_test_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(VALGRIND_CFLAGS) -I$(top_srcdir)/src
