@@ -42,13 +42,11 @@ src_libopenslide_la_SOURCES = \
 
 MAINTAINERCLEANFILES = src/openslide-tables.c
 EXTRA_PROGRAMS = src/make-tables
-if !CROSS_COMPILING
 # Depending directly on src/make-tables causes needless regeneration of
 # openslide-tables.c.  As the lesser of evils, recursively invoke make.
 src/openslide-tables.c: src/make-tables.c
 	@$(MAKE) $(AM_MAKEFLAGS) src/make-tables
 	$(AM_V_GEN)src/make-tables$(EXEEXT) "$@"
-endif
 
 if WINDOWS_RESOURCES
 src_libopenslide_la_SOURCES += src/openslide-dll.rc

@@ -59,9 +59,6 @@ esac
 
 AC_SUBST(PKGCONFIG_REQUIRES)
 
-# Can we run programs we built?
-AM_CONDITIONAL([CROSS_COMPILING], [test $host != $build])
-
 
 # libraries
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
