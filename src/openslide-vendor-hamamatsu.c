@@ -75,6 +75,7 @@ static const char NDPI_SOFTWARE[] = "NDP.scan";
 #define NDPI_SOURCELENS 65421
 #define NDPI_XOFFSET 65422
 #define NDPI_YOFFSET 65423
+#define NDPI_FOCAL_PLANE 65424
 #define NDPI_MCU_STARTS 65426
 #define NDPI_REFERENCE 65427
 #define NDPI_PROPERTY_MAP 65449
@@ -2272,19 +2273,26 @@ bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
     if (lens > 0) {
       // is a pyramid level
 
+      // ignore focal planes != 0
+      int64_t focal_plane =
+        _openslide_tifflike_get_sint(tl, dir, NDPI_FOCAL_PLANE, 0, &ok);
+      if (!ok) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Missing focal plane in directory %"G_GINT64_FORMAT, dir);
+      }
+      if (focal_plane != 0) {
+        continue;
+      }
+
       // is smallest level?
       if (width < min_width) {
         min_width = width;
         min_width_dir = dir;
       } else {
-        // Slide may have multiple focal planes.  We should ignore
-        // planes != 0, but we don't know which TIFF tag specifies the
-        // plane.  This slide's levels seem to be in a strange order, and
-        // we don't want to accidentally merge levels from different planes,
-        // so reject the slide for safety.
+        // The slide's levels are in an unexpected order.  Reject the slide
+        // out of paranoia.
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                    "Unexpected slide layout; contact "
-                    "<openslide-users@lists.andrew.cmu.edu> for assistance");
+                    "Unexpected directory layout");
         goto DONE;
       }
 
