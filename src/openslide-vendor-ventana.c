@@ -87,6 +87,7 @@ static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
                       struct _openslide_level *level,
                       int64_t tile_col, int64_t tile_row,
+                      void *tile G_GNUC_UNUSED,
                       void *arg,
                       GError **err) {
   struct level *l = (struct level *) level;
@@ -269,6 +270,25 @@ FAIL:
   return false;
 }
 
+static struct _openslide_grid *create_grid(openslide_t *osr,
+                                           const struct _openslide_tiff_level *tiffl) {
+  struct _openslide_grid *grid =
+    _openslide_grid_create_tilemap(osr, tiffl->tile_w, tiffl->tile_h,
+                                   read_tile, NULL);
+
+  for (int64_t row = 0; row < tiffl->tiles_down; row++) {
+    for (int64_t col = 0; col < tiffl->tiles_across; col++) {
+      _openslide_grid_tilemap_add_tile(grid,
+                                       col, row,
+                                       0, 0,
+                                       tiffl->tile_w, tiffl->tile_h,
+                                       NULL);
+    }
+  }
+
+  return grid;
+}
+
 bool _openslide_try_ventana(openslide_t *osr,
                             struct _openslide_tiffcache *tc,
                             TIFF *tiff,
@@ -334,12 +354,7 @@ bool _openslide_try_ventana(openslide_t *osr,
         g_slice_free(struct level, l);
         goto FAIL;
       }
-      l->grid = _openslide_grid_create_simple(osr,
-                                              tiffl->tiles_across,
-                                              tiffl->tiles_down,
-                                              tiffl->tile_w,
-                                              tiffl->tile_h,
-                                              read_tile);
+      l->grid = create_grid(osr, tiffl);
 
       // add to array
       g_ptr_array_add(level_array, l);
