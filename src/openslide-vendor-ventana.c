@@ -406,6 +406,13 @@ bool _openslide_try_ventana(openslide_t *osr,
         }
       }
 
+      // compute downsample
+      double downsample = 1;
+      if (level > 0) {
+        struct level *level0 = level_array->pdata[0];
+        downsample = level0->magnification / magnification;
+      }
+
       // confirm that this directory is tiled
       if (!TIFFIsTiled(tiff)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -436,6 +443,7 @@ bool _openslide_try_ventana(openslide_t *osr,
         g_slice_free(struct level, l);
         goto FAIL;
       }
+      l->base.downsample = downsample;
       l->grid = create_grid(osr, tiffl);
       l->magnification = magnification;
 
