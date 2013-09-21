@@ -42,6 +42,9 @@ static const char LEVEL_DESCRIPTION_TOKEN[] = "level=";
 static const char MACRO_DESCRIPTION[] = "Label Image";
 static const char THUMBNAIL_DESCRIPTION[] = "Thumbnail";
 
+static const char LEVEL_KEY[] = "level";
+static const char MAGNIFICATION_KEY[] = "mag";
+
 static const char INITIAL_ROOT_TAG[] = "iScan";
 static const char ATTR_Z_LAYERS[] = "Z-layers";
 
@@ -63,6 +66,8 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+
+  double magnification;
 };
 
 static void destroy_data(struct ventana_ops_data *data,
@@ -270,6 +275,59 @@ FAIL:
   return false;
 }
 
+static bool parse_level_info(const char *desc,
+                             int64_t *level, double *magnification,
+                             GError **err) {
+  bool success = false;
+
+  // read all key/value pairs
+  GHashTable *fields = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                             g_free, g_free);
+  char **pairs = g_strsplit(desc, " ", 0);
+  for (char **pair = pairs; *pair; pair++) {
+    char **kv = g_strsplit(*pair, "=", 2);
+    if (g_strv_length(kv) == 2) {
+      g_hash_table_insert(fields, kv[0], kv[1]);
+      g_free(kv);
+    } else {
+      g_strfreev(kv);
+    }
+  }
+  g_strfreev(pairs);
+
+  // get mandatory fields
+  char *level_str = g_hash_table_lookup(fields, LEVEL_KEY);
+  char *magnification_str = g_hash_table_lookup(fields, MAGNIFICATION_KEY);
+  if (!level_str || !magnification_str) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Missing level fields");
+    goto DONE;
+  }
+
+  // parse level
+  gchar *endptr;
+  *level = g_ascii_strtoll(level_str, &endptr, 10);
+  if (level_str[0] == 0 || endptr[0] != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid level number");
+    goto DONE;
+  }
+
+  // parse magnification
+  *magnification = g_ascii_strtod(magnification_str, &endptr);
+  if (magnification_str[0] == 0 || endptr[0] != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Invalid magnification");
+    goto DONE;
+  }
+
+  success = true;
+
+DONE:
+  g_hash_table_destroy(fields);
+  return success;
+}
+
 static struct _openslide_grid *create_grid(openslide_t *osr,
                                            const struct _openslide_tiff_level *tiffl) {
   struct _openslide_grid *grid =
@@ -312,6 +370,7 @@ bool _openslide_try_ventana(openslide_t *osr,
   // okay, assume Ventana slide
 
   // walk directories
+  int64_t next_level = 0;
   do {
     tdir_t dir = TIFFCurrentDirectory(tiff);
 
@@ -323,6 +382,29 @@ bool _openslide_try_ventana(openslide_t *osr,
 
     if (strstr(image_desc, LEVEL_DESCRIPTION_TOKEN)) {
       // is a level
+
+      // parse description
+      int64_t level;
+      double magnification;
+      if (!parse_level_info(image_desc, &level, &magnification, err)) {
+        goto FAIL;
+      }
+
+      // verify that levels and magnifications are properly ordered
+      if (level != next_level++) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unexpected encounter with level %"G_GINT64_FORMAT, level);
+        goto FAIL;
+      }
+      if (level > 0) {
+        struct level *prev_l = level_array->pdata[level - 1];
+        if (magnification >= prev_l->magnification) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                      "Unexpected magnification in level %"G_GINT64_FORMAT,
+                      level);
+          goto FAIL;
+        }
+      }
 
       // confirm that this directory is tiled
       if (!TIFFIsTiled(tiff)) {
@@ -355,6 +437,7 @@ bool _openslide_try_ventana(openslide_t *osr,
         goto FAIL;
       }
       l->grid = create_grid(osr, tiffl);
+      l->magnification = magnification;
 
       // add to array
       g_ptr_array_add(level_array, l);
