@@ -38,6 +38,7 @@
 #include <math.h>
 #include <tiffio.h>
 #include <libxml/tree.h>
+#include <libxml/xpath.h>
 
 static const char LEVEL_DESCRIPTION_TOKEN[] = "level=";
 static const char MACRO_DESCRIPTION[] = "Label Image";
@@ -48,6 +49,14 @@ static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_ROOT_TAG[] = "iScan";
 static const char ATTR_Z_LAYERS[] = "Z-layers";
+
+static const char ATTR_AOI_SCANNED[] = "AOIScanned";
+static const char ATTR_WIDTH[] = "Width";
+static const char ATTR_HEIGHT[] = "Height";
+static const char ATTR_NUM_ROWS[] = "NumRows";
+static const char ATTR_NUM_COLS[] = "NumCols";
+static const char ATTR_ORIGIN_X[] = "OriginX";
+static const char ATTR_ORIGIN_Y[] = "OriginY";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
   do {								\
@@ -70,6 +79,19 @@ struct level {
 
   double subtile_w;
   double subtile_h;
+};
+
+// structs used during open
+struct slide_info {
+  struct area **areas;
+  int32_t num_areas;
+};
+
+struct area {
+  int64_t start_col;
+  int64_t start_row;
+  int64_t tiles_across;
+  int64_t tiles_down;
 };
 
 static void destroy_data(struct ventana_ops_data *data,
@@ -222,6 +244,16 @@ static char *read_xml_packet(TIFF *tiff) {
   return g_strndup(xml, len);
 }
 
+static void slide_info_free(struct slide_info *slide) {
+  if (!slide) {
+    return;
+  }
+  for (int32_t i = 0; i < slide->num_areas; i++) {
+    g_slice_free(struct area, slide->areas[i]);
+  }
+  g_slice_free(struct slide_info, slide);
+}
+
 static int width_compare(gconstpointer a, gconstpointer b) {
   const struct level *la = *(const struct level **) a;
   const struct level *lb = *(const struct level **) b;
@@ -307,6 +339,101 @@ FAIL:
   return false;
 }
 
+static struct slide_info *parse_level0_xml(const char *xml,
+                                           int64_t tiff_tile_width,
+                                           int64_t tiff_tile_height,
+                                           GError **err) {
+  GPtrArray *area_array = g_ptr_array_new();
+  xmlXPathContext *ctx = NULL;
+  xmlXPathObject *info_result = NULL;
+  xmlXPathObject *origin_result = NULL;
+  bool success = false;
+
+  // parse
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  if (!doc) {
+    goto FAIL;
+  }
+  ctx = _openslide_xml_xpath_create(doc);
+
+  // query AOI metadata
+  info_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/SlideStitchInfo/ImageInfo");
+  origin_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/AoiOrigin/*");
+  if (!info_result || !origin_result ||
+      info_result->nodesetval->nodeNr != origin_result->nodesetval->nodeNr) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Missing or inconsistent region metadata");
+    goto FAIL;
+  }
+
+  // walk AOIs
+  for (int i = 0; i < info_result->nodesetval->nodeNr; i++) {
+    xmlNode *info = info_result->nodesetval->nodeTab[i];
+    xmlNode *aoi = origin_result->nodesetval->nodeTab[i];
+
+    // skip ignored AOIs
+    int64_t aoi_scanned;
+    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_AOI_SCANNED, aoi_scanned);
+    if (!aoi_scanned) {
+      continue;
+    }
+
+    // create area
+    struct area *area = g_slice_new0(struct area);
+    g_ptr_array_add(area_array, area);
+
+    // get start tiles
+    int64_t start_col_x, start_row_y;
+    PARSE_INT_ATTRIBUTE_OR_FAIL(aoi, ATTR_ORIGIN_X, start_col_x);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(aoi, ATTR_ORIGIN_Y, start_row_y);
+    int64_t tile_width, tile_height;
+    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_WIDTH, tile_width);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_HEIGHT, tile_height);
+    if (tile_width != tiff_tile_width || tile_height != tiff_tile_height) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Tile size mismatch");
+      goto FAIL;
+    }
+    if (start_col_x % tile_width || start_row_y % tile_height) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Area origin not divisible by tile size");
+      goto FAIL;
+    }
+    area->start_col = start_col_x / tile_width;
+    area->start_row = start_row_y / tile_height;
+
+    // get tile counts
+    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_COLS, area->tiles_across);
+    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_ROWS, area->tiles_down);
+
+    //g_debug("area %d: start %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", count %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down);
+  }
+
+  success = true;
+
+FAIL:
+  // clean up
+  xmlXPathFreeObject(origin_result);
+  xmlXPathFreeObject(info_result);
+  xmlXPathFreeContext(ctx);
+  if (doc) {
+    xmlFreeDoc(doc);
+  }
+
+  // create wrapper struct
+  struct slide_info *slide = g_slice_new0(struct slide_info);
+  slide->num_areas = area_array->len;
+  slide->areas = (struct area **) g_ptr_array_free(area_array, false);
+
+  // free on failure
+  if (!success) {
+    slide_info_free(slide);
+    slide = NULL;
+  }
+
+  return slide;
+}
+
 static bool parse_level_info(const char *desc,
                              int64_t *level, double *magnification,
                              GError **err) {
@@ -361,21 +488,25 @@ DONE:
 }
 
 static struct _openslide_grid *create_grid(openslide_t *osr,
+                                           struct slide_info *slide,
                                            double subtile_w,
-                                           double subtile_h,
-                                           int64_t subtiles_across,
-                                           int64_t subtiles_down) {
+                                           double subtile_h) {
   struct _openslide_grid *grid =
     _openslide_grid_create_tilemap(osr, subtile_w, subtile_h,
                                    read_subtile, NULL);
 
-  for (int64_t row = 0; row < subtiles_down; row++) {
-    for (int64_t col = 0; col < subtiles_across; col++) {
-      _openslide_grid_tilemap_add_tile(grid,
-                                       col, row,
-                                       0, 0,
-                                       subtile_w, subtile_h,
-                                       NULL);
+  for (int32_t i = 0; i < slide->num_areas; i++) {
+    struct area *area = slide->areas[i];
+    for (int64_t row = area->start_row;
+         row < area->start_row + area->tiles_down; row++) {
+      for (int64_t col = area->start_col;
+           col < area->start_col + area->tiles_across; col++) {
+        _openslide_grid_tilemap_add_tile(grid,
+                                         col, row,
+                                         0, 0,
+                                         subtile_w, subtile_h,
+                                         NULL);
+      }
     }
   }
 
@@ -388,6 +519,7 @@ bool _openslide_try_ventana(openslide_t *osr,
                             struct _openslide_hash *quickhash1,
                             GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
+  struct slide_info *slide = NULL;
 
   // parse iScan XML
   char *xml = read_xml_packet(tiff);
@@ -447,6 +579,28 @@ bool _openslide_try_ventana(openslide_t *osr,
       }
       double downsample = level0_magnification / magnification;
 
+      // if first level, parse tile info
+      if (level == 0) {
+        // get tile size
+        struct _openslide_tiff_level tiffl;
+        if (!_openslide_tiff_level_init(tiff, dir, NULL, &tiffl, err)) {
+          goto FAIL;
+        }
+        // get XML
+        xml = read_xml_packet(tiff);
+        if (!xml) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                      "Can't read tile info");
+          goto FAIL;
+        }
+        // parse
+        slide = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
+        g_free(xml);
+        if (!slide) {
+          goto FAIL;
+        }
+      }
+
       // confirm that this directory is tiled
       if (!TIFFIsTiled(tiff)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
@@ -485,10 +639,8 @@ bool _openslide_try_ventana(openslide_t *osr,
       l->base.h = tiffl->image_h;
       l->subtile_w = level0->tiffl.tile_w / downsample;
       l->subtile_h = level0->tiffl.tile_h / downsample;
-      l->grid = create_grid(osr,
-                            l->subtile_w, l->subtile_h,
-                            level0->tiffl.tiles_across,
-                            level0->tiffl.tiles_down);
+      l->grid = create_grid(osr, slide,
+                            l->subtile_w, l->subtile_h);
       //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g, subtile %g %g", level, magnification, downsample, l->subtile_w, l->subtile_h);
 
       // add to array
@@ -521,6 +673,10 @@ bool _openslide_try_ventana(openslide_t *osr,
       }
     }
   } while (TIFFReadDirectory(tiff));
+
+  // free slide info
+  slide_info_free(slide);
+  slide = NULL;
 
   // sort tiled levels
   g_ptr_array_sort(level_array, width_compare);
@@ -569,6 +725,8 @@ bool _openslide_try_ventana(openslide_t *osr,
   return true;
 
 FAIL:
+  // free slide info
+  slide_info_free(slide);
   // free the level array
   if (level_array) {
     for (uint32_t n = 0; n < level_array->len; n++) {
