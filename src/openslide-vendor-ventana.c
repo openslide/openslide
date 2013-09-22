@@ -68,8 +68,6 @@ struct level {
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
 
-  double magnification;
-
   double subtile_w;
   double subtile_h;
 };
@@ -408,6 +406,8 @@ bool _openslide_try_ventana(openslide_t *osr,
 
   // walk directories
   int64_t next_level = 0;
+  double prev_magnification = INFINITY;
+  double level0_magnification = 0;
   do {
     tdir_t dir = TIFFCurrentDirectory(tiff);
 
@@ -433,22 +433,19 @@ bool _openslide_try_ventana(openslide_t *osr,
                     "Unexpected encounter with level %"G_GINT64_FORMAT, level);
         goto FAIL;
       }
-      if (level > 0) {
-        struct level *prev_l = level_array->pdata[level - 1];
-        if (magnification >= prev_l->magnification) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                      "Unexpected magnification in level %"G_GINT64_FORMAT,
-                      level);
-          goto FAIL;
-        }
+      if (magnification >= prev_magnification) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unexpected magnification in level %"G_GINT64_FORMAT,
+                    level);
+        goto FAIL;
       }
+      prev_magnification = magnification;
 
       // compute downsample
-      double downsample = 1;
-      if (level > 0) {
-        struct level *level0 = level_array->pdata[0];
-        downsample = level0->magnification / magnification;
+      if (level == 0) {
+        level0_magnification = magnification;
       }
+      double downsample = level0_magnification / magnification;
 
       // confirm that this directory is tiled
       if (!TIFFIsTiled(tiff)) {
@@ -485,7 +482,6 @@ bool _openslide_try_ventana(openslide_t *osr,
         level0 = level_array->pdata[0];
       }
       l->base.downsample = downsample;
-      l->magnification = magnification;
       l->subtile_w = level0->tiffl.tile_w / downsample;
       l->subtile_h = level0->tiffl.tile_h / downsample;
       l->grid = create_grid(osr,
