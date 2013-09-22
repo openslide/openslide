@@ -90,6 +90,9 @@ struct level {
 struct slide_info {
   struct area **areas;
   int32_t num_areas;
+
+  double tile_advance_x;
+  double tile_advance_y;
 };
 
 struct area {
@@ -373,6 +376,10 @@ static struct slide_info *parse_level0_xml(const char *xml,
   xmlXPathObject *info_result = NULL;
   xmlXPathObject *origin_result = NULL;
   xmlXPathObject *result = NULL;
+  int64_t total_offset_x = 0;
+  int64_t total_offset_y = 0;
+  int64_t total_x_weight = 0;
+  int64_t total_y_weight = 0;
   bool success = false;
 
   // parse
@@ -490,6 +497,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
       xmlChar *direction = xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
       struct joint *joint;
       bool ok;
+      bool direction_y = false;
       //g_debug("%s, tile1 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", tile2 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
       if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
         // get left joint of right tile
@@ -503,6 +511,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
           area->tiles[tile1_row * area->tiles_across + tile1_col];
         joint = &tile->top;
         ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
+        direction_y = true;
       } else {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Bad direction attribute \"%s\"", (char *) direction);
@@ -530,6 +539,15 @@ static struct slide_info *parse_level0_xml(const char *xml,
       joint->offset_y *= -1;
       PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_CONFIDENCE,
                                   joint->confidence);
+
+      // add to totals
+      if (direction_y) {
+        total_offset_y += joint->confidence * joint->offset_y;
+        total_y_weight += joint->confidence;
+      } else {
+        total_offset_x += joint->confidence * joint->offset_x;
+        total_x_weight += joint->confidence;
+      }
     }
     xmlXPathFreeObject(result);
     result = NULL;
@@ -551,6 +569,11 @@ FAIL:
   struct slide_info *slide = g_slice_new0(struct slide_info);
   slide->num_areas = area_array->len;
   slide->areas = (struct area **) g_ptr_array_free(area_array, false);
+  slide->tile_advance_x =
+    tiff_tile_width + (double) total_offset_x / total_x_weight;
+  slide->tile_advance_y =
+    tiff_tile_height + (double) total_offset_y / total_y_weight;
+  //g_debug("advances: %g %g", slide->tile_advance_x, slide->tile_advance_y);
 
   // free on failure
   if (!success) {
@@ -622,7 +645,9 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
   double subtile_h = tile_h / downsample;
 
   struct _openslide_grid *grid =
-    _openslide_grid_create_tilemap(osr, subtile_w, subtile_h,
+    _openslide_grid_create_tilemap(osr,
+                                   slide->tile_advance_x / downsample,
+                                   slide->tile_advance_y / downsample,
                                    read_subtile, NULL);
 
   for (int32_t i = 0; i < slide->num_areas; i++) {
