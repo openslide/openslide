@@ -471,8 +471,7 @@ bool _openslide_try_ventana(openslide_t *osr,
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
       if (!_openslide_tiff_level_init(tiff, dir,
-                                      (struct _openslide_level *) l,
-                                      tiffl,
+                                      NULL, tiffl,
                                       err)) {
         g_slice_free(struct level, l);
         goto FAIL;
@@ -482,6 +481,8 @@ bool _openslide_try_ventana(openslide_t *osr,
         level0 = level_array->pdata[0];
       }
       l->base.downsample = downsample;
+      l->base.w = tiffl->image_w;
+      l->base.h = tiffl->image_h;
       l->subtile_w = level0->tiffl.tile_w / downsample;
       l->subtile_h = level0->tiffl.tile_h / downsample;
       l->grid = create_grid(osr,
