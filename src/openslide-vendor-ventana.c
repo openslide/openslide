@@ -493,6 +493,16 @@ bool _openslide_try_ventana(openslide_t *osr,
       // add to array
       g_ptr_array_add(level_array, l);
 
+      // verify consistent tile sizes
+      // our math is all based on level 0 tile sizes, but
+      // _openslide_tiff_read_tile() uses the directory's tile size
+      if (l->tiffl.tile_w != level0->tiffl.tile_w ||
+          l->tiffl.tile_h != level0->tiffl.tile_h) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Inconsistent TIFF tile sizes");
+        goto FAIL;
+      }
+
     } else if (!strcmp(image_desc, MACRO_DESCRIPTION)) {
       // macro image
       if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir,
