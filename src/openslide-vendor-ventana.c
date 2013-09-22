@@ -76,9 +76,6 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
-
-  double subtile_w;
-  double subtile_h;
 };
 
 // structs used during open
@@ -131,9 +128,11 @@ static bool read_subtile(openslide_t *osr,
   int64_t tw = tiffl->tile_w;
   int64_t th = tiffl->tile_h;
 
-  // subtile offset within tile
-  double subtile_x = subtile_col % subtiles_per_tile * l->subtile_w;
-  double subtile_y = subtile_row % subtiles_per_tile * l->subtile_h;
+  // subtile offset and size
+  double subtile_w = (double) tw / subtiles_per_tile;
+  double subtile_h = (double) th / subtiles_per_tile;
+  double subtile_x = subtile_col % subtiles_per_tile * subtile_w;
+  double subtile_y = subtile_row % subtiles_per_tile * subtile_h;
 
   // get tile data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -173,8 +172,8 @@ static bool read_subtile(openslide_t *osr,
   // because cairo lacks source clipping
   if (subtiles_per_tile > 1) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-                                                           ceil(l->subtile_w),
-                                                           ceil(l->subtile_h));
+                                                           ceil(subtile_w),
+                                                           ceil(subtile_h));
     cairo_t *cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -subtile_x, -subtile_y);
 
@@ -183,8 +182,8 @@ static bool read_subtile(openslide_t *osr,
     surface = surface2;
 
     cairo_rectangle(cr2, 0, 0,
-                    ceil(l->subtile_w),
-                    ceil(l->subtile_h));
+                    ceil(subtile_w),
+                    ceil(subtile_h));
     cairo_fill(cr2);
     success = _openslide_check_cairo_status(cr2, err);
     cairo_destroy(cr2);
@@ -489,8 +488,11 @@ DONE:
 
 static struct _openslide_grid *create_grid(openslide_t *osr,
                                            struct slide_info *slide,
-                                           double subtile_w,
-                                           double subtile_h) {
+                                           double downsample,
+                                           int64_t tile_w, int64_t tile_h) {
+  double subtile_w = tile_w / downsample;
+  double subtile_h = tile_h / downsample;
+
   struct _openslide_grid *grid =
     _openslide_grid_create_tilemap(osr, subtile_w, subtile_h,
                                    read_subtile, NULL);
@@ -637,11 +639,10 @@ bool _openslide_try_ventana(openslide_t *osr,
       l->base.downsample = downsample;
       l->base.w = tiffl->image_w;
       l->base.h = tiffl->image_h;
-      l->subtile_w = level0->tiffl.tile_w / downsample;
-      l->subtile_h = level0->tiffl.tile_h / downsample;
       l->grid = create_grid(osr, slide,
-                            l->subtile_w, l->subtile_h);
-      //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g, subtile %g %g", level, magnification, downsample, l->subtile_w, l->subtile_h);
+                            downsample,
+                            tiffl->tile_w, tiffl->tile_h);
+      //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g", level, magnification, downsample);
 
       // add to array
       g_ptr_array_add(level_array, l);
