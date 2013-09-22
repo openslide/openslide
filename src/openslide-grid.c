@@ -226,7 +226,7 @@ static void label_tile(struct _openslide_grid *grid,
   cairo_text_extents(cr, str, &extents);
   cairo_move_to(cr,
                 (bounds.w - extents.width) / 2,
-                (bounds.h - extents.height) / 2);
+                (bounds.h + extents.height) / 2);
   cairo_show_text(cr, str);
   g_free(str);
 
