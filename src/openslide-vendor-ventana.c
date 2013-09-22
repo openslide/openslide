@@ -57,6 +57,14 @@ static const char ATTR_NUM_ROWS[] = "NumRows";
 static const char ATTR_NUM_COLS[] = "NumCols";
 static const char ATTR_ORIGIN_X[] = "OriginX";
 static const char ATTR_ORIGIN_Y[] = "OriginY";
+static const char ATTR_CONFIDENCE[] = "Confidence";
+static const char ATTR_DIRECTION[] = "Direction";
+static const char ATTR_TILE1[] = "Tile1";
+static const char ATTR_TILE2[] = "Tile2";
+static const char ATTR_OVERLAP_X[] = "OverlapX";
+static const char ATTR_OVERLAP_Y[] = "OverlapY";
+static const char DIRECTION_RIGHT[] = "RIGHT";
+static const char DIRECTION_UP[] = "UP";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
   do {								\
@@ -89,6 +97,19 @@ struct area {
   int64_t start_row;
   int64_t tiles_across;
   int64_t tiles_down;
+  int64_t tile_count;
+  struct tile **tiles;
+};
+
+struct joint {
+  int64_t offset_x;
+  int64_t offset_y;
+  int64_t confidence;
+};
+
+struct tile {
+  struct joint left;
+  struct joint top;
 };
 
 static void destroy_data(struct ventana_ops_data *data,
@@ -248,7 +269,12 @@ static void slide_info_free(struct slide_info *slide) {
     return;
   }
   for (int32_t i = 0; i < slide->num_areas; i++) {
-    g_slice_free(struct area, slide->areas[i]);
+    struct area *area = slide->areas[i];
+    for (int64_t j = 0; j < area->tile_count; j++) {
+      g_slice_free(struct tile, area->tiles[j]);
+    }
+    g_free(area->tiles);
+    g_slice_free(struct area, area);
   }
   g_slice_free(struct slide_info, slide);
 }
@@ -346,6 +372,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
   xmlXPathContext *ctx = NULL;
   xmlXPathObject *info_result = NULL;
   xmlXPathObject *origin_result = NULL;
+  xmlXPathObject *result = NULL;
   bool success = false;
 
   // parse
@@ -406,12 +433,113 @@ static struct slide_info *parse_level0_xml(const char *xml,
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_ROWS, area->tiles_down);
 
     //g_debug("area %d: start %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", count %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down);
+
+    // create tile structs
+    area->tile_count = area->tiles_across * area->tiles_down;
+    area->tiles = g_new(struct tile *, area->tile_count);
+    for (int64_t j = 0; j < area->tile_count; j++) {
+      area->tiles[j] = g_slice_new0(struct tile);
+    }
+
+    // walk tiles
+    ctx->node = info;
+    result = _openslide_xml_xpath_eval(ctx, "TileJointInfo");
+    if (!result) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Couldn't find tile joint info");
+      goto FAIL;
+    }
+    for (int j = 0; j < result->nodesetval->nodeNr; j++) {
+      xmlNode *joint_info = result->nodesetval->nodeTab[j];
+
+      // get tile numbers
+      int64_t tile1, tile2;
+      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_TILE1, tile1);
+      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_TILE2, tile2);
+      if (tile1 < 1 ||
+          tile2 < 1 ||
+          tile1 > area->tile_count ||
+          tile2 > area->tile_count) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Tile number out of bounds: %"G_GINT64_FORMAT
+                    " %"G_GINT64_FORMAT, tile1, tile2);
+        goto FAIL;
+      }
+      // convert to zero-indexed
+      tile1 -= 1;
+      tile2 -= 1;
+
+      // compute coordinates
+      int64_t tile1_col = tile1 % area->tiles_across;
+      int64_t tile1_row = tile1 / area->tiles_across;
+      // columns in rows 2nd/4th/... from the bottom are numbered from
+      // right to left
+      if (tile1_row % 2) {
+        tile1_col = area->tiles_across - tile1_col - 1;
+      }
+      // rows are numbered from bottom to top
+      tile1_row = area->tiles_down - tile1_row - 1;
+      int64_t tile2_col = tile2 % area->tiles_across;
+      int64_t tile2_row = tile2 / area->tiles_across;
+      if (tile2_row % 2) {
+        tile2_col = area->tiles_across - tile2_col - 1;
+      }
+      tile2_row = area->tiles_down - tile2_row - 1;
+
+      // check coordinates against direction, and get joint
+      xmlChar *direction = xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
+      struct joint *joint;
+      bool ok;
+      //g_debug("%s, tile1 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", tile2 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
+      if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
+        // get left joint of right tile
+        struct tile *tile =
+          area->tiles[tile2_row * area->tiles_across + tile2_col];
+        joint = &tile->left;
+        ok = (tile2_col == tile1_col + 1 && tile2_row == tile1_row);
+      } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_UP)) {
+        // get top joint of bottom tile
+        struct tile *tile =
+          area->tiles[tile1_row * area->tiles_across + tile1_col];
+        joint = &tile->top;
+        ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Bad direction attribute \"%s\"", (char *) direction);
+        xmlFree(direction);
+        goto FAIL;
+      }
+      if (!ok) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Unexpected tile join: %s, "
+                    "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT"), "
+                    "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")",
+                    (char *) direction, tile1_col, tile1_row,
+                    tile2_col, tile2_row);
+        xmlFree(direction);
+        goto FAIL;
+      }
+      xmlFree(direction);
+
+      // read values
+      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_X,
+                                  joint->offset_x);
+      joint->offset_x *= -1;
+      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_Y,
+                                  joint->offset_y);
+      joint->offset_y *= -1;
+      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_CONFIDENCE,
+                                  joint->confidence);
+    }
+    xmlXPathFreeObject(result);
+    result = NULL;
   }
 
   success = true;
 
 FAIL:
   // clean up
+  xmlXPathFreeObject(result);
   xmlXPathFreeObject(origin_result);
   xmlXPathFreeObject(info_result);
   xmlXPathFreeContext(ctx);
