@@ -790,12 +790,16 @@ bool _openslide_try_ventana(openslide_t *osr,
         level0 = level_array->pdata[0];
       }
       l->base.downsample = downsample;
-      l->base.w = tiffl->image_w;
-      l->base.h = tiffl->image_h;
       l->grid = create_grid(osr, slide,
                             downsample,
                             tiffl->tile_w, tiffl->tile_h);
-      //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g", level, magnification, downsample);
+      // the format doesn't seem to record the level size, so make it
+      // large enough for all the pixels
+      double x, y, w, h;
+      _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
+      l->base.w = ceil(x + w);
+      l->base.h = ceil(y + h);
+      //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g, size %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, level, magnification, downsample, l->base.w, l->base.h);
 
       // add to array
       g_ptr_array_add(level_array, l);
