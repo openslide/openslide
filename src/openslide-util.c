@@ -66,6 +66,8 @@ void _openslide_int64_free(gpointer data) {
 
 bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
                               GKeyFileFlags flags, GError **err) {
+  char *buf = NULL;
+
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
    * because the load_from_file function incorrectly parses a value when
@@ -83,49 +85,56 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     return false;
   }
 
-  size_t len = 0;
+  // get file size and check against maximum
+  if (fseeko(f, 0, SEEK_END)) {
+    _openslide_io_error(err, "Couldn't seek %s", filename);
+    goto FAIL;
+  }
+  ssize_t size = ftello(f);
+  if (size == -1) {
+    _openslide_io_error(err, "Couldn't get size of %s", filename);
+    goto FAIL;
+  }
+  if (size > (1 << 20)) {
+    g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
+                "Key file %s too large", filename);
+    goto FAIL;
+  }
+
+  // read
+  if (fseeko(f, 0, SEEK_SET)) {
+    _openslide_io_error(err, "Couldn't seek %s", filename);
+    goto FAIL;
+  }
+  // catch file size changes
+  buf = g_malloc(size + 1);
+  ssize_t total = 0;
   size_t cur_len;
-  size_t alloc_len = 64 << 10;
-  char *buf = g_malloc(alloc_len);
-  while ((cur_len = fread(buf + len, 1, alloc_len - len, f)) > 0) {
-    len += cur_len;
-    if (len == alloc_len) {
-      if (alloc_len >= (1 << 20)) {
-        g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
-                    "Key file %s too large", filename);
-        g_free(buf);
-        fclose(f);
-        return false;
-      }
-      alloc_len *= 2;
-      buf = g_realloc(buf, alloc_len);
-    }
+  while ((cur_len = fread(buf + total, 1, size + 1 - total, f)) > 0) {
+    total += cur_len;
   }
-
-  if (ferror(f)) {
+  if (ferror(f) || total != size) {
     _openslide_io_error(err, "Couldn't read key file %s", filename);
-    g_free(buf);
-    fclose(f);
-    return false;
-  }
-
-  if (fclose(f)) {
-    _openslide_io_error(err, "Failed closing key file %s", filename);
-    g_free(buf);
-    return false;
+    goto FAIL;
   }
 
   /* skip the UTF-8 BOM if it is present. */
   int offset = 0;
-  if (len >= 3 && memcmp(buf, "\xef\xbb\xbf", 3) == 0) {
+  if (size >= 3 && memcmp(buf, "\xef\xbb\xbf", 3) == 0) {
     offset = 3;
   }
 
   bool result = g_key_file_load_from_data(key_file,
-                                          buf + offset, len - offset,
+                                          buf + offset, size - offset,
                                           flags, err);
   g_free(buf);
+  fclose(f);
   return result;
+
+FAIL:
+  g_free(buf);
+  fclose(f);
+  return false;
 }
 
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
