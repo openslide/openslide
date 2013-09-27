@@ -47,6 +47,7 @@
 
 static const char MRXS_EXT[] = ".mrxs";
 static const char SLIDEDAT_INI[] = "Slidedat.ini";
+static const int SLIDEDAT_MAX_SIZE = 1 << 20;
 
 static const char GROUP_GENERAL[] = "GENERAL";
 static const char KEY_SLIDE_VERSION[] = "SLIDE_VERSION";
@@ -1520,7 +1521,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
   }
 
   slidedat = g_key_file_new();
-  if (!_openslide_read_key_file(slidedat, tmp, G_KEY_FILE_NONE, err)) {
+  if (!_openslide_read_key_file(slidedat, tmp, SLIDEDAT_MAX_SIZE,
+                                G_KEY_FILE_NONE, err)) {
     g_prefix_error(err, "Can't load Slidedat.ini file: ");
     goto FAIL;
   }

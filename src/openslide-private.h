@@ -160,7 +160,8 @@ void _openslide_int64_free(gpointer data);
 
 /* g_key_file_load_from_file wrapper */
 bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                              GKeyFileFlags flags, GError **err);
+                              int64_t max_size, GKeyFileFlags flags,
+                              GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);

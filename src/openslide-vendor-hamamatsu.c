@@ -69,6 +69,9 @@ static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static const char KEY_MACRO_IMAGE[] = "MacroImage";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
+// probing any file under this limit will load the entire file into RAM,
+// so set the limit conservatively
+static const int KEY_FILE_MAX_SIZE = 64 << 10;
 
 // NDPI
 static const char NDPI_SOFTWARE[] = "NDP.scan";
@@ -1812,7 +1815,8 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
 
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
-  if (!_openslide_read_key_file(key_file, filename, G_KEY_FILE_NONE, NULL)) {
+  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
+                                G_KEY_FILE_NONE, NULL)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Can't load key file");
     goto DONE;

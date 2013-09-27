@@ -65,7 +65,8 @@ void _openslide_int64_free(gpointer data) {
 }
 
 bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                              GKeyFileFlags flags, GError **err) {
+                              int64_t max_size, GKeyFileFlags flags,
+                              GError **err) {
   char *buf = NULL;
 
   /* We load the whole key file into memory and parse it with
@@ -95,7 +96,7 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     _openslide_io_error(err, "Couldn't get size of %s", filename);
     goto FAIL;
   }
-  if (size > (1 << 20)) {
+  if (max_size > 0 && size > max_size) {
     g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                 "Key file %s too large", filename);
     goto FAIL;
