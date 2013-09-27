@@ -64,17 +64,8 @@ void _openslide_int64_free(gpointer data) {
   g_slice_free(int64_t, data);
 }
 
-gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                                  GKeyFileFlags flags, GError **err)
-{
-  FILE *f;
-  gchar *buf;
-  gsize cur_len;
-  gsize len = 0;
-  gsize alloc_len = 64 << 10;
-  int offset = 0;
-  gboolean result;
-
+bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
+                              GKeyFileFlags flags, GError **err) {
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
    * because the load_from_file function incorrectly parses a value when
@@ -87,12 +78,15 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
 
-  f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
     return false;
   }
 
-  buf = g_malloc(alloc_len);
+  size_t len = 0;
+  size_t cur_len;
+  size_t alloc_len = 64 << 10;
+  char *buf = g_malloc(alloc_len);
   while ((cur_len = fread(buf + len, 1, alloc_len - len, f)) > 0) {
     len += cur_len;
     if (len == alloc_len) {
@@ -122,12 +116,14 @@ gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
 
   /* skip the UTF-8 BOM if it is present. */
+  int offset = 0;
   if (len >= 3 && memcmp(buf, "\xef\xbb\xbf", 3) == 0) {
     offset = 3;
   }
 
-  result = g_key_file_load_from_data(key_file, buf + offset, len - offset,
-                                     flags, err);
+  bool result = g_key_file_load_from_data(key_file,
+                                          buf + offset, len - offset,
+                                          flags, err);
   g_free(buf);
   return result;
 }

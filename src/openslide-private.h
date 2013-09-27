@@ -159,8 +159,8 @@ gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
 void _openslide_int64_free(gpointer data);
 
 /* g_key_file_load_from_file wrapper */
-gboolean _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                                  GKeyFileFlags flags, GError **err);
+bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
+                              GKeyFileFlags flags, GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
