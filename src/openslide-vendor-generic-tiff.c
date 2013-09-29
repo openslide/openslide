@@ -264,9 +264,6 @@ static bool generic_tiff_open(openslide_t *osr,
     destroy_data(data, levels, level_count);
     return false;
   }
-  g_hash_table_insert(osr->properties,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                      g_strdup("generic-tiff"));
 
   // store osr data
   g_assert(osr->data == NULL);
@@ -298,5 +295,6 @@ static bool generic_tiff_open(openslide_t *osr,
 
 const struct _openslide_format _openslide_format_generic_tiff = {
   .name = "generic-tiff",
+  .vendor = "generic-tiff",
   .open_tiff = generic_tiff_open,
 };

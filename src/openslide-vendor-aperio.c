@@ -221,10 +221,6 @@ static void add_properties(GHashTable *ht, char **props) {
     return;
   }
 
-  g_hash_table_insert(ht,
-		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-		      g_strdup("aperio"));
-
   // ignore first property in Aperio
   for(char **p = props + 1; *p != NULL; p++) {
     char **pair = g_strsplit(*p, "=", 2);
@@ -463,5 +459,6 @@ static bool aperio_open(openslide_t *osr,
 
 const struct _openslide_format _openslide_format_aperio = {
   .name = "aperio",
+  .vendor = "aperio",
   .open_tiff = aperio_open,
 };

@@ -1189,10 +1189,6 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
 
 static void add_properties(GHashTable *ht, GKeyFile *kf,
 			   const char *group) {
-  g_hash_table_insert(ht,
-		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-		      g_strdup("hamamatsu"));
-
   char **keys = g_key_file_get_keys(kf, group, NULL, NULL);
   if (keys == NULL) {
     return;
@@ -2105,6 +2101,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
 const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
   .name = "hamamatsu-vms-vmu",
+  .vendor = "hamamatsu",
   .open = hamamatsu_vms_vmu_open,
 };
 
@@ -2167,10 +2164,6 @@ static void ndpi_set_props(openslide_t *osr,
     return;
   }
   GHashTable *ht = osr->properties;
-
-  // vendor
-  g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                      g_strdup("hamamatsu"));
 
   // MPP
   ndpi_set_resolution_prop(ht, tl, dir, TIFFTAG_XRESOLUTION,
@@ -2451,5 +2444,6 @@ DONE:
 
 const struct _openslide_format _openslide_format_hamamatsu_ndpi = {
   .name = "hamamatsu-ndpi",
+  .vendor = "hamamatsu",
   .open = hamamatsu_ndpi_open,
 };

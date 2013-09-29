@@ -862,9 +862,6 @@ static bool ventana_open(openslide_t *osr,
     destroy_data(data, levels, level_count);
     return false;
   }
-  g_hash_table_insert(osr->properties,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                      g_strdup("ventana"));
 
   // store osr data
   g_assert(osr->data == NULL);
@@ -898,5 +895,6 @@ FAIL:
 
 const struct _openslide_format _openslide_format_ventana = {
   .name = "ventana",
+  .vendor = "ventana",
   .open_tiff = ventana_open,
 };

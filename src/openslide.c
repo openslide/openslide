@@ -171,11 +171,16 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   // non-tiff
   for (const struct _openslide_format **cur = formats; *cur; cur++) {
     const struct _openslide_format *format = *cur;
-    g_assert(format->name);
+    g_assert(format->name && format->vendor);
     if (!format->open) {
       continue;
     }
     if (try_format(osr, filename, quickhash1_OUT, format, &tmp_err)) {
+      if (osr) {
+        g_hash_table_insert(osr->properties,
+                            g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                            g_strdup(format->vendor));
+      }
       return true;
     }
     if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -202,6 +207,11 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
         continue;
       }
       if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, format, &tmp_err)) {
+        if (osr) {
+          g_hash_table_insert(osr->properties,
+                              g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                              g_strdup(format->vendor));
+        }
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -377,9 +387,6 @@ openslide_t *openslide_open(const char *filename) {
   // start cache
   osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
   //osr->cache = _openslide_cache_create(0);
-
-  // validate required properties
-  g_assert(openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_VENDOR));
 
   return osr;
 }

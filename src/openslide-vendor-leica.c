@@ -783,9 +783,6 @@ static bool leica_open(openslide_t *osr,
     destroy_data(data, levels, level_count);
     return false;
   }
-  g_hash_table_insert(osr->properties,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                      g_strdup("leica"));
 
   // keep the XML document out of the properties
   // (in case pyramid level 0 is also directory 0)
@@ -832,5 +829,6 @@ FAIL:
 
 const struct _openslide_format _openslide_format_leica = {
   .name = "leica",
+  .vendor = "leica",
   .open_tiff = leica_open,
 };

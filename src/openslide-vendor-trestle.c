@@ -167,10 +167,6 @@ static const struct _openslide_ops trestle_ops = {
 };
 
 static void add_properties(GHashTable *ht, char **tags) {
-  g_hash_table_insert(ht,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                      g_strdup("trestle"));
-
   for (char **tag = tags; *tag != NULL; tag++) {
     char **pair = g_strsplit(*tag, "=", 2);
     if (pair) {
@@ -435,5 +431,6 @@ static bool trestle_open(openslide_t *osr,
 
 const struct _openslide_format _openslide_format_trestle = {
   .name = "trestle",
+  .vendor = "trestle",
   .open_tiff = trestle_open,
 };

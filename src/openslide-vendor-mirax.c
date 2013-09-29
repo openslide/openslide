@@ -1263,10 +1263,6 @@ static bool process_indexfile(openslide_t *osr,
 }
 
 static void add_properties(GHashTable *ht, GKeyFile *kf) {
-  g_hash_table_insert(ht,
-		      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-		      g_strdup("mirax"));
-
   char **groups = g_key_file_get_groups(kf, NULL);
   if (groups == NULL) {
     return;
@@ -2043,5 +2039,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
 const struct _openslide_format _openslide_format_mirax = {
   .name = "mirax",
+  .vendor = "mirax",
   .open = mirax_open,
 };
