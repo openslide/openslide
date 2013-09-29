@@ -3,3 +3,4 @@ slide: CMU-1.mrxs
 success: true
 properties:
   openslide.quickhash-1: f33fa60ec717002c83525008b39ae96781ec6dd8b7b242a3daccf5b9bff97517
+  openslide.vendor: mirax

@@ -3,3 +3,4 @@ slide: CMU-1.tif
 success: true
 properties:
   openslide.quickhash-1: de8cb6d7ee9741ed76b08b11b68c20583d34e6e135d3586cf3000e2c7572b641
+  openslide.vendor: trestle
