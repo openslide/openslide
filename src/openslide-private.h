@@ -102,14 +102,7 @@ struct _openslide_ops {
 struct _openslide_tiffcache;
 
 /* vendor detection and parsing */
-typedef bool (*_openslide_vendor_fn)(openslide_t *osr, const char *filename,
-				     struct _openslide_hash *quickhash1,
-				     GError **err);
-typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr,
-					  struct _openslide_tiffcache *tc,
-					  TIFF *tiff,
-					  struct _openslide_hash *quickhash1,
-					  GError **err);
+
 /*
  * A note on quickhash1: this should be a hash of data that
  * will not change with revisions to the openslide library. It should
@@ -124,34 +117,23 @@ typedef bool (*_openslide_tiff_vendor_fn)(openslide_t *osr,
  * Suggested data to hash:
  * easily available image metadata + raw compressed lowest resolution image
  */
+struct _openslide_format {
+  const char *name;
+  bool (*open)(openslide_t *osr, const char *filename,
+               struct _openslide_hash *quickhash1, GError **err);
+  bool (*open_tiff)(openslide_t *osr,
+                    struct _openslide_tiffcache *tc, TIFF *tiff,
+                    struct _openslide_hash *quickhash1, GError **err);
+};
 
-
-bool _openslide_try_trestle(openslide_t *osr,
-			    struct _openslide_tiffcache *tc, TIFF *tiff,
-			    struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_aperio(openslide_t *osr,
-                           struct _openslide_tiffcache *tc, TIFF *tiff,
-			   struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_hamamatsu(openslide_t *osr, const char* filename,
-			      struct _openslide_hash *quickhash1,
-			      GError **err);
-bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char* filename,
-				   struct _openslide_hash *quickhash1,
-				   GError **err);
-bool _openslide_try_mirax(openslide_t *osr, const char* filename,
-			  struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_leica(openslide_t *osr,
-                          struct _openslide_tiffcache *tc, TIFF *tiff,
-                          struct _openslide_hash *quickhash1,
-                          GError **err);
-bool _openslide_try_ventana(openslide_t *osr,
-                            struct _openslide_tiffcache *tc, TIFF *tiff,
-                            struct _openslide_hash *quickhash1, GError **err);
-bool _openslide_try_generic_tiff(openslide_t *osr,
-				 struct _openslide_tiffcache *tc, TIFF *tiff,
-				 struct _openslide_hash *quickhash1,
-				 GError **err);
-
+extern const struct _openslide_format _openslide_format_aperio;
+extern const struct _openslide_format _openslide_format_generic_tiff;
+extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
+extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
+extern const struct _openslide_format _openslide_format_leica;
+extern const struct _openslide_format _openslide_format_mirax;
+extern const struct _openslide_format _openslide_format_trestle;
+extern const struct _openslide_format _openslide_format_ventana;
 
 /* GHashTable utils */
 guint _openslide_int64_hash(gconstpointer v);

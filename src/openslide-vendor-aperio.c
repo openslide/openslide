@@ -300,10 +300,9 @@ static bool add_associated_image(openslide_t *osr,
 }
 
 
-bool _openslide_try_aperio(openslide_t *osr,
-			   struct _openslide_tiffcache *tc, TIFF *tiff,
-			   struct _openslide_hash *quickhash1,
-			   GError **err) {
+static bool aperio_open(openslide_t *osr,
+                        struct _openslide_tiffcache *tc, TIFF *tiff,
+                        struct _openslide_hash *quickhash1, GError **err) {
   if (!TIFFIsTiled(tiff)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
@@ -461,3 +460,8 @@ bool _openslide_try_aperio(openslide_t *osr,
 
   return true;
 }
+
+const struct _openslide_format _openslide_format_aperio = {
+  .name = "aperio",
+  .open_tiff = aperio_open,
+};

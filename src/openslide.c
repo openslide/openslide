@@ -38,28 +38,20 @@ const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyrigh
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
-#define FORMAT(name) { #name, _openslide_try_ ## name }
+static const struct _openslide_format *formats[] = {
+  // non-TIFF
+  &_openslide_format_mirax,
+  &_openslide_format_hamamatsu_vms_vmu,
+  &_openslide_format_hamamatsu_ndpi, // it is a tiff format? but not to libtiff
 
-static const struct format {
-  const char *name;
-  _openslide_vendor_fn handler;
-} non_tiff_formats[] = {
-  FORMAT(mirax),
-  FORMAT(hamamatsu),
-  FORMAT(hamamatsu_ndpi), // it is a tiff format? but not to libtiff
-  {NULL, NULL}
-};
+  // TIFF
+  &_openslide_format_trestle,
+  &_openslide_format_aperio,
+  &_openslide_format_leica,
+  &_openslide_format_ventana,
+  &_openslide_format_generic_tiff,
 
-static const struct tiff_format {
-  const char *name;
-  _openslide_tiff_vendor_fn handler;
-} tiff_formats[] = {
-  FORMAT(trestle),
-  FORMAT(aperio),
-  FORMAT(leica),
-  FORMAT(ventana),
-  FORMAT(generic_tiff),
-  {NULL, NULL}
+  NULL,
 };
 
 static bool openslide_was_dynamically_loaded;
@@ -137,14 +129,14 @@ static void fixup_format_error(const char *name, bool result, GError **err) {
 
 static bool try_format(openslide_t *osr, const char *filename,
 		       struct _openslide_hash **quickhash1_OUT,
-		       const struct format *format,
+		       const struct _openslide_format *format,
 		       GError **err) {
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
-  bool result = format->handler(osr, filename,
-                                quickhash1_OUT ? *quickhash1_OUT : NULL,
-                                err);
+  bool result = format->open(osr, filename,
+                             quickhash1_OUT ? *quickhash1_OUT : NULL,
+                             err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
   fixup_format_error(format->name, result, err);
@@ -155,15 +147,15 @@ static bool try_format(openslide_t *osr, const char *filename,
 static bool try_tiff_format(openslide_t *osr,
 			    struct _openslide_tiffcache *tc, TIFF *tiff,
 			    struct _openslide_hash **quickhash1_OUT,
-			    const struct tiff_format *format,
+			    const struct _openslide_format *format,
 			    GError **err) {
   reset_osr(osr);
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);
-  bool result = format->handler(osr, tc, tiff,
-                                quickhash1_OUT ? *quickhash1_OUT : NULL,
-                                err);
+  bool result = format->open_tiff(osr, tc, tiff,
+                                  quickhash1_OUT ? *quickhash1_OUT : NULL,
+                                  err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
   fixup_format_error(format->name, result, err);
@@ -177,8 +169,12 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   GError *tmp_err = NULL;
 
   // non-tiff
-  for (const struct format *format = non_tiff_formats;
-       format->name; format++) {
+  for (const struct _openslide_format **cur = formats; *cur; cur++) {
+    const struct _openslide_format *format = *cur;
+    g_assert(format->name);
+    if (!format->open) {
+      continue;
+    }
     if (try_format(osr, filename, quickhash1_OUT, format, &tmp_err)) {
       return true;
     }
@@ -200,8 +196,11 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
   if (tc != NULL) {
     TIFF *tiff = _openslide_tiffcache_get(tc, NULL);
     g_assert(tiff != NULL);
-    for (const struct tiff_format *format = tiff_formats;
-         format->name; format++) {
+    for (const struct _openslide_format **cur = formats; *cur; cur++) {
+      const struct _openslide_format *format = *cur;
+      if (!format->open_tiff) {
+        continue;
+      }
       if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, format, &tmp_err)) {
 	return true;
       }

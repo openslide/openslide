@@ -717,10 +717,9 @@ static bool create_levels_from_collection(openslide_t *osr,
   return true;
 }
 
-bool _openslide_try_leica(openslide_t *osr,
-                          struct _openslide_tiffcache *tc, TIFF *tiff,
-                          struct _openslide_hash *quickhash1,
-                          GError **err) {
+static bool leica_open(openslide_t *osr,
+                       struct _openslide_tiffcache *tc, TIFF *tiff,
+                       struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
 
   if (!TIFFIsTiled(tiff)) {
@@ -830,3 +829,8 @@ FAIL:
 
   return false;
 }
+
+const struct _openslide_format _openslide_format_leica = {
+  .name = "leica",
+  .open_tiff = leica_open,
+};

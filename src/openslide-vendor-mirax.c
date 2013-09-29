@@ -1452,9 +1452,8 @@ static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
   return offset;
 }
 
-bool _openslide_try_mirax(openslide_t *osr, const char *filename,
-			  struct _openslide_hash *quickhash1,
-			  GError **err) {
+static bool mirax_open(openslide_t *osr, const char *filename,
+                       struct _openslide_hash *quickhash1, GError **err) {
   struct level **levels = NULL;
 
   char *dirname = NULL;
@@ -2041,3 +2040,8 @@ bool _openslide_try_mirax(openslide_t *osr, const char *filename,
 
   return success;
 }
+
+const struct _openslide_format _openslide_format_mirax = {
+  .name = "mirax",
+  .open = mirax_open,
+};

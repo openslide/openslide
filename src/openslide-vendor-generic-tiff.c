@@ -169,10 +169,10 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-bool _openslide_try_generic_tiff(openslide_t *osr,
-				 struct _openslide_tiffcache *tc, TIFF *tiff,
-				 struct _openslide_hash *quickhash1,
-				 GError **err) {
+static bool generic_tiff_open(openslide_t *osr,
+                              struct _openslide_tiffcache *tc, TIFF *tiff,
+                              struct _openslide_hash *quickhash1,
+                              GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
 
   if (!TIFFIsTiled(tiff)) {
@@ -295,3 +295,8 @@ bool _openslide_try_generic_tiff(openslide_t *osr,
 
   return false;
 }
+
+const struct _openslide_format _openslide_format_generic_tiff = {
+  .name = "generic-tiff",
+  .open_tiff = generic_tiff_open,
+};

@@ -262,10 +262,9 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
   g_free(path);
 }
 
-bool _openslide_try_trestle(openslide_t *osr,
-                            struct _openslide_tiffcache *tc, TIFF *tiff,
-                            struct _openslide_hash *quickhash1,
-                            GError **err) {
+static bool trestle_open(openslide_t *osr,
+                         struct _openslide_tiffcache *tc, TIFF *tiff,
+                         struct _openslide_hash *quickhash1, GError **err) {
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
@@ -433,3 +432,8 @@ bool _openslide_try_trestle(openslide_t *osr,
 
   return true;
 }
+
+const struct _openslide_format _openslide_format_trestle = {
+  .name = "trestle",
+  .open_tiff = trestle_open,
+};

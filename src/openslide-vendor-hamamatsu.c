@@ -1795,9 +1795,9 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 }
 
 
-bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
-			      struct _openslide_hash *quickhash1,
-			      GError **err) {
+static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
+                                   struct _openslide_hash *quickhash1,
+                                   GError **err) {
   // initialize any variables destroyed/used in DONE
   bool success = false;
 
@@ -2103,6 +2103,11 @@ bool _openslide_try_hamamatsu(openslide_t *osr, const char *filename,
   return success;
 }
 
+const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
+  .name = "hamamatsu-vms-vmu",
+  .open = hamamatsu_vms_vmu_open,
+};
+
 static void ndpi_set_sint_prop(GHashTable *ht,
                                struct _openslide_tifflike *tl,
                                int64_t dir, int32_t tag,
@@ -2205,9 +2210,9 @@ static void ndpi_set_props(openslide_t *osr,
   }
 }
 
-bool _openslide_try_hamamatsu_ndpi(openslide_t *osr, const char *filename,
-				   struct _openslide_hash *quickhash1,
-				   GError **err) {
+static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
+                                struct _openslide_hash *quickhash1,
+                                GError **err) {
   FILE *f = NULL;
   struct _openslide_tifflike *tl = NULL;
   GPtrArray *jpeg_array = g_ptr_array_new();
@@ -2443,3 +2448,8 @@ DONE:
 
   return success;
 }
+
+const struct _openslide_format _openslide_format_hamamatsu_ndpi = {
+  .name = "hamamatsu-ndpi",
+  .open = hamamatsu_ndpi_open,
+};

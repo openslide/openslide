@@ -668,11 +668,9 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
   return grid;
 }
 
-bool _openslide_try_ventana(openslide_t *osr,
-                            struct _openslide_tiffcache *tc,
-                            TIFF *tiff,
-                            struct _openslide_hash *quickhash1,
-                            GError **err) {
+static bool ventana_open(openslide_t *osr,
+                         struct _openslide_tiffcache *tc, TIFF *tiff,
+                         struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
   struct slide_info *slide = NULL;
 
@@ -897,3 +895,8 @@ FAIL:
 
   return false;
 }
+
+const struct _openslide_format _openslide_format_ventana = {
+  .name = "ventana",
+  .open_tiff = ventana_open,
+};
