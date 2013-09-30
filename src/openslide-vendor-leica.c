@@ -129,21 +129,15 @@ static void destroy_level(struct level *l) {
   g_slice_free(struct level, l);
 }
 
-static void destroy_data(struct leica_ops_data *data,
-                         struct level **levels, int32_t level_count) {
+static void destroy(openslide_t *osr) {
+  struct leica_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
   g_slice_free(struct leica_ops_data, data);
 
-  for (int32_t i = 0; i < level_count; i++) {
-    destroy_level(levels[i]);
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    destroy_level((struct level *) osr->levels[i]);
   }
-  g_free(levels);
-}
-
-static void destroy(openslide_t *osr) {
-  struct leica_ops_data *data = osr->data;
-  struct level **levels = (struct level **) osr->levels;
-  destroy_data(data, levels, osr->level_count);
+  g_free(osr->levels);
 }
 
 static bool read_tile(openslide_t *osr,
@@ -752,25 +746,15 @@ static bool leica_open(openslide_t *osr,
   }
   collection_free(collection);
 
-  // unwrap level array
-  int32_t level_count = level_array->len;
-  g_assert(level_count > 0);
-  struct level **levels =
-    (struct level **) g_ptr_array_free(level_array, false);
-  level_array = NULL;
-
-  // allocate private data
-  struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
-
   // set hash and properties
-  struct area *property_area = levels[0]->areas->pdata[0];
+  struct level *level0 = level_array->pdata[0];
+  struct area *property_area = level0->areas->pdata[0];
   tdir_t property_dir = property_area->tiffl.dir;
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
                                                 quickhash_dir,
                                                 property_dir,
                                                 err)) {
-    destroy_data(data, levels, level_count);
-    return false;
+    goto FAIL;
   }
 
   // keep the XML document out of the properties
@@ -782,13 +766,22 @@ static bool leica_open(openslide_t *osr,
   if (!TIFFSetDirectory(tiff, property_dir)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read directory");
-    destroy_data(data, levels, level_count);
-    return false;
+    goto FAIL;
   }
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
                       TIFFTAG_XRESOLUTION);
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
                       TIFFTAG_YRESOLUTION);
+
+  // unwrap level array
+  int32_t level_count = level_array->len;
+  g_assert(level_count > 0);
+  struct level **levels =
+    (struct level **) g_ptr_array_free(level_array, false);
+  level_array = NULL;
+
+  // allocate private data
+  struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
 
   // store osr data
   g_assert(osr->data == NULL);

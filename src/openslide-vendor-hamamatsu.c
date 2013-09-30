@@ -1419,7 +1419,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 				GError **err) {
   struct jpeg_level **levels = NULL;
   int32_t level_count = 0;
-  bool success = false;
 
   // initialize individual jpeg structs
   struct jpeg **jpegs = g_new0(struct jpeg *, num_jpegs);
@@ -1441,7 +1440,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     FILE *f;
     if ((f = _openslide_fopen(jp->filename, "rb", err)) == NULL) {
       g_prefix_error(err, "Can't open JPEG %d: ", i);
-      goto DONE;
+      goto FAIL;
     }
 
     // comment?
@@ -1457,7 +1456,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
                      comment_ptr, err)) {
       g_prefix_error(err, "Can't verify JPEG %d: ", i);
       fclose(f);
-      goto DONE;
+      goto FAIL;
     }
     jp->tiles_across = jp->width / jp->tile_width;
     jp->tiles_down = jp->height / jp->tile_height;
@@ -1475,7 +1474,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read file size for JPEG %d", i);
       fclose(f);
-      goto DONE;
+      goto FAIL;
     }
 
     // file is done now
@@ -1496,19 +1495,19 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Tile size not consistent");
-        goto DONE;
+        goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
           jp->tiles_across != jpeg0_ta) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Tiles across not consistent");
-        goto DONE;
+        goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
           jp->tiles_down != jpeg0_td) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Tiles down not consistent");
-        goto DONE;
+        goto FAIL;
       }
     }
 
@@ -1551,34 +1550,25 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   g_debug("num_jpegs: %d", num_jpegs);
   */
 
-  success = true;
+  // init ops
+  return init_jpeg_ops(osr,
+                       level_count, levels,
+                       num_jpegs, jpegs,
+                       true, err);
 
- DONE:
-  if (success) {
-    // init ops
-    success = init_jpeg_ops(osr,
-                            level_count, levels,
-                            num_jpegs, jpegs,
-                            true, err);
-  } else {
-    // destroy
-    jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
-  }
-
-  return success;
-}
-
-static void ngr_destroy_levels(struct ngr_level **levels, int count) {
-  for (int i = 0; i < count; i++) {
-    g_free(levels[i]->filename);
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct ngr_level, levels[i]);
-  }
-  g_free(levels);
+FAIL:
+  jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
+  return false;
 }
 
 static void ngr_destroy(openslide_t *osr) {
-  ngr_destroy_levels((struct ngr_level **) osr->levels, osr->level_count);
+  for (int i = 0; i < osr->level_count; i++) {
+    struct ngr_level *l = (struct ngr_level *) osr->levels[i];
+    g_free(l->filename);
+    _openslide_grid_destroy(l->grid);
+    g_slice_free(struct ngr_level, l);
+  }
+  g_free(osr->levels);
 }
 
 static bool ngr_read_tile(openslide_t *osr,
@@ -1695,8 +1685,6 @@ static int32_t read_le_int32_from_file(FILE *f) {
 static bool hamamatsu_vmu_part2(openslide_t *osr,
 				int num_levels, char **image_filenames,
 				GError **err) {
-  bool success = false;
-
   // initialize individual ngr structs
   struct ngr_level **levels = g_new(struct ngr_level *, num_levels);
   for (int i = 0; i < num_levels; i++) {
@@ -1711,7 +1699,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     FILE *f;
     if ((f = _openslide_fopen(l->filename, "rb", err)) == NULL) {
-      goto DONE;
+      goto FAIL;
     }
 
     // validate magic
@@ -1719,7 +1707,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Bad magic on NGR file");
       fclose(f);
-      goto DONE;
+      goto FAIL;
     }
 
     // read w, h, column width, headersize
@@ -1737,7 +1725,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Error processing header");
       fclose(f);
-      goto DONE;
+      goto FAIL;
     }
 
     // ensure no remainder on columns
@@ -1745,7 +1733,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Width not multiple of column width");
       fclose(f);
-      goto DONE;
+      goto FAIL;
     }
 
     l->grid = _openslide_grid_create_simple(osr,
@@ -1769,20 +1757,18 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
   osr->level_count = num_levels;
   osr->ops = &ngr_ops;
 
-  success = true;
+  return true;
 
- DONE:
-  if (!success) {
-    // destroy
-    for (int i = 0; i < num_levels; i++) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_free(levels[i]->filename);
-      g_slice_free(struct ngr_level, levels[i]);
-    }
-    g_free(levels);
+ FAIL:
+  // destroy
+  for (int i = 0; i < num_levels; i++) {
+    _openslide_grid_destroy(levels[i]->grid);
+    g_free(levels[i]->filename);
+    g_slice_free(struct ngr_level, levels[i]);
   }
+  g_free(levels);
 
-  return success;
+  return false;
 }
 
 
@@ -2418,18 +2404,17 @@ DONE:
   struct jpeg_level **levels =
     (struct jpeg_level **) g_ptr_array_free(level_array, false);
 
-  if (success) {
-    // init ops
-    success = init_jpeg_ops(osr,
-                            level_count, levels,
-                            num_jpegs, jpegs,
-                            restart_marker_scan, err);
-  } else {
+  if (!success) {
     // destroy
     jpeg_destroy_data(num_jpegs, jpegs, level_count, levels);
+    return false;
   }
 
-  return success;
+  // init ops
+  return init_jpeg_ops(osr,
+                       level_count, levels,
+                       num_jpegs, jpegs,
+                       restart_marker_scan, err);
 }
 
 const struct _openslide_format _openslide_format_hamamatsu_ndpi = {

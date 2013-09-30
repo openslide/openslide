@@ -47,22 +47,17 @@ struct level {
   struct _openslide_grid *grid;
 };
 
-static void destroy_data(struct generic_tiff_ops_data *data,
-                         struct level **levels, int32_t level_count) {
+static void destroy(openslide_t *osr) {
+  struct generic_tiff_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
   g_slice_free(struct generic_tiff_ops_data, data);
 
-  for (int32_t i = 0; i < level_count; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_slice_free(struct level, levels[i]);
+  for (int32_t i = 0; i < osr->level_count; i++) {
+    struct level *l = (struct level *) osr->levels[i];
+    _openslide_grid_destroy(l->grid);
+    g_slice_free(struct level, l);
   }
-  g_free(levels);
-}
-
-static void destroy(openslide_t *osr) {
-  struct generic_tiff_ops_data *data = osr->data;
-  struct level **levels = (struct level **) osr->levels;
-  destroy_data(data, levels, osr->level_count);
+  g_free(osr->levels);
 }
 
 static bool read_tile(openslide_t *osr,
@@ -238,6 +233,15 @@ static bool generic_tiff_open(openslide_t *osr,
   // sort tiled levels
   g_ptr_array_sort(level_array, width_compare);
 
+  // set hash and properties
+  struct level *top_level = level_array->pdata[level_array->len - 1];
+  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
+                                                top_level->tiffl.dir,
+                                                0,
+                                                err)) {
+    goto FAIL;
+  }
+
   // unwrap level array
   int32_t level_count = level_array->len;
   struct level **levels =
@@ -247,15 +251,6 @@ static bool generic_tiff_open(openslide_t *osr,
   // allocate private data
   struct generic_tiff_ops_data *data =
     g_slice_new0(struct generic_tiff_ops_data);
-
-  // set hash and properties
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->tiffl.dir,
-                                                0,
-                                                err)) {
-    destroy_data(data, levels, level_count);
-    return false;
-  }
 
   // store osr data
   g_assert(osr->data == NULL);
