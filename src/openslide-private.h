@@ -149,9 +149,6 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 
-/* Returns the size of the file */
-int64_t _openslide_fsize(const char *path, GError **err);
-
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 

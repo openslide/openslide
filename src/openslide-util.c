@@ -173,29 +173,6 @@ FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
   return f;
 }
 
-int64_t _openslide_fsize(const char *path, GError **err) {
-  FILE *f = _openslide_fopen(path, "rb", err);
-  if (f == NULL) {
-    return -1;
-  }
-
-  if (fseeko(f, 0, SEEK_END)) {
-    _openslide_io_error(err, "Couldn't seek %s", path);
-    fclose(f);
-    return -1;
-  }
-
-  int64_t size = ftello(f);
-  if (size == -1) {
-    _openslide_io_error(err, "Couldn't get size of %s", path);
-    fclose(f);
-    return -1;
-  }
-
-  fclose(f);
-  return size;
-}
-
 char *_openslide_format_double(double d) {
   char buf[G_ASCII_DTOSTR_BUF_SIZE];
 
