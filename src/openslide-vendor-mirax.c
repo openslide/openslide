@@ -1525,9 +1525,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   tmp = NULL;
 
   // add properties
-  if (osr) {
-    add_properties(osr->properties, slidedat);
-  }
+  add_properties(osr->properties, slidedat);
 
   // load general stuff
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_GENERAL);
@@ -1929,22 +1927,21 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
-  if (osr) {
-    uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
-    _openslide_set_background_color_prop(osr->properties,
-                                         (fill >> 16) & 0xFF,
-                                         (fill >> 8) & 0xFF,
-                                         fill & 0xFF);
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                        g_strdup_printf("%d", objective_magnification));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                        _openslide_format_double(slide_zoom_level_sections[0].mpp_x));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                        _openslide_format_double(slide_zoom_level_sections[0].mpp_y));
-  }
+  // set properties
+  uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
+  _openslide_set_background_color_prop(osr->properties,
+                                       (fill >> 16) & 0xFF,
+                                       (fill >> 8) & 0xFF,
+                                       fill & 0xFF);
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                      g_strdup_printf("%d", objective_magnification));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                      _openslide_format_double(slide_zoom_level_sections[0].mpp_x));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                      _openslide_format_double(slide_zoom_level_sections[0].mpp_y));
 
   /*
   for (int i = 0; i < zoom_levels; i++) {
@@ -1955,20 +1952,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     g_debug(" tile advance %g %g", lp->tile_advance_x, lp->tile_advance_y);
   }
   */
-
-  if (osr == NULL) {
-    // free now and return
-    for (int i = 0; i < zoom_levels; i++) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct level, levels[i]);
-    }
-    g_free(levels);
-
-    success = true;
-    goto DONE;
-  }
-
-  g_assert(osr->data == NULL);
 
   // if any level is missing tile size hints, we must invalidate all hints
   for (int i = 0; i < zoom_levels; i++) {
@@ -1991,6 +1974,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   levels = NULL;
 
   // set private data
+  g_assert(osr->data == NULL);
   struct mirax_ops_data *data = g_slice_new0(struct mirax_ops_data);
   data->datafile_paths = datafile_paths;
   datafile_paths = NULL;

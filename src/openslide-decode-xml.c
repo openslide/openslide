@@ -135,9 +135,6 @@ void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,
                                         const char *xpath) {
-  if (!osr) {
-    return;
-  }
   char *str = _openslide_xml_xpath_get_string(ctx, xpath);
   if (str) {
     g_hash_table_insert(osr->properties,

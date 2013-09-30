@@ -248,14 +248,6 @@ static bool generic_tiff_open(openslide_t *osr,
   struct generic_tiff_ops_data *data =
     g_slice_new0(struct generic_tiff_ops_data);
 
-  if (osr == NULL) {
-    // free now and return
-    _openslide_tiffcache_put(tc, tiff);
-    data->tc = tc;
-    destroy_data(data, levels, level_count);
-    return true;
-  }
-
   // set hash and properties
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
                                                 levels[level_count - 1]->tiffl.dir,

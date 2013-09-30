@@ -1447,7 +1447,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // comment?
     char *comment = NULL;
     char **comment_ptr = NULL;
-    if (i == 0 && osr) {
+    if (i == 0) {
       comment_ptr = &comment;
     }
 
@@ -1554,7 +1554,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   success = true;
 
  DONE:
-  if (success && osr) {
+  if (success) {
     // init ops
     success = init_jpeg_ops(osr,
                             level_count, levels,
@@ -1763,11 +1763,6 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     fclose(f);
   }
 
-  if (osr == NULL) {
-    ngr_destroy_levels(levels, num_levels);
-    return true;
-  }
-
   // set osr data
   g_assert(osr->levels == NULL);
   osr->levels = (struct _openslide_level **) levels;
@@ -1873,9 +1868,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   }
 
   // add properties
-  if (osr) {
-    add_properties(osr->properties, key_file, groupname);
-  }
+  add_properties(osr->properties, key_file, groupname);
 
   // extract MapFile
   char *tmp;
@@ -2160,9 +2153,6 @@ static void ndpi_set_string_prop(GHashTable *ht,
 
 static void ndpi_set_props(openslide_t *osr,
                            struct _openslide_tifflike *tl, int64_t dir) {
-  if (!osr) {
-    return;
-  }
   GHashTable *ht = osr->properties;
 
   // MPP
@@ -2428,7 +2418,7 @@ DONE:
   struct jpeg_level **levels =
     (struct jpeg_level **) g_ptr_array_free(level_array, false);
 
-  if (success && osr) {
+  if (success) {
     // init ops
     success = init_jpeg_ops(osr,
                             level_count, levels,

@@ -89,11 +89,19 @@ static bool level_in_range(openslide_t *osr, int32_t level) {
   return true;
 }
 
+static openslide_t *create_osr(void) {
+  openslide_t *osr = g_slice_new0(openslide_t);
+  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                          g_free, g_free);
+  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                                 g_free,
+                                                 destroy_associated_image);
+  return osr;
+}
+
 static void reset_osr(openslide_t *osr) {
-  if (osr) {
-    g_hash_table_remove_all(osr->properties);
-    g_hash_table_remove_all(osr->associated_images);
-  }
+  g_hash_table_remove_all(osr->properties);
+  g_hash_table_remove_all(osr->associated_images);
 }
 
 static void init_quickhash1_out(struct _openslide_hash **quickhash1_OUT) {
@@ -176,11 +184,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       continue;
     }
     if (try_format(osr, filename, quickhash1_OUT, format, &tmp_err)) {
-      if (osr) {
-        g_hash_table_insert(osr->properties,
-                            g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                            g_strdup(format->vendor));
-      }
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                          g_strdup(format->vendor));
       return true;
     }
     if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -207,11 +213,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
         continue;
       }
       if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, format, &tmp_err)) {
-        if (osr) {
-          g_hash_table_insert(osr->properties,
-                              g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                              g_strdup(format->vendor));
-        }
+        g_hash_table_insert(osr->properties,
+                            g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                            g_strdup(format->vendor));
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
@@ -243,7 +247,10 @@ bool openslide_can_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
   // quick test
-  return try_all_formats(NULL, filename, NULL, NULL);
+  openslide_t *osr = create_osr();
+  bool success = try_all_formats(osr, filename, NULL, NULL);
+  openslide_close(osr);
+  return success;
 }
 
 
@@ -282,11 +289,7 @@ openslide_t *openslide_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
   // alloc memory
-  openslide_t *osr = g_slice_new0(openslide_t);
-  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
-					  g_free, g_free);
-  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
-						 g_free, destroy_associated_image);
+  openslide_t *osr = create_osr();
 
   // try to read it
   struct _openslide_hash *quickhash1 = NULL;

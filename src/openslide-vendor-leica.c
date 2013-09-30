@@ -299,7 +299,6 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
 
   if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &unit) &&
       TIFFGetField(tiff, tag, &f) &&
-      osr &&
       unit == RESUNIT_CENTIMETER) {
     g_hash_table_insert(osr->properties, g_strdup(property_name),
                         _openslide_format_double(10000.0 / f));
@@ -480,7 +479,7 @@ FAIL:
 }
 
 static void set_prop(openslide_t *osr, const char *name, const char *value) {
-  if (osr && value) {
+  if (value) {
     g_hash_table_insert(osr->properties,
                         g_strdup(name),
                         g_strdup(value));
@@ -556,10 +555,8 @@ static bool create_levels_from_collection(openslide_t *osr,
       set_prop(osr, "leica.objective", image->objective);
 
       // copy objective to standard property
-      if (osr) {
-        _openslide_duplicate_int_prop(osr->properties, "leica.objective",
-                                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-      }
+      _openslide_duplicate_int_prop(osr->properties, "leica.objective",
+                                    OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
     }
 
     // verify that it's safe to composite this main image with the others
@@ -764,14 +761,6 @@ static bool leica_open(openslide_t *osr,
 
   // allocate private data
   struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
-
-  if (osr == NULL) {
-    // free now and return
-    _openslide_tiffcache_put(tc, tiff);
-    data->tc = tc;
-    destroy_data(data, levels, level_count);
-    return true;
-  }
 
   // set hash and properties
   struct area *property_area = levels[0]->areas->pdata[0];

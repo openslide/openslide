@@ -195,9 +195,7 @@ static void parse_trestle_image_description(openslide_t *osr,
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
 
-  if (osr) {
-    add_properties(osr->properties, first_pass);
-  }
+  add_properties(osr->properties, first_pass);
 
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
     //g_debug(" XX: %s", *cur_str);
@@ -221,12 +219,10 @@ static void parse_trestle_image_description(openslide_t *osr,
       errno = 0;
       uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
       if (bg || !errno) {
-        if (osr) {
-          _openslide_set_background_color_prop(osr->properties,
-                                               (bg >> 16) & 0xFF,
-                                               (bg >> 8) & 0xFF,
-                                               bg & 0xFF);
-        }
+        _openslide_set_background_color_prop(osr->properties,
+                                             (bg >> 16) & 0xFF,
+                                             (bg >> 8) & 0xFF,
+                                             bg & 0xFF);
       }
     }
   }
@@ -318,14 +314,6 @@ static bool trestle_open(openslide_t *osr,
     // level ok
     level_count++;
   } while (TIFFReadDirectory(tiff));
-
-  if (osr == NULL) {
-    // free now and return
-    _openslide_tiffcache_put(tc, tiff);
-    _openslide_tiffcache_destroy(tc);
-    g_free(overlaps);
-    return true;
-  }
 
   // create ops data
   struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);

@@ -418,14 +418,6 @@ static bool aperio_open(openslide_t *osr,
     }
   } while (TIFFReadDirectory(tiff));
 
-  if (osr == NULL) {
-    // free now and return
-    _openslide_tiffcache_put(tc, tiff);
-    data->tc = tc;
-    destroy_data(data, levels, level_count);
-    return true;
-  }
-
   // read properties
   TIFFSetDirectory(tiff, 0);
   TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval); // XXX? should be safe, we just did it

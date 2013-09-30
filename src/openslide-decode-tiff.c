@@ -210,10 +210,6 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
                                               tdir_t lowest_resolution_level,
                                               tdir_t property_dir,
                                               GError **err) {
-  if (osr == NULL) {
-    return true;
-  }
-
   // generate hash of the smallest level
   SET_DIR_OR_FAIL(tiff, lowest_resolution_level, err);
   if (!hash_tiff_tiles(quickhash1, tiff, err)) {
@@ -493,18 +489,16 @@ static bool _add_associated_image(openslide_t *osr,
     return false;
   }
 
-  // possibly load into struct
-  if (osr) {
-    struct associated_image *img = g_slice_new0(struct associated_image);
-    img->base.ops = &tiff_associated_ops;
-    img->base.w = w;
-    img->base.h = h;
-    img->tc = tc;
-    img->directory = dir;
+  // load into struct
+  struct associated_image *img = g_slice_new0(struct associated_image);
+  img->base.ops = &tiff_associated_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->tc = tc;
+  img->directory = dir;
 
-    // save
-    g_hash_table_insert(osr->associated_images, g_strdup(name), img);
-  }
+  // save
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
 
   return true;
 }

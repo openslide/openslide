@@ -335,26 +335,24 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
     goto FAIL;
   }
 
-  if (osr) {
-    // copy all iScan attributes to vendor properties
-    for (xmlAttr *attr = root->properties; attr; attr = attr->next) {
-      xmlChar *value = xmlGetNoNsProp(root, attr->name);
-      if (value && *value) {
-        g_hash_table_insert(osr->properties,
-                            g_strdup_printf("ventana.%s", attr->name),
-                            g_strdup((char *) value));
-      }
-      xmlFree(value);
+  // copy all iScan attributes to vendor properties
+  for (xmlAttr *attr = root->properties; attr; attr = attr->next) {
+    xmlChar *value = xmlGetNoNsProp(root, attr->name);
+    if (value && *value) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup_printf("ventana.%s", attr->name),
+                          g_strdup((char *) value));
     }
-
-    // set standard properties
-    _openslide_duplicate_int_prop(osr->properties, "ventana.Magnification",
-                                  OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-    _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_X);
-    _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
-                                     OPENSLIDE_PROPERTY_NAME_MPP_Y);
+    xmlFree(value);
   }
+
+  // set standard properties
+  _openslide_duplicate_int_prop(osr->properties, "ventana.Magnification",
+                                OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   // clean up
   xmlFreeDoc(doc);
@@ -845,14 +843,6 @@ static bool ventana_open(openslide_t *osr,
 
   // allocate private data
   struct ventana_ops_data *data = g_slice_new0(struct ventana_ops_data);
-
-  if (osr == NULL) {
-    // free now and return
-    _openslide_tiffcache_put(tc, tiff);
-    data->tc = tc;
-    destroy_data(data, levels, level_count);
-    return true;
-  }
 
   // set hash and properties
   if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,

@@ -831,10 +831,6 @@ bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
                                                   int32_t lowest_resolution_level,
                                                   int32_t property_dir,
                                                   GError **err) {
-  if (osr == NULL) {
-    return true;
-  }
-
   // generate hash of the smallest level
   if (!hash_tiff_level(quickhash1, filename,
                        tl, lowest_resolution_level, err)) {
