@@ -666,7 +666,7 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
 
 static const char *store_string_property(struct _openslide_tifflike *tl,
                                          int64_t dir,
-                                         GHashTable *ht,
+                                         openslide_t *osr,
                                          const char *name,
                                          int32_t tag) {
   const char *buf = _openslide_tifflike_get_buffer(tl, dir, tag);
@@ -674,67 +674,69 @@ static const char *store_string_property(struct _openslide_tifflike *tl,
     return NULL;
   }
   char *value = g_strdup(buf);
-  g_hash_table_insert(ht, g_strdup(name), value);
+  g_hash_table_insert(osr->properties, g_strdup(name), value);
   return value;
 }
 
 static void store_and_hash_string_property(struct _openslide_tifflike *tl,
                                            int64_t dir,
-                                           GHashTable *ht,
+                                           openslide_t *osr,
                                            struct _openslide_hash *quickhash1,
                                            const char *name,
                                            int32_t tag) {
   _openslide_hash_string(quickhash1, name);
   _openslide_hash_string(quickhash1,
-                         store_string_property(tl, dir, ht, name, tag));
+                         store_string_property(tl, dir, osr, name, tag));
 }
 
 static void store_float_property(struct _openslide_tifflike *tl,
                                  int64_t dir,
-                                 GHashTable *ht,
+                                 openslide_t *osr,
                                  const char *name,
                                  int32_t tag) {
   bool ok = true;
   double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
   if (ok) {
-    g_hash_table_insert(ht, g_strdup(name), _openslide_format_double(value));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(name),
+                        _openslide_format_double(value));
   }
 }
 
 static void store_and_hash_properties(struct _openslide_tifflike *tl,
                                       int64_t dir,
-                                      GHashTable *ht,
+                                      openslide_t *osr,
                                       struct _openslide_hash *quickhash1) {
   // strings
-  store_string_property(tl, dir, ht, OPENSLIDE_PROPERTY_NAME_COMMENT,
+  store_string_property(tl, dir, osr, OPENSLIDE_PROPERTY_NAME_COMMENT,
                         TIFFTAG_IMAGEDESCRIPTION);
 
   // strings to store and hash
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.ImageDescription",
                                  TIFFTAG_IMAGEDESCRIPTION);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.Make", TIFFTAG_MAKE);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.Model", TIFFTAG_MODEL);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.Software", TIFFTAG_SOFTWARE);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.DateTime", TIFFTAG_DATETIME);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.Artist", TIFFTAG_ARTIST);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.Copyright", TIFFTAG_COPYRIGHT);
-  store_and_hash_string_property(tl, dir, ht, quickhash1,
+  store_and_hash_string_property(tl, dir, osr, quickhash1,
                                  "tiff.DocumentName", TIFFTAG_DOCUMENTNAME);
 
   // don't hash floats, they might be unstable over time
-  store_float_property(tl, dir, ht, "tiff.XResolution", TIFFTAG_XRESOLUTION);
-  store_float_property(tl, dir, ht, "tiff.YResolution", TIFFTAG_YRESOLUTION);
-  store_float_property(tl, dir, ht, "tiff.XPosition", TIFFTAG_XPOSITION);
-  store_float_property(tl, dir, ht, "tiff.YPosition", TIFFTAG_YPOSITION);
+  store_float_property(tl, dir, osr, "tiff.XResolution", TIFFTAG_XRESOLUTION);
+  store_float_property(tl, dir, osr, "tiff.YResolution", TIFFTAG_YRESOLUTION);
+  store_float_property(tl, dir, osr, "tiff.XPosition", TIFFTAG_XPOSITION);
+  store_float_property(tl, dir, osr, "tiff.YPosition", TIFFTAG_YPOSITION);
 
   // special
   bool ok = true;
@@ -757,7 +759,9 @@ static void store_and_hash_properties(struct _openslide_tifflike *tl,
   default:
     result = "unknown";
   }
-  g_hash_table_insert(ht, g_strdup("tiff.ResolutionUnit"), g_strdup(result));
+  g_hash_table_insert(osr->properties,
+                      g_strdup("tiff.ResolutionUnit"),
+                      g_strdup(result));
 }
 
 static bool hash_tiff_level(struct _openslide_hash *hash,
@@ -839,7 +843,7 @@ bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
   }
 
   // load TIFF properties
-  store_and_hash_properties(tl, property_dir, osr->properties, quickhash1);
+  store_and_hash_properties(tl, property_dir, osr, quickhash1);
 
   return true;
 }

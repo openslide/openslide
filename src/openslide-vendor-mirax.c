@@ -1262,7 +1262,7 @@ static bool process_indexfile(openslide_t *osr,
   return success;
 }
 
-static void add_properties(GHashTable *ht, GKeyFile *kf) {
+static void add_properties(openslide_t *osr, GKeyFile *kf) {
   char **groups = g_key_file_get_groups(kf, NULL);
   if (groups == NULL) {
     return;
@@ -1277,7 +1277,7 @@ static void add_properties(GHashTable *ht, GKeyFile *kf) {
     for (char **key = keys; *key != NULL; key++) {
       char *value = g_key_file_get_value(kf, *group, *key, NULL);
       if (value) {
-	g_hash_table_insert(ht,
+	g_hash_table_insert(osr->properties,
 			    g_strdup_printf("mirax.%s.%s", *group, *key),
 			    g_strdup(value));
 	g_free(value);
@@ -1525,7 +1525,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   tmp = NULL;
 
   // add properties
-  add_properties(osr->properties, slidedat);
+  add_properties(osr, slidedat);
 
   // load general stuff
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_GENERAL);
@@ -1929,7 +1929,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set properties
   uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
-  _openslide_set_background_color_prop(osr->properties,
+  _openslide_set_background_color_prop(osr,
                                        (fill >> 16) & 0xFF,
                                        (fill >> 8) & 0xFF,
                                        fill & 0xFF);

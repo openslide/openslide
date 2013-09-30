@@ -1187,7 +1187,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
   return NULL;
 }
 
-static void add_properties(GHashTable *ht, GKeyFile *kf,
+static void add_properties(openslide_t *osr, GKeyFile *kf,
 			   const char *group) {
   char **keys = g_key_file_get_keys(kf, group, NULL, NULL);
   if (keys == NULL) {
@@ -1197,7 +1197,7 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
   for (char **key = keys; *key != NULL; key++) {
     char *value = g_key_file_get_value(kf, group, *key, NULL);
     if (value) {
-      g_hash_table_insert(ht,
+      g_hash_table_insert(osr->properties,
 			  g_strdup_printf("hamamatsu.%s", *key),
 			  g_strdup(value));
       g_free(value);
@@ -1208,7 +1208,7 @@ static void add_properties(GHashTable *ht, GKeyFile *kf,
 
   // this allows openslide.objective-power to have a fractional component
   // but it's better than rounding
-  _openslide_duplicate_double_prop(ht, "hamamatsu.SourceLens",
+  _openslide_duplicate_double_prop(osr, "hamamatsu.SourceLens",
                                    OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
   // TODO: can we calculate MPP from PhysicalWidth/PhysicalHeight?
 }
@@ -1854,7 +1854,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   }
 
   // add properties
-  add_properties(osr->properties, key_file, groupname);
+  add_properties(osr, key_file, groupname);
 
   // extract MapFile
   char *tmp;
@@ -2084,31 +2084,33 @@ const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
   .open = hamamatsu_vms_vmu_open,
 };
 
-static void ndpi_set_sint_prop(GHashTable *ht,
+static void ndpi_set_sint_prop(openslide_t *osr,
                                struct _openslide_tifflike *tl,
                                int64_t dir, int32_t tag,
                                const char *property_name) {
   bool ok = true;
   int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, 0, &ok);
   if (ok) {
-    g_hash_table_insert(ht, g_strdup(property_name),
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property_name),
                         g_strdup_printf("%"G_GINT64_FORMAT, value));
   }
 }
 
-static void ndpi_set_float_prop(GHashTable *ht,
+static void ndpi_set_float_prop(openslide_t *osr,
                                 struct _openslide_tifflike *tl,
                                 int64_t dir, int32_t tag,
                                 const char *property_name) {
   bool ok = true;
   double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
   if (ok) {
-    g_hash_table_insert(ht, g_strdup(property_name),
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property_name),
                         _openslide_format_double(value));
   }
 }
 
-static void ndpi_set_resolution_prop(GHashTable *ht,
+static void ndpi_set_resolution_prop(openslide_t *osr,
                                      struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag,
                                      const char *property_name) {
@@ -2122,43 +2124,44 @@ static void ndpi_set_resolution_prop(GHashTable *ht,
   double res = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
 
   if (ok && unit == RESUNIT_CENTIMETER) {
-    g_hash_table_insert(ht, g_strdup(property_name),
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property_name),
                         _openslide_format_double(10000.0 / res));
   }
 }
 
-static void ndpi_set_string_prop(GHashTable *ht,
+static void ndpi_set_string_prop(openslide_t *osr,
                                  struct _openslide_tifflike *tl,
                                  int64_t dir, int32_t tag,
                                  const char *property_name) {
   const char *value = _openslide_tifflike_get_buffer(tl, dir, tag);
   if (value) {
-    g_hash_table_insert(ht, g_strdup(property_name), g_strdup(value));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property_name),
+                        g_strdup(value));
   }
 }
 
 static void ndpi_set_props(openslide_t *osr,
                            struct _openslide_tifflike *tl, int64_t dir) {
-  GHashTable *ht = osr->properties;
-
   // MPP
-  ndpi_set_resolution_prop(ht, tl, dir, TIFFTAG_XRESOLUTION,
+  ndpi_set_resolution_prop(osr, tl, dir, TIFFTAG_XRESOLUTION,
                            OPENSLIDE_PROPERTY_NAME_MPP_X);
-  ndpi_set_resolution_prop(ht, tl, dir, TIFFTAG_YRESOLUTION,
+  ndpi_set_resolution_prop(osr, tl, dir, TIFFTAG_YRESOLUTION,
                            OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   // objective power
-  ndpi_set_float_prop(ht, tl, dir, NDPI_SOURCELENS,
+  ndpi_set_float_prop(osr, tl, dir, NDPI_SOURCELENS,
                       "hamamatsu.SourceLens");
-  ndpi_set_float_prop(ht, tl, dir, NDPI_SOURCELENS,
+  ndpi_set_float_prop(osr, tl, dir, NDPI_SOURCELENS,
                       OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
 
   // misc properties
-  ndpi_set_sint_prop(ht, tl, dir, NDPI_XOFFSET,
+  ndpi_set_sint_prop(osr, tl, dir, NDPI_XOFFSET,
                      "hamamatsu.XOffsetFromSlideCentre");
-  ndpi_set_sint_prop(ht, tl, dir, NDPI_YOFFSET,
+  ndpi_set_sint_prop(osr, tl, dir, NDPI_YOFFSET,
                      "hamamatsu.YOffsetFromSlideCentre");
-  ndpi_set_string_prop(ht, tl, dir, NDPI_REFERENCE,
+  ndpi_set_string_prop(osr, tl, dir, NDPI_REFERENCE,
                        "hamamatsu.Reference");
 
   // ASCII property map
@@ -2169,7 +2172,7 @@ static void ndpi_set_props(openslide_t *osr,
     for (char **cur_record = records; *cur_record; cur_record++) {
       char **pair = g_strsplit(*cur_record, "=", 2);
       if (pair[0] && pair[0][0] && pair[1] && pair[1][0]) {
-        g_hash_table_insert(ht,
+        g_hash_table_insert(osr->properties,
                             g_strdup_printf("hamamatsu.%s", pair[0]),
                             g_strdup(pair[1]));
       }

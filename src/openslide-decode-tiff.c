@@ -77,64 +77,67 @@ struct associated_image {
     result = tmp;							\
   } while (0)
 
-static const char *store_string_property(TIFF *tiff, GHashTable *ht,
+static const char *store_string_property(TIFF *tiff, openslide_t *osr,
 					 const char *name, ttag_t tag) {
   char *value;
   if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
     value = g_strdup(value);
-    g_hash_table_insert(ht, g_strdup(name), value);
+    g_hash_table_insert(osr->properties, g_strdup(name), value);
     return value;
   }
   return NULL;
 }
 
-static void store_and_hash_string_property(TIFF *tiff, GHashTable *ht,
+static void store_and_hash_string_property(TIFF *tiff, openslide_t *osr,
 					   struct _openslide_hash *quickhash1,
 					   const char *name, ttag_t tag) {
   _openslide_hash_string(quickhash1, name);
-  _openslide_hash_string(quickhash1, store_string_property(tiff, ht, name, tag));
+  _openslide_hash_string(quickhash1,
+                         store_string_property(tiff, osr, name, tag));
 }
 
-static void store_float_property(TIFF *tiff, GHashTable *ht,
+static void store_float_property(TIFF *tiff, openslide_t *osr,
 				 const char *name, ttag_t tag) {
   float value;
   if (TIFFGetFieldDefaulted(tiff, tag, &value)) {
-    g_hash_table_insert(ht, g_strdup(name), _openslide_format_double(value));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(name),
+                        _openslide_format_double(value));
   }
 }
 
-static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
+static void store_and_hash_properties(TIFF *tiff, openslide_t *osr,
 				      struct _openslide_hash *quickhash1) {
   // strings
-  store_string_property(tiff, ht, OPENSLIDE_PROPERTY_NAME_COMMENT,
+  store_string_property(tiff, osr, OPENSLIDE_PROPERTY_NAME_COMMENT,
 			TIFFTAG_IMAGEDESCRIPTION);
 
   // strings to store and hash
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.ImageDescription", TIFFTAG_IMAGEDESCRIPTION);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.Make", TIFFTAG_MAKE);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.Model", TIFFTAG_MODEL);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.Software", TIFFTAG_SOFTWARE);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.DateTime", TIFFTAG_DATETIME);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.Artist", TIFFTAG_ARTIST);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.HostComputer", TIFFTAG_HOSTCOMPUTER);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.Copyright", TIFFTAG_COPYRIGHT);
-  store_and_hash_string_property(tiff, ht, quickhash1,
+  store_and_hash_string_property(tiff, osr, quickhash1,
 				 "tiff.DocumentName", TIFFTAG_DOCUMENTNAME);
 
 
   // don't hash floats, they might be unstable over time
-  store_float_property(tiff, ht, "tiff.XResolution", TIFFTAG_XRESOLUTION);
-  store_float_property(tiff, ht, "tiff.YResolution", TIFFTAG_YRESOLUTION);
-  store_float_property(tiff, ht, "tiff.XPosition", TIFFTAG_XPOSITION);
-  store_float_property(tiff, ht, "tiff.YPosition", TIFFTAG_YPOSITION);
+  store_float_property(tiff, osr, "tiff.XResolution", TIFFTAG_XRESOLUTION);
+  store_float_property(tiff, osr, "tiff.YResolution", TIFFTAG_YRESOLUTION);
+  store_float_property(tiff, osr, "tiff.XPosition", TIFFTAG_XPOSITION);
+  store_float_property(tiff, osr, "tiff.YPosition", TIFFTAG_YPOSITION);
 
   // special
   uint16_t resolution_unit;
@@ -155,7 +158,9 @@ static void store_and_hash_properties(TIFF *tiff, GHashTable *ht,
       result = "unknown";
     }
 
-    g_hash_table_insert(ht, g_strdup("tiff.ResolutionUnit"), g_strdup(result));
+    g_hash_table_insert(osr->properties,
+                        g_strdup("tiff.ResolutionUnit"),
+                        g_strdup(result));
   }
 }
 
@@ -219,7 +224,7 @@ bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
 
   // load TIFF properties
   SET_DIR_OR_FAIL(tiff, property_dir, err);
-  store_and_hash_properties(tiff, osr->properties, quickhash1);
+  store_and_hash_properties(tiff, osr, quickhash1);
 
   return true;
 }

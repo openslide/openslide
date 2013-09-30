@@ -181,43 +181,45 @@ char *_openslide_format_double(double d) {
 }
 
 // if the src prop is an int, canonicalize it and copy it to dest
-void _openslide_duplicate_int_prop(GHashTable *ht, const char *src,
+void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest) {
-  g_return_if_fail(g_hash_table_lookup(ht, dest) == NULL);
+  g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
-  char *value = g_hash_table_lookup(ht, src);
+  char *value = g_hash_table_lookup(osr->properties, src);
   if (value && value[0]) {
     char *endptr;
     int64_t result = g_ascii_strtoll(value, &endptr, 10);
     if (endptr[0] == 0) {
-      g_hash_table_insert(ht, g_strdup(dest),
+      g_hash_table_insert(osr->properties,
+                          g_strdup(dest),
                           g_strdup_printf("%"G_GINT64_FORMAT, result));
     }
   }
 }
 
 // if the src prop is a double, canonicalize it and copy it to dest
-void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
+void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest) {
-  g_return_if_fail(g_hash_table_lookup(ht, dest) == NULL);
+  g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
-  char *value = g_hash_table_lookup(ht, src);
+  char *value = g_hash_table_lookup(osr->properties, src);
   if (value && value[0]) {
     char *endptr;
     double result = g_ascii_strtod(value, &endptr);
     if (endptr[0] == 0) {
-      g_hash_table_insert(ht, g_strdup(dest),
+      g_hash_table_insert(osr->properties, g_strdup(dest),
                           _openslide_format_double(result));
     }
   }
 }
 
-void _openslide_set_background_color_prop(GHashTable *ht,
+void _openslide_set_background_color_prop(openslide_t *osr,
                                           uint8_t r, uint8_t g, uint8_t b) {
-  g_return_if_fail(g_hash_table_lookup(ht,
+  g_return_if_fail(g_hash_table_lookup(osr->properties,
                                        OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR) == NULL);
 
-  g_hash_table_insert(ht, g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
                       g_strdup_printf("%.02X%.02X%.02X", r, g, b));
 }
 

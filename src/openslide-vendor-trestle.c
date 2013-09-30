@@ -166,7 +166,7 @@ static const struct _openslide_ops trestle_ops = {
   .destroy = destroy,
 };
 
-static void add_properties(GHashTable *ht, char **tags) {
+static void add_properties(openslide_t *osr, char **tags) {
   for (char **tag = tags; *tag != NULL; tag++) {
     char **pair = g_strsplit(*tag, "=", 2);
     if (pair) {
@@ -174,7 +174,7 @@ static void add_properties(GHashTable *ht, char **tags) {
       if (name) {
         char *value = g_strstrip(pair[1]);
 
-        g_hash_table_insert(ht,
+        g_hash_table_insert(osr->properties,
                             g_strdup_printf("trestle.%s", name),
                             g_strdup(value));
       }
@@ -182,7 +182,7 @@ static void add_properties(GHashTable *ht, char **tags) {
     g_strfreev(pair);
   }
 
-  _openslide_duplicate_int_prop(ht, "trestle.Objective Power",
+  _openslide_duplicate_int_prop(osr, "trestle.Objective Power",
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
 }
 
@@ -195,7 +195,7 @@ static void parse_trestle_image_description(openslide_t *osr,
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
 
-  add_properties(osr->properties, first_pass);
+  add_properties(osr, first_pass);
 
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
     //g_debug(" XX: %s", *cur_str);
@@ -219,7 +219,7 @@ static void parse_trestle_image_description(openslide_t *osr,
       errno = 0;
       uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
       if (bg || !errno) {
-        _openslide_set_background_color_prop(osr->properties,
+        _openslide_set_background_color_prop(osr,
                                              (bg >> 16) & 0xFF,
                                              (bg >> 8) & 0xFF,
                                              bg & 0xFF);
@@ -402,9 +402,9 @@ static bool trestle_open(openslide_t *osr,
 
   // copy the TIFF resolution props to the standard MPP properties
   // this is a totally non-standard use of these TIFF tags
-  _openslide_duplicate_double_prop(osr->properties, "tiff.XResolution",
+  _openslide_duplicate_double_prop(osr, "tiff.XResolution",
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
-  _openslide_duplicate_double_prop(osr->properties, "tiff.YResolution",
+  _openslide_duplicate_double_prop(osr, "tiff.YResolution",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   // add associated images

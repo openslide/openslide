@@ -153,13 +153,13 @@ FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 char *_openslide_format_double(double d);
 
 /* Duplicate OpenSlide properties */
-void _openslide_duplicate_int_prop(GHashTable *ht, const char *src,
+void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest);
-void _openslide_duplicate_double_prop(GHashTable *ht, const char *src,
+void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest);
 
 // background color helper
-void _openslide_set_background_color_prop(GHashTable *ht,
+void _openslide_set_background_color_prop(openslide_t *osr,
                                           uint8_t r, uint8_t g, uint8_t b);
 
 

@@ -342,11 +342,11 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   }
 
   // set standard properties
-  _openslide_duplicate_int_prop(osr->properties, "ventana.Magnification",
+  _openslide_duplicate_int_prop(osr, "ventana.Magnification",
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-  _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
+  _openslide_duplicate_double_prop(osr, "ventana.ScanRes",
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
-  _openslide_duplicate_double_prop(osr->properties, "ventana.ScanRes",
+  _openslide_duplicate_double_prop(osr, "ventana.ScanRes",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   // clean up

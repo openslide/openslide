@@ -549,7 +549,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       set_prop(osr, "leica.objective", image->objective);
 
       // copy objective to standard property
-      _openslide_duplicate_int_prop(osr->properties, "leica.objective",
+      _openslide_duplicate_int_prop(osr, "leica.objective",
                                     OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
     }
 

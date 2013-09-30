@@ -216,7 +216,7 @@ static const struct _openslide_ops aperio_ops = {
   .destroy = destroy,
 };
 
-static void add_properties(GHashTable *ht, char **props) {
+static void add_properties(openslide_t *osr, char **props) {
   if (*props == NULL) {
     return;
   }
@@ -230,7 +230,7 @@ static void add_properties(GHashTable *ht, char **props) {
       if (name) {
 	char *value = g_strstrip(pair[1]);
 
-	g_hash_table_insert(ht,
+	g_hash_table_insert(osr->properties,
 			    g_strdup_printf("aperio.%s", name),
 			    g_strdup(value));
       }
@@ -238,11 +238,11 @@ static void add_properties(GHashTable *ht, char **props) {
     g_strfreev(pair);
   }
 
-  _openslide_duplicate_int_prop(ht, "aperio.AppMag",
+  _openslide_duplicate_int_prop(osr, "aperio.AppMag",
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-  _openslide_duplicate_double_prop(ht, "aperio.MPP",
+  _openslide_duplicate_double_prop(osr, "aperio.MPP",
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
-  _openslide_duplicate_double_prop(ht, "aperio.MPP",
+  _openslide_duplicate_double_prop(osr, "aperio.MPP",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 }
 
@@ -422,7 +422,7 @@ static bool aperio_open(openslide_t *osr,
   TIFFSetDirectory(tiff, 0);
   TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval); // XXX? should be safe, we just did it
   char **props = g_strsplit(tagval, "|", -1);
-  add_properties(osr->properties, props);
+  add_properties(osr, props);
   g_strfreev(props);
 
   // set hash and properties
