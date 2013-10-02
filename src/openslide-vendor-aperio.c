@@ -216,6 +216,26 @@ static const struct _openslide_ops aperio_ops = {
   .destroy = destroy,
 };
 
+static bool aperio_detect(TIFF *tiff, GError **err) {
+  // ensure TIFF is tiled
+  if (!TIFFIsTiled(tiff)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    return false;
+  }
+
+  // check ImageDescription
+  char *tagval;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval) ||
+      (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not an Aperio slide");
+    return false;
+  }
+
+  return true;
+}
+
 static void add_properties(openslide_t *osr, char **props) {
   if (*props == NULL) {
     return;
@@ -295,26 +315,9 @@ static bool add_associated_image(openslide_t *osr,
   return result;
 }
 
-
 static bool aperio_open(openslide_t *osr,
                         struct _openslide_tiffcache *tc, TIFF *tiff,
                         struct _openslide_hash *quickhash1, GError **err) {
-  if (!TIFFIsTiled(tiff)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "TIFF is not tiled");
-    return false;
-  }
-
-  char *tagval;
-  int tiff_result;
-  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-  if (!tiff_result ||
-      (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not an Aperio slide");
-    return false;
-  }
-
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
    * page 14:
@@ -345,8 +348,8 @@ static bool aperio_open(openslide_t *osr,
 
     // check depth
     uint32_t depth;
-    tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth);
-    if (tiff_result && depth != 1) {
+    if (TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth) &&
+        depth != 1) {
       // we can't handle depth != 1
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Cannot handle ImageDepth=%d", depth);
@@ -420,8 +423,14 @@ static bool aperio_open(openslide_t *osr,
 
   // read properties
   TIFFSetDirectory(tiff, 0);
-  TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval); // XXX? should be safe, we just did it
-  char **props = g_strsplit(tagval, "|", -1);
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't read ImageDescription field");
+    destroy_data(data, levels, level_count);
+    return false;
+  }
+  char **props = g_strsplit(image_desc, "|", -1);
   add_properties(osr, props);
   g_strfreev(props);
 
@@ -452,5 +461,6 @@ static bool aperio_open(openslide_t *osr,
 const struct _openslide_format _openslide_format_aperio = {
   .name = "aperio",
   .vendor = "aperio",
+  .detect_tiff = aperio_detect,
   .open_tiff = aperio_open,
 };

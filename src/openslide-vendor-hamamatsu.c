@@ -869,6 +869,49 @@ static const struct _openslide_ops hamamatsu_jpeg_ops = {
   .destroy = jpeg_do_destroy,
 };
 
+static bool hamamatsu_vms_vmu_detect(const char *filename, GError **err) {
+  GError *tmp_err = NULL;
+
+  // try to parse key file
+  GKeyFile *key_file = g_key_file_new();
+  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
+                                G_KEY_FILE_NONE, &tmp_err)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Can't read key file: %s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    g_key_file_free(key_file);
+    return false;
+  }
+
+  // check format
+  if (g_key_file_has_group(key_file, GROUP_VMS)) {
+    // validate cols/rows
+    if (g_key_file_get_integer(key_file, GROUP_VMS,
+                               KEY_NUM_JPEG_COLS, NULL) < 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                  "VMS file has no columns");
+      g_key_file_free(key_file);
+      return false;
+    }
+    if (g_key_file_get_integer(key_file, GROUP_VMS,
+                               KEY_NUM_JPEG_ROWS, NULL) < 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                  "VMS file has no rows");
+      g_key_file_free(key_file);
+      return false;
+    }
+
+  } else if (!g_key_file_has_group(key_file, GROUP_VMU)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not VMS or VMU file");
+    g_key_file_free(key_file);
+    return false;
+  }
+
+  g_key_file_free(key_file);
+  return true;
+}
+
 static gint width_compare(gconstpointer a, gconstpointer b) {
   int64_t w1 = *((const int64_t *) a);
   int64_t w2 = *((const int64_t *) b);
@@ -1790,12 +1833,15 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   int num_layers = -1;
 
+  GError *tmp_err = NULL;
+
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, NULL)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Can't load key file");
+                                G_KEY_FILE_NONE, &tmp_err)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Can't load key file: %s", tmp_err->message);
+    g_clear_error(&tmp_err);
     goto DONE;
   }
 
@@ -1817,20 +1863,15 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     num_cols = 1;  // not specified in file for VMU
     num_rows = 1;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not VMS or VMU file");
     goto DONE;
   }
 
-  // validate cols/rows
-  if (num_cols < 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "File has no columns");
-    goto DONE;
-  }
-  if (num_rows < 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "File has no rows");
+  // revalidate cols/rows
+  if (num_cols < 1 || num_rows < 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "File missing columns or rows");
     goto DONE;
   }
 
@@ -2081,8 +2122,45 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
   .name = "hamamatsu-vms-vmu",
   .vendor = "hamamatsu",
+  .detect = hamamatsu_vms_vmu_detect,
   .open = hamamatsu_vms_vmu_open,
 };
+
+static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
+  GError *tmp_err = NULL;
+
+  // open file
+  FILE *f = _openslide_fopen(filename, "rb", &tmp_err);
+  if (!f) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+
+  // parse TIFF
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(f, err);
+  if (!tl) {
+    fclose(f);
+    return false;
+  }
+
+  // check Software tag
+  const char *software = _openslide_tifflike_get_buffer(tl, 0,
+                                                        TIFFTAG_SOFTWARE);
+  if (software == NULL ||
+      strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unexpected or missing Software tag");
+    _openslide_tifflike_destroy(tl);
+    fclose(f);
+    return false;
+  }
+
+  _openslide_tifflike_destroy(tl);
+  fclose(f);
+  return true;
+}
 
 static void ndpi_set_sint_prop(openslide_t *osr,
                                struct _openslide_tifflike *tl,
@@ -2185,7 +2263,6 @@ static void ndpi_set_props(openslide_t *osr,
 static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                                 struct _openslide_hash *quickhash1,
                                 GError **err) {
-  FILE *f = NULL;
   struct _openslide_tifflike *tl = NULL;
   GPtrArray *jpeg_array = g_ptr_array_new();
   GPtrArray *level_array = g_ptr_array_new();
@@ -2194,27 +2271,14 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   bool restart_marker_scan = false;
 
   // open file
-  f = _openslide_fopen(filename, "rb", &tmp_err);
+  FILE *f = _openslide_fopen(filename, "rb", err);
   if (!f) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     goto DONE;
   }
 
   // parse TIFF
   tl = _openslide_tifflike_create(f, err);
   if (!tl) {
-    goto DONE;
-  }
-
-  // check for NDPI
-  const char *software = _openslide_tifflike_get_buffer(tl, 0,
-                                                        TIFFTAG_SOFTWARE);
-  if (software == NULL ||
-      strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Unexpected or missing Software tag");
     goto DONE;
   }
 
@@ -2423,5 +2487,6 @@ DONE:
 const struct _openslide_format _openslide_format_hamamatsu_ndpi = {
   .name = "hamamatsu-ndpi",
   .vendor = "hamamatsu",
+  .detect = hamamatsu_ndpi_detect,
   .open = hamamatsu_ndpi_open,
 };

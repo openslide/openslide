@@ -99,11 +99,6 @@ static openslide_t *create_osr(void) {
   return osr;
 }
 
-static void reset_osr(openslide_t *osr) {
-  g_hash_table_remove_all(osr->properties);
-  g_hash_table_remove_all(osr->associated_images);
-}
-
 static void init_quickhash1_out(struct _openslide_hash **quickhash1_OUT) {
   if (quickhash1_OUT) {
     *quickhash1_OUT = _openslide_hash_quickhash1_create();
@@ -119,18 +114,17 @@ static void free_quickhash1_if_failed(bool result,
 }
 
 static void fixup_format_error(const char *name, bool result, GError **err) {
-  // check for error-handling bugs in detector
+  // check for error-handling bugs in open function
 
   if (!result && err && !*err) {
-    g_warning("%s format detector failed without setting error", name);
+    g_warning("%s opener failed without setting error", name);
     // assume the worst
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unknown error");
   }
 
   if (result && err && *err) {
-    g_warning("%s format detector succeeded but set error: %s", name,
-              (*err)->message);
+    g_warning("%s opener succeeded but set error: %s", name, (*err)->message);
     g_clear_error(err);
   }
 }
@@ -139,7 +133,10 @@ static bool try_format(openslide_t *osr, const char *filename,
 		       struct _openslide_hash **quickhash1_OUT,
 		       const struct _openslide_format *format,
 		       GError **err) {
-  reset_osr(osr);
+  if (!format->detect(filename, err)) {
+    return false;
+  }
+
   init_quickhash1_out(quickhash1_OUT);
 
   bool result = format->open(osr, filename,
@@ -157,7 +154,11 @@ static bool try_tiff_format(openslide_t *osr,
 			    struct _openslide_hash **quickhash1_OUT,
 			    const struct _openslide_format *format,
 			    GError **err) {
-  reset_osr(osr);
+  TIFFSetDirectory(tiff, 0);
+  if (!format->detect_tiff(tiff, err)) {
+    return false;
+  }
+
   init_quickhash1_out(quickhash1_OUT);
 
   TIFFSetDirectory(tiff, 0);

@@ -374,6 +374,18 @@ static const struct _openslide_ops mirax_ops = {
   .destroy = destroy,
 };
 
+static bool mirax_detect(const char *filename, GError **err) {
+  // verify filename
+  if (!g_str_has_suffix(filename, MRXS_EXT) ||
+      !g_file_test(filename, G_FILE_TEST_EXISTS)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a MIRAX slide");
+    return false;
+  }
+
+  return true;
+}
+
 static char *read_string_from_file(FILE *f, int len) {
   char *str = g_malloc(len + 1);
   str[len] = '\0';
@@ -1497,14 +1509,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // start reading
 
-  // verify filename
-  if (!g_str_has_suffix(filename, MRXS_EXT) ||
-      !g_file_test(filename, G_FILE_TEST_EXISTS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not a MIRAX slide");
-    goto FAIL;
-  }
-
   // get directory from filename
   dirname = g_strndup(filename, strlen(filename) - strlen(MRXS_EXT));
 
@@ -2024,5 +2028,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 const struct _openslide_format _openslide_format_mirax = {
   .name = "mirax",
   .vendor = "mirax",
+  .detect = mirax_detect,
   .open = mirax_open,
 };

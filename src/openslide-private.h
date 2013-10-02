@@ -120,6 +120,8 @@ struct _openslide_tiffcache;
 struct _openslide_format {
   const char *name;
   const char *vendor;
+  bool (*detect)(const char *filename, GError **err);
+  bool (*detect_tiff)(TIFF *tiff, GError **err);
   bool (*open)(openslide_t *osr, const char *filename,
                struct _openslide_hash *quickhash1, GError **err);
   bool (*open_tiff)(openslide_t *osr,

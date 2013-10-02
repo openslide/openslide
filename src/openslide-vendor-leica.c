@@ -246,6 +246,47 @@ static const struct _openslide_ops leica_ops = {
   .destroy = destroy,
 };
 
+static bool leica_detect(TIFF *tiff, GError **err) {
+  GError *tmp_err = NULL;
+
+  // ensure TIFF is tiled
+  if (!TIFFIsTiled(tiff)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    return false;
+  }
+
+  // read XML description; check that it contains the XML namespace string
+  // before we invoke the parser
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc) ||
+      !strstr(image_desc, LEICA_XMLNS)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Leica slide");
+    return false;
+  }
+
+  // try to parse the xml
+  xmlDoc *doc = _openslide_xml_parse(image_desc, &tmp_err);
+  if (doc == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+
+  // check default namespace
+  if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unexpected XML namespace");
+    xmlFreeDoc(doc);
+    return false;
+  }
+
+  xmlFreeDoc(doc);
+  return true;
+}
+
 static void collection_free(struct collection *collection) {
   if (!collection) {
     return;
@@ -305,24 +346,12 @@ static struct collection *parse_xml_description(const char *xml,
   xmlXPathObject *images_result = NULL;
   xmlXPathObject *result = NULL;
   struct collection *collection = NULL;
-  GError *tmp_err = NULL;
   bool success = false;
 
-  // try to parse the xml
-  xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
+  // parse the xml
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
-    // not leica
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
-    goto FAIL;
-  }
-
-  if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS)) {
-    // not leica
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Unexpected XML namespace");
-    goto FAIL;
+    return false;
   }
 
   // create XPATH context to query the document
@@ -460,9 +489,7 @@ FAIL:
   xmlXPathFreeObject(result);
   xmlXPathFreeObject(images_result);
   xmlXPathFreeContext(ctx);
-  if (doc != NULL) {
-    xmlFreeDoc(doc);
-  }
+  xmlFreeDoc(doc);
 
   if (success) {
     return collection;
@@ -713,21 +740,11 @@ static bool leica_open(openslide_t *osr,
                        struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
 
-  if (!TIFFIsTiled(tiff)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "TIFF is not tiled");
-    goto FAIL;
-  }
-
   // get the xml description
   char *image_desc;
-  int tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc);
-
-  // check if it containes the XML namespace string before we invoke
-  // the parser
-  if (!tiff_result || !strstr(image_desc, LEICA_XMLNS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not a Leica slide");
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't read ImageDescription");
     goto FAIL;
   }
 
@@ -812,5 +829,6 @@ FAIL:
 const struct _openslide_format _openslide_format_leica = {
   .name = "leica",
   .vendor = "leica",
+  .detect_tiff = leica_detect,
   .open_tiff = leica_open,
 };

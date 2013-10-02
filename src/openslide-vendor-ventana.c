@@ -262,6 +262,48 @@ static char *read_xml_packet(TIFF *tiff) {
   return g_strndup(xml, len);
 }
 
+static bool ventana_detect(TIFF *tiff, GError **err) {
+  GError *tmp_err = NULL;
+
+  // read XMLPacket
+  char *xml = read_xml_packet(tiff);
+  if (!xml) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "No XMLPacket");
+    return false;
+  }
+
+  // quick check for plausible XML string before parsing
+  if (!strstr(xml, INITIAL_ROOT_TAG)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s not in XMLPacket", INITIAL_ROOT_TAG);
+    g_free(xml);
+    return false;
+  }
+
+  // parse
+  xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
+  g_free(xml);
+  if (!doc) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+
+  // check root tag name
+  xmlNode *root = xmlDocGetRootElement(doc);
+  if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Root tag not %s", INITIAL_ROOT_TAG);
+    xmlFreeDoc(doc);
+    return false;
+  }
+
+  xmlFreeDoc(doc);
+  return true;
+}
+
 static void slide_info_free(struct slide_info *slide) {
   if (!slide) {
     return;
@@ -292,34 +334,12 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 static bool parse_initial_xml(openslide_t *osr, const char *xml,
                               GError **err) {
-  xmlDoc *doc = NULL;
-  GError *tmp_err = NULL;
-
-  // quick check for plausible XML string before parsing
-  if (!strstr(xml, INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s not in XMLPacket", INITIAL_ROOT_TAG);
-    goto FAIL;
-  }
-
   // parse
-  doc = _openslide_xml_parse(xml, &tmp_err);
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
   if (!doc) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
-    goto FAIL;
+    return false;
   }
   xmlNode *root = xmlDocGetRootElement(doc);
-
-  // check root tag name
-  if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Root tag not %s", INITIAL_ROOT_TAG);
-    goto FAIL;
-  }
-
-  // okay, assume Ventana slide
 
   // we don't know how to handle multiple Z layers
   int64_t z_layers;
@@ -354,9 +374,7 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   return true;
 
 FAIL:
-  if (doc) {
-    xmlFreeDoc(doc);
-  }
+  xmlFreeDoc(doc);
   return false;
 }
 
@@ -670,8 +688,8 @@ static bool ventana_open(openslide_t *osr,
   // parse iScan XML
   char *xml = read_xml_packet(tiff);
   if (!xml) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not a Ventana slide");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't read XMLPacket");
     goto FAIL;
   }
   if (!parse_initial_xml(osr, xml, err)) {
@@ -679,8 +697,6 @@ static bool ventana_open(openslide_t *osr,
     goto FAIL;
   }
   g_free(xml);
-
-  // okay, assume Ventana slide
 
   // walk directories
   int64_t next_level = 0;
@@ -882,5 +898,6 @@ FAIL:
 const struct _openslide_format _openslide_format_ventana = {
   .name = "ventana",
   .vendor = "ventana",
+  .detect_tiff = ventana_detect,
   .open_tiff = ventana_open,
 };

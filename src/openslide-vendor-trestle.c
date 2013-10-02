@@ -166,6 +166,35 @@ static const struct _openslide_ops trestle_ops = {
   .destroy = destroy,
 };
 
+static bool trestle_detect(TIFF *tiff, GError **err) {
+  // check Software field
+  char *tagval;
+  if (!TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval) ||
+      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a Trestle slide");
+    return false;
+  }
+
+  // check for ImageDescription field
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "No ImageDescription");
+    return false;
+  }
+
+  // ensure all levels are tiled
+  do {
+    if (!TIFFIsTiled(tiff)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                  "TIFF level is not tiled");
+      return false;
+    }
+  } while (TIFFReadDirectory(tiff));
+
+  return true;
+}
+
 static void add_properties(openslide_t *osr, char **tags) {
   for (char **tag = tags; *tag != NULL; tag++) {
     char **pair = g_strsplit(*tag, "=", 2);
@@ -261,41 +290,17 @@ static bool trestle_open(openslide_t *osr,
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
 
-  if (!TIFFIsTiled(tiff)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "TIFF is not tiled");
+  // parse ImageDescription
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Couldn't read ImageDescription");
     return false;
   }
-
-  char *tagval;
-  int tiff_result;
-  tiff_result = TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval);
-  if (!tiff_result ||
-      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not a Trestle slide");
-    return false;
-  }
-
-  // parse
-  tiff_result = TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval);
-  if (!tiff_result) {
-    // no description, not trestle
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Not a Trestle slide");
-    return false;
-  }
-  parse_trestle_image_description(osr, tagval, &overlap_count, &overlaps);
+  parse_trestle_image_description(osr, image_desc, &overlap_count, &overlaps);
 
   // count and validate levels
   do {
-    if (!TIFFIsTiled(tiff)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                  "TIFF level is not tiled");
-      g_free(overlaps);
-      return false;
-    }
-
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
@@ -420,5 +425,6 @@ static bool trestle_open(openslide_t *osr,
 const struct _openslide_format _openslide_format_trestle = {
   .name = "trestle",
   .vendor = "trestle",
+  .detect_tiff = trestle_detect,
   .open_tiff = trestle_open,
 };

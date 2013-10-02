@@ -151,6 +151,17 @@ static const struct _openslide_ops generic_tiff_ops = {
   .destroy = destroy,
 };
 
+static bool generic_tiff_detect(TIFF *tiff, GError **err) {
+  // ensure TIFF is tiled
+  if (!TIFFIsTiled(tiff)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "TIFF is not tiled");
+    return false;
+  }
+
+  return true;
+}
+
 static int width_compare(gconstpointer a, gconstpointer b) {
   const struct level *la = *(const struct level **) a;
   const struct level *lb = *(const struct level **) b;
@@ -169,12 +180,6 @@ static bool generic_tiff_open(openslide_t *osr,
                               struct _openslide_hash *quickhash1,
                               GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
-
-  if (!TIFFIsTiled(tiff)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "TIFF is not tiled");
-    goto FAIL;
-  }
 
   // accumulate tiled levels
   do {
@@ -283,5 +288,6 @@ static bool generic_tiff_open(openslide_t *osr,
 const struct _openslide_format _openslide_format_generic_tiff = {
   .name = "generic-tiff",
   .vendor = "generic-tiff",
+  .detect_tiff = generic_tiff_detect,
   .open_tiff = generic_tiff_open,
 };
