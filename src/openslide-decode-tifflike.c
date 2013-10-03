@@ -329,19 +329,33 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   return NULL;
 }
 
-struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err) {
+struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
+                                                       GError **err) {
+  struct _openslide_tifflike *tl = NULL;
+  GHashTable *loop_detector = NULL;
+  GError *tmp_err = NULL;
+
+  // open file
+  FILE *f = _openslide_fopen(filename, "rb", &tmp_err);
+  if (!f) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    goto FAIL;
+  }
+
   // read and check magic
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Can't read TIFF magic number");
-    return NULL;
+    goto FAIL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Unrecognized TIFF magic number");
-    return NULL;
+    goto FAIL;
   }
   bool big_endian = (magic == TIFF_BIGENDIAN);
 
@@ -362,7 +376,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err) {
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Can't read TIFF header");
-    return NULL;
+    goto FAIL;
   }
 
   //  g_debug("version: %d", version);
@@ -372,23 +386,23 @@ struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err) {
     if (offset_size != 8 || pad != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                   "Unexpected value in BigTIFF header");
-      return NULL;
+      goto FAIL;
     }
   } else if (version != TIFF_VERSION_CLASSIC) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Unrecognized TIFF version");
-    return NULL;
+    goto FAIL;
   }
 
   // allocate struct
-  struct _openslide_tifflike *tl = g_slice_new0(struct _openslide_tifflike);
+  tl = g_slice_new0(struct _openslide_tifflike);
   tl->directories = g_ptr_array_new();
 
   // initialize loop detector
-  GHashTable *loop_detector = g_hash_table_new_full(_openslide_int64_hash,
-						    _openslide_int64_equal,
-						    _openslide_int64_free,
-						    NULL);
+  loop_detector = g_hash_table_new_full(_openslide_int64_hash,
+                                        _openslide_int64_equal,
+                                        _openslide_int64_free,
+                                        NULL);
   // read all the directories
   while (diroff != 0) {
     // read a directory
@@ -412,11 +426,17 @@ struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err) {
   }
 
   g_hash_table_unref(loop_detector);
+  fclose(f);
   return tl;
 
 FAIL:
   _openslide_tifflike_destroy(tl);
-  g_hash_table_unref(loop_detector);
+  if (loop_detector) {
+    g_hash_table_unref(loop_detector);
+  }
+  if (f) {
+    fclose(f);
+  }
   return NULL;
 }
 

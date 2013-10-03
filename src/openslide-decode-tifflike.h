@@ -31,7 +31,8 @@
 
 /* TIFF container support (for formats violating the TIFF spec) */
 
-struct _openslide_tifflike *_openslide_tifflike_create(FILE *f, GError **err);
+struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
+                                                       GError **err);
 
 void _openslide_tifflike_destroy(struct _openslide_tifflike *tl);
 

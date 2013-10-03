@@ -2127,21 +2127,9 @@ const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
 };
 
 static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
-  GError *tmp_err = NULL;
-
-  // open file
-  FILE *f = _openslide_fopen(filename, "rb", &tmp_err);
-  if (!f) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
-    return false;
-  }
-
   // parse TIFF
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(f, err);
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, err);
   if (!tl) {
-    fclose(f);
     return false;
   }
 
@@ -2153,12 +2141,10 @@ static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Unexpected or missing Software tag");
     _openslide_tifflike_destroy(tl);
-    fclose(f);
     return false;
   }
 
   _openslide_tifflike_destroy(tl);
-  fclose(f);
   return true;
 }
 
@@ -2277,7 +2263,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   }
 
   // parse TIFF
-  tl = _openslide_tifflike_create(f, err);
+  tl = _openslide_tifflike_create(filename, err);
   if (!tl) {
     goto DONE;
   }
