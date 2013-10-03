@@ -124,10 +124,8 @@ static uint64_t read_uint(FILE *f, int32_t size, bool big_endian, bool *ok) {
 }
 
 static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
-                             int64_t offset,
-                             uint8_t value[], int32_t value_len,
-                             bool big_endian) {
-  if (size <= 0 || count <= 0 || count > SSIZE_MAX / size) {
+                             int64_t offset, bool big_endian) {
+  if (size <= 0 || count <= 0) {
     return NULL;
   }
   ssize_t len = size * count;
@@ -137,20 +135,15 @@ static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
     return NULL;
   }
 
-  //g_debug("reading tiff value: len: %"G_GINT64_FORMAT", value/offset %u", len, (unsigned) offset);
-  if (len <= value_len) {
-    // inline
-    memcpy(result, value, len);
-  } else {
-    int64_t old_off = ftello(f);
-    if (fseeko(f, offset, SEEK_SET) != 0) {
-      goto FAIL;
-    }
-    if (fread(result, len, 1, f) != 1) {
-      goto FAIL;
-    }
-    fseeko(f, old_off, SEEK_SET);
+  //g_debug("reading tiff value: len: %"G_GINT64_FORMAT", offset %"G_GINT64_FORMAT, len, offset);
+  int64_t old_off = ftello(f);
+  if (fseeko(f, offset, SEEK_SET) != 0) {
+    goto FAIL;
   }
+  if (fread(result, len, 1, f) != 1) {
+    goto FAIL;
+  }
+  fseeko(f, old_off, SEEK_SET);
 
   fix_byte_order(result, size, count, big_endian);
 
@@ -232,33 +225,14 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
 
     //    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
 
-    // read in the value/offset
-    uint8_t value[bigtiff ? 8 : 4];
-    if (fread(value, sizeof(value), 1, f) != 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Cannot read value/offset");
-      goto FAIL;
-    }
-
-    uint64_t offset;
-    if (bigtiff) {
-      memcpy(&offset, value, 8);
-      fix_byte_order(&offset, sizeof(offset), 1, big_endian);
-    } else {
-      uint32_t off32;
-      memcpy(&off32, value, 4);
-      fix_byte_order(&off32, sizeof(off32), 1, big_endian);
-      offset = off32;
-    }
-
     // allocate the item
     struct tiff_item *item = g_slice_new(struct tiff_item);
     item->type = type;
     item->count = count;
     g_hash_table_insert(result, GINT_TO_POINTER(tag), item);
 
-    // load the value
-    int32_t value_size;
+    // compute value size
+    uint32_t value_size;
     switch (type) {
     case TIFF_BYTE:
     case TIFF_ASCII:
@@ -298,12 +272,48 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       goto FAIL;
     }
 
-    item->value = read_tiff_value(f, value_size, count, offset,
-                                  value, sizeof(value), big_endian);
-    if (item->value == NULL) {
+    // check for overflow
+    if (count > SSIZE_MAX / value_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Cannot read value");
+                  "Value count too large");
       goto FAIL;
+    }
+
+    // read in the value/offset
+    uint8_t value[bigtiff ? 8 : 4];
+    if (fread(value, sizeof(value), 1, f) != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                  "Cannot read value/offset");
+      goto FAIL;
+    }
+
+    // does value/offset contain the value?
+    if (value_size * count <= sizeof(value)) {
+      // yes
+      item->value = g_memdup(value, value_size * count);
+      fix_byte_order(item->value, value_size, count, big_endian);
+
+    } else {
+      // no
+
+      // convert to offset
+      uint64_t offset;
+      if (bigtiff) {
+        memcpy(&offset, value, 8);
+        fix_byte_order(&offset, sizeof(offset), 1, big_endian);
+      } else {
+        uint32_t off32;
+        memcpy(&off32, value, 4);
+        fix_byte_order(&off32, sizeof(off32), 1, big_endian);
+        offset = off32;
+      }
+      // read
+      item->value = read_tiff_value(f, value_size, count, offset, big_endian);
+      if (item->value == NULL) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                    "Cannot read value");
+        goto FAIL;
+      }
     }
   }
 
