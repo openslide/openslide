@@ -123,6 +123,40 @@ static uint64_t read_uint(FILE *f, int32_t size, bool big_endian, bool *ok) {
   }
 }
 
+static uint32_t get_value_size(uint16_t type, uint64_t *count) {
+  switch (type) {
+  case TIFF_BYTE:
+  case TIFF_ASCII:
+  case TIFF_SBYTE:
+  case TIFF_UNDEFINED:
+    return 1;
+
+  case TIFF_SHORT:
+  case TIFF_SSHORT:
+    return 2;
+
+  case TIFF_LONG:
+  case TIFF_SLONG:
+  case TIFF_FLOAT:
+  case TIFF_IFD:
+    return 4;
+
+  case TIFF_RATIONAL:
+  case TIFF_SRATIONAL:
+    *count *= 2;
+    return 4;
+
+  case TIFF_DOUBLE:
+  case TIFF_LONG8:
+  case TIFF_SLONG8:
+  case TIFF_IFD8:
+    return 8;
+
+  default:
+    return 0;
+  }
+}
+
 static void *read_tiff_value(FILE *f, int32_t size, int64_t count,
                              int64_t offset, bool big_endian) {
   if (size <= 0 || count <= 0) {
@@ -232,41 +266,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     g_hash_table_insert(result, GINT_TO_POINTER(tag), item);
 
     // compute value size
-    uint32_t value_size;
-    switch (type) {
-    case TIFF_BYTE:
-    case TIFF_ASCII:
-    case TIFF_SBYTE:
-    case TIFF_UNDEFINED:
-      value_size = 1;
-      break;
-
-    case TIFF_SHORT:
-    case TIFF_SSHORT:
-      value_size = 2;
-      break;
-
-    case TIFF_LONG:
-    case TIFF_SLONG:
-    case TIFF_FLOAT:
-    case TIFF_IFD:
-      value_size = 4;
-      break;
-
-    case TIFF_RATIONAL:
-    case TIFF_SRATIONAL:
-      value_size = 4;
-      count *= 2;
-      break;
-
-    case TIFF_DOUBLE:
-    case TIFF_LONG8:
-    case TIFF_SLONG8:
-    case TIFF_IFD8:
-      value_size = 8;
-      break;
-
-    default:
+    uint32_t value_size = get_value_size(type, &count);
+    if (!value_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unknown type encountered: %d", type);
       goto FAIL;
