@@ -479,13 +479,13 @@ static void print_tag(struct _openslide_tifflike *tl,
 
   if (item->type == TIFF_ASCII) {
     // will only print first string if there are multiple
-    const char *str = _openslide_tifflike_get_buffer(tl, dir, tag);
+    const char *str = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
     if (str[item->count - 1] != '\0') {
       str = "<not null-terminated>";
     }
     printf(" %s", str);
   } else if (item->type == TIFF_UNDEFINED) {
-    const uint8_t *data = _openslide_tifflike_get_buffer(tl, dir, tag);
+    const uint8_t *data = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
       printf(" %u", data[i]);
     }
@@ -675,9 +675,13 @@ double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
 }
 
 const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
-                                           int64_t dir, int32_t tag) {
+                                           int64_t dir, int32_t tag,
+                                           GError **err) {
   struct tiff_item *item = get_item(tl, dir, tag);
   if (item == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
+                "No such value: directory %"G_GINT64_FORMAT", tag %d",
+                dir, tag);
     return NULL;
   }
   switch (item->type) {
@@ -685,6 +689,9 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
   case TIFF_UNDEFINED:
     return item->value;
   default:
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }
 }
@@ -694,7 +701,7 @@ static const char *store_string_property(struct _openslide_tifflike *tl,
                                          openslide_t *osr,
                                          const char *name,
                                          int32_t tag) {
-  const char *buf = _openslide_tifflike_get_buffer(tl, dir, tag);
+  const char *buf = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
   if (!buf) {
     return NULL;
   }

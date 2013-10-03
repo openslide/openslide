@@ -2136,6 +2136,8 @@ const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
 };
 
 static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
+  GError *tmp_err = NULL;
+
   // parse TIFF
   struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, err);
   if (!tl) {
@@ -2144,11 +2146,18 @@ static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
 
   // check Software tag
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
-                                                        TIFFTAG_SOFTWARE);
-  if (software == NULL ||
-      strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
+                                                        TIFFTAG_SOFTWARE,
+                                                        &tmp_err);
+  if (software == NULL) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Unexpected or missing Software tag");
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    _openslide_tifflike_destroy(tl);
+    return false;
+  }
+  if (strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Unexpected Software tag");
     _openslide_tifflike_destroy(tl);
     return false;
   }
@@ -2214,7 +2223,7 @@ static void ndpi_set_string_prop(openslide_t *osr,
                                  struct _openslide_tifflike *tl,
                                  int64_t dir, int32_t tag,
                                  const char *property_name) {
-  const char *value = _openslide_tifflike_get_buffer(tl, dir, tag);
+  const char *value = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
   if (value) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
@@ -2246,7 +2255,7 @@ static void ndpi_set_props(openslide_t *osr,
 
   // ASCII property map
   const char *props = _openslide_tifflike_get_buffer(tl, dir,
-                                                     NDPI_PROPERTY_MAP);
+                                                     NDPI_PROPERTY_MAP, NULL);
   if (props) {
     char **records = g_strsplit(props, "\r\n", 0);
     for (char **cur_record = records; *cur_record; cur_record++) {
