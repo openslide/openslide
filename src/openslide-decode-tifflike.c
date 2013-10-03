@@ -255,6 +255,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     struct tiff_item *item = g_slice_new(struct tiff_item);
     item->type = type;
     item->count = count;
+    g_hash_table_insert(result, GINT_TO_POINTER(tag), item);
 
     // load the value
     int32_t value_size;
@@ -304,9 +305,6 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
                   "Cannot read value");
       goto FAIL;
     }
-
-    // add this tag to the hashtable
-    g_hash_table_insert(result, GINT_TO_POINTER(tag), item);
   }
 
   // read the next dir offset
