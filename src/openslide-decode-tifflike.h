@@ -52,22 +52,20 @@ int64_t _openslide_tifflike_get_directory_count(struct _openslide_tifflike *tl);
 int64_t _openslide_tifflike_get_value_count(struct _openslide_tifflike *tl,
                                             int64_t dir, int32_t tag);
 
-// accessors only set *ok on failure
-
 // TIFF_BYTE, TIFF_SHORT, TIFF_LONG, TIFF_IFD
 uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
                                       int64_t dir, int32_t tag, int64_t i,
-                                      bool *ok);
+                                      GError **err);
 
 // TIFF_SBYTE, TIFF_SSHORT, TIFF_SLONG
 int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag, int64_t i,
-                                     bool *ok);
+                                     GError **err);
 
 // TIFF_FLOAT, TIFF_DOUBLE, TIFF_RATIONAL, TIFF_SRATIONAL
 double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag, int64_t i,
-                                     bool *ok);
+                                     GError **err);
 
 // TIFF_ASCII, TIFF_UNDEFINED
 const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,

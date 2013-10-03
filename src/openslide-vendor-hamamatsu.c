@@ -85,6 +85,15 @@ static const char NDPI_SOFTWARE[] = "NDP.scan";
 #define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
 #define JPEG_MAX_DIMENSION_LOW (JPEG_MAX_DIMENSION & 0xff)
 
+#define TIFF_GET_UINT_OR_FAIL(TL, DIR, TAG, OUT) do {			\
+    GError *tmp_err = NULL;						\
+    OUT = _openslide_tifflike_get_uint(TL, DIR, TAG, 0, &tmp_err);	\
+    if (tmp_err) {							\
+      g_propagate_error(err, tmp_err);					\
+      goto FAIL;							\
+    }									\
+  } while (0)
+
 struct jpeg {
   char *filename;
   int64_t start_in_file;
@@ -2152,46 +2161,53 @@ static void ndpi_set_sint_prop(openslide_t *osr,
                                struct _openslide_tifflike *tl,
                                int64_t dir, int32_t tag,
                                const char *property_name) {
-  bool ok = true;
-  int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, 0, &ok);
-  if (ok) {
+  GError *tmp_err = NULL;
+  int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, 0, &tmp_err);
+  if (!tmp_err) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
                         g_strdup_printf("%"G_GINT64_FORMAT, value));
   }
+  g_clear_error(&tmp_err);
 }
 
 static void ndpi_set_float_prop(openslide_t *osr,
                                 struct _openslide_tifflike *tl,
                                 int64_t dir, int32_t tag,
                                 const char *property_name) {
-  bool ok = true;
-  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
-  if (ok) {
+  GError *tmp_err = NULL;
+  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &tmp_err);
+  if (!tmp_err) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
                         _openslide_format_double(value));
   }
+  g_clear_error(&tmp_err);
 }
 
 static void ndpi_set_resolution_prop(openslide_t *osr,
                                      struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag,
                                      const char *property_name) {
-  bool ok = true;
+  GError *tmp_err = NULL;
   uint64_t unit = _openslide_tifflike_get_uint(tl, dir,
-                                               TIFFTAG_RESOLUTIONUNIT, 0, &ok);
-  if (!ok) {
+                                               TIFFTAG_RESOLUTIONUNIT, 0,
+                                               &tmp_err);
+  if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
     unit = RESUNIT_INCH;  // default
-    ok = true;
+    g_clear_error(&tmp_err);
+  } else if (tmp_err) {
+    g_clear_error(&tmp_err);
+    return;
   }
-  double res = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
 
-  if (ok && unit == RESUNIT_CENTIMETER) {
+  double res = _openslide_tifflike_get_float(tl, dir, tag, 0, &tmp_err);
+  if (!tmp_err && unit == RESUNIT_CENTIMETER) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
                         _openslide_format_double(10000.0 / res));
   }
+  g_clear_error(&tmp_err);
 }
 
 static void ndpi_set_string_prop(openslide_t *osr,
@@ -2259,13 +2275,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   // open file
   FILE *f = _openslide_fopen(filename, "rb", err);
   if (!f) {
-    goto DONE;
+    goto FAIL;
   }
 
   // parse TIFF
   tl = _openslide_tifflike_create(filename, err);
   if (!tl) {
-    goto DONE;
+    goto FAIL;
   }
 
   // walk directories
@@ -2274,31 +2290,26 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   int64_t min_width_dir = 0;
   for (int64_t dir = 0; dir < directories; dir++) {
     // read tags
-    bool ok = true;
-    int64_t width =
-      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_IMAGEWIDTH, 0, &ok);
-    int64_t height =
-      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_IMAGELENGTH, 0, &ok);
-    int64_t rows_per_strip =
-      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_ROWSPERSTRIP, 0, &ok);
-    int64_t start_in_file =
-      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPOFFSETS, 0, &ok);
-    int64_t num_bytes =
-      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_STRIPBYTECOUNTS, 0, &ok);
+    int64_t width, height, rows_per_strip, start_in_file, num_bytes;
+    TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_IMAGEWIDTH, width);
+    TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_IMAGELENGTH, height);
+    TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
+    TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
+    TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
+
     double lens =
-      _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, 0, &ok);
+      _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, 0, &tmp_err);
+    if (tmp_err) {
+      g_propagate_error(err, tmp_err);
+      goto FAIL;
+    }
 
     // check results
-    if (!ok) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Missing TIFF tag in directory %"G_GINT64_FORMAT, dir);
-      goto DONE;
-    }
     if (height != rows_per_strip) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unexpected rows per strip %"G_GINT64_FORMAT" "
                   "(height %"G_GINT64_FORMAT")", rows_per_strip, height);
-      goto DONE;
+      goto FAIL;
     }
 
     if (lens > 0) {
@@ -2306,10 +2317,10 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
       // ignore focal planes != 0
       int64_t focal_plane =
-        _openslide_tifflike_get_sint(tl, dir, NDPI_FOCAL_PLANE, 0, &ok);
-      if (!ok) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                    "Missing focal plane in directory %"G_GINT64_FORMAT, dir);
+        _openslide_tifflike_get_sint(tl, dir, NDPI_FOCAL_PLANE, 0, &tmp_err);
+      if (tmp_err) {
+        g_propagate_error(err, tmp_err);
+        goto FAIL;
       }
       if (focal_plane != 0) {
         continue;
@@ -2324,7 +2335,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         // out of paranoia.
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Unexpected directory layout");
-        goto DONE;
+        goto FAIL;
       }
 
       // will the JPEG image dimensions be valid?
@@ -2337,7 +2348,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       int32_t jp_tw, jp_th;
       if (fseeko(f, start_in_file, SEEK_SET)) {
         _openslide_io_error(err, "Couldn't fseek %s", filename);
-        goto DONE;
+        goto FAIL;
       }
       if (!verify_jpeg(f, dimensions_valid,
                        &jp_w, &jp_h,
@@ -2354,7 +2365,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
           g_propagate_prefixed_error(err, tmp_err,
                                      "Can't verify JPEG for directory "
                                      "%"G_GINT64_FORMAT": ", dir);
-          goto DONE;
+          goto FAIL;
         }
       }
       if (width != jp_w || height != jp_h) {
@@ -2364,7 +2375,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                     "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
                     "found %dx%d",
                     dir, width, height, jp_w, jp_h);
-        goto DONE;
+        goto FAIL;
       }
 
       // init jpeg
@@ -2393,17 +2404,18 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         if (mcu_start_count == jp->tile_count) {
           //g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
           jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
-          ok = true;
           for (int64_t tile = 0; tile < mcu_start_count; tile++) {
             jp->unreliable_mcu_starts[tile] =
               _openslide_tifflike_get_uint(tl, dir, NDPI_MCU_STARTS, tile,
-                                           &ok) + jp->start_in_file;
+                                           &tmp_err) + jp->start_in_file;
+            if (tmp_err) {
+              //g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
+              g_clear_error(&tmp_err);
+              g_free(jp->unreliable_mcu_starts);
+              jp->unreliable_mcu_starts = NULL;
+              break;
+            }
             //g_debug("mcu start at %"G_GINT64_FORMAT, jp->unreliable_mcu_starts[tile]);
-          }
-          if (!ok) {
-            //g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
-            g_free(jp->unreliable_mcu_starts);
-            jp->unreliable_mcu_starts = NULL;
           }
         }
 
@@ -2425,7 +2437,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       if (!_openslide_jpeg_add_associated_image(osr, "macro",
                                                 filename, start_in_file,
                                                 err)) {
-        goto DONE;
+        goto FAIL;
       }
     }
   }
@@ -2435,13 +2447,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                                                     quickhash1,
                                                     min_width_dir, 0,
                                                     err)) {
-    goto DONE;
+    goto FAIL;
   }
   ndpi_set_props(osr, tl, 0);
 
   success = true;
 
-DONE:
+FAIL:
   // free
   _openslide_tifflike_destroy(tl);
   if (f) {

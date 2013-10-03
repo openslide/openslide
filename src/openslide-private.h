@@ -272,6 +272,8 @@ enum OpenSlideError {
   OPENSLIDE_ERROR_BAD_DATA,
   // cairo error; hard fail
   OPENSLIDE_ERROR_CAIRO_ERROR,
+  // no such value (e.g. for tifflike accessors)
+  OPENSLIDE_ERROR_NO_VALUE,
 };
 #define OPENSLIDE_ERROR _openslide_error_quark()
 GQuark _openslide_error_quark(void);

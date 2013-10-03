@@ -576,24 +576,22 @@ int64_t _openslide_tifflike_get_value_count(struct _openslide_tifflike *tl,
 }
 
 static struct tiff_item *get_and_check_item(struct _openslide_tifflike *tl,
-                                            int64_t dir, int32_t tag, int64_t i,
-                                            bool *ok) {
+                                            int64_t dir, int32_t tag,
+                                            int64_t i, GError **err) {
   struct tiff_item *item = get_item(tl, dir, tag);
   if (item == NULL || i < 0 || i >= item->count) {
-    // fail
-    if (ok != NULL) {
-      *ok = false;
-    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
+                "No such value: directory %"G_GINT64_FORMAT", tag %d, "
+                "value %"G_GINT64_FORMAT, dir, tag, i);
     return NULL;
   }
   return item;
 }
 
-// only sets *ok on failure
 uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
                                       int64_t dir, int32_t tag, int64_t i,
-                                      bool *ok) {
-  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, ok);
+                                      GError **err) {
+  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, err);
   if (item == NULL) {
     return 0;
   }
@@ -609,18 +607,17 @@ uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
   case TIFF_IFD8:
     return ((uint64_t *) item->value)[i];
   default:
-    if (ok != NULL) {
-      *ok = false;
-    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
 }
 
-// only sets *ok on failure
 int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag, int64_t i,
-                                     bool *ok) {
-  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, ok);
+                                     GError **err) {
+  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, err);
   if (item == NULL) {
     return 0;
   }
@@ -634,18 +631,17 @@ int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
   case TIFF_SLONG8:
     return ((int64_t *) item->value)[i];
   default:
-    if (ok != NULL) {
-      *ok = false;
-    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
 }
 
-// only sets *ok on failure
 double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag, int64_t i,
-                                     bool *ok) {
-  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, ok);
+                                     GError **err) {
+  struct tiff_item *item = get_and_check_item(tl, dir, tag, i, err);
   if (item == NULL) {
     return NAN;
   }
@@ -671,9 +667,9 @@ double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
     return (double) val[i * 2] / (double) val[i * 2 + 1];
   }
   default:
-    if (ok != NULL) {
-      *ok = false;
-    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "tag %d, type %d", dir, tag, item->type);
     return NAN;
   }
 }
@@ -723,19 +719,22 @@ static void store_float_property(struct _openslide_tifflike *tl,
                                  openslide_t *osr,
                                  const char *name,
                                  int32_t tag) {
-  bool ok = true;
-  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &ok);
-  if (ok) {
+  GError *tmp_err = NULL;
+  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &tmp_err);
+  if (!tmp_err) {
     g_hash_table_insert(osr->properties,
                         g_strdup(name),
                         _openslide_format_double(value));
   }
+  g_clear_error(&tmp_err);
 }
 
 static void store_and_hash_properties(struct _openslide_tifflike *tl,
                                       int64_t dir,
                                       openslide_t *osr,
                                       struct _openslide_hash *quickhash1) {
+  GError *tmp_err = NULL;
+
   // strings
   store_string_property(tl, dir, osr, OPENSLIDE_PROPERTY_NAME_COMMENT,
                         TIFFTAG_IMAGEDESCRIPTION);
@@ -768,11 +767,11 @@ static void store_and_hash_properties(struct _openslide_tifflike *tl,
   store_float_property(tl, dir, osr, "tiff.YPosition", TIFFTAG_YPOSITION);
 
   // special
-  bool ok = true;
   int64_t resolution_unit =
-    _openslide_tifflike_get_uint(tl, dir, TIFFTAG_RESOLUTIONUNIT, 0, &ok);
-  if (!ok) {
+    _openslide_tifflike_get_uint(tl, dir, TIFFTAG_RESOLUTIONUNIT, 0, &tmp_err);
+  if (tmp_err) {
     resolution_unit = RESUNIT_INCH;  // default
+    g_clear_error(&tmp_err);
   }
   const char *result;
   switch(resolution_unit) {
@@ -798,6 +797,7 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
                             struct _openslide_tifflike *tl,
                             int32_t dir,
                             GError **err) {
+  GError *tmp_err = NULL;
   int32_t offset_tag;
   int32_t length_tag;
 
@@ -827,10 +827,13 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
   }
 
   // check total size
-  bool ok = true;
   int64_t total = 0;
   for (int64_t i = 0; i < count; i++) {
-    total += _openslide_tifflike_get_uint(tl, dir, length_tag, i, &ok);
+    total += _openslide_tifflike_get_uint(tl, dir, length_tag, i, &tmp_err);
+    if (tmp_err) {
+      g_propagate_error(err, tmp_err);
+      return false;
+    }
     if (total > (5 << 20)) {
       // This is a non-pyramidal image or one with a very large top level.
       // Refuse to calculate a quickhash for it to keep openslide_open()
@@ -842,11 +845,16 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
 
   // hash raw data of each tile/strip
   for (int64_t i = 0; i < count; i++) {
-    int64_t offset = _openslide_tifflike_get_uint(tl, dir, offset_tag, i, &ok);
-    int64_t length = _openslide_tifflike_get_uint(tl, dir, length_tag, i, &ok);
-    if (!ok) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                  "Invalid tile/strip offset/length for directory %d", dir);
+    int64_t offset = _openslide_tifflike_get_uint(tl, dir, offset_tag, i,
+                                                  &tmp_err);
+    if (tmp_err) {
+      g_propagate_error(err, tmp_err);
+      return false;
+    }
+    int64_t length = _openslide_tifflike_get_uint(tl, dir, length_tag, i,
+                                                  &tmp_err);
+    if (tmp_err) {
+      g_propagate_error(err, tmp_err);
       return false;
     }
     if (!_openslide_hash_file_part(hash, filename, offset, length, err)) {
