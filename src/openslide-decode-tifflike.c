@@ -42,6 +42,8 @@
 #define TIFF_IFD8 18
 #endif
 
+#define NO_OFFSET UINT64_MAX
+
 
 struct _openslide_tifflike {
   char *filename;
@@ -53,7 +55,12 @@ struct tiff_item {
   uint16_t type;
   int64_t count;
   uint64_t offset;
-  void *value;
+
+  // data format variants
+  uint64_t *uints;
+  int64_t *sints;
+  double *floats;
+  void *buffer;
 };
 
 
@@ -160,10 +167,149 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
   }
 }
 
+#define ALLOC_VALUES_OR_FAIL(OUT, TYPE, COUNT) do {			\
+    OUT = g_try_new(TYPE, COUNT);					\
+    if (!OUT) {								\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+                  "Cannot allocate TIFF value array");			\
+      goto FAIL;							\
+    }									\
+  } while (0)
+
+#define CONVERT_VALUES_EXTEND(TO, FROM_TYPE, FROM, COUNT) do {		\
+    const FROM_TYPE *from = (const FROM_TYPE *) FROM;			\
+    for (uint64_t i = 0; i < COUNT; i++) {				\
+      TO[i] = from[i];							\
+    }									\
+  } while (0)
+
+#define CONVERT_VALUES_RATIONAL(TO, FROM_TYPE, FROM, COUNT) do {	\
+    const FROM_TYPE *from = (const FROM_TYPE *) FROM;			\
+    for (uint64_t i = 0; i < COUNT; i++) {				\
+      TO[i] = (double) from[i * 2] / (double) from[i * 2 + 1];		\
+    }									\
+  } while (0)
+
+static bool set_item_values(struct tiff_item *item,
+                            const void *buf,
+                            GError **err) {
+  //g_debug("setting values for item type %d", item->type);
+
+  uint64_t count = item->count;
+  uint32_t value_size = get_value_size(item->type, &count);
+  g_assert(value_size);
+
+  switch (item->type) {
+  // uints
+  case TIFF_BYTE:
+    if (!item->uints) {
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
+      CONVERT_VALUES_EXTEND(item->uints, uint8_t, buf, count);
+    }
+    break;
+  case TIFF_SHORT:
+    if (!item->uints) {
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
+      CONVERT_VALUES_EXTEND(item->uints, uint16_t, buf, count);
+    }
+    break;
+  case TIFF_LONG:
+  case TIFF_IFD:
+    if (!item->uints) {
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
+      CONVERT_VALUES_EXTEND(item->uints, uint32_t, buf, count);
+    }
+    break;
+  case TIFF_LONG8:
+  case TIFF_IFD8:
+    if (!item->uints) {
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
+      memcpy(item->uints, buf, sizeof(uint64_t) * count);
+    }
+    break;
+
+  // sints
+  case TIFF_SBYTE:
+    if (!item->sints) {
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
+      CONVERT_VALUES_EXTEND(item->sints, int8_t, buf, count);
+    }
+    break;
+  case TIFF_SSHORT:
+    if (!item->sints) {
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
+      CONVERT_VALUES_EXTEND(item->sints, int16_t, buf, count);
+    }
+    break;
+  case TIFF_SLONG:
+    if (!item->sints) {
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
+      CONVERT_VALUES_EXTEND(item->sints, int32_t, buf, count);
+    }
+    break;
+  case TIFF_SLONG8:
+    if (!item->sints) {
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
+      memcpy(item->sints, buf, sizeof(int64_t) * count);
+    }
+    break;
+
+  // floats
+  case TIFF_FLOAT:
+    if (!item->floats) {
+      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
+      CONVERT_VALUES_EXTEND(item->floats, float, buf, count);
+    }
+    break;
+  case TIFF_DOUBLE:
+    if (!item->floats) {
+      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
+      memcpy(item->floats, buf, sizeof(double) * count);
+    }
+    break;
+  case TIFF_RATIONAL:
+    // convert 2 longs into rational
+    if (!item->floats) {
+      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
+      CONVERT_VALUES_RATIONAL(item->floats, uint32_t, buf, count);
+    }
+    break;
+  case TIFF_SRATIONAL:
+    // convert 2 slongs into rational
+    if (!item->floats) {
+      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
+      CONVERT_VALUES_RATIONAL(item->floats, int32_t, buf, count);
+    }
+    break;
+
+  // buffer
+  case TIFF_ASCII:
+  case TIFF_UNDEFINED:
+    if (!item->buffer) {
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, count);
+      memcpy(item->buffer, buf, count);
+    }
+    break;
+
+  // default
+  default:
+    g_assert_not_reached();
+  }
+
+  // record that we've set all values
+  item->offset = NO_OFFSET;
+  return true;
+
+FAIL:
+  return false;
+}
+
 static bool populate_item(struct _openslide_tifflike *tl,
                           struct tiff_item *item,
                           GError **err) {
-  if (item->value) {
+  bool success = false;
+
+  if (item->offset == NO_OFFSET) {
     return true;
   }
 
@@ -177,8 +323,8 @@ static bool populate_item(struct _openslide_tifflike *tl,
   g_assert(value_size);
   ssize_t len = value_size * count;
 
-  void *result = g_try_malloc(len);
-  if (result == NULL) {
+  void *buf = g_try_malloc(len);
+  if (buf == NULL) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Cannot allocate TIFF value");
     goto FAIL;
@@ -189,28 +335,32 @@ static bool populate_item(struct _openslide_tifflike *tl,
     _openslide_io_error(err, "Couldn't seek to read TIFF value");
     goto FAIL;
   }
-  if (fread(result, len, 1, f) != 1) {
+  if (fread(buf, len, 1, f) != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Couldn't read TIFF value");
     goto FAIL;
   }
 
-  fix_byte_order(result, value_size, count, tl->big_endian);
-  item->value = result;
+  fix_byte_order(buf, value_size, count, tl->big_endian);
+  if (!set_item_values(item, buf, err)) {
+    goto FAIL;
+  }
 
-  fclose(f);
-  return true;
+  success = true;
 
 FAIL:
-  g_free(result);
+  g_free(buf);
   fclose(f);
-  return false;
+  return success;
 }
 
 static void tiff_item_destroy(gpointer data) {
   struct tiff_item *item = data;
 
-  g_free(item->value);
+  g_free(item->uints);
+  g_free(item->sints);
+  g_free(item->floats);
+  g_free(item->buffer);
   g_slice_free(struct tiff_item, item);
 }
 
@@ -310,8 +460,10 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     // does value/offset contain the value?
     if (value_size * count <= sizeof(value)) {
       // yes
-      item->value = g_memdup(value, value_size * count);
-      fix_byte_order(item->value, value_size, count, big_endian);
+      fix_byte_order(value, value_size, count, big_endian);
+      if (!set_item_values(item, value, err)) {
+        goto FAIL;
+      }
 
     } else {
       // no; store offset
@@ -607,23 +759,13 @@ uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
   if (item == NULL || !populate_item(tl, item, err)) {
     return 0;
   }
-  switch (item->type) {
-  case TIFF_BYTE:
-    return ((uint8_t *) item->value)[i];
-  case TIFF_SHORT:
-    return ((uint16_t *) item->value)[i];
-  case TIFF_LONG:
-  case TIFF_IFD:
-    return ((uint32_t *) item->value)[i];
-  case TIFF_LONG8:
-  case TIFF_IFD8:
-    return ((uint64_t *) item->value)[i];
-  default:
+  if (!item->uints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
+  return item->uints[i];
 }
 
 int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
@@ -633,21 +775,13 @@ int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
   if (item == NULL || !populate_item(tl, item, err)) {
     return 0;
   }
-  switch (item->type) {
-  case TIFF_SBYTE:
-    return ((int8_t *) item->value)[i];
-  case TIFF_SSHORT:
-    return ((int16_t *) item->value)[i];
-  case TIFF_SLONG:
-    return ((int32_t *) item->value)[i];
-  case TIFF_SLONG8:
-    return ((int64_t *) item->value)[i];
-  default:
+  if (!item->sints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
+  return item->sints[i];
 }
 
 double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
@@ -657,33 +791,13 @@ double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
   if (item == NULL || !populate_item(tl, item, err)) {
     return NAN;
   }
-  switch (item->type) {
-  case TIFF_FLOAT: {
-    float val;
-    memcpy(&val, ((uint32_t *) item->value) + i, sizeof(val));
-    return val;
-  }
-  case TIFF_DOUBLE: {
-    double val;
-    memcpy(&val, ((uint64_t *) item->value) + i, sizeof(val));
-    return val;
-  }
-  case TIFF_RATIONAL: {
-    // convert 2 longs into rational
-    uint32_t *val = item->value;
-    return (double) val[i * 2] / (double) val[i * 2 + 1];
-  }
-  case TIFF_SRATIONAL: {
-    // convert 2 slongs into rational
-    int32_t *val = item->value;
-    return (double) val[i * 2] / (double) val[i * 2 + 1];
-  }
-  default:
+  if (!item->floats) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NAN;
   }
+  return item->floats[i];
 }
 
 const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
@@ -699,16 +813,13 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
   if (!populate_item(tl, item, err)) {
     return NULL;
   }
-  switch (item->type) {
-  case TIFF_ASCII:
-  case TIFF_UNDEFINED:
-    return item->value;
-  default:
+  if (!item->buffer) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }
+  return item->buffer;
 }
 
 static const char *store_string_property(struct _openslide_tifflike *tl,
