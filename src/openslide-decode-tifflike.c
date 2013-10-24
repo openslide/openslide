@@ -206,6 +206,11 @@ static bool set_item_values(struct tiff_item *item,
       ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
       CONVERT_VALUES_EXTEND(item->uints, uint8_t, buf, count);
     }
+    // for TIFFTAG_XMLPACKET
+    if (!item->buffer) {
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, count);
+      memcpy(item->buffer, buf, count);
+    }
     break;
   case TIFF_SHORT:
     if (!item->uints) {
