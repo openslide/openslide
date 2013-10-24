@@ -30,6 +30,7 @@
 #include <glib.h>
 
 /* TIFF container support (for formats violating the TIFF spec) */
+/* Thread-safe. */
 
 struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
                                                        GError **err);
