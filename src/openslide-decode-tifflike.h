@@ -52,20 +52,38 @@ int64_t _openslide_tifflike_get_directory_count(struct _openslide_tifflike *tl);
 int64_t _openslide_tifflike_get_value_count(struct _openslide_tifflike *tl,
                                             int64_t dir, int32_t tag);
 
+// accessors
+// element accessor returns first element only
+// array accessor returns pointer to array of elements; do not free
+
 // TIFF_BYTE, TIFF_SHORT, TIFF_LONG, TIFF_IFD
 uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
-                                      int64_t dir, int32_t tag, int64_t i,
+                                      int64_t dir, int32_t tag,
                                       GError **err);
+
+const uint64_t *_openslide_tifflike_get_uints(struct _openslide_tifflike *tl,
+                                              int64_t dir, int32_t tag,
+                                              GError **err);
 
 // TIFF_SBYTE, TIFF_SSHORT, TIFF_SLONG
 int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
-                                     int64_t dir, int32_t tag, int64_t i,
+                                     int64_t dir, int32_t tag,
                                      GError **err);
+
+const int64_t *_openslide_tifflike_get_sints(struct _openslide_tifflike *tl,
+                                             int64_t dir, int32_t tag,
+                                             GError **err);
+
 
 // TIFF_FLOAT, TIFF_DOUBLE, TIFF_RATIONAL, TIFF_SRATIONAL
 double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
-                                     int64_t dir, int32_t tag, int64_t i,
+                                     int64_t dir, int32_t tag,
                                      GError **err);
+
+const double *_openslide_tifflike_get_floats(struct _openslide_tifflike *tl,
+                                             int64_t dir, int32_t tag,
+                                             GError **err);
+
 
 // TIFF_ASCII, TIFF_UNDEFINED
 const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,

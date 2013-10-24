@@ -87,7 +87,7 @@ static const char NDPI_SOFTWARE[] = "NDP.scan";
 
 #define TIFF_GET_UINT_OR_FAIL(TL, DIR, TAG, OUT) do {			\
     GError *tmp_err = NULL;						\
-    OUT = _openslide_tifflike_get_uint(TL, DIR, TAG, 0, &tmp_err);	\
+    OUT = _openslide_tifflike_get_uint(TL, DIR, TAG, &tmp_err);		\
     if (tmp_err) {							\
       g_propagate_error(err, tmp_err);					\
       goto FAIL;							\
@@ -2171,7 +2171,7 @@ static void ndpi_set_sint_prop(openslide_t *osr,
                                int64_t dir, int32_t tag,
                                const char *property_name) {
   GError *tmp_err = NULL;
-  int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, 0, &tmp_err);
+  int64_t value = _openslide_tifflike_get_sint(tl, dir, tag, &tmp_err);
   if (!tmp_err) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
@@ -2185,7 +2185,7 @@ static void ndpi_set_float_prop(openslide_t *osr,
                                 int64_t dir, int32_t tag,
                                 const char *property_name) {
   GError *tmp_err = NULL;
-  double value = _openslide_tifflike_get_float(tl, dir, tag, 0, &tmp_err);
+  double value = _openslide_tifflike_get_float(tl, dir, tag, &tmp_err);
   if (!tmp_err) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
@@ -2200,7 +2200,7 @@ static void ndpi_set_resolution_prop(openslide_t *osr,
                                      const char *property_name) {
   GError *tmp_err = NULL;
   uint64_t unit = _openslide_tifflike_get_uint(tl, dir,
-                                               TIFFTAG_RESOLUTIONUNIT, 0,
+                                               TIFFTAG_RESOLUTIONUNIT,
                                                &tmp_err);
   if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
     unit = RESUNIT_INCH;  // default
@@ -2210,7 +2210,7 @@ static void ndpi_set_resolution_prop(openslide_t *osr,
     return;
   }
 
-  double res = _openslide_tifflike_get_float(tl, dir, tag, 0, &tmp_err);
+  double res = _openslide_tifflike_get_float(tl, dir, tag, &tmp_err);
   if (!tmp_err && unit == RESUNIT_CENTIMETER) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property_name),
@@ -2307,7 +2307,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
 
     double lens =
-      _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, 0, &tmp_err);
+      _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
     if (tmp_err) {
       g_propagate_error(err, tmp_err);
       goto FAIL;
@@ -2326,7 +2326,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
       // ignore focal planes != 0
       int64_t focal_plane =
-        _openslide_tifflike_get_sint(tl, dir, NDPI_FOCAL_PLANE, 0, &tmp_err);
+        _openslide_tifflike_get_sint(tl, dir, NDPI_FOCAL_PLANE, &tmp_err);
       if (tmp_err) {
         g_propagate_error(err, tmp_err);
         goto FAIL;
@@ -2412,19 +2412,17 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
         if (mcu_start_count == jp->tile_count) {
           //g_debug("loading MCU starts for directory %"G_GINT64_FORMAT, dir);
-          jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
-          for (int64_t tile = 0; tile < mcu_start_count; tile++) {
-            jp->unreliable_mcu_starts[tile] =
-              _openslide_tifflike_get_uint(tl, dir, NDPI_MCU_STARTS, tile,
-                                           &tmp_err) + jp->start_in_file;
-            if (tmp_err) {
-              //g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
-              g_clear_error(&tmp_err);
-              g_free(jp->unreliable_mcu_starts);
-              jp->unreliable_mcu_starts = NULL;
-              break;
+          const uint64_t *unreliable_mcu_starts =
+            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS, NULL);
+          if (unreliable_mcu_starts) {
+            jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
+            for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+              jp->unreliable_mcu_starts[tile] =
+                jp->start_in_file + unreliable_mcu_starts[tile];
+              //g_debug("mcu start at %"G_GINT64_FORMAT, jp->unreliable_mcu_starts[tile]);
             }
-            //g_debug("mcu start at %"G_GINT64_FORMAT, jp->unreliable_mcu_starts[tile]);
+          } else {
+            //g_debug("failed to load MCU starts for directory %"G_GINT64_FORMAT, dir);
           }
         }
 
