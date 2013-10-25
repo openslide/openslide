@@ -661,21 +661,11 @@ NOT_TIFF:
   return NULL;
 }
 
-struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
-                                                         GError **err) {
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
   tc->filename = g_strdup(filename);
   tc->cache = g_queue_new();
   tc->lock = g_mutex_new();
-
-  // verify TIFF is valid
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  _openslide_tiffcache_put(tc, tiff);
-  if (tiff == NULL) {
-    // nope
-    _openslide_tiffcache_destroy(tc);
-    tc = NULL;
-  }
   return tc;
 }
 

@@ -203,11 +203,9 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
 
   // tiff
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename,
-                                                                NULL);
-  if (tc != NULL) {
-    TIFF *tiff = _openslide_tiffcache_get(tc, NULL);
-    g_assert(tiff != NULL);
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, NULL);
+  if (tiff != NULL) {
     for (const struct _openslide_format **cur = formats; *cur; cur++) {
       const struct _openslide_format *format = *cur;
       if (!format->open_tiff) {
@@ -231,11 +229,10 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       }
       g_clear_error(&tmp_err);
     }
-
-    // destroy only if failed
-    _openslide_tiffcache_put(tc, tiff);
-    _openslide_tiffcache_destroy(tc);
   }
+  // destroy only if failed
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
 
 
   // no match

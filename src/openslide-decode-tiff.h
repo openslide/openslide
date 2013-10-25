@@ -78,8 +78,7 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
 
 /* TIFF handles are not thread-safe, so we have a handle cache for
    multithreaded access */
-struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename,
-                                                         GError **err);
+struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);
 
 TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
 
