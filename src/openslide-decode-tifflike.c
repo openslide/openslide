@@ -179,14 +179,14 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
 
 #define CONVERT_VALUES_EXTEND(TO, FROM_TYPE, FROM, COUNT) do {		\
     const FROM_TYPE *from = (const FROM_TYPE *) FROM;			\
-    for (uint64_t i = 0; i < COUNT; i++) {				\
+    for (int64_t i = 0; i < COUNT; i++) {				\
       TO[i] = from[i];							\
     }									\
   } while (0)
 
 #define CONVERT_VALUES_RATIONAL(TO, FROM_TYPE, FROM, COUNT) do {	\
     const FROM_TYPE *from = (const FROM_TYPE *) FROM;			\
-    for (uint64_t i = 0; i < COUNT; i++) {				\
+    for (int64_t i = 0; i < COUNT; i++) {				\
       TO[i] = (double) from[i * 2] / (double) from[i * 2 + 1];		\
     }									\
   } while (0)
@@ -197,95 +197,91 @@ static bool set_item_values(struct tiff_item *item,
                             GError **err) {
   //g_debug("setting values for item type %d", item->type);
 
-  uint64_t count = item->count;
-  uint32_t value_size = get_value_size(item->type, &count);
-  g_assert(value_size);
-
   switch (item->type) {
   // uints
   case TIFF_BYTE:
     if (!item->uints) {
-      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
-      CONVERT_VALUES_EXTEND(item->uints, uint8_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->uints, uint8_t, buf, item->count);
     }
     // for TIFFTAG_XMLPACKET
     if (!item->buffer) {
-      ALLOC_VALUES_OR_FAIL(item->buffer, char, count);
-      memcpy(item->buffer, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count);
+      memcpy(item->buffer, buf, item->count);
     }
     break;
   case TIFF_SHORT:
     if (!item->uints) {
-      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
-      CONVERT_VALUES_EXTEND(item->uints, uint16_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->uints, uint16_t, buf, item->count);
     }
     break;
   case TIFF_LONG:
   case TIFF_IFD:
     if (!item->uints) {
-      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
-      CONVERT_VALUES_EXTEND(item->uints, uint32_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->uints, uint32_t, buf, item->count);
     }
     break;
   case TIFF_LONG8:
   case TIFF_IFD8:
     if (!item->uints) {
-      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, count);
-      memcpy(item->uints, buf, sizeof(uint64_t) * count);
+      ALLOC_VALUES_OR_FAIL(item->uints, uint64_t, item->count);
+      memcpy(item->uints, buf, sizeof(uint64_t) * item->count);
     }
     break;
 
   // sints
   case TIFF_SBYTE:
     if (!item->sints) {
-      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
-      CONVERT_VALUES_EXTEND(item->sints, int8_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->sints, int8_t, buf, item->count);
     }
     break;
   case TIFF_SSHORT:
     if (!item->sints) {
-      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
-      CONVERT_VALUES_EXTEND(item->sints, int16_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->sints, int16_t, buf, item->count);
     }
     break;
   case TIFF_SLONG:
     if (!item->sints) {
-      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
-      CONVERT_VALUES_EXTEND(item->sints, int32_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, item->count);
+      CONVERT_VALUES_EXTEND(item->sints, int32_t, buf, item->count);
     }
     break;
   case TIFF_SLONG8:
     if (!item->sints) {
-      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, count);
-      memcpy(item->sints, buf, sizeof(int64_t) * count);
+      ALLOC_VALUES_OR_FAIL(item->sints, int64_t, item->count);
+      memcpy(item->sints, buf, sizeof(int64_t) * item->count);
     }
     break;
 
   // floats
   case TIFF_FLOAT:
     if (!item->floats) {
-      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
-      CONVERT_VALUES_EXTEND(item->floats, float, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
+      CONVERT_VALUES_EXTEND(item->floats, float, buf, item->count);
     }
     break;
   case TIFF_DOUBLE:
     if (!item->floats) {
-      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
-      memcpy(item->floats, buf, sizeof(double) * count);
+      ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
+      memcpy(item->floats, buf, sizeof(double) * item->count);
     }
     break;
   case TIFF_RATIONAL:
     // convert 2 longs into rational
     if (!item->floats) {
-      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
-      CONVERT_VALUES_RATIONAL(item->floats, uint32_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
+      CONVERT_VALUES_RATIONAL(item->floats, uint32_t, buf, item->count);
     }
     break;
   case TIFF_SRATIONAL:
     // convert 2 slongs into rational
     if (!item->floats) {
-      ALLOC_VALUES_OR_FAIL(item->floats, double, count);
-      CONVERT_VALUES_RATIONAL(item->floats, int32_t, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
+      CONVERT_VALUES_RATIONAL(item->floats, int32_t, buf, item->count);
     }
     break;
 
@@ -293,8 +289,8 @@ static bool set_item_values(struct tiff_item *item,
   case TIFF_ASCII:
   case TIFF_UNDEFINED:
     if (!item->buffer) {
-      ALLOC_VALUES_OR_FAIL(item->buffer, char, count);
-      memcpy(item->buffer, buf, count);
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count);
+      memcpy(item->buffer, buf, item->count);
     }
     break;
 
