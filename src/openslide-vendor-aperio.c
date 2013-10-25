@@ -57,16 +57,20 @@ struct level {
 
 static void destroy_data(struct aperio_ops_data *data,
                          struct level **levels, int32_t level_count) {
-  _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct aperio_ops_data, data);
-
-  for (int32_t i = 0; i < level_count; i++) {
-    if (levels[i]) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct level, levels[i]);
-    }
+  if (data) {
+    _openslide_tiffcache_destroy(data->tc);
+    g_slice_free(struct aperio_ops_data, data);
   }
-  g_free(levels);
+
+  if (levels) {
+    for (int32_t i = 0; i < level_count; i++) {
+      if (levels[i]) {
+        _openslide_grid_destroy(levels[i]->grid);
+        g_slice_free(struct level, levels[i]);
+      }
+    }
+    g_free(levels);
+  }
 }
 
 static void destroy(openslide_t *osr) {
@@ -318,6 +322,10 @@ static bool add_associated_image(openslide_t *osr,
 static bool aperio_open(openslide_t *osr,
                         struct _openslide_tiffcache *tc, TIFF *tiff,
                         struct _openslide_hash *quickhash1, GError **err) {
+  struct aperio_ops_data *data = NULL;
+  struct level **levels = NULL;
+  int32_t level_count = 0;
+
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
    * page 14:
@@ -339,7 +347,6 @@ static bool aperio_open(openslide_t *osr,
    * always stripped.
    */
 
-  int32_t level_count = 0;
   do {
     // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(tiff)) {
@@ -353,7 +360,7 @@ static bool aperio_open(openslide_t *osr,
       // we can't handle depth != 1
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Cannot handle ImageDepth=%d", depth);
-      return false;
+      goto FAIL;
     }
 
     // check compression
@@ -361,21 +368,21 @@ static bool aperio_open(openslide_t *osr,
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read compression scheme");
-      return false;
+      goto FAIL;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
         (compression != APERIO_COMPRESSION_JP2K_RGB) &&
         !TIFFIsCODECConfigured(compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unsupported TIFF compression: %u", compression);
-      return false;
+      goto FAIL;
     }
   } while (TIFFReadDirectory(tiff));
 
   // allocate private data
-  struct aperio_ops_data *data = g_slice_new0(struct aperio_ops_data);
+  data = g_slice_new0(struct aperio_ops_data);
 
-  struct level **levels = g_new0(struct level *, level_count);
+  levels = g_new0(struct level *, level_count);
   int32_t i = 0;
   TIFFSetDirectory(tiff, 0);
   do {
@@ -391,8 +398,7 @@ static bool aperio_open(openslide_t *osr,
                                       (struct _openslide_level *) l,
                                       tiffl,
                                       err)) {
-        destroy_data(data, levels, level_count);
-        return false;
+        goto FAIL;
       }
 
       l->grid = _openslide_grid_create_simple(osr,
@@ -406,16 +412,14 @@ static bool aperio_open(openslide_t *osr,
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &l->compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                     "Can't read compression scheme");
-        destroy_data(data, levels, level_count);
-        return false;
+        goto FAIL;
       }
     } else {
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr, name, tc, tiff, err)) {
 	g_prefix_error(err, "Can't read associated image: ");
-	destroy_data(data, levels, level_count);
-	return false;
+	goto FAIL;
       }
       //g_debug("associated image: %d", dir);
     }
@@ -427,8 +431,7 @@ static bool aperio_open(openslide_t *osr,
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Couldn't read ImageDescription field");
-    destroy_data(data, levels, level_count);
-    return false;
+    goto FAIL;
   }
   char **props = g_strsplit(image_desc, "|", -1);
   add_properties(osr, props);
@@ -439,8 +442,7 @@ static bool aperio_open(openslide_t *osr,
                                                 levels[level_count - 1]->tiffl.dir,
                                                 0,
                                                 err)) {
-    destroy_data(data, levels, level_count);
-    return false;
+    goto FAIL;
   }
 
   // store osr data
@@ -456,6 +458,10 @@ static bool aperio_open(openslide_t *osr,
   data->tc = tc;
 
   return true;
+
+FAIL:
+  destroy_data(data, levels, level_count);
+  return false;
 }
 
 const struct _openslide_format _openslide_format_aperio = {

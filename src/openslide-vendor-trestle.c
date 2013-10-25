@@ -55,16 +55,20 @@ struct level {
 
 static void destroy_data(struct trestle_ops_data *data,
                          struct level **levels, int32_t level_count) {
-  _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct trestle_ops_data, data);
-
-  for (int32_t i = 0; i < level_count; i++) {
-    if (levels[i]) {
-      _openslide_grid_destroy(levels[i]->grid);
-      g_slice_free(struct level, levels[i]);
-    }
+  if (data) {
+    _openslide_tiffcache_destroy(data->tc);
+    g_slice_free(struct trestle_ops_data, data);
   }
-  g_free(levels);
+
+  if (levels) {
+    for (int32_t i = 0; i < level_count; i++) {
+      if (levels[i]) {
+        _openslide_grid_destroy(levels[i]->grid);
+        g_slice_free(struct level, levels[i]);
+      }
+    }
+    g_free(levels);
+  }
 }
 
 static void destroy(openslide_t *osr) {
@@ -286,6 +290,8 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
 static bool trestle_open(openslide_t *osr,
                          struct _openslide_tiffcache *tc, TIFF *tiff,
                          struct _openslide_hash *quickhash1, GError **err) {
+  struct trestle_ops_data *data = NULL;
+  struct level **levels = NULL;
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
@@ -295,7 +301,7 @@ static bool trestle_open(openslide_t *osr,
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Couldn't read ImageDescription");
-    return false;
+    goto FAIL;
   }
   parse_trestle_image_description(osr, image_desc, &overlap_count, &overlaps);
 
@@ -306,14 +312,12 @@ static bool trestle_open(openslide_t *osr,
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Can't read compression scheme");
-      g_free(overlaps);
-      return false;
+      goto FAIL;
     };
     if (!TIFFIsCODECConfigured(compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unsupported TIFF compression: %u", compression);
-      g_free(overlaps);
-      return false;
+      goto FAIL;
     }
 
     // level ok
@@ -321,10 +325,10 @@ static bool trestle_open(openslide_t *osr,
   } while (TIFFReadDirectory(tiff));
 
   // create ops data
-  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
+  data = g_slice_new0(struct trestle_ops_data);
 
   // create levels
-  struct level **levels = g_new0(struct level *, level_count);
+  levels = g_new0(struct level *, level_count);
   bool report_geometry = true;
   for (int32_t i = 0; i < level_count; i++) {
     struct level *l = g_slice_new0(struct level);
@@ -335,9 +339,7 @@ static bool trestle_open(openslide_t *osr,
     if (!_openslide_tiff_level_init(tiff, i,
                                     (struct _openslide_level *) l, tiffl,
                                     err)) {
-      destroy_data(data, levels, level_count);
-      g_free(overlaps);
-      return false;
+      goto FAIL;
     }
 
     // get overlaps
@@ -379,6 +381,7 @@ static bool trestle_open(openslide_t *osr,
     }
   }
   g_free(overlaps);
+  overlaps = NULL;
 
   // clear tile size hints if necessary
   if (!report_geometry) {
@@ -393,8 +396,7 @@ static bool trestle_open(openslide_t *osr,
                                                 levels[level_count - 1]->tiffl.dir,
                                                 0,
                                                 err)) {
-    destroy_data(data, levels, level_count);
-    return false;
+    goto FAIL;
   }
 
   // store osr data
@@ -420,6 +422,11 @@ static bool trestle_open(openslide_t *osr,
   data->tc = tc;
 
   return true;
+
+FAIL:
+  destroy_data(data, levels, level_count);
+  g_free(overlaps);
+  return false;
 }
 
 const struct _openslide_format _openslide_format_trestle = {
