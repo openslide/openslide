@@ -2135,14 +2135,10 @@ const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
   .open = hamamatsu_vms_vmu_open,
 };
 
-static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
+static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
+                                  struct _openslide_tifflike *tl,
+                                  GError **err) {
   GError *tmp_err = NULL;
-
-  // parse TIFF
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, err);
-  if (!tl) {
-    return false;
-  }
 
   // check Software tag
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
@@ -2152,17 +2148,14 @@ static bool hamamatsu_ndpi_detect(const char *filename, GError **err) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "%s", tmp_err->message);
     g_clear_error(&tmp_err);
-    _openslide_tifflike_destroy(tl);
     return false;
   }
   if (strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Unexpected Software tag");
-    _openslide_tifflike_destroy(tl);
     return false;
   }
 
-  _openslide_tifflike_destroy(tl);
   return true;
 }
 
@@ -2272,9 +2265,9 @@ static void ndpi_set_props(openslide_t *osr,
 }
 
 static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
+                                struct _openslide_tifflike *tl,
                                 struct _openslide_hash *quickhash1,
                                 GError **err) {
-  struct _openslide_tifflike *tl = NULL;
   GPtrArray *jpeg_array = g_ptr_array_new();
   GPtrArray *level_array = g_ptr_array_new();
   GError *tmp_err = NULL;
@@ -2284,12 +2277,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   // open file
   FILE *f = _openslide_fopen(filename, "rb", err);
   if (!f) {
-    goto FAIL;
-  }
-
-  // parse TIFF
-  tl = _openslide_tifflike_create(filename, err);
-  if (!tl) {
     goto FAIL;
   }
 
@@ -2462,7 +2449,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
 FAIL:
   // free
-  _openslide_tifflike_destroy(tl);
   if (f) {
     fclose(f);
   }
@@ -2492,6 +2478,6 @@ FAIL:
 const struct _openslide_format _openslide_format_hamamatsu_ndpi = {
   .name = "hamamatsu-ndpi",
   .vendor = "hamamatsu",
-  .detect = hamamatsu_ndpi_detect,
-  .open = hamamatsu_ndpi_open,
+  .detect_tiff = hamamatsu_ndpi_detect,
+  .open_tiff = hamamatsu_ndpi_open,
 };
