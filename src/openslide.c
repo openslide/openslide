@@ -95,53 +95,39 @@ static openslide_t *create_osr(void) {
   return osr;
 }
 
-static void init_quickhash1_out(struct _openslide_hash **quickhash1_OUT) {
-  if (quickhash1_OUT) {
-    *quickhash1_OUT = _openslide_hash_quickhash1_create();
-  }
-}
-
-static void free_quickhash1_if_failed(bool result,
-				      struct _openslide_hash **quickhash1_OUT) {
-  // if we have a hash and a false result, destroy
-  if (quickhash1_OUT && !result) {
-    _openslide_hash_destroy(*quickhash1_OUT);
-  }
-}
-
-static void fixup_format_error(const char *name, bool result, GError **err) {
-  // check for error-handling bugs in open function
-
-  if (!result && err && !*err) {
-    g_warning("%s opener failed without setting error", name);
-    // assume the worst
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Unknown error");
-  }
-
-  if (result && err && *err) {
-    g_warning("%s opener succeeded but set error: %s", name, (*err)->message);
-    g_clear_error(err);
-  }
-}
-
-static bool try_format(openslide_t *osr, const char *filename,
-		       struct _openslide_tifflike *tl,
-		       struct _openslide_hash **quickhash1_OUT,
-		       const struct _openslide_format *format,
-		       GError **err) {
+static bool try_format(openslide_t *osr,
+                       const struct _openslide_format *format,
+                       const char *filename, struct _openslide_tifflike *tl,
+                       struct _openslide_hash **quickhash1_OUT,
+                       GError **err) {
   if (!format->detect(filename, tl, err)) {
     return false;
   }
 
-  init_quickhash1_out(quickhash1_OUT);
+  if (quickhash1_OUT) {
+    *quickhash1_OUT = _openslide_hash_quickhash1_create();
+  }
 
   bool result = format->open(osr, filename, tl,
                              quickhash1_OUT ? *quickhash1_OUT : NULL,
                              err);
 
-  free_quickhash1_if_failed(result, quickhash1_OUT);
-  fixup_format_error(format->name, result, err);
+  // check for error-handling bugs in open function
+  if (!result && err && !*err) {
+    g_warning("%s opener failed without setting error", format->name);
+    // assume the worst
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+                "Unknown error");
+  }
+  if (result && err && *err) {
+    g_warning("%s opener succeeded but set error", format->name);
+    result = false;
+  }
+
+  // if we have a hash and a false result, destroy
+  if (quickhash1_OUT && !result) {
+    _openslide_hash_destroy(*quickhash1_OUT);
+  }
 
   return result;
 }
@@ -156,7 +142,7 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
     const struct _openslide_format *format = *cur;
     g_assert(format->name && format->vendor &&
              format->detect && format->open);
-    if (try_format(osr, filename, tl, quickhash1_OUT, format, &tmp_err)) {
+    if (try_format(osr, format, filename, tl, quickhash1_OUT, &tmp_err)) {
       g_hash_table_insert(osr->properties,
                           g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
                           g_strdup(format->vendor));
