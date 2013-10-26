@@ -176,6 +176,13 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
                            GError **err) {
   GError *tmp_err = NULL;
 
+  // ensure we have a TIFF
+  if (!tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a TIFF file");
+    return false;
+  }
+
   // check Software field
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
                                                         TIFFTAG_SOFTWARE,
@@ -456,6 +463,6 @@ FAIL:
 const struct _openslide_format _openslide_format_trestle = {
   .name = "trestle",
   .vendor = "trestle",
-  .detect_tiff = trestle_detect,
-  .open_tiff = trestle_open,
+  .detect = trestle_detect,
+  .open = trestle_open,
 };

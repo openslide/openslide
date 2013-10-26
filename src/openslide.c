@@ -39,18 +39,14 @@ const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyrigh
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
 static const struct _openslide_format *formats[] = {
-  // non-TIFF
   &_openslide_format_mirax,
   &_openslide_format_hamamatsu_vms_vmu,
-  &_openslide_format_hamamatsu_ndpi, // it is a tiff format? but not to libtiff
-
-  // TIFF
+  &_openslide_format_hamamatsu_ndpi,
   &_openslide_format_trestle,
   &_openslide_format_aperio,
   &_openslide_format_leica,
   &_openslide_format_ventana,
   &_openslide_format_generic_tiff,
-
   NULL,
 };
 
@@ -130,39 +126,19 @@ static void fixup_format_error(const char *name, bool result, GError **err) {
 }
 
 static bool try_format(openslide_t *osr, const char *filename,
+		       struct _openslide_tifflike *tl,
 		       struct _openslide_hash **quickhash1_OUT,
 		       const struct _openslide_format *format,
 		       GError **err) {
-  if (!format->detect(filename, err)) {
+  if (!format->detect(filename, tl, err)) {
     return false;
   }
 
   init_quickhash1_out(quickhash1_OUT);
 
-  bool result = format->open(osr, filename,
+  bool result = format->open(osr, filename, tl,
                              quickhash1_OUT ? *quickhash1_OUT : NULL,
                              err);
-
-  free_quickhash1_if_failed(result, quickhash1_OUT);
-  fixup_format_error(format->name, result, err);
-
-  return result;
-}
-
-static bool try_tiff_format(openslide_t *osr, const char *filename,
-			    struct _openslide_tifflike *tl,
-			    struct _openslide_hash **quickhash1_OUT,
-			    const struct _openslide_format *format,
-			    GError **err) {
-  if (!format->detect_tiff(filename, tl, err)) {
-    return false;
-  }
-
-  init_quickhash1_out(quickhash1_OUT);
-
-  bool result = format->open_tiff(osr, filename, tl,
-                                  quickhash1_OUT ? *quickhash1_OUT : NULL,
-                                  err);
 
   free_quickhash1_if_failed(result, quickhash1_OUT);
   fixup_format_error(format->name, result, err);
@@ -175,22 +151,22 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 			    GError **err) {
   GError *tmp_err = NULL;
 
-  // non-tiff
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
   for (const struct _openslide_format **cur = formats; *cur; cur++) {
     const struct _openslide_format *format = *cur;
-    g_assert(format->name && format->vendor);
-    if (!format->open) {
-      continue;
-    }
-    if (try_format(osr, filename, quickhash1_OUT, format, &tmp_err)) {
+    g_assert(format->name && format->vendor &&
+             format->detect && format->open);
+    if (try_format(osr, filename, tl, quickhash1_OUT, format, &tmp_err)) {
       g_hash_table_insert(osr->properties,
                           g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
                           g_strdup(format->vendor));
+      _openslide_tifflike_destroy(tl);
       return true;
     }
     if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
                          OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
       g_propagate_error(err, tmp_err);
+      _openslide_tifflike_destroy(tl);
       return false;
     }
     if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
@@ -198,38 +174,7 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
     }
     g_clear_error(&tmp_err);
   }
-
-
-  // tiff
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
-  if (tl) {
-    for (const struct _openslide_format **cur = formats; *cur; cur++) {
-      const struct _openslide_format *format = *cur;
-      if (!format->open_tiff) {
-        continue;
-      }
-      if (try_tiff_format(osr, filename, tl, quickhash1_OUT, format,
-                          &tmp_err)) {
-        g_hash_table_insert(osr->properties,
-                            g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                            g_strdup(format->vendor));
-        _openslide_tifflike_destroy(tl);
-	return true;
-      }
-      if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
-                           OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
-        g_propagate_error(err, tmp_err);
-        _openslide_tifflike_destroy(tl);
-        return false;
-      }
-      if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
-        g_message("%s: %s", format->name, tmp_err->message);
-      }
-      g_clear_error(&tmp_err);
-    }
-    _openslide_tifflike_destroy(tl);
-  }
-
+  _openslide_tifflike_destroy(tl);
 
   // no match
   g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,

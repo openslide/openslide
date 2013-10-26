@@ -119,14 +119,11 @@ struct _openslide_tifflike;
 struct _openslide_format {
   const char *name;
   const char *vendor;
-  bool (*detect)(const char *filename, GError **err);
-  bool (*detect_tiff)(const char *filename, struct _openslide_tifflike *tl,
-                      GError **err);
+  bool (*detect)(const char *filename, struct _openslide_tifflike *tl,
+                 GError **err);
   bool (*open)(openslide_t *osr, const char *filename,
+               struct _openslide_tifflike *tl,
                struct _openslide_hash *quickhash1, GError **err);
-  bool (*open_tiff)(openslide_t *osr, const char *filename,
-                    struct _openslide_tifflike *tl,
-                    struct _openslide_hash *quickhash1, GError **err);
 };
 
 extern const struct _openslide_format _openslide_format_aperio;

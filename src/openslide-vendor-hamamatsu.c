@@ -878,8 +878,17 @@ static const struct _openslide_ops hamamatsu_jpeg_ops = {
   .destroy = jpeg_do_destroy,
 };
 
-static bool hamamatsu_vms_vmu_detect(const char *filename, GError **err) {
+static bool hamamatsu_vms_vmu_detect(const char *filename,
+                                     struct _openslide_tifflike *tl,
+                                     GError **err) {
   GError *tmp_err = NULL;
+
+  // reject TIFFs
+  if (tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Is a TIFF file");
+    return false;
+  }
 
   // try to parse key file
   GKeyFile *key_file = g_key_file_new();
@@ -1825,6 +1834,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
 
 static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
+                                   struct _openslide_tifflike *tl G_GNUC_UNUSED,
                                    struct _openslide_hash *quickhash1,
                                    GError **err) {
   // initialize any variables destroyed/used in DONE
@@ -2139,6 +2149,13 @@ static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
                                   struct _openslide_tifflike *tl,
                                   GError **err) {
   GError *tmp_err = NULL;
+
+  // ensure we have a tifflike
+  if (!tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a TIFF file");
+    return false;
+  }
 
   // check Software tag
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
@@ -2478,6 +2495,6 @@ FAIL:
 const struct _openslide_format _openslide_format_hamamatsu_ndpi = {
   .name = "hamamatsu-ndpi",
   .vendor = "hamamatsu",
-  .detect_tiff = hamamatsu_ndpi_detect,
-  .open_tiff = hamamatsu_ndpi_open,
+  .detect = hamamatsu_ndpi_detect,
+  .open = hamamatsu_ndpi_open,
 };

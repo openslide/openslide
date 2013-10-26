@@ -155,6 +155,13 @@ static const struct _openslide_ops generic_tiff_ops = {
 static bool generic_tiff_detect(const char *filename G_GNUC_UNUSED,
                                 struct _openslide_tifflike *tl,
                                 GError **err) {
+  // ensure we have a TIFF
+  if (!tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a TIFF file");
+    return false;
+  }
+
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -301,6 +308,6 @@ static bool generic_tiff_open(openslide_t *osr,
 const struct _openslide_format _openslide_format_generic_tiff = {
   .name = "generic-tiff",
   .vendor = "generic-tiff",
-  .detect_tiff = generic_tiff_detect,
-  .open_tiff = generic_tiff_open,
+  .detect = generic_tiff_detect,
+  .open = generic_tiff_open,
 };

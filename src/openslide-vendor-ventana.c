@@ -271,6 +271,13 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
                            GError **err) {
   GError *tmp_err = NULL;
 
+  // ensure we have a TIFF
+  if (!tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a TIFF file");
+    return false;
+  }
+
   // read XMLPacket
   char *xml = read_xml_packet(tl, 0, &tmp_err);
   if (!xml) {
@@ -910,6 +917,6 @@ FAIL:
 const struct _openslide_format _openslide_format_ventana = {
   .name = "ventana",
   .vendor = "ventana",
-  .detect_tiff = ventana_detect,
-  .open_tiff = ventana_open,
+  .detect = ventana_detect,
+  .open = ventana_open,
 };

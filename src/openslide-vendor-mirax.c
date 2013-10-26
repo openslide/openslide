@@ -374,7 +374,15 @@ static const struct _openslide_ops mirax_ops = {
   .destroy = destroy,
 };
 
-static bool mirax_detect(const char *filename, GError **err) {
+static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
+                         GError **err) {
+  // reject TIFFs
+  if (tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Is a TIFF file");
+    return false;
+  }
+
   // verify filename
   if (!g_str_has_suffix(filename, MRXS_EXT) ||
       !g_file_test(filename, G_FILE_TEST_EXISTS)) {
@@ -1461,6 +1469,7 @@ static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
 }
 
 static bool mirax_open(openslide_t *osr, const char *filename,
+                       struct _openslide_tifflike *tl G_GNUC_UNUSED,
                        struct _openslide_hash *quickhash1, GError **err) {
   struct level **levels = NULL;
 

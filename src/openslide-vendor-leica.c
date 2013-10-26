@@ -251,6 +251,13 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
                          struct _openslide_tifflike *tl, GError **err) {
   GError *tmp_err = NULL;
 
+  // ensure we have a TIFF
+  if (!tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "Not a TIFF file");
+    return false;
+  }
+
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
@@ -847,6 +854,6 @@ FAIL:
 const struct _openslide_format _openslide_format_leica = {
   .name = "leica",
   .vendor = "leica",
-  .detect_tiff = leica_detect,
-  .open_tiff = leica_open,
+  .detect = leica_detect,
+  .open = leica_open,
 };
