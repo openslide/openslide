@@ -31,6 +31,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 
 #include <glib.h>
 #include <string.h>
@@ -151,9 +152,11 @@ static const struct _openslide_ops generic_tiff_ops = {
   .destroy = destroy,
 };
 
-static bool generic_tiff_detect(TIFF *tiff, GError **err) {
+static bool generic_tiff_detect(const char *filename G_GNUC_UNUSED,
+                                struct _openslide_tifflike *tl,
+                                GError **err) {
   // ensure TIFF is tiled
-  if (!TIFFIsTiled(tiff)) {
+  if (!_openslide_tifflike_is_tiled(tl, 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
     return false;
@@ -176,10 +179,18 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 }
 
 static bool generic_tiff_open(openslide_t *osr,
-                              struct _openslide_tiffcache *tc, TIFF *tiff,
+                              const char *filename,
+                              struct _openslide_tifflike *tl G_GNUC_UNUSED,
                               struct _openslide_hash *quickhash1,
                               GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
+
+  // open TIFF
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  if (!tiff) {
+    goto FAIL;
+  }
 
   // accumulate tiled levels
   do {
@@ -265,7 +276,7 @@ static bool generic_tiff_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &generic_tiff_ops;
 
-  // put TIFF handle and assume tiffcache reference
+  // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
@@ -281,7 +292,9 @@ static bool generic_tiff_open(openslide_t *osr,
     }
     g_ptr_array_free(level_array, true);
   }
-
+  // free TIFF
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

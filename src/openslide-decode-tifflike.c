@@ -891,6 +891,12 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
   return item->buffer;
 }
 
+bool _openslide_tifflike_is_tiled(struct _openslide_tifflike *tl,
+                                  int64_t dir) {
+  return _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILEWIDTH) &&
+         _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILELENGTH);
+}
+
 static const char *store_string_property(struct _openslide_tifflike *tl,
                                          int64_t dir,
                                          openslide_t *osr,

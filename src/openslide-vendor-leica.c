@@ -31,6 +31,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 #include "openslide-decode-xml.h"
 
 #include <glib.h>
@@ -246,11 +247,12 @@ static const struct _openslide_ops leica_ops = {
   .destroy = destroy,
 };
 
-static bool leica_detect(TIFF *tiff, GError **err) {
+static bool leica_detect(const char *filename G_GNUC_UNUSED,
+                         struct _openslide_tifflike *tl, GError **err) {
   GError *tmp_err = NULL;
 
   // ensure TIFF is tiled
-  if (!TIFFIsTiled(tiff)) {
+  if (!_openslide_tifflike_is_tiled(tl, 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
     return false;
@@ -258,9 +260,16 @@ static bool leica_detect(TIFF *tiff, GError **err) {
 
   // read XML description; check that it contains the XML namespace string
   // before we invoke the parser
-  char *image_desc;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc) ||
-      !strstr(image_desc, LEICA_XMLNS)) {
+  const char *image_desc = _openslide_tifflike_get_buffer(tl, 0,
+                                                          TIFFTAG_IMAGEDESCRIPTION,
+                                                          &tmp_err);
+  if (!image_desc) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+  if (!strstr(image_desc, LEICA_XMLNS)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Leica slide");
     return false;
@@ -735,10 +744,17 @@ static bool create_levels_from_collection(openslide_t *osr,
   return true;
 }
 
-static bool leica_open(openslide_t *osr,
-                       struct _openslide_tiffcache *tc, TIFF *tiff,
+static bool leica_open(openslide_t *osr, const char *filename,
+                       struct _openslide_tifflike *tl G_GNUC_UNUSED,
                        struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
+
+  // open TIFF
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  if (!tiff) {
+    goto FAIL;
+  }
 
   // get the xml description
   char *image_desc;
@@ -808,7 +824,7 @@ static bool leica_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &leica_ops;
 
-  // put TIFF handle and assume tiffcache reference
+  // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
@@ -822,7 +838,9 @@ FAIL:
     }
     g_ptr_array_free(level_array, true);
   }
-
+  // free TIFF
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

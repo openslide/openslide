@@ -22,7 +22,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
-#include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -149,20 +149,18 @@ static bool try_format(openslide_t *osr, const char *filename,
   return result;
 }
 
-static bool try_tiff_format(openslide_t *osr,
-			    struct _openslide_tiffcache *tc, TIFF *tiff,
+static bool try_tiff_format(openslide_t *osr, const char *filename,
+			    struct _openslide_tifflike *tl,
 			    struct _openslide_hash **quickhash1_OUT,
 			    const struct _openslide_format *format,
 			    GError **err) {
-  TIFFSetDirectory(tiff, 0);
-  if (!format->detect_tiff(tiff, err)) {
+  if (!format->detect_tiff(filename, tl, err)) {
     return false;
   }
 
   init_quickhash1_out(quickhash1_OUT);
 
-  TIFFSetDirectory(tiff, 0);
-  bool result = format->open_tiff(osr, tc, tiff,
+  bool result = format->open_tiff(osr, filename, tl,
                                   quickhash1_OUT ? *quickhash1_OUT : NULL,
                                   err);
 
@@ -203,25 +201,25 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
 
 
   // tiff
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, NULL);
-  if (tiff != NULL) {
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
+  if (tl) {
     for (const struct _openslide_format **cur = formats; *cur; cur++) {
       const struct _openslide_format *format = *cur;
       if (!format->open_tiff) {
         continue;
       }
-      if (try_tiff_format(osr, tc, tiff, quickhash1_OUT, format, &tmp_err)) {
+      if (try_tiff_format(osr, filename, tl, quickhash1_OUT, format,
+                          &tmp_err)) {
         g_hash_table_insert(osr->properties,
                             g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
                             g_strdup(format->vendor));
+        _openslide_tifflike_destroy(tl);
 	return true;
       }
       if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
                            OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
         g_propagate_error(err, tmp_err);
-        _openslide_tiffcache_put(tc, tiff);
-        _openslide_tiffcache_destroy(tc);
+        _openslide_tifflike_destroy(tl);
         return false;
       }
       if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
@@ -229,10 +227,8 @@ static bool try_all_formats(openslide_t *osr, const char *filename,
       }
       g_clear_error(&tmp_err);
     }
+    _openslide_tifflike_destroy(tl);
   }
-  // destroy only if failed
-  _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
 
 
   // no match

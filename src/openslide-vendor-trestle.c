@@ -31,6 +31,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 #include "openslide-decode-jpeg.h"
 
 #include <glib.h>
@@ -170,31 +171,45 @@ static const struct _openslide_ops trestle_ops = {
   .destroy = destroy,
 };
 
-static bool trestle_detect(TIFF *tiff, GError **err) {
+static bool trestle_detect(const char *filename G_GNUC_UNUSED,
+                           struct _openslide_tifflike *tl,
+                           GError **err) {
+  GError *tmp_err = NULL;
+
   // check Software field
-  char *tagval;
-  if (!TIFFGetField(tiff, TIFFTAG_SOFTWARE, &tagval) ||
-      (strncmp(TRESTLE_SOFTWARE, tagval, strlen(TRESTLE_SOFTWARE)) != 0)) {
+  const char *software = _openslide_tifflike_get_buffer(tl, 0,
+                                                        TIFFTAG_SOFTWARE,
+                                                        &tmp_err);
+  if (!software) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+  if (strncmp(TRESTLE_SOFTWARE, software, strlen(TRESTLE_SOFTWARE))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not a Trestle slide");
     return false;
   }
 
   // check for ImageDescription field
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval)) {
+  if (!_openslide_tifflike_get_buffer(tl, 0, TIFFTAG_IMAGEDESCRIPTION,
+                                      &tmp_err)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "No ImageDescription");
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
     return false;
   }
 
   // ensure all levels are tiled
-  do {
-    if (!TIFFIsTiled(tiff)) {
+  int64_t dirs = _openslide_tifflike_get_directory_count(tl);
+  for (int64_t i = 0; i < dirs; i++) {
+    if (!_openslide_tifflike_is_tiled(tl, i)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                  "TIFF level is not tiled");
+                  "TIFF level %"G_GINT64_FORMAT" is not tiled", i);
       return false;
     }
-  } while (TIFFReadDirectory(tiff));
+  }
 
   return true;
 }
@@ -287,14 +302,21 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
   g_free(path);
 }
 
-static bool trestle_open(openslide_t *osr,
-                         struct _openslide_tiffcache *tc, TIFF *tiff,
+static bool trestle_open(openslide_t *osr, const char *filename,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                          struct _openslide_hash *quickhash1, GError **err) {
   struct trestle_ops_data *data = NULL;
   struct level **levels = NULL;
   int32_t overlap_count = 0;
   int32_t *overlaps = NULL;
   int32_t level_count = 0;
+
+  // open TIFF
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  if (!tiff) {
+    goto FAIL;
+  }
 
   // parse ImageDescription
   char *image_desc;
@@ -417,7 +439,7 @@ static bool trestle_open(openslide_t *osr,
   // add associated images
   add_associated_jpeg(osr, tiff, ".Full", "macro");
 
-  // put TIFF handle and assume tiffcache reference
+  // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
@@ -426,6 +448,8 @@ static bool trestle_open(openslide_t *osr,
 FAIL:
   destroy_data(data, levels, level_count);
   g_free(overlaps);
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

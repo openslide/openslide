@@ -39,6 +39,8 @@ struct _openslide_tiff_level {
   int64_t tiles_down;
 };
 
+struct _openslide_tiffcache;
+
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
                                 struct _openslide_level *level,

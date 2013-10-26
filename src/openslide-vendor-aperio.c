@@ -33,6 +33,7 @@
 #include "openslide-private.h"
 #include "openslide-decode-jp2k.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 
 #include <glib.h>
 #include <string.h>
@@ -220,18 +221,28 @@ static const struct _openslide_ops aperio_ops = {
   .destroy = destroy,
 };
 
-static bool aperio_detect(TIFF *tiff, GError **err) {
+static bool aperio_detect(const char *filename G_GNUC_UNUSED,
+                          struct _openslide_tifflike *tl, GError **err) {
+  GError *tmp_err = NULL;
+
   // ensure TIFF is tiled
-  if (!TIFFIsTiled(tiff)) {
+  if (!_openslide_tifflike_is_tiled(tl, 0)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "TIFF is not tiled");
     return false;
   }
 
   // check ImageDescription
-  char *tagval;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &tagval) ||
-      (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION)) != 0)) {
+  const char *tagval = _openslide_tifflike_get_buffer(tl, 0,
+                                                      TIFFTAG_IMAGEDESCRIPTION,
+                                                      &tmp_err);
+  if (!tagval) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
+    return false;
+  }
+  if (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
                 "Not an Aperio slide");
     return false;
@@ -320,11 +331,19 @@ static bool add_associated_image(openslide_t *osr,
 }
 
 static bool aperio_open(openslide_t *osr,
-                        struct _openslide_tiffcache *tc, TIFF *tiff,
+                        const char *filename,
+                        struct _openslide_tifflike *tl G_GNUC_UNUSED,
                         struct _openslide_hash *quickhash1, GError **err) {
   struct aperio_ops_data *data = NULL;
   struct level **levels = NULL;
   int32_t level_count = 0;
+
+  // open TIFF
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  if (!tiff) {
+    goto FAIL;
+  }
 
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
@@ -453,7 +472,7 @@ static bool aperio_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &aperio_ops;
 
-  // put TIFF handle and assume tiffcache reference
+  // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
@@ -461,6 +480,8 @@ static bool aperio_open(openslide_t *osr,
 
 FAIL:
   destroy_data(data, levels, level_count);
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

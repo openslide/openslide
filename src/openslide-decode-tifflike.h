@@ -91,4 +91,8 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
                                            int64_t dir, int32_t tag,
                                            GError **err);
 
+// return true if directory is tiled
+bool _openslide_tifflike_is_tiled(struct _openslide_tifflike *tl,
+                                  int64_t dir);
+
 #endif

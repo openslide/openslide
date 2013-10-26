@@ -34,7 +34,6 @@
 #include <glib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <tiffio.h>
 
 #include <cairo.h>
 
@@ -99,7 +98,7 @@ struct _openslide_ops {
   void (*destroy)(openslide_t *osr);
 };
 
-struct _openslide_tiffcache;
+struct _openslide_tifflike;
 
 /* vendor detection and parsing */
 
@@ -121,11 +120,12 @@ struct _openslide_format {
   const char *name;
   const char *vendor;
   bool (*detect)(const char *filename, GError **err);
-  bool (*detect_tiff)(TIFF *tiff, GError **err);
+  bool (*detect_tiff)(const char *filename, struct _openslide_tifflike *tl,
+                      GError **err);
   bool (*open)(openslide_t *osr, const char *filename,
                struct _openslide_hash *quickhash1, GError **err);
-  bool (*open_tiff)(openslide_t *osr,
-                    struct _openslide_tiffcache *tc, TIFF *tiff,
+  bool (*open_tiff)(openslide_t *osr, const char *filename,
+                    struct _openslide_tifflike *tl,
                     struct _openslide_hash *quickhash1, GError **err);
 };
 

@@ -31,6 +31,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-tifflike.h"
 #include "openslide-decode-xml.h"
 
 #include <glib.h>
@@ -252,24 +253,30 @@ static const struct _openslide_ops ventana_ops = {
   .destroy = destroy,
 };
 
-static char *read_xml_packet(TIFF *tiff) {
-  void *xml;
-  uint32_t len;
-  if (!TIFFGetField(tiff, TIFFTAG_XMLPACKET, &len, &xml)) {
+static char *read_xml_packet(struct _openslide_tifflike *tl,
+                             int64_t dir, GError **err) {
+  const void *xml = _openslide_tifflike_get_buffer(tl, dir,
+                                                   TIFFTAG_XMLPACKET, err);
+  if (!xml) {
     return NULL;
   }
+  int64_t len = _openslide_tifflike_get_value_count(tl, dir,
+                                                    TIFFTAG_XMLPACKET);
   // copy to ensure null-termination
   return g_strndup(xml, len);
 }
 
-static bool ventana_detect(TIFF *tiff, GError **err) {
+static bool ventana_detect(const char *filename G_GNUC_UNUSED,
+                           struct _openslide_tifflike *tl,
+                           GError **err) {
   GError *tmp_err = NULL;
 
   // read XMLPacket
-  char *xml = read_xml_packet(tiff);
+  char *xml = read_xml_packet(tl, 0, &tmp_err);
   if (!xml) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "No XMLPacket");
+                "%s", tmp_err->message);
+    g_clear_error(&tmp_err);
     return false;
   }
 
@@ -679,17 +686,22 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
   return grid;
 }
 
-static bool ventana_open(openslide_t *osr,
-                         struct _openslide_tiffcache *tc, TIFF *tiff,
+static bool ventana_open(openslide_t *osr, const char *filename,
+                         struct _openslide_tifflike *tl,
                          struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
   struct slide_info *slide = NULL;
 
+  // open TIFF
+  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  if (!tiff) {
+    goto FAIL;
+  }
+
   // parse iScan XML
-  char *xml = read_xml_packet(tiff);
+  char *xml = read_xml_packet(tl, 0, err);
   if (!xml) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Couldn't read XMLPacket");
     goto FAIL;
   }
   if (!parse_initial_xml(osr, xml, err)) {
@@ -749,10 +761,8 @@ static bool ventana_open(openslide_t *osr,
           goto FAIL;
         }
         // get XML
-        xml = read_xml_packet(tiff);
+        xml = read_xml_packet(tl, dir, err);
         if (!xml) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                      "Can't read tile info");
           goto FAIL;
         }
         // parse
@@ -873,7 +883,7 @@ static bool ventana_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &ventana_ops;
 
-  // put TIFF handle and assume tiffcache reference
+  // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
@@ -891,7 +901,9 @@ FAIL:
     }
     g_ptr_array_free(level_array, true);
   }
-
+  // free TIFF
+  _openslide_tiffcache_put(tc, tiff);
+  _openslide_tiffcache_destroy(tc);
   return false;
 }
 
