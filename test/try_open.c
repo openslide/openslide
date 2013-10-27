@@ -124,15 +124,10 @@ static GOptionEntry options[] = {
 
 int main(int argc, char **argv) {
   GError *tmp_err = NULL;
-  GOptionContext *ctx;
-  openslide_t *osr;
-  const char *filename;
-  GHashTable *fds;
-  struct stat st;
-  bool can_open;
 
   // Parse arguments
-  ctx = g_option_context_new("SLIDE - try opening a slide file");
+  GOptionContext *ctx =
+    g_option_context_new("SLIDE - try opening a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
   if (!g_option_context_parse(ctx, &argc, &argv, &tmp_err)) {
     fail("%s", tmp_err->message);
@@ -145,11 +140,12 @@ int main(int argc, char **argv) {
     fail("No slide specified");
     return 2;
   }
-  filename = argv[1];
+  const char *filename = argv[1];
 
   // Record preexisting file descriptors
-  fds = g_hash_table_new(g_direct_hash, g_direct_equal);
+  GHashTable *fds = g_hash_table_new(g_direct_hash, g_direct_equal);
   for (int i = 0; i < MAX_FDS; i++) {
+    struct stat st;
     if (!fstat(i, &st)) {
       g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
     }
@@ -159,8 +155,8 @@ int main(int argc, char **argv) {
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
       print_log, NULL);
 
-  can_open = openslide_can_open(filename);
-  osr = openslide_open(filename);
+  bool can_open = openslide_can_open(filename);
+  openslide_t *osr = openslide_open(filename);
 
   // Check for open errors
   if (osr != NULL) {
@@ -189,6 +185,7 @@ int main(int argc, char **argv) {
 
   // Check for file descriptor leaks
   for (int i = 0; i < MAX_FDS; i++) {
+    struct stat st;
     if (!fstat(i, &st) && !g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
       // leaked
       char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
