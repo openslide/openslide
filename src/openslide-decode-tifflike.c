@@ -997,7 +997,6 @@ static void store_and_hash_properties(struct _openslide_tifflike *tl,
 }
 
 static bool hash_tiff_level(struct _openslide_hash *hash,
-                            const char *filename,
                             struct _openslide_tifflike *tl,
                             int32_t dir,
                             GError **err) {
@@ -1056,7 +1055,7 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
 
   // hash raw data of each tile/strip
   for (int64_t i = 0; i < count; i++) {
-    if (!_openslide_hash_file_part(hash, filename, offsets[i], lengths[i],
+    if (!_openslide_hash_file_part(hash, tl->filename, offsets[i], lengths[i],
                                    err)) {
       return false;
     }
@@ -1066,15 +1065,13 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
 }
 
 bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
-                                                  const char *filename,
                                                   struct _openslide_tifflike *tl,
                                                   struct _openslide_hash *quickhash1,
                                                   int32_t lowest_resolution_level,
                                                   int32_t property_dir,
                                                   GError **err) {
   // generate hash of the smallest level
-  if (!hash_tiff_level(quickhash1, filename,
-                       tl, lowest_resolution_level, err)) {
+  if (!hash_tiff_level(quickhash1, tl, lowest_resolution_level, err)) {
     g_prefix_error(err, "Cannot hash TIFF tiles: ");
     return false;
   }

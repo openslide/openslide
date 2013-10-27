@@ -38,7 +38,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 void _openslide_tifflike_destroy(struct _openslide_tifflike *tl);
 
 bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
-                                                  const char *filename,
                                                   struct _openslide_tifflike *tl,
                                                   struct _openslide_hash *quickhash1,
                                                   int32_t lowest_resolution_level,

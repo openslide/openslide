@@ -2440,8 +2440,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   }
 
   // init properties and set hash
-  if (!_openslide_tifflike_init_properties_and_hash(osr, filename, tl,
-                                                    quickhash1,
+  if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
                                                     min_width_dir, 0,
                                                     err)) {
     goto FAIL;
