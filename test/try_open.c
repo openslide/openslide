@@ -123,8 +123,8 @@ static GOptionEntry options[] = {
 };
 
 int main(int argc, char **argv) {
+  GError *tmp_err = NULL;
   GOptionContext *ctx;
-  GError *err = NULL;
   openslide_t *osr;
   const char *filename;
   GHashTable *fds;
@@ -134,9 +134,9 @@ int main(int argc, char **argv) {
   // Parse arguments
   ctx = g_option_context_new("SLIDE - try opening a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
-  if (!g_option_context_parse(ctx, &argc, &argv, &err)) {
-    fail("%s", err->message);
-    g_clear_error(&err);
+  if (!g_option_context_parse(ctx, &argc, &argv, &tmp_err)) {
+    fail("%s", tmp_err->message);
+    g_clear_error(&tmp_err);
     g_option_context_free(ctx);
     return 2;
   }
