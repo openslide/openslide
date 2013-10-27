@@ -95,15 +95,46 @@ static openslide_t *create_osr(void) {
   return osr;
 }
 
-static bool try_format(openslide_t *osr,
-                       const struct _openslide_format *format,
-                       const char *filename, struct _openslide_tifflike *tl,
-                       struct _openslide_hash **quickhash1_OUT,
-                       GError **err) {
-  if (!format->detect(filename, tl, err)) {
-    return false;
+static const struct _openslide_format *detect_format(const char *filename,
+                                                     struct _openslide_tifflike **tl_OUT) {
+  GError *tmp_err = NULL;
+
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
+
+  for (const struct _openslide_format **cur = formats; *cur; cur++) {
+    const struct _openslide_format *format = *cur;
+
+    g_assert(format->name && format->vendor &&
+             format->detect && format->open);
+
+    if (format->detect(filename, tl, &tmp_err)) {
+      // success!
+      if (tl_OUT) {
+        *tl_OUT = tl;
+      } else {
+        _openslide_tifflike_destroy(tl);
+      }
+      return format;
+    }
+
+    // reset for next format
+    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+      g_message("%s: %s", format->name, tmp_err->message);
+    }
+    g_clear_error(&tmp_err);
   }
 
+  // no match
+  _openslide_tifflike_destroy(tl);
+  return NULL;
+}
+
+static bool open_backend(openslide_t *osr,
+                         const struct _openslide_format *format,
+                         const char *filename,
+                         struct _openslide_tifflike *tl,
+                         struct _openslide_hash **quickhash1_OUT,
+                         GError **err) {
   if (quickhash1_OUT) {
     *quickhash1_OUT = _openslide_hash_quickhash1_create();
   }
@@ -132,48 +163,20 @@ static bool try_format(openslide_t *osr,
   return result;
 }
 
-static bool try_all_formats(openslide_t *osr, const char *filename,
-			    struct _openslide_hash **quickhash1_OUT,
-			    GError **err) {
-  GError *tmp_err = NULL;
-
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
-  for (const struct _openslide_format **cur = formats; *cur; cur++) {
-    const struct _openslide_format *format = *cur;
-    g_assert(format->name && format->vendor &&
-             format->detect && format->open);
-    if (try_format(osr, format, filename, tl, quickhash1_OUT, &tmp_err)) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
-                          g_strdup(format->vendor));
-      _openslide_tifflike_destroy(tl);
-      return true;
-    }
-    if (!g_error_matches(tmp_err, OPENSLIDE_ERROR,
-                         OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
-      g_propagate_error(err, tmp_err);
-      _openslide_tifflike_destroy(tl);
-      return false;
-    }
-    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
-      g_message("%s: %s", format->name, tmp_err->message);
-    }
-    g_clear_error(&tmp_err);
-  }
-  _openslide_tifflike_destroy(tl);
-
-  // no match
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-              "Format not recognized");
-  return false;
-}
-
 bool openslide_can_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
-  // quick test
+  // detect format
+  struct _openslide_tifflike *tl;
+  const struct _openslide_format *format = detect_format(filename, &tl);
+  if (!format) {
+    return false;
+  }
+
+  // try opening
   openslide_t *osr = create_osr();
-  bool success = try_all_formats(osr, filename, NULL, NULL);
+  bool success = open_backend(osr, format, filename, tl, NULL, NULL);
+  _openslide_tifflike_destroy(tl);
   openslide_close(osr);
   return success;
 }
@@ -213,24 +216,26 @@ openslide_t *openslide_open(const char *filename) {
 
   g_assert(openslide_was_dynamically_loaded);
 
+  // detect format
+  struct _openslide_tifflike *tl;
+  const struct _openslide_format *format = detect_format(filename, &tl);
+  if (!format) {
+    // not a slide file
+    return NULL;
+  }
+
   // alloc memory
   openslide_t *osr = create_osr();
 
-  // try to read it
+  // open backend
   struct _openslide_hash *quickhash1 = NULL;
-  if (!try_all_formats(osr, filename, &quickhash1, &tmp_err)) {
-    // failure
-    if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
-                        OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED)) {
-      // not a slide file
-      g_clear_error(&tmp_err);
-      openslide_close(osr);
-      return NULL;
-    } else {
-      // failed to read slide
-      _openslide_propagate_error(osr, tmp_err);
-      return osr;
-    }
+  bool success = open_backend(osr, format, filename, tl, &quickhash1,
+                              &tmp_err);
+  _openslide_tifflike_destroy(tl);
+  if (!success) {
+    // failed to read slide
+    _openslide_propagate_error(osr, tmp_err);
+    return osr;
   }
   g_assert(osr->levels);
 
@@ -273,6 +278,9 @@ openslide_t *openslide_open(const char *filename) {
   _openslide_hash_destroy(quickhash1);
 
   // set other properties
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
+                      g_strdup(format->vendor));
   g_hash_table_insert(osr->properties,
 		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT),
 		      g_strdup_printf("%d", osr->level_count));
