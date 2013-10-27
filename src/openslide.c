@@ -99,7 +99,14 @@ static const struct _openslide_format *detect_format(const char *filename,
                                                      struct _openslide_tifflike **tl_OUT) {
   GError *tmp_err = NULL;
 
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename, NULL);
+  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename,
+                                                              &tmp_err);
+  if (!tl) {
+    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+      g_message("tifflike: %s", tmp_err->message);
+    }
+    g_clear_error(&tmp_err);
+  }
 
   for (const struct _openslide_format **cur = formats; *cur; cur++) {
     const struct _openslide_format *format = *cur;
