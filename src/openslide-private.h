@@ -263,8 +263,8 @@ void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
 
 /* Internal error propagation */
 enum OpenSlideError {
-  // file corrupt
-  OPENSLIDE_ERROR_BAD_DATA,
+  // generic failure
+  OPENSLIDE_ERROR_FAILED,
   // cairo error
   OPENSLIDE_ERROR_CAIRO_ERROR,
   // no such value (e.g. for tifflike accessors)

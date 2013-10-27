@@ -147,7 +147,7 @@ static bool open_backend(openslide_t *osr,
   if (!result && err && !*err) {
     g_warning("%s opener failed without setting error", format->name);
     // assume the worst
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unknown error");
   }
   if (result && err && *err) {
@@ -520,7 +520,7 @@ static bool read_region(openslide_t *osr,
 
 static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
   if (w < 0 || h < 0) {
-    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                                   "negative width "
                                   "(%"G_GINT64_FORMAT") or negative height "
                                   "(%"G_GINT64_FORMAT") not allowed", w, h);

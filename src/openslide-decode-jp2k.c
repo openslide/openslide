@@ -100,7 +100,7 @@ static void error_callback(const char *msg, void *data) {
   if (err && !*err) {
     // OpenJPEG can produce obscure error messages, so make sure to
     // indicate where they came from
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "OpenJPEG error: %s", msg);
   }
 }
@@ -145,7 +145,7 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
 
   // sanity check
   if (image->numcomps != 3) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "image->numcomps != 3");
     goto DONE;
   }

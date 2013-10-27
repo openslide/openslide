@@ -44,7 +44,7 @@ static void warning_callback(png_struct *png G_GNUC_UNUSED,
 
 static void error_callback(png_struct *png, const char *message) {
   struct png_error_ctx *ectx = png_get_error_ptr(png);
-  g_set_error(&ectx->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+  g_set_error(&ectx->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "PNG error: %s", message);
   longjmp(ectx->env, 1);
 }
@@ -88,13 +88,13 @@ bool _openslide_png_read(const char *filename,
   png = png_create_read_struct(PNG_LIBPNG_VER_STRING, &ectx,
                                error_callback, warning_callback);
   if (!png) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't initialize libpng");
     goto DONE;
   }
   info = png_create_info_struct(png);
   if (!info) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't initialize PNG info");
     goto DONE;
   }
@@ -109,7 +109,7 @@ bool _openslide_png_read(const char *filename,
     int64_t width = png_get_image_width(png, info);
     int64_t height = png_get_image_height(png, info);
     if (width != w || height != h) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Dimensional mismatch reading PNG: "
                   "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
                   "found %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
@@ -147,7 +147,7 @@ bool _openslide_png_read(const char *filename,
     png_read_update_info(png, info);
     uint32_t rowbytes = png_get_rowbytes(png, info);
     if (rowbytes != w * sizeof(*dest)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unexpected bufsize %u for %"G_GINT64_FORMAT" pixels",
                   rowbytes, w);
       goto DONE;
@@ -159,7 +159,7 @@ bool _openslide_png_read(const char *filename,
     // png_set_alpha_mode().
     int color_type = png_get_color_type(png, info);
     if (color_type != PNG_COLOR_TYPE_RGB) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unsupported color type %d", color_type);
       goto DONE;
     }

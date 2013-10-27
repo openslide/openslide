@@ -153,12 +153,12 @@ static bool read_tiles(cairo_t *cr,
                        GError **err) {
   //g_debug("offset: %g %g, advance: %g %g", region->offset_x, region->offset_y, grid->tile_advance_x, grid->tile_advance_y);
   if (fabs(region->offset_x) >= grid->tile_advance_x) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "internal error: fabs(offset_x) >= tile_advance_x");
     return false;
   }
   if (fabs(region->offset_y) >= grid->tile_advance_y) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "internal error: fabs(offset_y) >= tile_advance_y");
     return false;
   }

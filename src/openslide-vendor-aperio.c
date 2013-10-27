@@ -208,7 +208,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                                            level, w, h,
                                            err);
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot set TIFF directory");
   }
   _openslide_tiffcache_put(data->tc, tiff);
@@ -225,14 +225,14 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
                           struct _openslide_tifflike *tl, GError **err) {
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a TIFF file");
     return false;
   }
 
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "TIFF is not tiled");
     return false;
   }
@@ -245,7 +245,7 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
   if (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not an Aperio slide");
     return false;
   }
@@ -379,7 +379,7 @@ static bool aperio_open(openslide_t *osr,
     if (TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth) &&
         depth != 1) {
       // we can't handle depth != 1
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot handle ImageDepth=%d", depth);
       goto FAIL;
     }
@@ -387,14 +387,14 @@ static bool aperio_open(openslide_t *osr,
     // check compression
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read compression scheme");
       goto FAIL;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
         (compression != APERIO_COMPRESSION_JP2K_RGB) &&
         !TIFFIsCODECConfigured(compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
@@ -431,7 +431,7 @@ static bool aperio_open(openslide_t *osr,
 
       // get compression
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &l->compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
       }
@@ -450,7 +450,7 @@ static bool aperio_open(openslide_t *osr,
   TIFFSetDirectory(tiff, 0);
   char *image_desc;
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription field");
     goto FAIL;
   }

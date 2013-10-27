@@ -56,7 +56,7 @@ static void my_output_message(j_common_ptr cinfo) {
 
   (*cinfo->err->format_message) (cinfo, buffer);
 
-  g_set_error(&jerr->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+  g_set_error(&jerr->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "%s", buffer);
 }
 
@@ -111,7 +111,7 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;
     }
@@ -171,7 +171,7 @@ bool _openslide_jpeg_read(const char *filename,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;
     }
@@ -184,7 +184,7 @@ bool _openslide_jpeg_read(const char *filename,
     int32_t width = cinfo.output_width;
     int32_t height = cinfo.output_height;
     if (w != width || h != height) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Dimensional mismatch reading JPEG, "
                   "expected %dx%d, got %dx%d",
                   w, h, cinfo.output_width, cinfo.output_height);

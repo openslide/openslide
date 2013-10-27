@@ -60,7 +60,7 @@ struct associated_image {
 #define SET_DIR_OR_FAIL(tiff, i, err)					\
   do {									\
     if (!TIFFSetDirectory(tiff, i)) {					\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Cannot set TIFF directory %d", i);			\
       return false;							\
     }									\
@@ -70,7 +70,7 @@ struct associated_image {
   do {									\
     uint32 tmp;								\
     if (!TIFFGetField(tiff, tag, &tmp)) {				\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Cannot get required TIFF tag: %d", tag);		\
       return false;							\
     }									\
@@ -174,7 +174,7 @@ static bool hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
   // get tile sizes
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot get tile size");
     return false;
   }
@@ -193,7 +193,7 @@ static bool hash_tiff_tiles(struct _openslide_hash *hash, TIFF *tiff,
   // get offsets
   toff_t *offsets;
   if (TIFFGetField(tiff, TIFFTAG_TILEOFFSETS, &offsets) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot get offsets");
     return false;
   }
@@ -324,12 +324,12 @@ static bool tiff_read_region(TIFF *tiff,
 
   // init
   if (!TIFFRGBAImageOK(tiff, emsg)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Failure in TIFFRGBAImageOK: %s", emsg);
     return false;
   }
   if (!TIFFRGBAImageBegin(&img, tiff, 1, emsg)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Failure in TIFFRGBAImageBegin: %s", emsg);
     return false;
   }
@@ -346,7 +346,7 @@ static bool tiff_read_region(TIFF *tiff,
     }
     success = true;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "TIFFRGBAImageGet failed: %s", emsg);
     memset(dest, 0, w * h * 4);
   }
@@ -393,7 +393,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   // get tile size
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot get tile size");
     return false;  // ok, haven't allocated anything yet
   }
@@ -409,7 +409,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   tdata_t buf = g_malloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read raw tile");
     g_free(buf);
     return false;
@@ -435,7 +435,7 @@ static bool _get_associated_image_data(TIFF *tiff,
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, width, err);
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, height, err);
   if (img->base.w != width || img->base.h != height) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected associated image size: "
                 "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
                 "got %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
@@ -489,7 +489,7 @@ static bool _add_associated_image(openslide_t *osr,
   uint16_t compression;
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, compression, err);
   if (!TIFFIsCODECConfigured(compression)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported TIFF compression: %u", compression);
     return false;
   }
@@ -591,7 +591,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   uint8_t buf[4];
   if (fread(buf, 4, 1, f) != 1) {
     // can't read
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read TIFF magic number for %s", tc->filename);
     fclose(f);
     return NULL;
@@ -633,7 +633,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     goto NOT_TIFF;
   }
   if (version == 43 && sizeof(toff_t) == 4) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "BigTIFF support requires libtiff >= 4");
     return NULL;
   }
@@ -649,14 +649,14 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
   if (tiff == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid TIFF: %s", tc->filename);
     tiff_do_close(hdl);
   }
   return tiff;
 
 NOT_TIFF:
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "Not a TIFF file: %s", tc->filename);
   return NULL;
 }

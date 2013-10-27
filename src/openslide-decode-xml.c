@@ -39,7 +39,7 @@ xmlDoc *_openslide_xml_parse(const char *xml, GError **err) {
                               XML_PARSE_NOWARNING |
                               XML_PARSE_NONET);
   if (doc == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Could not parse XML");
     return NULL;
   }
@@ -59,7 +59,7 @@ int64_t _openslide_xml_parse_int_attr(xmlNode *node, const char *name,
                                       GError **err) {
   xmlChar *value = xmlGetProp(node, BAD_CAST name);
   if (value == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "No integer attribute \"%s\"", name);
     return -1;
   }
@@ -67,7 +67,7 @@ int64_t _openslide_xml_parse_int_attr(xmlNode *node, const char *name,
   gchar *endptr;
   int64_t result = g_ascii_strtoll((gchar *) value, &endptr, 10);
   if (value[0] == 0 || endptr[0] != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid integer attribute \"%s\"", name);
     xmlFree(value);
     return -1;

@@ -171,7 +171,7 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
 #define ALLOC_VALUES_OR_FAIL(OUT, TYPE, COUNT) do {			\
     OUT = g_try_new(TYPE, COUNT);					\
     if (!OUT) {								\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Cannot allocate TIFF value array");			\
       goto FAIL;							\
     }									\
@@ -331,7 +331,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
 
   buf = g_try_malloc(len);
   if (buf == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot allocate TIFF value");
     goto FAIL;
   }
@@ -342,7 +342,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
     goto FAIL;
   }
   if (fread(buf, len, 1, f) != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read TIFF value");
     goto FAIL;
   }
@@ -386,7 +386,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   //  g_debug("diroff: %" PRId64, off);
 
   if (off <= 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Bad offset");
     goto FAIL;
   }
@@ -394,7 +394,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   // loop detection
   if (g_hash_table_lookup_extended(loop_detector, &off, NULL, NULL)) {
     // loop
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Loop detected");
     goto FAIL;
   }
@@ -411,7 +411,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   // read directory count
   uint64_t dircount = read_uint(f, bigtiff ? 8 : 2, big_endian, &ok);
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read dircount");
     goto FAIL;
   }
@@ -430,7 +430,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     uint64_t count = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
 
     if (!ok) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read tag, type, and count");
       goto FAIL;
     }
@@ -446,14 +446,14 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     // compute value size
     uint32_t value_size = get_value_size(type, &count);
     if (!value_size) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unknown type encountered: %d", type);
       goto FAIL;
     }
 
     // check for overflow
     if (count > SSIZE_MAX / value_size) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Value count too large");
       goto FAIL;
     }
@@ -461,7 +461,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     // read in the value/offset
     uint8_t value[bigtiff ? 8 : 4];
     if (fread(value, sizeof(value), 1, f) != 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read value/offset");
       goto FAIL;
     }
@@ -491,7 +491,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   // read the next dir offset
   int64_t nextdiroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read next directory offset");
     goto FAIL;
   }
@@ -523,12 +523,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read TIFF magic number");
     goto FAIL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized TIFF magic number");
     goto FAIL;
   }
@@ -549,7 +549,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   int64_t diroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
 
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read TIFF header");
     goto FAIL;
   }
@@ -559,12 +559,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // validate
   if (version == TIFF_VERSION_BIG) {
     if (offset_size != 8 || pad != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unexpected value in BigTIFF header");
       goto FAIL;
     }
   } else if (version != TIFF_VERSION_CLASSIC) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized TIFF version");
     goto FAIL;
   }
@@ -598,7 +598,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   // ensure there are directories
   if (tl->directories->len == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "TIFF contains no directories");
     goto FAIL;
   }
@@ -783,7 +783,7 @@ uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
     return 0;
   }
   if (!item->uints) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
@@ -799,7 +799,7 @@ int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
     return 0;
   }
   if (!item->sints) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
@@ -815,7 +815,7 @@ double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
     return NAN;
   }
   if (!item->floats) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NAN;
@@ -831,7 +831,7 @@ const uint64_t *_openslide_tifflike_get_uints(struct _openslide_tifflike *tl,
     return NULL;
   }
   if (!item->uints) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
@@ -847,7 +847,7 @@ const int64_t *_openslide_tifflike_get_sints(struct _openslide_tifflike *tl,
     return NULL;
   }
   if (!item->sints) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
@@ -863,7 +863,7 @@ const double *_openslide_tifflike_get_floats(struct _openslide_tifflike *tl,
     return NULL;
   }
   if (!item->floats) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
@@ -879,7 +879,7 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
     return NULL;
   }
   if (!item->buffer) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected value type: directory %"G_GINT64_FORMAT", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
@@ -1015,7 +1015,7 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
     offset_tag = TIFFTAG_STRIPOFFSETS;
     length_tag = TIFFTAG_STRIPBYTECOUNTS;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Directory %d is neither tiled nor stripped", dir);
     return false;
   }
@@ -1024,7 +1024,7 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
   int64_t count = _openslide_tifflike_get_value_count(tl, dir, offset_tag);
   if (!count ||
       count != _openslide_tifflike_get_value_count(tl, dir, length_tag)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid tile/strip counts for directory %d", dir);
     return false;
   }

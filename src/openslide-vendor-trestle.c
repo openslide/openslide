@@ -158,7 +158,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                                            level, w, h,
                                            err);
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot set TIFF directory");
   }
   _openslide_tiffcache_put(data->tc, tiff);
@@ -176,7 +176,7 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
                            GError **err) {
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a TIFF file");
     return false;
   }
@@ -188,7 +188,7 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
   if (strncmp(TRESTLE_SOFTWARE, software, strlen(TRESTLE_SOFTWARE))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Trestle slide");
     return false;
   }
@@ -202,7 +202,7 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
   int64_t dirs = _openslide_tifflike_get_directory_count(tl);
   for (int64_t i = 0; i < dirs; i++) {
     if (!_openslide_tifflike_is_tiled(tl, i)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "TIFF level %"G_GINT64_FORMAT" is not tiled", i);
       return false;
     }
@@ -318,7 +318,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   // parse ImageDescription
   char *image_desc;
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription");
     goto FAIL;
   }
@@ -329,12 +329,12 @@ static bool trestle_open(openslide_t *osr, const char *filename,
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
     if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read compression scheme");
       goto FAIL;
     };
     if (!TIFFIsCODECConfigured(compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }

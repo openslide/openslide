@@ -75,14 +75,14 @@ bool _openslide_gdkpixbuf_read(const char *filename,
       gdk_pixbuf_get_bits_per_sample(pixbuf) != 8 ||
       gdk_pixbuf_get_has_alpha(pixbuf) ||
       gdk_pixbuf_get_n_channels(pixbuf) != 3) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported pixbuf parameters");
     goto DONE;
   }
   int width = gdk_pixbuf_get_width(pixbuf);
   int height = gdk_pixbuf_get_height(pixbuf);
   if (w != width || h != height) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Dimensional mismatch reading pixbuf: "
                 "expected %dx%d, found %dx%d", w, h, width, height);
     goto DONE;

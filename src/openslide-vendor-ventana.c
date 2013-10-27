@@ -240,7 +240,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                                            level, w, h,
                                            err);
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot set TIFF directory");
   }
   _openslide_tiffcache_put(data->tc, tiff);
@@ -271,7 +271,7 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
                            GError **err) {
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a TIFF file");
     return false;
   }
@@ -284,7 +284,7 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
 
   // quick check for plausible XML string before parsing
   if (!strstr(xml, INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "%s not in XMLPacket", INITIAL_ROOT_TAG);
     g_free(xml);
     return false;
@@ -300,7 +300,7 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   // check root tag name
   xmlNode *root = xmlDocGetRootElement(doc);
   if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Root tag not %s", INITIAL_ROOT_TAG);
     xmlFreeDoc(doc);
     return false;
@@ -351,7 +351,7 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   int64_t z_layers;
   PARSE_INT_ATTRIBUTE_OR_FAIL(root, ATTR_Z_LAYERS, z_layers);
   if (z_layers != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Slides with multiple Z layers are not supported");
     goto FAIL;
   }
@@ -411,7 +411,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
   origin_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/AoiOrigin/*");
   if (!info_result || !origin_result ||
       info_result->nodesetval->nodeNr != origin_result->nodesetval->nodeNr) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Missing or inconsistent region metadata");
     goto FAIL;
   }
@@ -440,12 +440,12 @@ static struct slide_info *parse_level0_xml(const char *xml,
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_WIDTH, tile_width);
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_HEIGHT, tile_height);
     if (tile_width != tiff_tile_width || tile_height != tiff_tile_height) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Tile size mismatch");
       goto FAIL;
     }
     if (start_col_x % tile_width || start_row_y % tile_height) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Area origin not divisible by tile size");
       goto FAIL;
     }
@@ -469,7 +469,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
     ctx->node = info;
     result = _openslide_xml_xpath_eval(ctx, "TileJointInfo");
     if (!result) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't find tile joint info");
       goto FAIL;
     }
@@ -484,7 +484,7 @@ static struct slide_info *parse_level0_xml(const char *xml,
           tile2 < 1 ||
           tile1 > area->tile_count ||
           tile2 > area->tile_count) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tile number out of bounds: %"G_GINT64_FORMAT
                     " %"G_GINT64_FORMAT, tile1, tile2);
         goto FAIL;
@@ -530,13 +530,13 @@ static struct slide_info *parse_level0_xml(const char *xml,
         ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
         direction_y = true;
       } else {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Bad direction attribute \"%s\"", (char *) direction);
         xmlFree(direction);
         goto FAIL;
       }
       if (!ok) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected tile join: %s, "
                     "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT"), "
                     "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")",
@@ -625,7 +625,7 @@ static bool parse_level_info(const char *desc,
   char *level_str = g_hash_table_lookup(fields, LEVEL_KEY);
   char *magnification_str = g_hash_table_lookup(fields, MAGNIFICATION_KEY);
   if (!level_str || !magnification_str) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Missing level fields");
     goto DONE;
   }
@@ -634,7 +634,7 @@ static bool parse_level_info(const char *desc,
   gchar *endptr;
   *level = g_ascii_strtoll(level_str, &endptr, 10);
   if (level_str[0] == 0 || endptr[0] != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid level number");
     goto DONE;
   }
@@ -642,7 +642,7 @@ static bool parse_level_info(const char *desc,
   // parse magnification
   *magnification = g_ascii_strtod(magnification_str, &endptr);
   if (magnification_str[0] == 0 || endptr[0] != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid magnification");
     goto DONE;
   }
@@ -734,12 +734,12 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
       // verify that levels and magnifications are properly ordered
       if (level != next_level++) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected encounter with level %"G_GINT64_FORMAT, level);
         goto FAIL;
       }
       if (magnification >= prev_magnification) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected magnification in level %"G_GINT64_FORMAT,
                     level);
         goto FAIL;
@@ -774,7 +774,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
       // confirm that this directory is tiled
       if (!TIFFIsTiled(tiff)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Directory %d is not tiled", dir);
         goto FAIL;
       }
@@ -782,12 +782,12 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
       };
       if (!TIFFIsCODECConfigured(compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unsupported TIFF compression: %u", compression);
         goto FAIL;
       }
@@ -825,7 +825,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // _openslide_tiff_read_tile() uses the directory's tile size
       if (l->tiffl.tile_w != level0->tiffl.tile_w ||
           l->tiffl.tile_h != level0->tiffl.tile_h) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Inconsistent TIFF tile sizes");
         goto FAIL;
       }

@@ -113,7 +113,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
 #define HAVE_GROUP_OR_FAIL(KEYFILE, GROUP)				\
   do {									\
     if (!g_key_file_has_group(slidedat, GROUP)) {			\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Can't find %s group", GROUP);			\
       goto FAIL;							\
     }									\
@@ -131,7 +131,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
   do {								\
     if (N <= 0) {						\
       g_set_error(err, OPENSLIDE_ERROR,				\
-                  OPENSLIDE_ERROR_BAD_DATA, #N " <= 0: %d", N);	\
+                  OPENSLIDE_ERROR_FAILED, #N " <= 0: %d", N);	\
       goto FAIL;						\
     }								\
   } while(0)
@@ -140,7 +140,7 @@ static const char KEY_IMAGE_CONCAT_FACTOR[] = "IMAGE_CONCAT_FACTOR";
   do {								\
     if (N < 0) {						\
       g_set_error(err, OPENSLIDE_ERROR,				\
-                  OPENSLIDE_ERROR_BAD_DATA, #N " < 0: %d", N);	\
+                  OPENSLIDE_ERROR_FAILED, #N " < 0: %d", N);	\
       goto FAIL;						\
     }								\
   } while(0)
@@ -250,7 +250,7 @@ static uint32_t *read_image(openslide_t *osr,
                                        err);
     break;
   default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unknown image format %d", format);
   }
 
@@ -378,7 +378,7 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
                          GError **err) {
   // reject TIFFs
   if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Is a TIFF file");
     return false;
   }
@@ -386,7 +386,7 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
   // verify filename
   if (!g_str_has_suffix(filename, MRXS_EXT) ||
       !g_file_test(filename, G_FILE_TEST_EXISTS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a MIRAX slide");
     return false;
   }
@@ -439,21 +439,21 @@ static bool read_nonhier_record(FILE *f,
   g_return_val_if_fail(recordno >= 0, false);
 
   if (fseeko(f, nonhier_root_position, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot seek to nonhier root");
     return false;
   }
 
   int32_t ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read initial nonhier pointer");
     return false;
   }
 
   // seek to record pointer
   if (fseeko(f, ptr + 4 * recordno, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot seek to nonhier record pointer %d", recordno);
     return false;
   }
@@ -461,21 +461,21 @@ static bool read_nonhier_record(FILE *f,
   // read pointer
   ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read nonhier record %d", recordno);
     return false;
   }
 
   // seek
   if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot seek to nonhier record %d", recordno);
     return false;
   }
 
   // read initial 0
   if (read_le_int32_from_file(f) != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected 0 value at beginning of data page");
     return false;
   }
@@ -483,21 +483,21 @@ static bool read_nonhier_record(FILE *f,
   // read pointer
   ptr = read_le_int32_from_file(f);
   if (ptr == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read initial data page pointer");
     return false;
   }
 
   // seek to offset
   if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't seek to initial data page");
     return false;
   }
 
   // read pagesize == 1
   if (read_le_int32_from_file(f) != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected 1 value");
     return false;
   }
@@ -507,12 +507,12 @@ static bool read_nonhier_record(FILE *f,
   // http://lists.andrew.cmu.edu/pipermail/openslide-users/2013-August/000634.html
   read_le_int32_from_file(f);
   if (read_le_int32_from_file(f) != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected second 0 value");
     return false;
   }
   if (read_le_int32_from_file(f) != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected third 0 value");
     return false;
   }
@@ -520,23 +520,23 @@ static bool read_nonhier_record(FILE *f,
   // finally read offset, size, fileno
   *position = read_le_int32_from_file(f);
   if (*position == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read position");
     return false;
   }
   *size = read_le_int32_from_file(f);
   if (*size == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read size");
     return false;
   }
   int fileno = read_le_int32_from_file(f);
   if (fileno == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read fileno");
     return false;
   } else if (fileno < 0 || fileno >= datafile_count) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid fileno %d", fileno);
     return false;
   }
@@ -690,26 +690,26 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     //    g_debug("reading zoom_level %d", zoom_level);
 
     if (fseeko(f, seek_location, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot seek to zoom level pointer %d", zoom_level);
       goto DONE;
     }
 
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read zoom level pointer");
       goto DONE;
     }
     if (fseeko(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot seek to start of data pages");
       goto DONE;
     }
 
     // read initial 0
     if (read_le_int32_from_file(f) != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Expected 0 value at beginning of data page");
       goto DONE;
     }
@@ -717,14 +717,14 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     // read pointer
     ptr = read_le_int32_from_file(f);
     if (ptr == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read initial data page pointer");
       goto DONE;
     }
 
     // seek to offset
     if (fseeko(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't seek to initial data page");
       goto DONE;
     }
@@ -734,7 +734,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       // read length
       int32_t page_len = read_le_int32_from_file(f);
       if (page_len == -1) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read page length");
         goto DONE;
       }
@@ -744,7 +744,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
       // read "next" pointer
       next_ptr = read_le_int32_from_file(f);
       if (next_ptr == -1) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Cannot read \"next\" pointer");
         goto DONE;
       }
@@ -757,22 +757,22 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	int32_t fileno = read_le_int32_from_file(f);
 
 	if (image_index < 0) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "image_index < 0");
           goto DONE;
 	}
 	if (offset < 0) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "offset < 0");
           goto DONE;
 	}
 	if (length < 0) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "length < 0");
           goto DONE;
 	}
 	if (fileno < 0) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "fileno < 0");
           goto DONE;
 	}
@@ -784,20 +784,20 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	int32_t y = image_index / images_across;
 
 	if (y >= images_down) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "y (%d) outside of bounds for zoom level (%d)",
                       y, zoom_level);
           goto DONE;
 	}
 
 	if (x % lp->image_concat) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "x (%d) not correct multiple for zoom level (%d)",
                       x, zoom_level);
           goto DONE;
 	}
 	if (y % lp->image_concat) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "y (%d) not correct multiple for zoom level (%d)",
                       y, zoom_level);
           goto DONE;
@@ -805,7 +805,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
 	// save filename
 	if (fileno >= datafile_count) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "Invalid fileno");
           goto DONE;
 	}
@@ -929,14 +929,14 @@ static void *inflate_buffer(const void *src,
 
 ZLIB_ERROR:
   if (error_code == Z_STREAM_END) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Short read while decompressing: %lu/%"G_GINT64_FORMAT,
                 strm.total_out, dst_len);
   } else if (strm.msg) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Decompression failure: %s (%s)", zError(error_code), strm.msg);
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Decompression failure: %s", zError(error_code));
   }
   g_free(dst);
@@ -953,7 +953,7 @@ static void *read_record_data(const char *path,
   }
 
   if (fseeko(f, offset, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot seek data file");
     fclose(f);
     return NULL;
@@ -961,7 +961,7 @@ static void *read_record_data(const char *path,
 
   buffer = g_malloc(size);
   if (fread(buffer, sizeof(char), size, f) != (size_t) size) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Error while reading data");
     g_free(buffer);
     fclose(f);
@@ -978,7 +978,7 @@ static int32_t *read_slide_position_buffer(const void *buffer,
 					   GError **err) {
 
   if (buffer_size % SLIDE_POSITION_RECORD_SIZE != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected buffer size");
     return NULL;
   }
@@ -996,7 +996,7 @@ static int32_t *read_slide_position_buffer(const void *buffer,
     zz = *p;  // flag byte
 
     if (zz & 0xfe) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unexpected flag value (%d)", zz);
       g_free(result);
       return NULL;
@@ -1028,7 +1028,7 @@ static enum image_format parse_image_format(const char *name, GError **err) {
   } else if (!strcmp(name, "BMP24")) {
     return FORMAT_BMP;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized image format: %s", name);
     return FORMAT_UNKNOWN;
   }
@@ -1112,7 +1112,7 @@ static bool process_indexfile(openslide_t *osr,
   match = (teststr != NULL) && (strcmp(teststr, INDEX_VERSION) == 0);
   g_free(teststr);
   if (!match) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Index.dat doesn't have expected version");
     goto DONE;
   }
@@ -1121,7 +1121,7 @@ static bool process_indexfile(openslide_t *osr,
   match = (teststr != NULL) && (strcmp(teststr, uuid) == 0);
   g_free(teststr);
   if (!match) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Index.dat doesn't have a matching slide identifier");
     goto DONE;
   }
@@ -1177,7 +1177,7 @@ static bool process_indexfile(openslide_t *osr,
         goto DONE;
       }
     } else if (slide_position_buffer_size != slide_position_size) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Slide position file not of the expected size");
       g_free(slide_position_buffer);
       goto DONE;
@@ -1244,14 +1244,14 @@ static bool process_indexfile(openslide_t *osr,
 
   // read hierarchical sections
   if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot seek to hier sections root");
     goto DONE;
   }
 
   ptr = read_le_int32_from_file(indexfile);
   if (ptr == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read initial pointer");
     goto DONE;
   }
@@ -1341,7 +1341,7 @@ static int get_nonhier_name_offset_helper(GKeyFile *keyfile,
       if (tmp_err) {
         g_propagate_error(err, tmp_err);
       } else {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Nonhier val count is zero");
       }
       g_free(value);
@@ -1458,7 +1458,7 @@ static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
   // verify image format
   // we have only ever seen JPEG
   if (parse_image_format(format, err) != FORMAT_JPEG) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported associated image format: %s", format);
     g_free(format);
     return -1;
@@ -1599,14 +1599,14 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   }
 
   if (slide_zoom_level_value == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find slide zoom level");
     goto FAIL;
   }
 
   // TODO allow slide_zoom_level_value to be at another hierarchy value
   if (slide_zoom_level_value != 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Slide zoom level not HIER_0");
     goto FAIL;
   }

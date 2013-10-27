@@ -216,7 +216,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
     struct area *area = l->areas->pdata[n];
 
     if (!TIFFSetDirectory(tiff, area->tiffl.dir)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot set TIFF directory");
       success = false;
       break;
@@ -251,14 +251,14 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
                          struct _openslide_tifflike *tl, GError **err) {
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a TIFF file");
     return false;
   }
 
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "TIFF is not tiled");
     return false;
   }
@@ -272,7 +272,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
   if (!strstr(image_desc, LEICA_XMLNS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Leica slide");
     return false;
   }
@@ -285,7 +285,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
 
   // check default namespace
   if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected XML namespace");
     xmlFreeDoc(doc);
     return false;
@@ -382,7 +382,7 @@ static struct collection *parse_xml_description(const char *xml,
   xmlNode *collection_node = _openslide_xml_xpath_get_node(ctx,
                                                            "/d:scn/d:collection");
   if (!collection_node) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find collection element");
     goto FAIL;
   }
@@ -402,7 +402,7 @@ static struct collection *parse_xml_description(const char *xml,
   ctx->node = collection_node;
   images_result = _openslide_xml_xpath_eval(ctx, "d:image");
   if (!images_result) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find any images");
     goto FAIL;
   }
@@ -415,7 +415,7 @@ static struct collection *parse_xml_description(const char *xml,
     // get view node
     xmlNode *view = _openslide_xml_xpath_get_node(ctx, "d:view");
     if (!view) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't find view node");
       goto FAIL;
     }
@@ -449,7 +449,7 @@ static struct collection *parse_xml_description(const char *xml,
     ctx->node = image_node;
     result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
     if (!result) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't find any dimensions in image");
       goto FAIL;
     }
@@ -593,7 +593,7 @@ static bool create_levels_from_collection(openslide_t *osr,
                first_main_image->illumination_source) ||
         strcmp(image->objective, first_main_image->objective) ||
         image->dimensions->len != first_main_image->dimensions->len) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Slides with dissimilar main images are not supported");
       return false;
     }
@@ -627,7 +627,7 @@ static bool create_levels_from_collection(openslide_t *osr,
           first_image_dimension->clicks_per_pixel;
         //g_debug("resolution similarity %g", resolution_similarity);
         if (resolution_similarity < 0.98) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "Inconsistent main image resolutions");
           return false;
         }
@@ -653,12 +653,12 @@ static bool create_levels_from_collection(openslide_t *osr,
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         return false;
       }
       if (!TIFFIsCODECConfigured(compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unsupported TIFF compression: %u", compression);
         return false;
       }
@@ -681,7 +681,7 @@ static bool create_levels_from_collection(openslide_t *osr,
   }
 
   if (!first_main_image) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find main image");
     return false;
   }
@@ -711,7 +711,7 @@ static bool create_levels_from_collection(openslide_t *osr,
     }
 
     if (have_macro_image) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Found multiple macro images");
       return false;
     }
@@ -734,7 +734,7 @@ static bool create_levels_from_collection(openslide_t *osr,
 
   if (*quickhash_dir == -1) {
     // e.g., new-style quickhash but no macro image
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't locate TIFF directory for quickhash");
     return false;
   }
@@ -758,7 +758,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   // get the xml description
   char *image_desc;
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription");
     goto FAIL;
   }
@@ -796,7 +796,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
 
   // set MPP properties
   if (!TIFFSetDirectory(tiff, property_dir)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read directory");
     goto FAIL;
   }

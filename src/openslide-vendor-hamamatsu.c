@@ -222,7 +222,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
       (start_position != -1 &&
        ((header_stop_position > start_position) ||
         (start_position >= stop_position)))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                "Can't do random access JPEG read: "
 	       "header_start_position: %" G_GINT64_FORMAT ", "
 	       "sof_position: %" G_GINT64_FORMAT ", "
@@ -255,7 +255,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   //  g_debug("reading header from %"G_GINT64_FORMAT, header_start_position);
   fseeko(infile, header_start_position, SEEK_SET);
   if (!fread(src->buffer, header_length, 1, infile)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read header in JPEG");
     return false;
   }
@@ -264,14 +264,14 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
     fseeko(infile, start_position, SEEK_SET);
     if (!fread(src->buffer + header_length, data_length, 1, infile)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read data in JPEG");
       return false;
     }
 
     // change the final byte to EOI
     if (src->buffer[src->buffer_size - 2] != 0xFF) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Expected 0xFF byte at end of JPEG data");
       return false;
     }
@@ -349,12 +349,12 @@ static bool find_bitstream_start(FILE *f,
     // read marker
     pos = ftello(f);
     if (fread(buf, sizeof(buf), 1, f) != 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG marker");
       return false;
     }
     if (buf[0] != 0xFF) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Expected marker at %"G_GINT64_FORMAT", found none", pos);
       return false;
     }
@@ -374,7 +374,7 @@ static bool find_bitstream_start(FILE *f,
 
     // read length
     if (fread(buf, sizeof(buf), 1, f) != 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG marker length");
       return false;
     }
@@ -490,7 +490,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
       size_t result = fread(buf, 2, 1, f);
       if (result == 0 ||
           buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Restart marker not found in expected place");
         return false;
       }
@@ -521,7 +521,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
 				    &bytes_in_buf);
     g_assert(after_marker_pos > 0 || after_marker_pos == -1);
     if (after_marker_pos == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "after_marker_pos == -1");
       return false;
     }
@@ -552,7 +552,7 @@ static bool compute_mcu_start(openslide_t *osr,
   bool success = false;
 
   if (tileno < 0 || tileno >= jpeg->tile_count) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid tileno %"G_GINT64_FORMAT, tileno);
     return false;
   }
@@ -677,7 +677,7 @@ static bool read_from_jpeg(openslide_t *osr,
     }
 
     if ((cinfo.output_width != (unsigned int) w) || (cinfo.output_height != (unsigned int) h)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Dimensional mismatch in read_from_jpeg, "
                   "expected %dx%d, got %dx%d",
                   w, h, cinfo.output_width, cinfo.output_height);
@@ -883,7 +883,7 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
                                      GError **err) {
   // reject TIFFs
   if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Is a TIFF file");
     return false;
   }
@@ -902,21 +902,21 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
     // validate cols/rows
     if (g_key_file_get_integer(key_file, GROUP_VMS,
                                KEY_NUM_JPEG_COLS, NULL) < 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "VMS file has no columns");
       g_key_file_free(key_file);
       return false;
     }
     if (g_key_file_get_integer(key_file, GROUP_VMS,
                                KEY_NUM_JPEG_ROWS, NULL) < 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "VMS file has no rows");
       g_key_file_free(key_file);
       return false;
     }
 
   } else if (!g_key_file_has_group(key_file, GROUP_VMU)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not VMS or VMU file");
     g_key_file_free(key_file);
     return false;
@@ -938,7 +938,7 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
 #define CHK(ASSERTION)							\
   do {									\
     if (!(ASSERTION)) {							\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,	\
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Invalid MCU starts: JPEG %d, tile %d, "		\
                   "assertion: " # ASSERTION,				\
                   current_jpeg, current_mcu_start);			\
@@ -1113,12 +1113,12 @@ static bool verify_jpeg(FILE *f, bool use_jpeg_dimensions,
     header_result = jpeg_read_header(&cinfo, TRUE);
     if (header_result != JPEG_HEADER_OK
         && header_result != JPEG_HEADER_TABLES_ONLY) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;
     }
     if (cinfo.num_components != 3) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "JPEG color components != 3");
       goto DONE;
     }
@@ -1160,14 +1160,14 @@ static bool verify_jpeg(FILE *f, bool use_jpeg_dimensions,
     uint32_t mcus_per_row = (*w / mcu_width) + !!(*w % mcu_width);
 
     if (cinfo.restart_interval > mcus_per_row) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Restart interval greater than MCUs per row");
       goto DONE;
     }
 
     int leftover_mcus = mcus_per_row % cinfo.restart_interval;
     if (leftover_mcus != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Inconsistent restart marker spacing within row");
       goto DONE;
     }
@@ -1528,7 +1528,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     fseeko(f, 0, SEEK_END);
     jp->end_in_file = ftello(f);
     if (jp->end_in_file == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read file size for JPEG %d", i);
       fclose(f);
       goto FAIL;
@@ -1550,19 +1550,19 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       g_assert(jpeg0_tw != 0 && jpeg0_th != 0 &&
                jpeg0_ta != 0 && jpeg0_td != 0);
       if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tile size not consistent");
         goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
           jp->tiles_across != jpeg0_ta) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles across not consistent");
         goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
           jp->tiles_down != jpeg0_td) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles down not consistent");
         goto FAIL;
       }
@@ -1665,7 +1665,7 @@ static bool ngr_read_tile(openslide_t *osr,
     uint16_t *buf = g_slice_alloc(buf_size);
 
     if (fread(buf, buf_size, 1, f) != 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read file %s", l->filename);
       fclose(f);
       g_slice_free1(buf_size, buf);
@@ -1761,7 +1761,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     // validate magic
     if ((fgetc(f) != 'G') || (fgetc(f) != 'N')) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Bad magic on NGR file");
       fclose(f);
       goto FAIL;
@@ -1779,7 +1779,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // validate
     if ((l->base.w <= 0) || (l->base.h <= 0) ||
 	(l->column_width <= 0) || (l->start_in_file <= 0)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Error processing header");
       fclose(f);
       goto FAIL;
@@ -1787,7 +1787,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     // ensure no remainder on columns
     if ((l->base.w % l->column_width) != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Width not multiple of column width");
       fclose(f);
       goto FAIL;
@@ -1874,14 +1874,14 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     num_cols = 1;  // not specified in file for VMU
     num_rows = 1;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not VMS or VMU file");
     goto DONE;
   }
 
   // revalidate cols/rows
   if (num_cols < 1 || num_rows < 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "File missing columns or rows");
     goto DONE;
   }
@@ -1900,7 +1900,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   num_layers = g_key_file_get_integer(key_file, groupname, KEY_NUM_LAYERS,
 				      NULL);
   if (num_layers < 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot handle Hamamatsu files with NoLayers < 1");
     goto DONE;
   }
@@ -1925,7 +1925,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       goto DONE;
     }
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read map file");
     g_free(tmp);
     goto DONE;
@@ -1982,7 +1982,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
       default:
         // we just don't know
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unknown number of image dimensions: %d",
                     g_strv_length(split));
         g_free(value);
@@ -2001,7 +2001,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       }
 
       if (col >= num_cols || row >= num_rows || col < 0 || row < 0) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Invalid row or column in Hamamatsu file (%d,%d)",
                     col, row);
         g_free(value);
@@ -2014,7 +2014,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
       // init the file
       if (image_filenames[i]) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Duplicate image for (%d,%d)", col, row);
         g_free(value);
         g_strfreev(all_keys);
@@ -2029,7 +2029,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   // ensure all image filenames are filled
   for (int i = 0; i < num_images; i++) {
     if (!image_filenames[i]) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read image filename %d", i);
       goto DONE;
     }
@@ -2100,10 +2100,10 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 					      NULL);
 
     if (bits_per_pixel != 36) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "%s must be 36", KEY_BITS_PER_PIXEL);
     } else if (!pixel_order || (strcmp(pixel_order, "RGB") != 0)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "%s must be RGB", KEY_PIXEL_ORDER);
     } else {
       // assumptions verified
@@ -2142,7 +2142,7 @@ static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
                                   GError **err) {
   // ensure we have a tifflike
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a TIFF file");
     return false;
   }
@@ -2154,7 +2154,7 @@ static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
   if (strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected Software tag");
     return false;
   }
@@ -2305,7 +2305,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
     // check results
     if (height != rows_per_strip) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unexpected rows per strip %"G_GINT64_FORMAT" "
                   "(height %"G_GINT64_FORMAT")", rows_per_strip, height);
       goto FAIL;
@@ -2332,7 +2332,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       } else {
         // The slide's levels are in an unexpected order.  Reject the slide
         // out of paranoia.
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected directory layout");
         goto FAIL;
       }
@@ -2368,7 +2368,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         }
       }
       if (width != jp_w || height != jp_h) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "JPEG dimension mismatch for directory "
                     "%"G_GINT64_FORMAT": "
                     "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "

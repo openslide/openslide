@@ -98,7 +98,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     int64_t bytes_read = fread(buf, 1, bytes_to_read, f);
 
     if (bytes_read != bytes_to_read) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read from %s", filename);
       goto DONE;
     }
