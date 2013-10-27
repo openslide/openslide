@@ -40,11 +40,10 @@ static const struct debug_option {
   enum _openslide_debug_flag flag;
   const char *desc;
 } debug_options[] = {
+  {"detection", OPENSLIDE_DEBUG_DETECTION, "log format detection errors"},
   {"jpeg-markers", OPENSLIDE_DEBUG_JPEG_MARKERS,
    "verify Hamamatsu restart markers"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
-  {"unsupported", OPENSLIDE_DEBUG_UNSUPPORTED,
-   "log unsupported-format errors"},
   {NULL, 0, NULL}
 };
 

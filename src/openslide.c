@@ -102,7 +102,7 @@ static const struct _openslide_format *detect_format(const char *filename,
   struct _openslide_tifflike *tl = _openslide_tifflike_create(filename,
                                                               &tmp_err);
   if (!tl) {
-    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+    if (_openslide_debug(OPENSLIDE_DEBUG_DETECTION)) {
       g_message("tifflike: %s", tmp_err->message);
     }
     g_clear_error(&tmp_err);
@@ -125,7 +125,7 @@ static const struct _openslide_format *detect_format(const char *filename,
     }
 
     // reset for next format
-    if (_openslide_debug(OPENSLIDE_DEBUG_UNSUPPORTED)) {
+    if (_openslide_debug(OPENSLIDE_DEBUG_DETECTION)) {
       g_message("%s: %s", format->name, tmp_err->message);
     }
     g_clear_error(&tmp_err);
