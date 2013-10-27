@@ -384,10 +384,28 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
   }
 
   // verify filename
-  if (!g_str_has_suffix(filename, MRXS_EXT) ||
-      !g_file_test(filename, G_FILE_TEST_EXISTS)) {
+  if (!g_str_has_suffix(filename, MRXS_EXT)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a MIRAX slide");
+                "File does not have %s extension", MRXS_EXT);
+    return false;
+  }
+
+  // verify existence
+  if (!g_file_test(filename, G_FILE_TEST_EXISTS)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "File does not exist");
+    return false;
+  }
+
+  // verify slidedat exists
+  char *dirname = g_strndup(filename, strlen(filename) - strlen(MRXS_EXT));
+  char *slidedat_path = g_build_filename(dirname, SLIDEDAT_INI, NULL);
+  bool ok = g_file_test(slidedat_path, G_FILE_TEST_EXISTS);
+  g_free(slidedat_path);
+  g_free(dirname);
+  if (!ok) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "%s does not exist", SLIDEDAT_INI);
     return false;
   }
 
@@ -1515,8 +1533,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   int64_t base_h = 0;
 
   int total_concat_exponent = 0;
-
-  // start reading
 
   // get directory from filename
   dirname = g_strndup(filename, strlen(filename) - strlen(MRXS_EXT));
