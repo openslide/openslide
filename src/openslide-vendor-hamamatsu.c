@@ -1848,15 +1848,11 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   int num_layers = -1;
 
-  GError *tmp_err = NULL;
-
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, &tmp_err)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
-                "Can't load key file: %s", tmp_err->message);
-    g_clear_error(&tmp_err);
+                                G_KEY_FILE_NONE, err)) {
+    g_prefix_error(err, "Can't load key file: ");
     goto DONE;
   }
 
