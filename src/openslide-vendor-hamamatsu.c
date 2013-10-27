@@ -881,11 +881,9 @@ static const struct _openslide_ops hamamatsu_jpeg_ops = {
 static bool hamamatsu_vms_vmu_detect(const char *filename,
                                      struct _openslide_tifflike *tl,
                                      GError **err) {
-  GError *tmp_err = NULL;
-
   // reject TIFFs
   if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Is a TIFF file");
     return false;
   }
@@ -893,10 +891,8 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
   // try to parse key file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, &tmp_err)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "Can't read key file: %s", tmp_err->message);
-    g_clear_error(&tmp_err);
+                                G_KEY_FILE_NONE, err)) {
+    g_prefix_error(err, "Can't read key file: ");
     g_key_file_free(key_file);
     return false;
   }
@@ -906,21 +902,21 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
     // validate cols/rows
     if (g_key_file_get_integer(key_file, GROUP_VMS,
                                KEY_NUM_JPEG_COLS, NULL) < 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "VMS file has no columns");
       g_key_file_free(key_file);
       return false;
     }
     if (g_key_file_get_integer(key_file, GROUP_VMS,
                                KEY_NUM_JPEG_ROWS, NULL) < 1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "VMS file has no rows");
       g_key_file_free(key_file);
       return false;
     }
 
   } else if (!g_key_file_has_group(key_file, GROUP_VMU)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not VMS or VMU file");
     g_key_file_free(key_file);
     return false;
@@ -2148,27 +2144,21 @@ const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
 static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
                                   struct _openslide_tifflike *tl,
                                   GError **err) {
-  GError *tmp_err = NULL;
-
   // ensure we have a tifflike
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // check Software tag
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
-                                                        TIFFTAG_SOFTWARE,
-                                                        &tmp_err);
+                                                        TIFFTAG_SOFTWARE, err);
   if (software == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
   if (strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected Software tag");
     return false;
   }

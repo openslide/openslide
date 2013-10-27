@@ -223,18 +223,16 @@ static const struct _openslide_ops aperio_ops = {
 
 static bool aperio_detect(const char *filename G_GNUC_UNUSED,
                           struct _openslide_tifflike *tl, GError **err) {
-  GError *tmp_err = NULL;
-
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "TIFF is not tiled");
     return false;
   }
@@ -242,15 +240,12 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
   // check ImageDescription
   const char *tagval = _openslide_tifflike_get_buffer(tl, 0,
                                                       TIFFTAG_IMAGEDESCRIPTION,
-                                                      &tmp_err);
+                                                      err);
   if (!tagval) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
   if (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not an Aperio slide");
     return false;
   }

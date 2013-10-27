@@ -378,7 +378,7 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
                          GError **err) {
   // reject TIFFs
   if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Is a TIFF file");
     return false;
   }
@@ -386,7 +386,7 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
   // verify filename
   if (!g_str_has_suffix(filename, MRXS_EXT) ||
       !g_file_test(filename, G_FILE_TEST_EXISTS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a MIRAX slide");
     return false;
   }

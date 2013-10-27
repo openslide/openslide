@@ -157,14 +157,14 @@ static bool generic_tiff_detect(const char *filename G_GNUC_UNUSED,
                                 GError **err) {
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "TIFF is not tiled");
     return false;
   }

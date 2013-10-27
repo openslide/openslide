@@ -249,18 +249,16 @@ static const struct _openslide_ops leica_ops = {
 
 static bool leica_detect(const char *filename G_GNUC_UNUSED,
                          struct _openslide_tifflike *tl, GError **err) {
-  GError *tmp_err = NULL;
-
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // ensure TIFF is tiled
   if (!_openslide_tifflike_is_tiled(tl, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "TIFF is not tiled");
     return false;
   }
@@ -269,31 +267,25 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   // before we invoke the parser
   const char *image_desc = _openslide_tifflike_get_buffer(tl, 0,
                                                           TIFFTAG_IMAGEDESCRIPTION,
-                                                          &tmp_err);
+                                                          err);
   if (!image_desc) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
   if (!strstr(image_desc, LEICA_XMLNS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a Leica slide");
     return false;
   }
 
   // try to parse the xml
-  xmlDoc *doc = _openslide_xml_parse(image_desc, &tmp_err);
+  xmlDoc *doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
 
   // check default namespace
   if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unexpected XML namespace");
     xmlFreeDoc(doc);
     return false;

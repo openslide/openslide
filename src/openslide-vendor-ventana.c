@@ -269,46 +269,38 @@ static char *read_xml_packet(struct _openslide_tifflike *tl,
 static bool ventana_detect(const char *filename G_GNUC_UNUSED,
                            struct _openslide_tifflike *tl,
                            GError **err) {
-  GError *tmp_err = NULL;
-
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // read XMLPacket
-  char *xml = read_xml_packet(tl, 0, &tmp_err);
+  char *xml = read_xml_packet(tl, 0, err);
   if (!xml) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
 
   // quick check for plausible XML string before parsing
   if (!strstr(xml, INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "%s not in XMLPacket", INITIAL_ROOT_TAG);
     g_free(xml);
     return false;
   }
 
   // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, &tmp_err);
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
   g_free(xml);
   if (!doc) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
 
   // check root tag name
   xmlNode *root = xmlDocGetRootElement(doc);
   if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Root tag not %s", INITIAL_ROOT_TAG);
     xmlFreeDoc(doc);
     return false;

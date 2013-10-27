@@ -591,7 +591,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   uint8_t buf[4];
   if (fread(buf, 4, 1, f) != 1) {
     // can't read
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Couldn't read TIFF magic number for %s", tc->filename);
     fclose(f);
     return NULL;
@@ -633,7 +633,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     goto NOT_TIFF;
   }
   if (version == 43 && sizeof(toff_t) == 4) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "BigTIFF support requires libtiff >= 4");
     return NULL;
   }
@@ -656,7 +656,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   return tiff;
 
 NOT_TIFF:
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
               "Not a TIFF file: %s", tc->filename);
   return NULL;
 }

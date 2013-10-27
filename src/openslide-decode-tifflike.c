@@ -512,14 +512,10 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
                                                        GError **err) {
   struct _openslide_tifflike *tl = NULL;
   GHashTable *loop_detector = NULL;
-  GError *tmp_err = NULL;
 
   // open file
-  FILE *f = _openslide_fopen(filename, "rb", &tmp_err);
+  FILE *f = _openslide_fopen(filename, "rb", err);
   if (!f) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     goto FAIL;
   }
 
@@ -527,12 +523,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   uint16_t magic;
   fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read TIFF magic number");
     goto FAIL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unrecognized TIFF magic number");
     goto FAIL;
   }
@@ -553,7 +549,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   int64_t diroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
 
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Can't read TIFF header");
     goto FAIL;
   }
@@ -563,12 +559,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // validate
   if (version == TIFF_VERSION_BIG) {
     if (offset_size != 8 || pad != 0) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "Unexpected value in BigTIFF header");
       goto FAIL;
     }
   } else if (version != TIFF_VERSION_CLASSIC) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Unrecognized TIFF version");
     goto FAIL;
   }

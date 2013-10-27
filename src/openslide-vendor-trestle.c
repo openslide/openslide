@@ -174,37 +174,27 @@ static const struct _openslide_ops trestle_ops = {
 static bool trestle_detect(const char *filename G_GNUC_UNUSED,
                            struct _openslide_tifflike *tl,
                            GError **err) {
-  GError *tmp_err = NULL;
-
   // ensure we have a TIFF
   if (!tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a TIFF file");
     return false;
   }
 
   // check Software field
   const char *software = _openslide_tifflike_get_buffer(tl, 0,
-                                                        TIFFTAG_SOFTWARE,
-                                                        &tmp_err);
+                                                        TIFFTAG_SOFTWARE, err);
   if (!software) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
     return false;
   }
   if (strncmp(TRESTLE_SOFTWARE, software, strlen(TRESTLE_SOFTWARE))) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                 "Not a Trestle slide");
     return false;
   }
 
   // check for ImageDescription field
-  if (!_openslide_tifflike_get_buffer(tl, 0, TIFFTAG_IMAGEDESCRIPTION,
-                                      &tmp_err)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
-                "%s", tmp_err->message);
-    g_clear_error(&tmp_err);
+  if (!_openslide_tifflike_get_buffer(tl, 0, TIFFTAG_IMAGEDESCRIPTION, err)) {
     return false;
   }
 
@@ -212,7 +202,7 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
   int64_t dirs = _openslide_tifflike_get_directory_count(tl);
   for (int64_t i = 0; i < dirs; i++) {
     if (!_openslide_tifflike_is_tiled(tl, i)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FORMAT_NOT_SUPPORTED,
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_BAD_DATA,
                   "TIFF level %"G_GINT64_FORMAT" is not tiled", i);
       return false;
     }
