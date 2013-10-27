@@ -23,7 +23,7 @@
 /*
  * Trestle (tif) support
  *
- * quickhash comes from _openslide_tiff_init_properties_and_hash
+ * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
  */
 
@@ -300,7 +300,7 @@ static void add_associated_jpeg(openslide_t *osr, TIFF *tiff,
 }
 
 static bool trestle_open(openslide_t *osr, const char *filename,
-                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                         struct _openslide_tifflike *tl,
                          struct _openslide_hash *quickhash1, GError **err) {
   struct trestle_ops_data *data = NULL;
   struct level **levels = NULL;
@@ -411,10 +411,10 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   }
 
   // set hash and properties
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                levels[level_count - 1]->tiffl.dir,
-                                                0,
-                                                err)) {
+  if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
+                                                    levels[level_count - 1]->tiffl.dir,
+                                                    0,
+                                                    err)) {
     goto FAIL;
   }
 

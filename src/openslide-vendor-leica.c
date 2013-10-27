@@ -23,7 +23,7 @@
 /*
  * LEICA (scn) BigTIFF support
  *
- * quickhash comes from _openslide_tiff_init_properties_and_hash
+ * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
  */
 
@@ -744,7 +744,7 @@ static bool create_levels_from_collection(openslide_t *osr,
 }
 
 static bool leica_open(openslide_t *osr, const char *filename,
-                       struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                       struct _openslide_tifflike *tl,
                        struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
 
@@ -782,10 +782,10 @@ static bool leica_open(openslide_t *osr, const char *filename,
   struct level *level0 = level_array->pdata[0];
   struct area *property_area = level0->areas->pdata[0];
   tdir_t property_dir = property_area->tiffl.dir;
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                quickhash_dir,
-                                                property_dir,
-                                                err)) {
+  if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
+                                                    quickhash_dir,
+                                                    property_dir,
+                                                    err)) {
     goto FAIL;
   }
 

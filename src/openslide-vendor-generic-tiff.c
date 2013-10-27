@@ -23,7 +23,7 @@
 /*
  * Generic TIFF support
  *
- * quickhash comes from _openslide_tiff_init_properties_and_hash
+ * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
  */
 
@@ -187,7 +187,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 
 static bool generic_tiff_open(openslide_t *osr,
                               const char *filename,
-                              struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                              struct _openslide_tifflike *tl,
                               struct _openslide_hash *quickhash1,
                               GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
@@ -258,10 +258,10 @@ static bool generic_tiff_open(openslide_t *osr,
 
   // set hash and properties
   struct level *top_level = level_array->pdata[level_array->len - 1];
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                top_level->tiffl.dir,
-                                                0,
-                                                err)) {
+  if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
+                                                    top_level->tiffl.dir,
+                                                    0,
+                                                    err)) {
     goto FAIL;
   }
 

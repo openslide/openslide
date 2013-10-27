@@ -23,7 +23,7 @@
 /*
  * Ventana (bif) support
  *
- * quickhash comes from _openslide_tiff_init_properties_and_hash
+ * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
  */
 
@@ -858,10 +858,10 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   // set hash and properties
   struct level *top_level = level_array->pdata[level_array->len - 1];
   struct level *level0 = level_array->pdata[0];
-  if (!_openslide_tiff_init_properties_and_hash(osr, tiff, quickhash1,
-                                                top_level->tiffl.dir,
-                                                level0->tiffl.dir,
-                                                err)) {
+  if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
+                                                    top_level->tiffl.dir,
+                                                    level0->tiffl.dir,
+                                                    err)) {
     goto FAIL;
   }
 

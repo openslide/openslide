@@ -47,13 +47,6 @@ bool _openslide_tiff_level_init(TIFF *tiff,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err);
 
-bool _openslide_tiff_init_properties_and_hash(openslide_t *osr,
-                                              TIFF *tiff,
-                                              struct _openslide_hash *quickhash1,
-                                              tdir_t lowest_resolution_level,
-                                              tdir_t property_dir,
-                                              GError **err);
-
 bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                TIFF *tiff,
                                uint32_t *dest,
