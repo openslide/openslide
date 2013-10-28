@@ -69,6 +69,11 @@ bool openslide_can_open(const char *filename);
 /**
  * Open a whole slide image.
  *
+ * This function can be expensive; avoid calling it unnecessarily.  For
+ * example, a tile server should not call openslide_open() on every tile
+ * request.  Instead, it should maintain a cache of OpenSlide objects and
+ * reuse them when possible.
+ *
  * @param filename The filename to open.
  * @return
  *         On success, a new OpenSlide object.
