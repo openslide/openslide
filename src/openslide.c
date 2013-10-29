@@ -170,6 +170,16 @@ static bool open_backend(openslide_t *osr,
   return result;
 }
 
+const char *openslide_detect_vendor(const char *filename) {
+  g_assert(openslide_was_dynamically_loaded);
+
+  const struct _openslide_format *format = detect_format(filename, NULL);
+  if (!format) {
+    return NULL;
+  }
+  return format->vendor;
+}
+
 bool openslide_can_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 

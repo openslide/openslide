@@ -51,6 +51,26 @@ typedef struct _openslide openslide_t;
 //@{
 
 /**
+ * Quickly determine whether a whole slide image is recognized.
+ *
+ * If OpenSlide recognizes the file referenced by @p filename, return a
+ * string identifying the slide format vendor.  This is equivalent to the
+ * value of the #OPENSLIDE_PROPERTY_NAME_VENDOR property.  Calling
+ * openslide_open() on this file will return a valid OpenSlide object or
+ * an OpenSlide object in error state.
+ *
+ * Otherwise, return NULL.  Calling openslide_open() on this file will also
+ * return NULL.
+ *
+ * @param filename The filename to check.
+ * @return An identification of the format vendor for this file, or NULL.
+ * @since 3.4.0
+ */
+OPENSLIDE_PUBLIC()
+const char *openslide_detect_vendor(const char *filename);
+
+
+/**
  * Do a quick check to see if a whole slide image is valid.
  *
  * This function is more efficient than openslide_open() if you do not
