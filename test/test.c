@@ -333,7 +333,6 @@ int main(int argc, char **argv) {
   printf("version: %s\n", openslide_get_version());
 
   printf("openslide_detect_vendor returns %s\n", openslide_detect_vendor(argv[1]));
-  printf("openslide_can_open returns %s\n", openslide_can_open(argv[1]) ? "true" : "false");
   openslide_t *osr = openslide_open(argv[1]);
 
   int64_t w, h;

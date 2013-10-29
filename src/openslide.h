@@ -71,22 +71,6 @@ const char *openslide_detect_vendor(const char *filename);
 
 
 /**
- * Do a quick check to see if a whole slide image is valid.
- *
- * This function is more efficient than openslide_open() if you do not
- * necessarily intend to open the specified file (for example, when creating
- * a list of available slide files).  If you definitely intend to open the
- * file, calling this function will only reduce performance; you should call
- * openslide_open() directly.
- *
- * @param filename The filename to check.
- * @return If openslide_open() will succeed.
- */
-OPENSLIDE_PUBLIC()
-bool openslide_can_open(const char *filename);
-
-
-/**
  * Open a whole slide image.
  *
  * This function can be expensive; avoid calling it unnecessarily.  For
@@ -433,6 +417,30 @@ const char *openslide_get_version(void);
  * slide level.  Many of these functions use the older terminology.
  */
 //@{
+
+/**
+ * Return whether openslide_open() will succeed.
+ *
+ * This function returns @p true if openslide_open() will return a valid
+ * @ref openslide_t, or @p false if it will return NULL or an
+ * @ref openslide_t in error state.  As such, there's no reason to use it;
+ * just call openslide_open().  For a less-expensive test that provides
+ * weaker guarantees, see openslide_detect_vendor().
+ *
+ * Before version 3.4.0, this function could be slightly faster than calling
+ * openslide_open(), but it could also erroneously return @p true in some
+ * cases where openslide_open() would fail.
+ *
+ * @param filename The filename to check.
+ * @return If openslide_open() will succeed.
+ * @deprecated Use openslide_detect_vendor() to efficiently check whether
+ *             a slide file is recognized by OpenSlide, or just call
+ *             openslide_open().
+ */
+OPENSLIDE_PUBLIC()
+OPENSLIDE_DEPRECATED_FOR(openslide_detect_vendor or openslide_open)
+bool openslide_can_open(const char *filename);
+
 
 /**
  * Get the number of levels in the whole slide image.
