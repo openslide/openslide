@@ -30,6 +30,7 @@
 
 #define MAX_FDS 128
 
+static gchar *vendor_check;
 static gchar **prop_checks;
 static gchar **region_checks;
 
@@ -115,6 +116,8 @@ static void check_regions(openslide_t *osr) {
 }
 
 static GOptionEntry options[] = {
+  {"vendor", 'n', 0, G_OPTION_ARG_STRING, &vendor_check,
+   "Check for specified vendor (\"none\" for NULL)", "\"VENDOR\""},
   {"property", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &prop_checks,
    "Check for specified property value", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
@@ -155,8 +158,23 @@ int main(int argc, char **argv) {
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
       print_log, NULL);
 
+  const char *vendor = openslide_detect_vendor(filename);
   bool can_open = openslide_can_open(filename);
   openslide_t *osr = openslide_open(filename);
+
+  // Check vendor if requested
+  if (vendor_check) {
+    const char *expected_vendor = vendor_check;
+    if (!strcmp(expected_vendor, "none")) {
+      expected_vendor = NULL;
+    }
+    if ((expected_vendor == NULL) != (vendor == NULL) ||
+        (vendor && strcmp(vendor, expected_vendor))) {
+      fail("Detected vendor %s, expected %s",
+           vendor ? vendor : "NULL",
+           expected_vendor ? expected_vendor : "NULL");
+    }
+  }
 
   // Check for open errors
   if (osr != NULL) {

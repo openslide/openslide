@@ -44,6 +44,8 @@ TESTCONF = 'config.yaml'
 _commands = []
 _command_funcs = {}
 
+SKIP = object()
+
 
 def _command(f):
     '''Decorator to mark the function as a user command.'''
@@ -107,14 +109,18 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
 
 
 def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
-        properties={}, regions=[]):
+        vendor=SKIP, properties={}, regions=[]):
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
-    success, error message on failure.  properties is a map of slide
-    properties and their expected values.  regions is a list of region
-    tuples (x, y, level, w, h).  debug is a list of OPENSLIDE_DEBUG options.'''
+    success, error message on failure.  vendor is the vendor string that
+    should be returned by openslide_detect_vendor(), None for NULL, or SKIP
+    to omit the test.  properties is a map of slide properties and their
+    expected values.  regions is a list of region tuples (x, y, level, w,
+    h).  debug is a list of OPENSLIDE_DEBUG options.'''
 
     args = []
+    if vendor is not SKIP:
+        args.extend(['-n', 'none' if vendor is None else vendor])
     for k, v in properties.iteritems():
         args.extend(['-p', '='.join([k, (v or '')])])
     for region in regions:
@@ -290,6 +296,7 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
+            vendor=conf.get('vendor', None),
             properties=conf.get('properties', {}),
             regions=conf.get('regions', []),
             debug=conf.get('debug', []))
