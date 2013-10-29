@@ -198,6 +198,13 @@ def create(testname, slide):
     else:
         raise IOError('Could not locate readable slide file')
 
+    query = _launch_test('query', os.path.join(srcpath, slidefile),
+            args=['-n'], stdout=subprocess.PIPE)
+    vendor, _ = query.communicate()
+    if query.returncode:
+        raise IOError('Could not query slide vendor')
+    vendor = vendor.strip() or None
+
     os.mkdir(testpath)
     copytree(srcpath, destpath)
     conf = {
@@ -205,6 +212,7 @@ def create(testname, slide):
         'error': '^$',
         'base': slide,
         'slide': slidefile,
+        'vendor': vendor,
     }
     with open(os.path.join(testpath, TESTCONF), 'w') as fh:
         yaml.safe_dump(conf, fh, default_flow_style=False)

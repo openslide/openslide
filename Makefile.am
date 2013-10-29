@@ -82,7 +82,7 @@ noinst_HEADERS = \
 
 
 
-noinst_PROGRAMS = test/test test/try_open test/parallel
+noinst_PROGRAMS = test/test test/try_open test/parallel test/query
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
@@ -96,6 +96,9 @@ test_try_open_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test_parallel_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_parallel_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+
+test_query_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
+test_query_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
