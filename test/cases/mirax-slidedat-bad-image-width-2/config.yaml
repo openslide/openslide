@@ -2,3 +2,4 @@ base: Mirax/CMU-1.zip
 error: '^hs->image_w <= 0: 0$'
 slide: CMU-1.mrxs
 success: false
+vendor: mirax

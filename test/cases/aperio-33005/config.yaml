@@ -1,6 +1,7 @@
 base: Aperio/CMU-1-JP2K-33005.svs
 slide: CMU-1-JP2K-33005.svs
 success: true
+vendor: aperio
 properties:
   openslide.quickhash-1: 6a3d9c6e59cddd6b057b87b21284034b7ef07834730523b17636d60d6da922fd
   openslide.vendor: aperio

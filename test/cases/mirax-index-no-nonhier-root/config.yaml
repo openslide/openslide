@@ -2,3 +2,4 @@ base: Mirax/CMU-1.zip
 error: "^Cannot read slide position info: Can't read initial nonhier pointer$"
 slide: CMU-1.mrxs
 success: false
+vendor: mirax

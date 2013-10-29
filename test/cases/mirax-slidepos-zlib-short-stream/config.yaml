@@ -2,3 +2,4 @@ base: Mirax/Mirax2.2-2.zip
 error: "^Error decompressing position buffer: Short read while decompressing: 10000/174231$"
 slide: Mirax2.2-2.mrxs
 success: false
+vendor: mirax

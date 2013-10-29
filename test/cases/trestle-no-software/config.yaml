@@ -2,3 +2,4 @@ base: Trestle/CMU-1.zip
 slide: CMU-1.tif
 # Falls back to generic-tiff
 success: true
+vendor: generic-tiff

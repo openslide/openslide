@@ -1,6 +1,7 @@
 base: Mirax/CMU-1-Saved-1_2.zip
 slide: CMU-1-Saved-1_2.mrxs
 success: true
+vendor: mirax
 properties:
   openslide.quickhash-1: 2206d41607fa9ce5c00274aa21973bca92a7721feebf23286d608466d86d344a
   openslide.vendor: mirax

@@ -5,3 +5,4 @@ base: Aperio/CMU-1.svs
 error: ^$
 slide: CMU-1.svs
 success: false
+vendor: null

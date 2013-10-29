@@ -2,3 +2,4 @@ base: Trestle/CMU-1.zip
 error: 'Unsupported TIFF compression: 32908$'
 slide: CMU-1.tif
 success: false
+vendor: trestle

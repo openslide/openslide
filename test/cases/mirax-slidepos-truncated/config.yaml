@@ -2,3 +2,4 @@ base: Mirax/CMU-1.zip
 error: "^Cannot read slide position record: Error while reading data$"
 slide: CMU-1.mrxs
 success: false
+vendor: mirax
