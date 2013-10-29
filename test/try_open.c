@@ -159,7 +159,6 @@ int main(int argc, char **argv) {
       print_log, NULL);
 
   const char *vendor = openslide_detect_vendor(filename);
-  bool can_open = openslide_can_open(filename);
   openslide_t *osr = openslide_open(filename);
 
   // Check vendor if requested
@@ -182,14 +181,6 @@ int main(int argc, char **argv) {
   } else if (!have_error) {
     // openslide_open returned NULL but logged nothing
     have_error = TRUE;
-  }
-
-  // Make sure openslide_can_open() told the truth.
-  // This may produce false warnings if messages are logged through glib,
-  // but that already indicates a programming error.
-  if (can_open != !have_error) {
-    fail("openslide_can_open returned %s but openslide_open %s",
-         can_open ? "true" : "false", have_error ? "failed" : "succeeded");
   }
 
   if (osr != NULL) {
