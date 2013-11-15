@@ -407,6 +407,27 @@ def valgrind(pattern='*'):
 
 
 @_command
+def time(pattern='*'):
+    '''Time openslide_open() for all successful primary tests matching the
+    specified pattern.'''
+    tests = _list_tests(pattern)
+    for testname in tests:
+        conf = _load_test_config(testname)
+        if not conf.get('primary', False) or not conf['success']:
+            continue
+        _unpack_one(testname)
+        slidefile = os.path.join(WORKROOT, testname, conf['slide'])
+        proc = _launch_test('try_open', slidefile, args=['-t'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = proc.communicate()
+        if proc.returncode or err:
+            print '%s: failed: %s' % (testname, err.strip())
+            sys.exit(1)
+        else:
+            print '%-40s %10s' % (testname, out.strip())
+
+
+@_command
 def clean(pattern='*'):
     '''Delete temporary slide data for tests matching the specified pattern.'''
     for testname in _list_tests(pattern):

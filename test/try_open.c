@@ -29,10 +29,12 @@
 #include "openslide.h"
 
 #define MAX_FDS 128
+#define TIME_ITERATIONS 5
 
 static gchar *vendor_check;
 static gchar **prop_checks;
 static gchar **region_checks;
+static gboolean time_check;
 
 static gboolean have_error = FALSE;
 
@@ -122,6 +124,8 @@ static GOptionEntry options[] = {
    "Check for specified property value", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
    "Read specified region", "\"X Y LEVEL W H\""},
+  {"time", 't', 0, G_OPTION_ARG_NONE, &time_check,
+   "Report open time", NULL},
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
@@ -209,6 +213,42 @@ int main(int argc, char **argv) {
     }
   }
   g_hash_table_destroy(fds);
+
+  // Do timing run.  The earlier openslide_open() doesn't count because
+  // it reads the slide data into the page cache.
+  if (time_check && !have_error) {
+    GTimer *timer = NULL;
+
+    // Average of TIME_ITERATIONS runs
+    for (int i = 0; i < TIME_ITERATIONS; i++) {
+      // Try open
+      if (timer) {
+        g_timer_continue(timer);
+      } else {
+        timer = g_timer_new();
+      }
+      osr = openslide_open(filename);
+      g_timer_stop(timer);
+
+      // Check for errors and clean up
+      if (osr != NULL) {
+        check_error(osr);
+        openslide_close(osr);
+      } else {
+        fail("openslide_open() returned NULL during timing loop");
+      }
+      if (have_error) {
+        break;
+      }
+    }
+
+    // Report results
+    if (!have_error) {
+      printf("%d ms\n",
+             (int) (1000 * g_timer_elapsed(timer, NULL) / TIME_ITERATIONS));
+    }
+    g_timer_destroy(timer);
+  }
 
   return have_error ? 1 : 0;
 }
