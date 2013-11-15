@@ -298,8 +298,8 @@ def _unpack_one(testname):
 
 def _run_one(testname, valgrind=False, testdir=None, extended=False):
     '''Run the specified test, under Valgrind if specified.  If extended
-    tests are requested, execute them against cases that are expected to,
-    and do in fact, succeed.'''
+    tests are requested, execute them against cases which 1) are marked
+    primary, 2) are expected to succeed, and 3) do in fact succeed.'''
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
@@ -318,7 +318,7 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
     elif result is not None and not re.search(conf['error'], result):
         print '%s: incorrect error: %s' % (testname, result)
         return False
-    elif extended and conf['success']:
+    elif extended and conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
             print '%s: extended test failed: %s' % (testname, result)

@@ -2,6 +2,7 @@ base: Hamamatsu/CMU-3.ndpi
 slide: CMU-3.ndpi
 success: true
 vendor: hamamatsu
+primary: true
 debug:
 - jpeg-markers
 properties:

@@ -2,6 +2,7 @@ base: Hamamatsu/CMU-1.ndpi
 slide: CMU-1.ndpi
 success: true
 vendor: hamamatsu
+primary: true
 properties:
   openslide.quickhash-1: f14cd7dcf9dff2b7b3551672a1f3248bd35cc4a2e57e3ca47a2b83eac9ad3987
   openslide.vendor: hamamatsu
