@@ -1670,7 +1670,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   for (int i = 0; i < zoom_levels; i++) {
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
 
-    int bgr;
+    uint32_t bgr;
 
     char *group = slide_zoom_level_section_names[i];
     HAVE_GROUP_OR_FAIL(slidedat, group);

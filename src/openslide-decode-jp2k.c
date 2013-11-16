@@ -37,12 +37,12 @@ static void write_pixel_ycbcr(uint32_t *dest,
   G = CLAMP(G, 0, 255);
   B = CLAMP(B, 0, 255);
 
-  *dest = 255 << 24 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
+  *dest = 0xff000000 | ((uint8_t) R << 16) | ((uint8_t) G << 8) | ((uint8_t) B);
 }
 
 static void write_pixel_rgb(uint32_t *dest,
                             uint8_t c0, uint8_t c1, uint8_t c2) {
-  *dest = 255 << 24 | c0 << 16 | c1 << 8 | c2;
+  *dest = 0xff000000 | c0 << 16 | c1 << 8 | c2;
 }
 
 static void unpack_argb(enum _openslide_jp2k_colorspace space,
