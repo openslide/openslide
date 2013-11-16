@@ -1,0 +1,5 @@
+base: Mirax/CMU-1.zip
+error: "^image_concat exponent too large: 70$"
+slide: CMU-1.mrxs
+success: false
+vendor: mirax

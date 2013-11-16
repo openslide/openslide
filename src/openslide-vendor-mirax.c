@@ -1837,7 +1837,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
 
   // set up level dimensions and such
-  levels = g_new(struct level *, zoom_levels);
+  levels = g_new0(struct level *, zoom_levels);
   slide_zoom_level_params = g_new(struct slide_zoom_level_params, zoom_levels);
   total_concat_exponent = 0;
   for (int i = 0; i < zoom_levels; i++) {
@@ -1849,6 +1849,12 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     // image_concat: number of images concatenated from the original in one
     //               dimension
     total_concat_exponent += hs->concat_exponent;
+    if (total_concat_exponent > (int) sizeof(lp->image_concat) * 8 - 2) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "image_concat exponent too large: %d",
+                  total_concat_exponent);
+      goto FAIL;
+    }
     lp->image_concat = 1 << total_concat_exponent;
 
     // positions_per_image: for this zoom, how many camera positions
@@ -1931,7 +1937,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
                                              lp->tile_advance_y,
                                              read_tile, tile_free);
 
-    //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", images %d %d, image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->level_w, l->level_h, l->images_across, l->images_down, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
+    //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->base.w, l->base.h, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }
 
   // load the position map and build up the tiles
@@ -2019,8 +2025,10 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   if (levels != NULL) {
     for (int i = 0; i < zoom_levels; i++) {
       struct level *l = levels[i];
-      _openslide_grid_destroy(l->grid);
-      g_slice_free(struct level, l);
+      if (l) {
+        _openslide_grid_destroy(l->grid);
+        g_slice_free(struct level, l);
+      }
     }
     g_free(levels);
   }
