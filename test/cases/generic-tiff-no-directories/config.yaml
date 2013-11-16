@@ -1,0 +1,5 @@
+base: Generic-TIFF/CMU-1.tiff
+error: ^$
+slide: CMU-1.tiff
+success: false
+vendor: null
