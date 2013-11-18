@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^No such value: directory 1, tag 65421$"
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu

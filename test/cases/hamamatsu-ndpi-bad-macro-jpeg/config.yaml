@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^Couldn't read macro image: Bogus marker length$"
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu

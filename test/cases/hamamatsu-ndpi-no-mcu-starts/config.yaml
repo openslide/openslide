@@ -1,0 +1,6 @@
+base: Hamamatsu/CMU-1.ndpi
+slide: CMU-1.ndpi
+success: true
+vendor: hamamatsu
+debug:
+- jpeg-markers

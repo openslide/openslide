@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^JPEG dimension mismatch for directory 1: expected 12544x9536, found 12800x9536$"
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu

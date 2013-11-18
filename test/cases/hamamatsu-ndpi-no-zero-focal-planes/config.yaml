@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^Couldn't find any pyramid levels$"
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu

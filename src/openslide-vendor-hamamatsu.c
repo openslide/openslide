@@ -2434,6 +2434,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       if (!_openslide_jpeg_add_associated_image(osr, "macro",
                                                 filename, start_in_file,
                                                 err)) {
+        g_prefix_error(err, "Couldn't read macro image: ");
         goto FAIL;
       }
     }

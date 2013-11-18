@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: ^Unexpected directory layout$
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu
