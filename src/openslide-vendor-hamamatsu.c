@@ -2439,6 +2439,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     }
   }
 
+  // verify we found some levels
+  if (level_array->len == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't find any pyramid levels");
+    goto FAIL;
+  }
+
   // init properties and set hash
   if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
                                                     min_width_dir, 0,
