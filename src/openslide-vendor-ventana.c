@@ -253,19 +253,6 @@ static const struct _openslide_ops ventana_ops = {
   .destroy = destroy,
 };
 
-static char *read_xml_packet(struct _openslide_tifflike *tl,
-                             int64_t dir, GError **err) {
-  const void *xml = _openslide_tifflike_get_buffer(tl, dir,
-                                                   TIFFTAG_XMLPACKET, err);
-  if (!xml) {
-    return NULL;
-  }
-  int64_t len = _openslide_tifflike_get_value_count(tl, dir,
-                                                    TIFFTAG_XMLPACKET);
-  // copy to ensure null-termination
-  return g_strndup(xml, len);
-}
-
 static bool ventana_detect(const char *filename G_GNUC_UNUSED,
                            struct _openslide_tifflike *tl,
                            GError **err) {
@@ -277,7 +264,8 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // read XMLPacket
-  char *xml = read_xml_packet(tl, 0, err);
+  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
+                                                   err);
   if (!xml) {
     return false;
   }
@@ -286,13 +274,11 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   if (!strstr(xml, INITIAL_ROOT_TAG)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "%s not in XMLPacket", INITIAL_ROOT_TAG);
-    g_free(xml);
     return false;
   }
 
   // parse
   xmlDoc *doc = _openslide_xml_parse(xml, err);
-  g_free(xml);
   if (!doc) {
     return false;
   }
@@ -699,15 +685,14 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   }
 
   // parse iScan XML
-  char *xml = read_xml_packet(tl, 0, err);
+  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
+                                                   err);
   if (!xml) {
     goto FAIL;
   }
   if (!parse_initial_xml(osr, xml, err)) {
-    g_free(xml);
     goto FAIL;
   }
-  g_free(xml);
 
   // walk directories
   int64_t next_level = 0;
@@ -760,13 +745,12 @@ static bool ventana_open(openslide_t *osr, const char *filename,
           goto FAIL;
         }
         // get XML
-        xml = read_xml_packet(tl, dir, err);
+        xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
         if (!xml) {
           goto FAIL;
         }
         // parse
         slide = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
-        g_free(xml);
         if (!slide) {
           goto FAIL;
         }

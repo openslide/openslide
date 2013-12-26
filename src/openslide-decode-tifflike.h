@@ -85,7 +85,8 @@ const double *_openslide_tifflike_get_floats(struct _openslide_tifflike *tl,
                                              GError **err);
 
 
-// TIFF_ASCII, TIFF_UNDEFINED
+// TIFF_ASCII, TIFF_BYTE, TIFF_UNDEFINED
+// guaranteed to be null-terminated
 const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
                                            int64_t dir, int32_t tag,
                                            GError **err);

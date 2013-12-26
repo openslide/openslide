@@ -206,8 +206,9 @@ static bool set_item_values(struct tiff_item *item,
     }
     // for TIFFTAG_XMLPACKET
     if (!item->buffer) {
-      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count);
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count + 1);
       memcpy(item->buffer, buf, item->count);
+      ((char *) item->buffer)[item->count] = 0;
     }
     break;
   case TIFF_SHORT:
@@ -289,8 +290,9 @@ static bool set_item_values(struct tiff_item *item,
   case TIFF_ASCII:
   case TIFF_UNDEFINED:
     if (!item->buffer) {
-      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count);
+      ALLOC_VALUES_OR_FAIL(item->buffer, char, item->count + 1);
       memcpy(item->buffer, buf, item->count);
+      ((char *) item->buffer)[item->count] = 0;
     }
     break;
 
@@ -654,9 +656,6 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_ASCII: {
     // will only print first string if there are multiple
     const char *str = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
-    if (str[item->count - 1] != '\0') {
-      str = "<not null-terminated>";
-    }
     printf(" %s", str);
     break;
   }

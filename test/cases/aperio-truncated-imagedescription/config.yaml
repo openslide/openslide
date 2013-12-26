@@ -1,0 +1,9 @@
+# Truncated ImageDescription, not null-terminated
+base: Aperio/CMU-1.svs
+# OpenSlide succeeds but libtiff prints warnings to stderr, which counts
+# as an error.  Check for the relevant portion of the warning without
+# anchoring.
+error: ASCII value for tag "ImageDescription" does not end in null byte
+slide: CMU-1.svs
+success: false
+vendor: generic-tiff
