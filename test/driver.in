@@ -174,23 +174,27 @@ def _fetch_one(slide):
     is_zip = os.path.splitext(filename)[1] == '.zip'
 
     os.makedirs(destpath)
-    if is_zip:
-        dest = TemporaryFile()
-    else:
-        dest = open(os.path.join(destpath, filename), 'wb')
-    for chunk in r.iter_content(1 << 20):
-        dest.write(chunk)
-        cur += len(chunk)
-        print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20, size >> 20),
-        sys.stdout.flush()
-    print
+    try:
+        if is_zip:
+            dest = TemporaryFile()
+        else:
+            dest = open(os.path.join(destpath, filename), 'wb')
+        for chunk in r.iter_content(1 << 20):
+            dest.write(chunk)
+            cur += len(chunk)
+            print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20, size >> 20),
+            sys.stdout.flush()
+        print
 
-    if is_zip:
-        print 'Unpacking %s...' % slide
-        with ZipFile(dest) as zf:
-            zf.extractall(path=destpath)
+        if is_zip:
+            print 'Unpacking %s...' % slide
+            with ZipFile(dest) as zf:
+                zf.extractall(path=destpath)
 
-    dest.close()
+        dest.close()
+    except:
+        rmtree(destpath, ignore_errors=True)
+        raise
 
 
 @_command
