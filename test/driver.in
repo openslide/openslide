@@ -21,6 +21,7 @@
 
 import filecmp
 import fnmatch
+from hashlib import sha256
 import inspect
 import os
 import re
@@ -179,12 +180,16 @@ def _fetch_one(slide):
             dest = TemporaryFile()
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
+        hash = sha256()
         for chunk in r.iter_content(1 << 20):
             dest.write(chunk)
+            hash.update(chunk)
             cur += len(chunk)
             print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20, size >> 20),
             sys.stdout.flush()
         print
+        if hash.hexdigest() != slides[slide]:
+            raise ValueError('Hash mismatch: %s' % slide)
 
         if is_zip:
             print 'Unpacking %s...' % slide
