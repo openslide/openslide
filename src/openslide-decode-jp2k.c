@@ -98,10 +98,13 @@ static void warning_callback(const char *msg G_GNUC_UNUSED,
 static void error_callback(const char *msg, void *data) {
   GError **err = (GError **) data;
   if (err && !*err) {
+    char *detail = g_strdup(msg);
+    g_strchomp(detail);
     // OpenJPEG can produce obscure error messages, so make sure to
     // indicate where they came from
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "OpenJPEG error: %s", msg);
+                "OpenJPEG error: %s", detail);
+    g_free(detail);
   }
 }
 
