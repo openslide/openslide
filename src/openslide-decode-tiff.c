@@ -167,7 +167,7 @@ static bool tiff_read_region(TIFF *tiff,
                              int32_t w, int32_t h,
                              GError **err) {
   TIFFRGBAImage img;
-  char emsg[1024] = "";
+  char emsg[1024] = "unknown error";
   bool success = false;
 
   // init
@@ -195,7 +195,7 @@ static bool tiff_read_region(TIFF *tiff,
     success = true;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "TIFFRGBAImageGet failed: %s", emsg);
+                "TIFFRGBAImageGet failed");
     memset(dest, 0, w * h * 4);
   }
 
