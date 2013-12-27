@@ -1,0 +1,7 @@
+base: Aperio/JP2K-33003-1.svs
+error: "^OpenJPEG error: 00000002: unexpected marker ff53$"
+slide: JP2K-33003-1.svs
+success: false
+vendor: aperio
+regions:
+  - [0, 0, 0, 100, 100]

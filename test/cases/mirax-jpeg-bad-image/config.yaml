@@ -1,0 +1,7 @@
+base: Mirax/CMU-1.zip
+error: "^Not a JPEG file: starts with 0xfe 0xd8$"
+slide: CMU-1.mrxs
+success: false
+vendor: mirax
+regions:
+  - [9919, 103938, 0, 100, 100]

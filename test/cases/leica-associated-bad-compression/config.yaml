@@ -1,0 +1,5 @@
+base: Leica/Leica-1.scn
+error: "^Unsupported TIFF compression: 252$"
+slide: Leica-1.scn
+success: false
+vendor: leica

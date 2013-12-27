@@ -1,0 +1,7 @@
+base: Generic-TIFF/CMU-1.tiff
+error: "^Failure in TIFFRGBAImageOK: Sorry, can not handle images with 12-bit samples$"
+slide: CMU-1.tiff
+success: false
+vendor: generic-tiff
+regions:
+  - [0, 0, 0, 100, 100]

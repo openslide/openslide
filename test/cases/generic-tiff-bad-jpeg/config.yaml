@@ -1,0 +1,8 @@
+base: Generic-TIFF/CMU-1.tiff
+# libtiff also spews to stderr; check only for OpenSlide message
+error: TIFFRGBAImageGet failed$
+slide: CMU-1.tiff
+success: false
+vendor: generic-tiff
+regions:
+  - [0, 0, 0, 100, 100]

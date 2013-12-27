@@ -1,0 +1,7 @@
+base: Mirax/CMU-1.zip
+error: ^Dimensional mismatch reading JPEG, expected 340x256, got 340x384$
+slide: CMU-1.mrxs
+success: false
+vendor: mirax
+regions:
+  - [9919, 103938, 0, 100, 100]
