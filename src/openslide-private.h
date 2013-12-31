@@ -132,6 +132,7 @@ extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
+extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
 
@@ -204,6 +205,9 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       double offset_x, double offset_y,
                                       double w, double h,
                                       void *data);
+
+void *_openslide_grid_tilemap_get_tile(struct _openslide_grid *_grid,
+                                       int64_t col, int64_t row);
 
 void _openslide_grid_tilemap_foreach(struct _openslide_grid *grid,
                                      _openslide_tilemap_foreach_fn func,

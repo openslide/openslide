@@ -554,6 +554,22 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
   //g_debug("%p: extra_left: %d, extra_right: %d, extra_top: %d, extra_bottom: %d", (void *) grid, grid->extra_tiles_left, grid->extra_tiles_right, grid->extra_tiles_top, grid->extra_tiles_bottom);
 }
 
+void *_openslide_grid_tilemap_get_tile(struct _openslide_grid *_grid,
+                                       int64_t col, int64_t row) {
+  struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
+  g_assert(grid->base.ops == &tilemap_grid_ops);
+
+  struct grid_tile coords = {
+    .col = col,
+    .row = row,
+  };
+  struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
+  if (tile == NULL) {
+    return NULL;
+  }
+  return tile->data;
+}
+
 static void tilemap_foreach_func(void *key G_GNUC_UNUSED,
                                  void *value,
                                  void *data) {
