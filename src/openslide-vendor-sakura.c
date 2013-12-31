@@ -87,6 +87,11 @@ struct tile {
   char *id_blue;
 };
 
+struct ensure_components_args {
+  GError *err;
+  double downsample;
+};
+
 static char *get_quoted_unique_table_name(sqlite3 *db, GError **err) {
   sqlite3_stmt *stmt;
   char *result = NULL;
@@ -351,6 +356,23 @@ static gint compare_downsamples(const void *a, const void *b) {
   }
 }
 
+static void ensure_components(struct _openslide_grid *grid G_GNUC_UNUSED,
+                              int64_t tile_col, int64_t tile_row,
+                              void *_tile, void *arg) {
+  struct tile *tile = _tile;
+  struct ensure_components_args *args = arg;
+
+  if (args->err) {
+    return;
+  }
+  if (!tile->id_red || !tile->id_green || !tile->id_blue) {
+    g_set_error(&args->err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Missing color component: downsample %g, tile "
+                "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")",
+                args->downsample, tile_col, tile_row);
+  }
+}
+
 static bool sakura_open(openslide_t *osr, const char *filename,
                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                         struct _openslide_hash *quickhash1, GError **err) {
@@ -469,9 +491,21 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   }
   g_list_free(keys);
 
-  // set level sizes and tile size hints
+  // levels are complete and sorted; walk them
   for (i = 0; i < level_count; i++) {
     struct level *l = levels[i];
+
+    // ensure all tiles have all components
+    struct ensure_components_args args = {
+      .downsample = l->base.downsample,
+    };
+    _openslide_grid_tilemap_foreach(l->grid, ensure_components, &args);
+    if (args.err) {
+      g_propagate_error(err, args.err);
+      goto FAIL;
+    }
+
+    // set level sizes and tile size hints
     double x, y, w, h;
     _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
     l->base.w = ceil(x + w);
