@@ -261,11 +261,12 @@ OUT:
 
 static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
-                      struct _openslide_level *level G_GNUC_UNUSED,
+                      struct _openslide_level *level,
                       int64_t tile_col, int64_t tile_row,
                       void *_tile, void *arg,
                       GError **err) {
   struct sakura_ops_data *data = osr->data;
+  struct level *l = (struct level *) level;
   struct tile *tile = _tile;
   sqlite3_stmt *stmt = arg;
   int32_t tile_size = data->tile_size;
@@ -280,6 +281,16 @@ static bool read_tile(openslide_t *osr,
 
     // read tile
     if (!read_image(tiledata, tile, tile_size, stmt, err)) {
+      g_slice_free1(tile_size * tile_size * 4, tiledata);
+      return false;
+    }
+
+    // clip, if necessary
+    if (!_openslide_clip_tile(tiledata,
+                              tile_size, tile_size,
+                              l->base.w - tile_col * tile_size,
+                              l->base.h - tile_row * tile_size,
+                              err)) {
       g_slice_free1(tile_size * tile_size * 4, tiledata);
       return false;
     }
@@ -508,11 +519,12 @@ static bool sakura_open(openslide_t *osr, const char *filename,
     // get or create tile
     int64_t col = x / (tile_size * downsample);
     int64_t row = y / (tile_size * downsample);
+    int64_t tw = MIN(tile_size, l->base.w - col * tile_size);
+    int64_t th = MIN(tile_size, l->base.h - row * tile_size);
     struct tile *tile = _openslide_grid_tilemap_get_tile(l->grid, col, row);
     if (!tile) {
       tile = g_slice_new0(struct tile);
-      _openslide_grid_tilemap_add_tile(l->grid, col, row, 0, 0,
-                                       tile_size, tile_size, tile);
+      _openslide_grid_tilemap_add_tile(l->grid, col, row, 0, 0, tw, th, tile);
     }
 
     // store tileid
