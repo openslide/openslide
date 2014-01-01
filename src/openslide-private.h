@@ -162,6 +162,12 @@ void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
 void _openslide_set_background_color_prop(openslide_t *osr,
                                           uint8_t r, uint8_t g, uint8_t b);
 
+// clip right/bottom edges of tile
+bool _openslide_clip_tile(uint32_t *tiledata,
+                          int64_t tile_w, int64_t tile_h,
+                          int64_t clip_w, int64_t clip_h,
+                          GError **err);
+
 
 // Grid helpers
 struct _openslide_grid;

@@ -119,46 +119,16 @@ bool _openslide_tiff_level_init(TIFF *tiff,
   return true;
 }
 
+// clip right/bottom edges of tile in last row/column
 bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
                                uint32_t *tiledata,
                                int64_t tile_col, int64_t tile_row,
                                GError **err) {
-  bool success = true;
-
-  // get image dimensions
-  int64_t iw = tiffl->image_w;
-  int64_t ih = tiffl->image_h;
-
-  // get tile dimensions
-  int64_t tw = tiffl->tile_w;
-  int64_t th = tiffl->tile_h;
-
-  // remaining w/h
-  int64_t rw = iw - tile_col * tw;
-  int64_t rh = ih - tile_row * th;
-
-  if ((rw < tw) || (rh < th)) {
-    // mask right/bottom
-    cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                   CAIRO_FORMAT_ARGB32,
-                                                                   tw, th,
-                                                                   tw * 4);
-    cairo_t *cr = cairo_create(surface);
-    cairo_surface_destroy(surface);
-
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-
-    cairo_rectangle(cr, rw, 0, tw - rw, th);
-    cairo_fill(cr);
-
-    cairo_rectangle(cr, 0, rh, tw, th - rh);
-    cairo_fill(cr);
-
-    success = _openslide_check_cairo_status(cr, err);
-    cairo_destroy(cr);
-  }
-
-  return success;
+  return _openslide_clip_tile(tiledata,
+                              tiffl->tile_w, tiffl->tile_h,
+                              tiffl->image_w - tile_col * tiffl->tile_w,
+                              tiffl->image_h - tile_row * tiffl->tile_h,
+                              err);
 }
 
 static bool tiff_read_region(TIFF *tiff,

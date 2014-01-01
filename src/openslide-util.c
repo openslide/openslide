@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <glib.h>
+#include <cairo.h>
 
 #ifdef HAVE_FCNTL
 #include <unistd.h>
@@ -220,6 +221,36 @@ void _openslide_set_background_color_prop(openslide_t *osr,
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
                       g_strdup_printf("%.02X%.02X%.02X", r, g, b));
+}
+
+bool _openslide_clip_tile(uint32_t *tiledata,
+                          int64_t tile_w, int64_t tile_h,
+                          int64_t clip_w, int64_t clip_h,
+                          GError **err) {
+  if (clip_w >= tile_w && clip_h >= tile_h) {
+    return true;
+  }
+
+  cairo_surface_t *surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tile_w, tile_h,
+                                        tile_w * 4);
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+
+  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+
+  cairo_rectangle(cr, clip_w, 0, tile_w - clip_w, tile_h);
+  cairo_fill(cr);
+
+  cairo_rectangle(cr, 0, clip_h, tile_w, tile_h - clip_h);
+  cairo_fill(cr);
+
+  bool success = _openslide_check_cairo_status(cr, err);
+  cairo_destroy(cr);
+
+  return success;
 }
 
 // note: g_getenv() is not reentrant
