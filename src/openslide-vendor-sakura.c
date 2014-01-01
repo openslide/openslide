@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -185,12 +185,11 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 }
 
-static uint32_t *read_channel(const char *tileid,
-                              int32_t tile_size,
-                              sqlite3_stmt *stmt,
-                              GError **err) {
-  uint32_t *channeldata = NULL;
-
+static bool read_channel(uint32_t *channeldata,
+                         const char *tileid,
+                         int32_t tile_size,
+                         sqlite3_stmt *stmt,
+                         GError **err) {
   // retrieve compressed tile
   sqlite3_reset(stmt);
   BIND_TEXT_OR_FAIL(stmt, 1, tileid);
@@ -215,41 +214,35 @@ static uint32_t *read_channel(const char *tileid,
     unlink(tempfile);
     goto FAIL;
   }
-  channeldata = g_slice_alloc(tile_size * tile_size * 4);
-  if (!_openslide_jpeg_read(tempfile, 0, channeldata,
-                            tile_size, tile_size, err)) {
-    g_slice_free1(tile_size * tile_size * 4, channeldata);
-    channeldata = NULL;
-  }
+  bool success = _openslide_jpeg_read(tempfile, 0, channeldata,
+                                      tile_size, tile_size, err);
   unlink(tempfile);
+  return success;
 
 FAIL:
-  return channeldata;
+  return false;
 }
 
-static uint32_t *read_image(const struct tile *tile,
-                            int32_t tile_size,
-                            sqlite3_stmt *stmt,
-                            GError **err) {
-  uint32_t *tiledata = NULL;
-  uint32_t *red_channel = NULL;
-  uint32_t *green_channel = NULL;
-  uint32_t *blue_channel = NULL;
+static bool read_image(uint32_t *tiledata,
+                       const struct tile *tile,
+                       int32_t tile_size,
+                       sqlite3_stmt *stmt,
+                       GError **err) {
+  uint32_t *red_channel = g_slice_alloc(tile_size * tile_size * 4);
+  uint32_t *green_channel = g_slice_alloc(tile_size * tile_size * 4);
+  uint32_t *blue_channel = g_slice_alloc(tile_size * tile_size * 4);
+  bool success = false;
 
-  red_channel = read_channel(tile->id_red, tile_size, stmt, err);
-  if (!red_channel) {
+  if (!read_channel(red_channel, tile->id_red, tile_size, stmt, err)) {
     goto OUT;
   }
-  green_channel = read_channel(tile->id_green, tile_size, stmt, err);
-  if (!green_channel) {
+  if (!read_channel(green_channel, tile->id_green, tile_size, stmt, err)) {
     goto OUT;
   }
-  blue_channel = read_channel(tile->id_blue, tile_size, stmt, err);
-  if (!blue_channel) {
+  if (!read_channel(blue_channel, tile->id_blue, tile_size, stmt, err)) {
     goto OUT;
   }
 
-  tiledata = g_slice_alloc(tile_size * tile_size * 4);
   for (int32_t i = 0; i < tile_size * tile_size; i++) {
     tiledata[i] = 0xff000000 |
                   (red_channel[i] & 0x00ff0000) |
@@ -257,11 +250,13 @@ static uint32_t *read_image(const struct tile *tile,
                   (blue_channel[i] & 0x000000ff);
   }
 
+  success = true;
+
 OUT:
   g_slice_free1(tile_size * tile_size * 4, red_channel);
   g_slice_free1(tile_size * tile_size * 4, green_channel);
   g_slice_free1(tile_size * tile_size * 4, blue_channel);
-  return tiledata;
+  return success;
 }
 
 static bool read_tile(openslide_t *osr,
@@ -281,9 +276,11 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
+    tiledata = g_slice_alloc(tile_size * tile_size * 4);
+
     // read tile
-    tiledata = read_image(tile, tile_size, stmt, err);
-    if (!tiledata) {
+    if (!read_image(tiledata, tile, tile_size, stmt, err)) {
+      g_slice_free1(tile_size * tile_size * 4, tiledata);
       return false;
     }
 
