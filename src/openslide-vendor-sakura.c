@@ -496,6 +496,10 @@ static bool sakura_open(openslide_t *osr, const char *filename,
 
       l = g_slice_new0(struct level);
       l->base.downsample = downsample;
+      l->base.w = image_width / downsample;
+      l->base.h = image_height / downsample;
+      l->base.tile_w = tile_size;
+      l->base.tile_h = tile_size;
       l->grid = _openslide_grid_create_tilemap(osr, tile_size, tile_size,
                                                read_tile,
                                                (GDestroyNotify) tile_free);
@@ -562,11 +566,9 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   }
   g_list_free(keys);
 
-  // levels are complete and sorted; walk them
+  // ensure all tiles have all components
   for (i = 0; i < level_count; i++) {
     struct level *l = levels[i];
-
-    // ensure all tiles have all components
     struct ensure_components_args args = {
       .downsample = l->base.downsample,
     };
@@ -575,12 +577,6 @@ static bool sakura_open(openslide_t *osr, const char *filename,
       g_propagate_error(err, args.err);
       goto FAIL;
     }
-
-    // set level sizes and tile size hints
-    l->base.w = image_width / l->base.downsample;
-    l->base.h = image_height / l->base.downsample;
-    l->base.tile_w = tile_size;
-    l->base.tile_h = tile_size;
   }
 
   // no quickhash for now
