@@ -134,11 +134,11 @@ DONE:
   return result;
 }
 
-static bool _openslide_jpeg_read_inner(FILE *f,  // or:
-                                       const void *buf, uint32_t buflen,
-                                       void * const _dest, bool grayscale,
-                                       int32_t w, int32_t h,
-                                       GError **err) {
+static bool jpeg_decode(FILE *f,  // or:
+                        const void *buf, uint32_t buflen,
+                        void * const _dest, bool grayscale,
+                        int32_t w, int32_t h,
+                        GError **err) {
   bool result = false;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
@@ -256,8 +256,7 @@ bool _openslide_jpeg_read(const char *filename,
     return false;
   }
 
-  bool success = _openslide_jpeg_read_inner(f, NULL, 0, dest, false,
-                                            w, h, err);
+  bool success = jpeg_decode(f, NULL, 0, dest, false, w, h, err);
 
   fclose(f);
   return success;
@@ -269,7 +268,7 @@ bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
                                    GError **err) {
   //g_debug("decode JPEG buffer: %x %u", buf, len);
 
-  return _openslide_jpeg_read_inner(NULL, buf, len, dest, false, w, h, err);
+  return jpeg_decode(NULL, buf, len, dest, false, w, h, err);
 }
 
 bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
@@ -278,7 +277,7 @@ bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
                                         GError **err) {
   //g_debug("decode grayscale JPEG buffer: %x %u", buf, len);
 
-  return _openslide_jpeg_read_inner(NULL, buf, len, dest, true, w, h, err);
+  return jpeg_decode(NULL, buf, len, dest, true, w, h, err);
 }
 
 static bool get_associated_image_data(struct _openslide_associated_image *_img,
