@@ -49,6 +49,11 @@ bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
                                    int32_t w, int32_t h,
                                    GError **err);
 
+bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
+                                        uint8_t *dest,
+                                        int32_t w, int32_t h,
+                                        GError **err);
+
 bool _openslide_jpeg_add_associated_image(openslide_t *osr,
                                           const char *name,
                                           const char *filename,

@@ -136,7 +136,7 @@ DONE:
 
 static bool _openslide_jpeg_read_inner(FILE *f,  // or:
                                        const void *buf, uint32_t buflen,
-                                       uint32_t * const _dest,
+                                       void * const _dest, bool grayscale,
                                        int32_t w, int32_t h,
                                        GError **err) {
   bool result = false;
@@ -166,7 +166,7 @@ static bool _openslide_jpeg_read_inner(FILE *f,  // or:
       goto DONE;
     }
 
-    cinfo.out_color_space = JCS_RGB;
+    cinfo.out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
 
     jpeg_start_decompress(&cinfo);
 
@@ -189,26 +189,36 @@ static bool _openslide_jpeg_read_inner(FILE *f,  // or:
     }
 
     // decompress
-    uint32_t *dest = _dest;
+    uint32_t *dest32 = _dest;
+    uint8_t *dest8 = _dest;
     while (cinfo.output_scanline < cinfo.output_height) {
       JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
 						 buffer,
 						 cinfo.rec_outbuf_height);
       int cur_buffer = 0;
       while (rows_read > 0) {
-	// copy a row
-	int32_t i;
-	for (i = 0; i < (int32_t) cinfo.output_width; i++) {
-	  dest[i] = 0xFF000000 |                  // A
-	    buffer[cur_buffer][i * 3 + 0] << 16 | // R
-	    buffer[cur_buffer][i * 3 + 1] << 8 |  // G
-	    buffer[cur_buffer][i * 3 + 2];        // B
-	}
+        // copy a row
+        int32_t i;
+        if (cinfo.output_components == 1) {
+          // grayscale
+          for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+            dest8[i] = buffer[cur_buffer][i];
+          }
+          dest8 += cinfo.output_width;
+        } else {
+          // RGB
+          for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+            dest32[i] = 0xFF000000 |                // A
+              buffer[cur_buffer][i * 3 + 0] << 16 | // R
+              buffer[cur_buffer][i * 3 + 1] << 8 |  // G
+              buffer[cur_buffer][i * 3 + 2];        // B
+          }
+          dest32 += cinfo.output_width;
+        }
 
-	// advance everything 1 row
+	// advance 1 row
 	rows_read--;
 	cur_buffer++;
-	dest += cinfo.output_width;
       }
     }
     result = true;
@@ -246,7 +256,8 @@ bool _openslide_jpeg_read(const char *filename,
     return false;
   }
 
-  bool success = _openslide_jpeg_read_inner(f, NULL, 0, dest, w, h, err);
+  bool success = _openslide_jpeg_read_inner(f, NULL, 0, dest, false,
+                                            w, h, err);
 
   fclose(f);
   return success;
@@ -258,7 +269,16 @@ bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
                                    GError **err) {
   //g_debug("decode JPEG buffer: %x %u", buf, len);
 
-  return _openslide_jpeg_read_inner(NULL, buf, len, dest, w, h, err);
+  return _openslide_jpeg_read_inner(NULL, buf, len, dest, false, w, h, err);
+}
+
+bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
+                                        uint8_t *dest,
+                                        int32_t w, int32_t h,
+                                        GError **err) {
+  //g_debug("decode grayscale JPEG buffer: %x %u", buf, len);
+
+  return _openslide_jpeg_read_inner(NULL, buf, len, dest, true, w, h, err);
 }
 
 static bool get_associated_image_data(struct _openslide_associated_image *_img,

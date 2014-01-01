@@ -183,7 +183,7 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 }
 
-static bool read_channel(uint32_t *channeldata,
+static bool read_channel(uint8_t *channeldata,
                          const char *tileid,
                          int32_t tile_size,
                          sqlite3_stmt *stmt,
@@ -200,8 +200,8 @@ static bool read_channel(uint32_t *channeldata,
   int buflen = sqlite3_column_bytes(stmt, 0);
 
   // decompress
-  return _openslide_jpeg_decode_buffer(buf, buflen, channeldata,
-                                       tile_size, tile_size, err);
+  return _openslide_jpeg_decode_buffer_gray(buf, buflen, channeldata,
+                                            tile_size, tile_size, err);
 
 FAIL:
   return false;
@@ -212,9 +212,9 @@ static bool read_image(uint32_t *tiledata,
                        int32_t tile_size,
                        sqlite3_stmt *stmt,
                        GError **err) {
-  uint32_t *red_channel = g_slice_alloc(tile_size * tile_size * 4);
-  uint32_t *green_channel = g_slice_alloc(tile_size * tile_size * 4);
-  uint32_t *blue_channel = g_slice_alloc(tile_size * tile_size * 4);
+  uint8_t *red_channel = g_slice_alloc(tile_size * tile_size);
+  uint8_t *green_channel = g_slice_alloc(tile_size * tile_size);
+  uint8_t *blue_channel = g_slice_alloc(tile_size * tile_size);
   bool success = false;
 
   if (!read_channel(red_channel, tile->id_red, tile_size, stmt, err)) {
@@ -229,17 +229,17 @@ static bool read_image(uint32_t *tiledata,
 
   for (int32_t i = 0; i < tile_size * tile_size; i++) {
     tiledata[i] = 0xff000000 |
-                  (red_channel[i] & 0x00ff0000) |
-                  (green_channel[i] & 0x0000ff00) |
-                  (blue_channel[i] & 0x000000ff);
+                  (red_channel[i] << 16) |
+                  (green_channel[i] << 8) |
+                  blue_channel[i];
   }
 
   success = true;
 
 OUT:
-  g_slice_free1(tile_size * tile_size * 4, red_channel);
-  g_slice_free1(tile_size * tile_size * 4, green_channel);
-  g_slice_free1(tile_size * tile_size * 4, blue_channel);
+  g_slice_free1(tile_size * tile_size, red_channel);
+  g_slice_free1(tile_size * tile_size, green_channel);
+  g_slice_free1(tile_size * tile_size, blue_channel);
   return success;
 }
 
