@@ -56,6 +56,12 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
  */
 void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo, FILE *infile);
 
+/*
+ * Some libjpegs don't provide mem_src, so we have our own copy.
+ */
+void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
+                              unsigned char *inbuffer, unsigned long insize);
+
 // error function for libjpeg
 struct _openslide_jpeg_error_mgr {
   struct jpeg_error_mgr pub;      // public fields
