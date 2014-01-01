@@ -199,10 +199,6 @@ static bool read_channel(uint8_t *channeldata,
   BIND_TEXT_OR_FAIL(stmt, 1, tileid);
   STEP_OR_FAIL(stmt);
   const void *buf = sqlite3_column_blob(stmt, 0);
-  if (!buf) {
-    // don't pass NULL pointer to JPEG decoder
-    buf = "";
-  }
   int buflen = sqlite3_column_bytes(stmt, 0);
 
   // decompress
@@ -359,9 +355,6 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
   PREPARE_OR_FAIL(stmt, db, img->data_sql);
   STEP_OR_FAIL(stmt);
   const void *buf = sqlite3_column_blob(stmt, 0);
-  if (!buf) {
-    buf = "";
-  }
   int buflen = sqlite3_column_bytes(stmt, 0);
 
   // decode it
@@ -400,9 +393,6 @@ static bool add_associated_image(openslide_t *osr,
   PREPARE_OR_FAIL(stmt, db, data_sql);
   STEP_OR_FAIL(stmt);
   const void *buf = sqlite3_column_blob(stmt, 0);
-  if (!buf) {
-    buf = "";
-  }
   int buflen = sqlite3_column_bytes(stmt, 0);
 
   // read dimensions from JPEG header
