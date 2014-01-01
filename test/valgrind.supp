@@ -14,3 +14,15 @@
    ...
    fun:gobject_init_ctor
 }
+{
+   GType registration
+   Memcheck:Leak
+   ...
+   fun:g_type_register_static
+}
+{
+   GType referencing
+   Memcheck:Leak
+   ...
+   fun:g_type_class_ref
+}

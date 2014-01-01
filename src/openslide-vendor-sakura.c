@@ -35,14 +35,13 @@
 #include "openslide-hash.h"
 
 #include <glib.h>
+#include <glib-object.h>
+#include <gio/gio.h>
 #include <string.h>
-#include <math.h>
 #include <stdlib.h> // for mkstemp
 #include <unistd.h> // for close, unlink
 
 static const char MAGIC_BYTES[] = "SVGigaPixelImage";
-
-static const int TILE_SIZE = 512;
 
 enum color_indexes {
   INDEX_RED = 0,
@@ -373,6 +372,73 @@ static void ensure_components(struct _openslide_grid *grid G_GNUC_UNUSED,
   }
 }
 
+static bool read_header(sqlite3 *db, const char *unique_table_name,
+                        int64_t *image_width, int64_t *image_height,
+                        int32_t *_tile_size,
+                        GError **err) {
+  GInputStream *strm = NULL;
+  GDataInputStream *dstrm = NULL;
+  GError *tmp_err = NULL;
+  bool success = false;
+
+  // load header
+  char *sql = g_strdup_printf("SELECT data FROM %s WHERE id = 'Header'",
+                              unique_table_name);
+  sqlite3_stmt *stmt;
+  PREPARE_OR_FAIL(stmt, db, sql);
+  STEP_OR_FAIL(stmt);
+  const void *buf = sqlite3_column_blob(stmt, 0);
+  const int buflen = sqlite3_column_bytes(stmt, 0);
+  if (!buf) {
+    buf = "";
+  }
+
+  // create data stream
+  strm = g_memory_input_stream_new_from_data(buf, buflen, NULL);
+  dstrm = g_data_input_stream_new(strm);
+  g_data_input_stream_set_byte_order(dstrm,
+                                     G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN);
+
+  // read fields
+  uint32_t tile_size = g_data_input_stream_read_uint32(dstrm, NULL, &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
+    goto FAIL;
+  }
+  if (tile_size == 0 || tile_size > INT32_MAX) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid tile size: %u", tile_size);
+    goto FAIL;
+  }
+  uint32_t w = g_data_input_stream_read_uint32(dstrm, NULL, &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
+    goto FAIL;
+  }
+  uint32_t h = g_data_input_stream_read_uint32(dstrm, NULL, &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
+    goto FAIL;
+  }
+
+  // commit
+  *image_width = w;
+  *image_height = h;
+  *_tile_size = tile_size;
+  success = true;
+
+FAIL:
+  if (dstrm) {
+    g_object_unref(dstrm);
+  }
+  if (strm) {
+    g_object_unref(strm);
+  }
+  sqlite3_finalize(stmt);
+  g_free(sql);
+  return success;
+}
+
 static bool sakura_open(openslide_t *osr, const char *filename,
                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                         struct _openslide_hash *quickhash1, GError **err) {
@@ -397,8 +463,14 @@ static bool sakura_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
-  // tile size
-  int32_t tile_size = TILE_SIZE;
+  // read header
+  int64_t image_width, image_height;
+  int32_t tile_size;
+  if (!read_header(db, unique_table_name,
+                   &image_width, &image_height,
+                   &tile_size, err)) {
+    goto FAIL;
+  }
 
   // create levels
   // copy tile table into tilemap grid, since the table has no useful indexes
@@ -506,10 +578,8 @@ static bool sakura_open(openslide_t *osr, const char *filename,
     }
 
     // set level sizes and tile size hints
-    double x, y, w, h;
-    _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
-    l->base.w = ceil(x + w);
-    l->base.h = ceil(y + h);
+    l->base.w = image_width / l->base.downsample;
+    l->base.h = image_height / l->base.downsample;
     l->base.tile_w = tile_size;
     l->base.tile_h = tile_size;
   }
