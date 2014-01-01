@@ -84,6 +84,12 @@ struct tile {
   char *id_blue;
 };
 
+struct associated_image {
+  struct _openslide_associated_image base;
+  char *filename;
+  char *data_sql;
+};
+
 struct ensure_components_args {
   GError *err;
   double downsample;
@@ -334,6 +340,102 @@ static const struct _openslide_ops sakura_ops = {
   .destroy = destroy,
 };
 
+static bool get_associated_image_data(struct _openslide_associated_image *_img,
+                                      uint32_t *dest,
+                                      GError **err) {
+  struct associated_image *img = (struct associated_image *) _img;
+  bool success = false;
+
+  //g_debug("read Sakura associated image: %s", img->data_sql);
+
+  // open DB handle
+  sqlite3 *db = _openslide_sqlite_open(img->filename, err);
+  if (!db) {
+    return false;
+  }
+
+  // read data
+  sqlite3_stmt *stmt;
+  PREPARE_OR_FAIL(stmt, db, img->data_sql);
+  STEP_OR_FAIL(stmt);
+  const void *buf = sqlite3_column_blob(stmt, 0);
+  if (!buf) {
+    buf = "";
+  }
+  int buflen = sqlite3_column_bytes(stmt, 0);
+
+  // decode it
+  success = _openslide_jpeg_decode_buffer(buf, buflen, dest,
+                                          img->base.w, img->base.h, err);
+
+FAIL:
+  sqlite3_finalize(stmt);
+  sqlite3_close(db);
+  return success;
+}
+
+static void destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct associated_image *img = (struct associated_image *) _img;
+
+  g_free(img->filename);
+  g_free(img->data_sql);
+  g_slice_free(struct associated_image, img);
+}
+
+static const struct _openslide_associated_image_ops sakura_associated_ops = {
+  .get_argb_data = get_associated_image_data,
+  .destroy = destroy_associated_image,
+};
+
+static bool add_associated_image(openslide_t *osr,
+                                 sqlite3 *db,
+                                 const char *filename,
+                                 const char *name,
+                                 const char *data_sql,
+                                 GError **err) {
+  bool success = false;
+
+  // read data
+  sqlite3_stmt *stmt;
+  PREPARE_OR_FAIL(stmt, db, data_sql);
+  STEP_OR_FAIL(stmt);
+  const void *buf = sqlite3_column_blob(stmt, 0);
+  if (!buf) {
+    buf = "";
+  }
+  int buflen = sqlite3_column_bytes(stmt, 0);
+
+  // read dimensions from JPEG header
+  int32_t w, h;
+  if (!_openslide_jpeg_decode_buffer_dimensions(buf, buflen, &w, &h, err)) {
+    goto FAIL;
+  }
+
+  // ensure there is only one row
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Query returned multiple rows: %s", data_sql);
+    goto FAIL;
+  }
+
+  // create struct
+  struct associated_image *img = g_slice_new0(struct associated_image);
+  img->base.ops = &sakura_associated_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->filename = g_strdup(filename);
+  img->data_sql = g_strdup(data_sql);
+
+  // add it
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
+
+  success = true;
+
+FAIL:
+  sqlite3_finalize(stmt);
+  return success;
+}
+
 static gint compare_downsamples(const void *a, const void *b) {
   int64_t aa = *(const int64_t *) a;
   int64_t bb = *(const int64_t *) b;
@@ -571,6 +673,21 @@ static bool sakura_open(openslide_t *osr, const char *filename,
       goto FAIL;
     }
   }
+
+  // add associated images
+  // errors are non-fatal
+  add_associated_image(osr, db, filename, "label",
+                       "SELECT Image FROM SVScannedImageDataXPO JOIN "
+                       "SVSlideDataXPO ON SVSlideDataXPO.m_labelScan = "
+                       "SVScannedImageDataXPO.OID", NULL);
+  add_associated_image(osr, db, filename, "macro",
+                       "SELECT Image FROM SVScannedImageDataXPO JOIN "
+                       "SVSlideDataXPO ON SVSlideDataXPO.m_overviewScan = "
+                       "SVScannedImageDataXPO.OID", NULL);
+  add_associated_image(osr, db, filename, "thumbnail",
+                       "SELECT ThumbnailImage FROM SVHRScanDataXPO JOIN "
+                       "SVSlideDataXPO ON SVHRScanDataXPO.ParentSlide = "
+                       "SVSlideDataXPO.OID", NULL);
 
   // no quickhash for now
   _openslide_hash_disable(quickhash1);

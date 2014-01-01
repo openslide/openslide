@@ -80,35 +80,26 @@ struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_
   return (struct jpeg_error_mgr *) jerr;
 }
 
-bool _openslide_jpeg_read_dimensions(const char *filename,
-                                     int64_t offset,
-                                     int32_t *w, int32_t *h,
-                                     GError **err) {
+static bool jpeg_get_dimensions(FILE *f,  // or:
+                                const void *buf, uint32_t buflen,
+                                int32_t *w, int32_t *h,
+                                GError **err) {
   bool result = false;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
-  FILE *f;
   jmp_buf env;
-
-  // open file
-  f = _openslide_fopen(filename, "rb", err);
-  if (f == NULL) {
-    return false;
-  }
-  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
-    _openslide_io_error(err, "Cannot seek to offset");
-    fclose(f);
-    return false;
-  }
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
 
-    int header_result;
+    if (f) {
+      _openslide_jpeg_stdio_src(&cinfo, f);
+    } else {
+      _openslide_jpeg_mem_src(&cinfo, (void *) buf, buflen);
+    }
 
-    _openslide_jpeg_stdio_src(&cinfo, f);
-    header_result = jpeg_read_header(&cinfo, TRUE);
+    int header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -129,9 +120,34 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
 DONE:
   // free buffers
   jpeg_destroy_decompress(&cinfo);
-  fclose(f);
 
   return result;
+}
+
+bool _openslide_jpeg_read_dimensions(const char *filename,
+                                     int64_t offset,
+                                     int32_t *w, int32_t *h,
+                                     GError **err) {
+  FILE *f = _openslide_fopen(filename, "rb", err);
+  if (f == NULL) {
+    return false;
+  }
+  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+    _openslide_io_error(err, "Cannot seek to offset");
+    fclose(f);
+    return false;
+  }
+
+  bool success = jpeg_get_dimensions(f, NULL, 0, w, h, err);
+
+  fclose(f);
+  return success;
+}
+
+bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
+                                              int32_t *w, int32_t *h,
+                                              GError **err) {
+  return jpeg_get_dimensions(NULL, buf, len, w, h, err);
 }
 
 static bool jpeg_decode(FILE *f,  // or:

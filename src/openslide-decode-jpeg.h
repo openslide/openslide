@@ -38,6 +38,10 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int32_t *w, int32_t *h,
                                      GError **err);
 
+bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
+                                              int32_t *w, int32_t *h,
+                                              GError **err);
+
 bool _openslide_jpeg_read(const char *filename,
                           int64_t offset,
                           uint32_t *dest,
