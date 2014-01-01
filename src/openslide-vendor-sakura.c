@@ -487,11 +487,10 @@ static bool sakura_open(openslide_t *osr, const char *filename,
     // get or create level
     struct level *l = g_hash_table_lookup(level_hash, &downsample);
     if (!l) {
-      // ensure downsample is a power of 2
-      if (downsample & (downsample - 1)) {
+      // ensure downsample is > 0 and a power of 2
+      if (downsample <= 0 || (downsample & (downsample - 1))) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Downsample %"G_GINT64_FORMAT" is not a power of 2",
-                    downsample);
+                    "Invalid downsample %"G_GINT64_FORMAT, downsample);
         goto FAIL;
       }
 
