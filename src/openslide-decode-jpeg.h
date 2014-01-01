@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -43,6 +43,11 @@ bool _openslide_jpeg_read(const char *filename,
                           uint32_t *dest,
                           int32_t w, int32_t h,
                           GError **err);
+
+bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
+                                   uint32_t *dest,
+                                   int32_t w, int32_t h,
+                                   GError **err);
 
 bool _openslide_jpeg_add_associated_image(openslide_t *osr,
                                           const char *name,

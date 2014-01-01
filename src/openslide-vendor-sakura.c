@@ -38,8 +38,6 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 #include <string.h>
-#include <stdlib.h> // for mkstemp
-#include <unistd.h> // for close, unlink
 
 static const char MAGIC_BYTES[] = "SVGigaPixelImage";
 
@@ -202,22 +200,8 @@ static bool read_channel(uint32_t *channeldata,
   int buflen = sqlite3_column_bytes(stmt, 0);
 
   // decompress
-  // via tempfile, pending decode-jpeg changes
-  char tempfile[] = "/tmp/sakura.XXXXXX";
-  int fd = mkstemp(tempfile);
-  if (fd == -1) {
-    _openslide_io_error(err, "Couldn't create temporary file");
-    goto FAIL;
-  }
-  close(fd);
-  if (!g_file_set_contents(tempfile, buf, buflen, err)) {
-    unlink(tempfile);
-    goto FAIL;
-  }
-  bool success = _openslide_jpeg_read(tempfile, 0, channeldata,
-                                      tile_size, tile_size, err);
-  unlink(tempfile);
-  return success;
+  return _openslide_jpeg_decode_buffer(buf, buflen, channeldata,
+                                       tile_size, tile_size, err);
 
 FAIL:
   return false;

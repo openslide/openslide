@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -134,29 +134,15 @@ DONE:
   return result;
 }
 
-bool _openslide_jpeg_read(const char *filename,
-                          int64_t offset,
-                          uint32_t * const _dest,
-                          int32_t w, int32_t h,
-                          GError **err) {
+static bool _openslide_jpeg_read_inner(FILE *f,  // or:
+                                       const void *buf, uint32_t buflen,
+                                       uint32_t * const _dest,
+                                       int32_t w, int32_t h,
+                                       GError **err) {
   bool result = false;
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
-  FILE *f;
   jmp_buf env;
-
-  //g_debug("read JPEG: %s %" G_GINT64_FORMAT, filename, offset);
-
-  // open file
-  f = _openslide_fopen(filename, "rb", err);
-  if (f == NULL) {
-    return false;
-  }
-  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
-    _openslide_io_error(err, "Cannot seek to offset");
-    fclose(f);
-    return false;
-  }
 
   JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
@@ -164,11 +150,15 @@ bool _openslide_jpeg_read(const char *filename,
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
 
-    int header_result;
+    // set up I/O
+    if (f) {
+      _openslide_jpeg_stdio_src(&cinfo, f);
+    } else {
+      _openslide_jpeg_mem_src(&cinfo, (void *) buf, buflen);
+    }
 
     // read header
-    _openslide_jpeg_stdio_src(&cinfo, f);
-    header_result = jpeg_read_header(&cinfo, TRUE);
+    int header_result = jpeg_read_header(&cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -235,11 +225,41 @@ DONE:
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
   jpeg_destroy_decompress(&cinfo);
-  fclose(f);
 
   return result;
 }
 
+bool _openslide_jpeg_read(const char *filename,
+                          int64_t offset,
+                          uint32_t *dest,
+                          int32_t w, int32_t h,
+                          GError **err) {
+  //g_debug("read JPEG: %s %" G_GINT64_FORMAT, filename, offset);
+
+  FILE *f = _openslide_fopen(filename, "rb", err);
+  if (f == NULL) {
+    return false;
+  }
+  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+    _openslide_io_error(err, "Cannot seek to offset");
+    fclose(f);
+    return false;
+  }
+
+  bool success = _openslide_jpeg_read_inner(f, NULL, 0, dest, w, h, err);
+
+  fclose(f);
+  return success;
+}
+
+bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
+                                   uint32_t *dest,
+                                   int32_t w, int32_t h,
+                                   GError **err) {
+  //g_debug("decode JPEG buffer: %x %u", buf, len);
+
+  return _openslide_jpeg_read_inner(NULL, buf, len, dest, w, h, err);
+}
 
 static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dest,
