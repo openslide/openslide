@@ -23,7 +23,8 @@
 /*
  * Sakura (svslide) support
  *
- * quickhash comes from XXX
+ * quickhash comes from a selection of metadata fields, the binary header
+ * blob, and the lowest-resolution level
  *
  */
 
@@ -621,6 +622,128 @@ static void add_properties(openslide_t *osr,
   g_free(sql);
 }
 
+static bool hash_columns(struct _openslide_hash *quickhash1,
+                         sqlite3 *db,
+                         const char *sql,
+                         GError **err) {
+  bool success = false;
+
+  //g_debug("%s", sql);
+
+  sqlite3_stmt *stmt;
+  PREPARE_OR_FAIL(stmt, db, sql);
+  int ret;
+  while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+    for (int i = 0; i < sqlite3_column_count(stmt); i++) {
+      const void *data = sqlite3_column_blob(stmt, i);
+      int datalen = sqlite3_column_bytes(stmt, i);
+
+      //g_debug("hash: %d bytes", datalen);
+      _openslide_hash_data(quickhash1, data, datalen);
+      _openslide_hash_data(quickhash1, "", 1);
+    }
+  }
+  if (ret != SQLITE_DONE) {
+    _openslide_sqlite_propagate_error(db, err);
+    goto FAIL;
+  }
+
+  success = true;
+
+FAIL:
+  sqlite3_finalize(stmt);
+  return success;
+}
+
+static void gather_tileids(struct _openslide_grid *grid G_GNUC_UNUSED,
+                           int64_t tile_col G_GNUC_UNUSED,
+                           int64_t tile_row G_GNUC_UNUSED,
+                           void *_tile, void *arg) {
+  struct tile *tile = _tile;
+  GList **list = arg;
+
+  *list = g_list_prepend(*list, tile->id_red);
+  *list = g_list_prepend(*list, tile->id_green);
+  *list = g_list_prepend(*list, tile->id_blue);
+}
+
+static gint compare_tileids(const void *a, const void *b) {
+  return strcmp(a, b);
+}
+
+static bool hash_tiles(struct _openslide_hash *quickhash1,
+                       sqlite3 *db,
+                       struct level *l,
+                       const char *unique_table_name,
+                       GError **err) {
+  bool success = false;
+
+  // collect tile IDs
+  GList *tileids = NULL;
+  _openslide_grid_tilemap_foreach(l->grid, gather_tileids, &tileids);
+  tileids = g_list_sort(tileids, compare_tileids);
+
+  // prepare query
+  char *sql = g_strdup_printf("SELECT data from %s WHERE id = ?",
+                              unique_table_name);
+  sqlite3_stmt *stmt;
+  PREPARE_OR_FAIL(stmt, db, sql);
+
+  // hash tiles
+  for (GList *cur = tileids; cur; cur = cur->next) {
+    sqlite3_reset(stmt);
+    BIND_TEXT_OR_FAIL(stmt, 1, cur->data);
+    STEP_OR_FAIL(stmt);
+    const void *data = sqlite3_column_blob(stmt, 0);
+    int datalen = sqlite3_column_bytes(stmt, 0);
+
+    //g_debug("hash %s: %d bytes", (const char *) cur->data, datalen);
+    _openslide_hash_data(quickhash1, data, datalen);
+  }
+
+  success = true;
+
+FAIL:
+  sqlite3_finalize(stmt);
+  g_free(sql);
+  g_list_free(tileids);
+  return success;
+}
+
+static void compute_quickhash1(struct _openslide_hash *quickhash1,
+                               sqlite3 *db,
+                               struct level *l,
+                               const char *unique_table_name) {
+  if (!hash_columns(quickhash1, db, "SELECT SlideId, Date, Creator, "
+                    "Description, Keywords FROM SVSlideDataXPO "
+                    "ORDER BY OID", NULL)) {
+    goto FAIL;
+  }
+  if (!hash_columns(quickhash1, db, "SELECT ScanId, Date, Name, Description "
+                    "FROM SVHRScanDataXPO ORDER BY OID", NULL)) {
+    goto FAIL;
+  }
+
+  // header blob
+  char *sql = g_strdup_printf("SELECT data FROM %s WHERE id = 'Header' "
+                              "ORDER BY rowid", unique_table_name);
+  bool success = hash_columns(quickhash1, db, sql, NULL);
+  g_free(sql);
+  if (!success) {
+    goto FAIL;
+  }
+
+  // tiles in lowest-resolution level
+  if (!hash_tiles(quickhash1, db, l, unique_table_name, NULL)) {
+    goto FAIL;
+  }
+
+  return;
+
+FAIL:
+  _openslide_hash_disable(quickhash1);
+}
+
 static bool sakura_open(openslide_t *osr, const char *filename,
                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                         struct _openslide_hash *quickhash1, GError **err) {
@@ -736,6 +859,11 @@ static bool sakura_open(openslide_t *osr, const char *filename,
 
   // move levels to level array
   level_count = g_hash_table_size(level_hash);
+  if (level_count == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't find any tiles");
+    goto FAIL;
+  }
   levels = g_new(struct level *, level_count);
   GList *keys = g_hash_table_get_keys(level_hash);
   keys = g_list_sort(keys, compare_downsamples);
@@ -780,8 +908,9 @@ static bool sakura_open(openslide_t *osr, const char *filename,
                        "SVSlideDataXPO ON SVHRScanDataXPO.ParentSlide = "
                        "SVSlideDataXPO.OID", NULL);
 
-  // no quickhash for now
-  _openslide_hash_disable(quickhash1);
+  // compute quickhash
+  compute_quickhash1(quickhash1, db,
+                     levels[level_count - 1], unique_table_name);
 
   // build ops data
   struct sakura_ops_data *data = g_slice_new0(struct sakura_ops_data);
