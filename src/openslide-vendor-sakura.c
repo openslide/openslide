@@ -41,6 +41,23 @@
 
 static const char MAGIC_BYTES[] = "SVGigaPixelImage";
 
+static const struct property {
+  const char *table;
+  const char *column;
+  int type;
+} property_table[] = {
+  {"SVSlideDataXPO", "SlideId", SQLITE_TEXT},
+  {"SVSlideDataXPO", "Date", SQLITE_TEXT},
+  {"SVSlideDataXPO", "Description", SQLITE_TEXT},
+  {"SVSlideDataXPO", "Creator", SQLITE_TEXT},
+  {"SVSlideDataXPO", "DiagnosisCode", SQLITE_TEXT},
+  {"SVSlideDataXPO", "Keywords", SQLITE_TEXT},
+  {"SVHRScanDataXPO", "ScanId", SQLITE_TEXT},
+  {"SVHRScanDataXPO", "ResolutionMmPerPix", SQLITE_FLOAT},
+  {"SVHRScanDataXPO", "NominalLensMagnification", SQLITE_FLOAT},
+  {"SVHRScanDataXPO", "FocussingMethod", SQLITE_TEXT},
+};
+
 enum color_indexes {
   INDEX_RED = 0,
   INDEX_GREEN = 1,
@@ -523,6 +540,87 @@ FAIL:
   return success;
 }
 
+static void add_properties(openslide_t *osr,
+                           sqlite3 *db,
+                           const char *unique_table_name) {
+  // build unified query
+  GString *query = g_string_new("SELECT ");
+  for (uint32_t i = 0; i < G_N_ELEMENTS(property_table); i++) {
+    const struct property *prop = &property_table[i];
+    g_string_append_printf(query, "%s%s.%s",
+                           i ? ", " : "",
+                           prop->table,
+                           prop->column);
+  }
+  g_string_append(query, " FROM SVSlideDataXPO JOIN SVHRScanDataXPO ON "
+                  "SVHRScanDataXPO.ParentSlide == SVSlideDataXPO.OID");
+  char *sql = g_string_free(query, false);
+  //g_debug("%s", sql);
+
+  // execute it
+  sqlite3_stmt *stmt = _openslide_sqlite_prepare(db, sql, NULL);
+  if (stmt && sqlite3_step(stmt) == SQLITE_ROW) {
+    // add properties
+    for (uint32_t i = 0; i < G_N_ELEMENTS(property_table); i++) {
+      const struct property *prop = &property_table[i];
+      switch (prop->type) {
+      case SQLITE_TEXT: {
+        const char *value = (const char *) sqlite3_column_text(stmt, i);
+        if (value[0]) {
+          g_hash_table_insert(osr->properties,
+                              g_strdup_printf("sakura.%s", prop->column),
+                              g_strdup(value));
+        }
+        break;
+      }
+      case SQLITE_FLOAT: {
+        // convert to text ourselves to ensure full precision
+        double value = sqlite3_column_double(stmt, i);
+        g_hash_table_insert(osr->properties,
+                            g_strdup_printf("sakura.%s", prop->column),
+                            _openslide_format_double(value));
+        break;
+      }
+      default:
+        g_assert_not_reached();
+      }
+    }
+  }
+  sqlite3_finalize(stmt);
+  g_free(sql);
+
+  // set MPP and objective power
+  stmt = _openslide_sqlite_prepare(db, "SELECT ResolutionMmPerPix FROM "
+                                   "SVHRScanDataXPO JOIN SVSlideDataXPO ON "
+                                   "SVHRScanDataXPO.ParentSlide = "
+                                   "SVSlideDataXPO.OID", NULL);
+  if (stmt && sqlite3_step(stmt) == SQLITE_ROW) {
+    double mmpp = sqlite3_column_double(stmt, 0);
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                        _openslide_format_double(mmpp * 1000));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                        _openslide_format_double(mmpp * 1000));
+  }
+  sqlite3_finalize(stmt);
+  _openslide_duplicate_double_prop(osr, "sakura.NominalLensMagnification",
+                                   OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+
+  // add version property
+  sql = g_strdup_printf("SELECT data FROM %s WHERE id = '++VersionBytes'",
+                        unique_table_name);
+  stmt = _openslide_sqlite_prepare(db, sql, NULL);
+  if (stmt && sqlite3_step(stmt) == SQLITE_ROW) {
+    const char *version = (const char *) sqlite3_column_text(stmt, 0);
+    g_hash_table_insert(osr->properties,
+                        g_strdup("sakura.VersionBytes"),
+                        g_strdup(version));
+  }
+  sqlite3_finalize(stmt);
+  g_free(sql);
+}
+
 static bool sakura_open(openslide_t *osr, const char *filename,
                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                         struct _openslide_hash *quickhash1, GError **err) {
@@ -663,6 +761,9 @@ static bool sakura_open(openslide_t *osr, const char *filename,
       goto FAIL;
     }
   }
+
+  // add properties
+  add_properties(osr, db, unique_table_name);
 
   // add associated images
   // errors are non-fatal
