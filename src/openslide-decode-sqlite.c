@@ -26,8 +26,19 @@
 #include "openslide-decode-sqlite.h"
 
 #define BUSY_TIMEOUT 500  // ms
+#define PROFILE 0
 
 /* Can only use API supported in SQLite 3.6.20 for RHEL 6 compatibility */
+
+#if PROFILE
+// We would like to put this behind a debug flag, but sqlite3_profile() is
+// marked experimental, so we would be risking future build breakage.
+static void profile_callback(void *arg G_GNUC_UNUSED, const char *sql,
+                             sqlite3_uint64 ns) {
+  uint64_t ms = ns / 1e6;
+  g_debug("%s --> %"G_GUINT64_FORMAT" ms", sql, ms);
+}
+#endif
 
 sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   sqlite3 *db;
@@ -63,6 +74,10 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   }
 
   sqlite3_busy_timeout(db, BUSY_TIMEOUT);
+
+#if PROFILE
+  sqlite3_profile(db, profile_callback, NULL);
+#endif
 
   return db;
 }
