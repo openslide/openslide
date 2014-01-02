@@ -42,15 +42,16 @@ struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
   return hash;
 }
 
-void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
-  if (hash == NULL || !hash->enabled) {
-    return;
+void _openslide_hash_data(struct _openslide_hash *hash, const void *data,
+                          int32_t datalen) {
+  if (hash && hash->enabled && data && datalen) {
+    g_checksum_update(hash->checksum, data, datalen);
   }
+}
 
+void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
   const char *str_to_hash = str ? str : "";
-  g_checksum_update(hash->checksum,
-		    (const guchar *) str_to_hash,
-		    strlen(str_to_hash) + 1);
+  _openslide_hash_data(hash, str_to_hash, strlen(str_to_hash) + 1);
 }
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
@@ -105,9 +106,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
     bytes_left -= bytes_read;
 
-    if (hash != NULL && hash->enabled) {
-      g_checksum_update(hash->checksum, buf, bytes_read);
-    }
+    _openslide_hash_data(hash, buf, bytes_read);
   }
 
   success = true;
