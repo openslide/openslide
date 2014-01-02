@@ -58,7 +58,7 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't open %s: %d", filename, ret);
     }
-    sqlite3_close(db);
+    _openslide_sqlite_close(db);
     return NULL;
   }
 
@@ -99,4 +99,12 @@ void _openslide_sqlite_propagate_error(sqlite3 *db, GError **err) {
 // only legal if an error occurred
 void _openslide_sqlite_propagate_stmt_error(sqlite3_stmt *stmt, GError **err) {
   _openslide_sqlite_propagate_error(sqlite3_db_handle(stmt), err);
+}
+
+void _openslide_sqlite_close(sqlite3 *db) {
+  // sqlite3_close() failures indicate a leaked resource, probably a
+  // prepared statement.
+  if (sqlite3_close(db)) {
+    g_warning("SQLite error: %s", sqlite3_errmsg(db));
+  }
 }

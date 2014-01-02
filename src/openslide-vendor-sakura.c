@@ -179,7 +179,7 @@ FAIL:
   sqlite3_finalize(stmt);
   g_free(sql);
   g_free(unique_table_name);
-  sqlite3_close(db);
+  _openslide_sqlite_close(db);
   return result;
 }
 
@@ -345,7 +345,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
 
 FAIL:
   sqlite3_finalize(stmt);
-  sqlite3_close(db);
+  _openslide_sqlite_close(db);
   return success;
 }
 
@@ -381,7 +381,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 
 FAIL:
   sqlite3_finalize(stmt);
-  sqlite3_close(db);
+  _openslide_sqlite_close(db);
   return success;
 }
 
@@ -938,7 +938,7 @@ FAIL:
   }
 
   sqlite3_finalize(stmt);
-  sqlite3_close(db);
+  _openslide_sqlite_close(db);
   g_hash_table_destroy(level_hash);
   g_free(unique_table_name);
   return success;

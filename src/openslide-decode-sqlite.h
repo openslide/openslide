@@ -32,5 +32,6 @@ sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
 bool _openslide_sqlite_step(sqlite3_stmt *stmt, GError **err);
 void _openslide_sqlite_propagate_error(sqlite3 *db, GError **err);
 void _openslide_sqlite_propagate_stmt_error(sqlite3_stmt *stmt, GError **err);
+void _openslide_sqlite_close(sqlite3 *db);
 
 #endif
