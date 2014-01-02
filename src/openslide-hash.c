@@ -47,10 +47,8 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
     return;
   }
 
-  GChecksum *checksum = hash->checksum;
-
   const char *str_to_hash = str ? str : "";
-  g_checksum_update(checksum,
+  g_checksum_update(hash->checksum,
 		    (const guchar *) str_to_hash,
 		    strlen(str_to_hash) + 1);
 }
@@ -108,8 +106,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     bytes_left -= bytes_read;
 
     if (hash != NULL && hash->enabled) {
-      GChecksum *checksum = hash->checksum;
-      g_checksum_update(checksum, buf, bytes_read);
+      g_checksum_update(hash->checksum, buf, bytes_read);
     }
   }
 
