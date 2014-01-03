@@ -770,7 +770,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
 
   // read header
   int64_t image_width, image_height;
-  int32_t tile_size;
+  int32_t tile_size = 0;  // avoid spurious warning
   if (!read_header(db, unique_table_name,
                    &image_width, &image_height,
                    &tile_size, err)) {
