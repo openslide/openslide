@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-PNG.zip
+error: "^Dimensional mismatch reading PNG: expected 338x254, found 338x240$"
+slide: Mirax2.2-4-PNG.mrxs
+success: false
+vendor: mirax
+regions:
+- [50000, 100000, 9, 100, 100]

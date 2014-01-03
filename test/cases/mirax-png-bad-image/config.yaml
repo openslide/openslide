@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-PNG.zip
+error: "^PNG error: IHDZ: unknown critical chunk$"
+slide: Mirax2.2-4-PNG.mrxs
+success: false
+vendor: mirax
+regions:
+- [50000, 100000, 9, 100, 100]

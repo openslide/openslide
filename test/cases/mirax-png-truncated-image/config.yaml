@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-PNG.zip
+error: "^PNG error: Read failed$"
+slide: Mirax2.2-4-PNG.mrxs
+success: false
+vendor: mirax
+regions:
+- [0, 0, 8, 1000, 1000]

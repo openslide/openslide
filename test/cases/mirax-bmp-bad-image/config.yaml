@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-BMP.zip
+error: "gdk-pixbuf error: Unrecognized image file format"
+slide: Mirax2.2-4-BMP.mrxs
+success: false
+vendor: mirax
+regions:
+- [50000, 100000, 9, 100, 100]

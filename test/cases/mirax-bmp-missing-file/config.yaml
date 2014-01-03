@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-BMP.zip
+error: "^Error opening file: No such file or directory$"
+slide: Mirax2.2-4-BMP.mrxs
+success: false
+vendor: mirax
+regions:
+- [0, 0, 8, 1000, 1000]

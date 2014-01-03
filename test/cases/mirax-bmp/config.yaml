@@ -1,0 +1,8 @@
+base: Mirax/Mirax2.2-4-BMP.zip
+slide: Mirax2.2-4-BMP.mrxs
+success: true
+vendor: mirax
+primary: true
+properties:
+  openslide.quickhash-1: 719a1767dcefb2dc632c88e5480f3d884ab608d3c778b5b2c90f0c1b2bab3ea7
+  openslide.vendor: mirax

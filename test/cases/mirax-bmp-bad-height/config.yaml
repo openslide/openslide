@@ -1,0 +1,7 @@
+base: Mirax/Mirax2.2-4-BMP.zip
+error: "^Dimensional mismatch reading pixbuf: expected 338x254, found 338x240$"
+slide: Mirax2.2-4-BMP.mrxs
+success: false
+vendor: mirax
+regions:
+- [50000, 100000, 9, 100, 100]
