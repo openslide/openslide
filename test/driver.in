@@ -102,6 +102,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
         G_SLICE='always-malloc,debug-blocks',
         MALLOC_CHECK_='1',
         OPENSLIDE_DEBUG=','.join(debug),
+        GIO_USE_VFS='local',
     )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
