@@ -232,24 +232,22 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
   double x, y, w, h;
   _openslide_grid_get_bounds(grid, &x, &y, &w, &h);
 
-  if (w && h) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
-                        g_strdup_printf("%"G_GINT64_FORMAT,
-                                        (int64_t) floor(x)));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
-                        g_strdup_printf("%"G_GINT64_FORMAT,
-                                        (int64_t) floor(y)));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
-                        g_strdup_printf("%"G_GINT64_FORMAT,
-                                        (int64_t) (ceil(x + w) - floor(x))));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
-                        g_strdup_printf("%"G_GINT64_FORMAT,
-                                        (int64_t) (ceil(y + h) - floor(y))));
-  }
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) floor(x)));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) floor(y)));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) (ceil(x + w) - floor(x))));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) (ceil(y + h) - floor(y))));
 }
 
 bool _openslide_clip_tile(uint32_t *tiledata,
