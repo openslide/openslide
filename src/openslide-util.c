@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 #include <glib.h>
 #include <cairo.h>
 
@@ -221,6 +222,34 @@ void _openslide_set_background_color_prop(openslide_t *osr,
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR),
                       g_strdup_printf("%.02X%.02X%.02X", r, g, b));
+}
+
+void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_grid *grid) {
+  g_return_if_fail(g_hash_table_lookup(osr->properties,
+                                       OPENSLIDE_PROPERTY_NAME_BOUNDS_X) == NULL);
+
+  double x, y, w, h;
+  _openslide_grid_get_bounds(grid, &x, &y, &w, &h);
+
+  if (w && h) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
+                        g_strdup_printf("%"G_GINT64_FORMAT,
+                                        (int64_t) floor(x)));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
+                        g_strdup_printf("%"G_GINT64_FORMAT,
+                                        (int64_t) floor(y)));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
+                        g_strdup_printf("%"G_GINT64_FORMAT,
+                                        (int64_t) (ceil(x + w) - floor(x))));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
+                        g_strdup_printf("%"G_GINT64_FORMAT,
+                                        (int64_t) (ceil(y + h) - floor(y))));
+  }
 }
 
 bool _openslide_clip_tile(uint32_t *tiledata,

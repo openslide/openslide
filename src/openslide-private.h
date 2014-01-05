@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -234,6 +234,11 @@ bool _openslide_grid_paint_region(struct _openslide_grid *grid,
 void _openslide_grid_draw_tile_info(cairo_t *cr, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
+
+
+/* Bounds properties helper */
+void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_grid *grid);
 
 
 /* Cache */

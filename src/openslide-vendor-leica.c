@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -346,6 +346,42 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
     g_hash_table_insert(osr->properties, g_strdup(property_name),
                         _openslide_format_double(10000.0 / f));
   }
+}
+
+static void set_bounds_props(openslide_t *osr,
+                             struct level *level0) {
+  double x0 = INFINITY;
+  double y0 = INFINITY;
+  double x1 = 0;
+  double y1 = 0;
+
+  g_assert(level0->areas->len);
+  for (uint32_t n = 0; n < level0->areas->len; n++) {
+    struct area *area = level0->areas->pdata[n];
+    double x = area->clicks_offset_x / level0->clicks_per_pixel;
+    double y = area->clicks_offset_y / level0->clicks_per_pixel;
+    x0 = MIN(x0, x);
+    y0 = MIN(y0, y);
+    x1 = MAX(x1, x + area->tiffl.image_w);
+    y1 = MAX(y1, y + area->tiffl.image_h);
+  }
+
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) floor(x0)));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) floor(y0)));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) (ceil(x1) - floor(x0))));
+  g_hash_table_insert(osr->properties,
+                      g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
+                      g_strdup_printf("%"G_GINT64_FORMAT,
+                                      (int64_t) (ceil(y1) - floor(y0))));
 }
 
 static struct collection *parse_xml_description(const char *xml,
@@ -804,6 +840,9 @@ static bool leica_open(openslide_t *osr, const char *filename,
                       TIFFTAG_XRESOLUTION);
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
                       TIFFTAG_YRESOLUTION);
+
+  // set bounds properties
+  set_bounds_props(osr, level0);
 
   // unwrap level array
   int32_t level_count = level_array->len;

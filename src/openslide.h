@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -286,6 +286,38 @@ const char *openslide_get_error(openslide_t *osr);
  * @since 3.3.0
  */
 #define OPENSLIDE_PROPERTY_NAME_MPP_Y "openslide.mpp-y"
+
+/**
+ * The name of the property containing the X coordinate of the rectangle
+ * bounding the non-empty region of the slide, if available.
+ *
+ * @since 3.4.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_X "openslide.bounds-x"
+
+/**
+ * The name of the property containing the Y coordinate of the rectangle
+ * bounding the non-empty region of the slide, if available.
+ *
+ * @since 3.4.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_Y "openslide.bounds-y"
+
+/**
+ * The name of the property containing the width of the rectangle bounding
+ * the non-empty region of the slide, if available.
+ *
+ * @since 3.4.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH "openslide.bounds-width"
+
+/**
+ * The name of the property containing the height of the rectangle bounding
+ * the non-empty region of the slide, if available.
+ *
+ * @since 3.4.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT "openslide.bounds-height"
 //@}
 
 /**

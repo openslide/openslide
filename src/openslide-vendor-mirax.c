@@ -1963,6 +1963,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   }
 
   // set properties
+  _openslide_set_bounds_props_from_grid(osr, levels[0]->grid);
   uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
   _openslide_set_background_color_prop(osr,
                                        (fill >> 16) & 0xFF,
