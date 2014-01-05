@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2011 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -467,6 +467,15 @@ int main(int argc, char **argv) {
   //test_image_fetch(osr, "test5", w - 20, 0, 40, 100, skip);
   //test_image_fetch(osr, "test6", 0, h - 20, 100, 40, skip);
   test_image_fetch(osr, "test7", 0, 0, 200, 200, skip);
+
+  // active region
+  const char *bounds_x = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_X);
+  const char *bounds_y = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y);
+  if (bounds_x && bounds_y) {
+    int64_t x = g_ascii_strtoll(bounds_x, NULL, 10);
+    int64_t y = g_ascii_strtoll(bounds_y, NULL, 10);
+    test_image_fetch(osr, "test8", x, y, 200, 200, skip);
+  }
 
   //  test_pdf(osr, "test0.pdf");
 
