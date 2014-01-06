@@ -1,0 +1,7 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "hamamatsu-ndpi: Couldn't read TIFF value"
+slide: CMU-1.ndpi
+success: false
+vendor: null
+debug:
+  - detection

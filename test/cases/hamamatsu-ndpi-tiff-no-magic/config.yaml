@@ -1,0 +1,7 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "tifflike: Can't read TIFF magic number"
+slide: CMU-1.ndpi
+success: false
+vendor: null
+debug:
+  - detection

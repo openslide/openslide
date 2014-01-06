@@ -1,0 +1,7 @@
+base: Leica/Leica-1.scn
+error: "tifflike: Bad offset"
+slide: Leica-1.scn
+success: false
+vendor: null
+debug:
+  - detection

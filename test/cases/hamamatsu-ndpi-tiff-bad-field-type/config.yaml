@@ -1,0 +1,7 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "tifflike: Unknown type encountered: 221"
+slide: CMU-1.ndpi
+success: false
+vendor: null
+debug:
+  - detection
