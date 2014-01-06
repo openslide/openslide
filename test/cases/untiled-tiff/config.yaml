@@ -2,7 +2,9 @@
 # this is a bit of a hack.
 
 base: Aperio/CMU-1.svs
-error: ^$
+error: "generic-tiff: TIFF is not tiled"
 slide: CMU-1.svs
 success: false
 vendor: null
+debug:
+  - detection

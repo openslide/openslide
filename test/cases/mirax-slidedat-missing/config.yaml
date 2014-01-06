@@ -1,5 +1,7 @@
 base: Mirax/CMU-1.zip
-error: ^$
+error: "mirax: Slidedat.ini does not exist"
 slide: CMU-1.mrxs
 success: false
 vendor: null
+debug:
+  - detection
