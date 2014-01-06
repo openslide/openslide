@@ -146,7 +146,14 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
     goto DONE;
   }
 
-  // sanity check
+  // sanity checks
+  if (image->x1 != w || image->y1 != h) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Dimensional mismatch reading JP2K, "
+                "expected %dx%d, got %dx%d",
+                w, h, image->x1, image->y1);
+    goto DONE;
+  }
   if (image->numcomps != 3) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "image->numcomps != 3");
