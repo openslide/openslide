@@ -58,12 +58,12 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
   int c1_sub_y = h / comps[1].h;
   int c2_sub_y = h / comps[2].h;
 
-  int i = 0;
+  int64_t i = 0;
 
   switch (space) {
   case OPENSLIDE_JP2K_YCBCR:
-    for (int y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) {
+    for (int32_t y = 0; y < h; y++) {
+      for (int32_t x = 0; x < w; x++) {
         uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
         uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
         uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
@@ -76,8 +76,8 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
     break;
 
   case OPENSLIDE_JP2K_RGB:
-    for (int y = 0; y < h; y++) {
-      for (int x = 0; x < w; x++) {
+    for (int32_t y = 0; y < h; y++) {
+      for (int32_t x = 0; x < w; x++) {
         uint8_t c0 = comps[0].data[(y / c0_sub_y) * comps[0].w + (x / c0_sub_x)];
         uint8_t c1 = comps[1].data[(y / c1_sub_y) * comps[1].w + (x / c1_sub_x)];
         uint8_t c2 = comps[2].data[(y / c2_sub_y) * comps[2].w + (x / c2_sub_x)];
