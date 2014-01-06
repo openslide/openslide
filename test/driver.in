@@ -135,7 +135,7 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
             stderr=subprocess.PIPE)
     out, err = proc.communicate()
     if proc.returncode or out or err:
-        return out + err
+        return (out + err).strip()
     else:
         return None
 
