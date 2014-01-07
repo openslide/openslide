@@ -45,21 +45,6 @@ AC_DEFINE_UNQUOTED([SUFFIXED_VERSION], ["$SUFFIXED_VERSION"],
 AC_SUBST([SUFFIXED_VERSION])
 
 
-# Check for recent pkg-config which supports Requires.private
-# (snippet taken from cairo configure.in)
-PKG_PROG_PKG_CONFIG()
-if test "x$PKG_CONFIG" = x; then
-        AC_MSG_ERROR([pkg-config >= $PKGCONFIG_REQUIRED required but not found (http://pkgconfig.freedesktop.org/)])
-fi
-
-case `$PKG_CONFIG --version` in
-[0.?|0.?.?|0.1[0-7]|0.1[0-7].?]) PKGCONFIG_REQUIRES="Requires"; ;;
-*) PKGCONFIG_REQUIRES="Requires.private"; ;;
-esac
-
-AC_SUBST(PKGCONFIG_REQUIRES)
-
-
 # libraries
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
