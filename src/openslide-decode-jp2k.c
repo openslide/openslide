@@ -156,7 +156,7 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   }
   if (image->numcomps != 3) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "image->numcomps != 3");
+                "Expected 3 image components, found %d", image->numcomps);
     goto DONE;
   }
 

@@ -1,0 +1,6 @@
+# Loop in hier data page pointers.  It's also okay for us to fail in this
+# case; we just can't go into an infinite loop.
+base: Mirax/CMU-1.zip
+slide: CMU-1.mrxs
+success: true
+vendor: mirax

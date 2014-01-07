@@ -1,0 +1,7 @@
+base: Aperio/CMU-1-JP2K-33005.svs
+error: ^Expected 3 image components, found 1$
+slide: CMU-1-JP2K-33005.svs
+success: false
+vendor: aperio
+regions:
+  - [0, 0, 0, 200, 200]

@@ -1,0 +1,7 @@
+base: Generic-TIFF/CMU-1.tiff
+error: "OPENSLIDE_DEBUG options"
+slide: CMU-1.tiff
+success: false
+vendor: generic-tiff
+debug:
+  - help

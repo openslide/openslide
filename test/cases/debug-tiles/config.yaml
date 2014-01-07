@@ -1,0 +1,8 @@
+base: Generic-TIFF/CMU-1.tiff
+slide: CMU-1.tiff
+success: true
+vendor: generic-tiff
+debug:
+  - tiles
+regions:
+  - [0, 0, 0, 1000, 1000]
