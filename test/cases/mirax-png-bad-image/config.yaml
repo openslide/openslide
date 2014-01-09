@@ -1,5 +1,6 @@
 base: Mirax/Mirax2.2-4-PNG.zip
-error: "^PNG error: IHDZ: unknown critical chunk$"
+# libpng 1.5 says "unknown critical chunk", 1.6 says "unhandled"
+error: "^PNG error: IHDZ: un.+ critical chunk$"
 slide: Mirax2.2-4-PNG.mrxs
 success: false
 vendor: mirax

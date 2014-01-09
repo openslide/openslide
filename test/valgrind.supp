@@ -26,3 +26,13 @@
    ...
    fun:g_type_class_ref
 }
+
+# fontconfig
+{
+    fontconfig leak through cairo_text_extents()
+    Memcheck:Leak
+    ...
+    fun:FcPatternObjectInsertElt
+    fun:FcPatternObjectAddWithBinding
+    fun:FcPatternDuplicate
+}
