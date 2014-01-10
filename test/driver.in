@@ -143,14 +143,17 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
 def _try_extended(slidefile, valgrind=False, testdir=None):
     '''Run the extended test program against the specified slide file, under
     Valgrind if specified, using the test program in the testdir directory.
-    Ignore return code and swallow stdout, since the test is verbose.
-    Return stderr.'''
+    Return None on success, error message on failure.'''
 
-    with open('/dev/null', 'r+') as null:
-        proc = _launch_test('test', slidefile, valgrind=valgrind,
-                testdir=testdir, stdout=null, stderr=subprocess.PIPE)
-    _out, err = proc.communicate()
-    return err
+    proc = _launch_test('extended', slidefile, valgrind=valgrind,
+            testdir=testdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    if out or err:
+        return (out + err).strip()
+    elif proc.returncode:
+        return 'Exited with status %d' % proc.returncode
+    else:
+        return None
 
 
 def _fetch_one(slide):
@@ -324,10 +327,10 @@ def _unpack_one(testname):
                 os.symlink(src, newpath)
 
 
-def _run_one(testname, valgrind=False, testdir=None, extended=False):
-    '''Run the specified test, under Valgrind if specified.  If extended
-    tests are requested, execute them against cases which 1) are marked
-    primary, 2) are expected to succeed, and 3) do in fact succeed.'''
+def _run_one(testname, valgrind=False, testdir=None):
+    '''Run the specified test, under Valgrind if specified.  Also execute
+    extended tests against cases which 1) are marked primary, 2) are expected
+    to succeed, and 3) do in fact succeed.'''
 
     conf = _load_test_config(testname)
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
@@ -346,7 +349,7 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
     elif result is not None and not re.search(conf['error'], result):
         print '%s: incorrect error: %s' % (testname, result)
         return False
-    elif extended and conf.get('primary', False) and conf['success']:
+    elif conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
             print '%s: extended test failed: %s' % (testname, result)
@@ -355,7 +358,7 @@ def _run_one(testname, valgrind=False, testdir=None, extended=False):
     return True
 
 
-def _run_all(pattern='*', valgrind=False, testdir=None, extended=False):
+def _run_all(pattern='*', valgrind=False, testdir=None):
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  Return the number of failed tests.'''
     tests = _list_tests(pattern)
@@ -363,7 +366,7 @@ def _run_all(pattern='*', valgrind=False, testdir=None, extended=False):
         _unpack_one(testname)
     failed = 0
     for testname in tests:
-        if not _run_one(testname, valgrind, testdir, extended):
+        if not _run_one(testname, valgrind, testdir):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
     return failed
@@ -405,7 +408,7 @@ def coverage(outfile):
     subprocess.check_call(['make'])
 
     # Run tests
-    _run_all(testdir='test', extended=True)
+    _run_all(testdir='test')
 
     # Generate coverage reports
     paths = []
@@ -430,7 +433,7 @@ def coverage(outfile):
 @_command
 def valgrind(pattern='*'):
     '''Valgrind all tests matching the specified pattern.'''
-    if _run_all(pattern, valgrind=True, extended=True):
+    if _run_all(pattern, valgrind=True):
         sys.exit(1)
 
 
