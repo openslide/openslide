@@ -620,8 +620,10 @@ void openslide_read_region(openslide_t *osr,
 OUT:
   if (tmp_err) {
     _openslide_propagate_error(osr, tmp_err);
-    // ensure we don't return a partial result
-    memset(dest, 0, w * h * 4);
+    if (dest) {
+      // ensure we don't return a partial result
+      memset(dest, 0, w * h * 4);
+    }
   }
 }
 
