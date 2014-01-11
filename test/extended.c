@@ -124,10 +124,10 @@ static void check_cloexec_leaks(const char *slide, void *prog,
 #else /* WIN32 */
 static void child_check_open_fds(void) {}
 
-static void check_cloexec_leaks(const char *slide, void *prog) {
-  (void) slide;
-  (void) prog;
-}
+static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
+                                void *prog G_GNUC_UNUSED,
+                                int64_t x G_GNUC_UNUSED,
+                                int64_t y G_GNUC_UNUSED) {}
 #endif /* WIN32 */
 
 
