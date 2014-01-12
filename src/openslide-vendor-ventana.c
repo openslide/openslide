@@ -308,6 +308,7 @@ static void slide_info_free(struct slide_info *slide) {
     g_free(area->tiles);
     g_slice_free(struct area, area);
   }
+  g_free(slide->areas);
   g_slice_free(struct slide_info, slide);
 }
 
