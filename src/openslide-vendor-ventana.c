@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -77,6 +77,16 @@ static const char DIRECTION_UP[] = "UP";
     }								\
   } while (0)
 
+#define PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)			\
+  do {									\
+    GError *tmp_err = NULL;						\
+    OUT = _openslide_xml_parse_double_attr(NODE, NAME, &tmp_err);	\
+    if (tmp_err)  {							\
+      g_propagate_error(err, tmp_err);					\
+      goto FAIL;							\
+    }									\
+  } while (0)
+
 struct ventana_ops_data {
   struct _openslide_tiffcache *tc;
 };
@@ -106,8 +116,8 @@ struct area {
 };
 
 struct joint {
-  int64_t offset_x;
-  int64_t offset_y;
+  double offset_x;
+  double offset_y;
   int64_t confidence;
 };
 
@@ -380,8 +390,8 @@ static struct slide_info *parse_level0_xml(const char *xml,
   xmlXPathObject *info_result = NULL;
   xmlXPathObject *origin_result = NULL;
   xmlXPathObject *result = NULL;
-  int64_t total_offset_x = 0;
-  int64_t total_offset_y = 0;
+  double total_offset_x = 0;
+  double total_offset_y = 0;
   int64_t total_x_weight = 0;
   int64_t total_y_weight = 0;
   bool success = false;
@@ -535,11 +545,11 @@ static struct slide_info *parse_level0_xml(const char *xml,
       xmlFree(direction);
 
       // read values
-      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_X,
-                                  joint->offset_x);
+      PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_X,
+                                     joint->offset_x);
       joint->offset_x *= -1;
-      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_Y,
-                                  joint->offset_y);
+      PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_Y,
+                                     joint->offset_y);
       joint->offset_y *= -1;
       PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_CONFIDENCE,
                                   joint->confidence);
@@ -573,10 +583,8 @@ FAIL:
   struct slide_info *slide = g_slice_new0(struct slide_info);
   slide->num_areas = area_array->len;
   slide->areas = (struct area **) g_ptr_array_free(area_array, false);
-  slide->tile_advance_x =
-    tiff_tile_width + (double) total_offset_x / total_x_weight;
-  slide->tile_advance_y =
-    tiff_tile_height + (double) total_offset_y / total_y_weight;
+  slide->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
+  slide->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
   //g_debug("advances: %g %g", slide->tile_advance_x, slide->tile_advance_y);
 
   // free on failure

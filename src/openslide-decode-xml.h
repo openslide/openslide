@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -37,6 +37,9 @@ bool _openslide_xml_has_default_namespace(xmlDoc *doc, const char *ns);
 
 int64_t _openslide_xml_parse_int_attr(xmlNode *node, const char *name,
                                       GError **err);
+
+double _openslide_xml_parse_double_attr(xmlNode *node, const char *name,
+                                        GError **err);
 
 xmlXPathContext *_openslide_xml_xpath_create(xmlDoc *doc);
 

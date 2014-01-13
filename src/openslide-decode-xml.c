@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -71,6 +72,28 @@ int64_t _openslide_xml_parse_int_attr(xmlNode *node, const char *name,
                 "Invalid integer attribute \"%s\"", name);
     xmlFree(value);
     return -1;
+  }
+
+  xmlFree(value);
+  return result;
+}
+
+double _openslide_xml_parse_double_attr(xmlNode *node, const char *name,
+                                        GError **err) {
+  xmlChar *value = xmlGetProp(node, BAD_CAST name);
+  if (value == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No floating-point attribute \"%s\"", name);
+    return NAN;
+  }
+
+  gchar *endptr;
+  double result = g_ascii_strtod((gchar *) value, &endptr);
+  if (value[0] == 0 || endptr[0] != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid floating-point attribute \"%s\"", name);
+    xmlFree(value);
+    return NAN;
   }
 
   xmlFree(value);
