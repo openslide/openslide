@@ -399,6 +399,42 @@ FAIL:
   return false;
 }
 
+static bool get_tile_coordinates(const struct area *area,
+                                 xmlNode *joint_info, const char *attr_name,
+                                 int64_t *tile_col, int64_t *tile_row,
+                                 GError **err) {
+  // get tile number
+  int64_t tile;
+  PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, attr_name, tile);
+  if (tile < 1 || tile > area->tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Tile number out of bounds: %"G_GINT64_FORMAT, tile);
+    goto FAIL;
+  }
+
+  // convert to zero-indexed
+  tile -= 1;
+
+  // compute coordinates
+  int64_t col = tile % area->tiles_across;
+  int64_t row = tile / area->tiles_across;
+  // columns in rows 2nd/4th/... from the bottom are numbered from
+  // right to left
+  if (row % 2) {
+    col = area->tiles_across - col - 1;
+  }
+  // rows are numbered from bottom to top
+  row = area->tiles_down - row - 1;
+
+  // commit
+  *tile_col = col;
+  *tile_row = row;
+  return true;
+
+FAIL:
+  return false;
+}
+
 static struct slide_info *parse_level0_xml(openslide_t *osr,
                                            const char *xml,
                                            int64_t tiff_tile_width,
@@ -499,39 +535,17 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
     for (int j = 0; j < result->nodesetval->nodeNr; j++) {
       xmlNode *joint_info = result->nodesetval->nodeTab[j];
 
-      // get tile numbers
-      int64_t tile1, tile2;
-      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_TILE1, tile1);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_TILE2, tile2);
-      if (tile1 < 1 ||
-          tile2 < 1 ||
-          tile1 > area->tile_count ||
-          tile2 > area->tile_count) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Tile number out of bounds: %"G_GINT64_FORMAT
-                    " %"G_GINT64_FORMAT, tile1, tile2);
+      // get tile coordinates
+      int64_t tile1_col, tile1_row;
+      int64_t tile2_col, tile2_row;
+      if (!get_tile_coordinates(area, joint_info, ATTR_TILE1,
+                                &tile1_col, &tile1_row, err)) {
         goto FAIL;
       }
-      // convert to zero-indexed
-      tile1 -= 1;
-      tile2 -= 1;
-
-      // compute coordinates
-      int64_t tile1_col = tile1 % area->tiles_across;
-      int64_t tile1_row = tile1 / area->tiles_across;
-      // columns in rows 2nd/4th/... from the bottom are numbered from
-      // right to left
-      if (tile1_row % 2) {
-        tile1_col = area->tiles_across - tile1_col - 1;
+      if (!get_tile_coordinates(area, joint_info, ATTR_TILE2,
+                                &tile2_col, &tile2_row, err)) {
+        goto FAIL;
       }
-      // rows are numbered from bottom to top
-      tile1_row = area->tiles_down - tile1_row - 1;
-      int64_t tile2_col = tile2 % area->tiles_across;
-      int64_t tile2_row = tile2 / area->tiles_across;
-      if (tile2_row % 2) {
-        tile2_col = area->tiles_across - tile2_col - 1;
-      }
-      tile2_row = area->tiles_down - tile2_row - 1;
 
       // check coordinates against direction, and get joint
       xmlChar *direction = xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
