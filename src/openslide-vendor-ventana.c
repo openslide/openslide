@@ -41,14 +41,16 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
+static const char LEVEL0_IMAGEDESCRIPTION_MAGIC[] = "level=0";
+static const char LEVEL0_XML_MAGIC[] = "iScan";
+static const char LEVEL0_XML_ROOT[] = "EncodeInfo";
+
 static const char LEVEL_DESCRIPTION_TOKEN[] = "level=";
 static const char MACRO_DESCRIPTION[] = "Label Image";
 static const char THUMBNAIL_DESCRIPTION[] = "Thumbnail";
 
 static const char LEVEL_KEY[] = "level";
 static const char MAGNIFICATION_KEY[] = "mag";
-
-static const char INITIAL_ROOT_TAG[] = "iScan";
 
 static const char ATTR_Z_LAYERS[] = "Z-layers";
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
@@ -273,17 +275,34 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
 
+  // find the TIFF directory for level 0
+  int64_t dir_count = _openslide_tifflike_get_directory_count(tl);
+  int64_t dir;
+  for (dir = 0; dir < dir_count; dir++) {
+    const char *image_desc =
+      _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_IMAGEDESCRIPTION, NULL);
+    if (image_desc && strstr(image_desc, LEVEL0_IMAGEDESCRIPTION_MAGIC)) {
+      // found it
+      break;
+    }
+  }
+  if (dir == dir_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a Ventana file");
+    return false;
+  }
+
   // read XMLPacket
-  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
+  const char *xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET,
                                                    err);
   if (!xml) {
     return false;
   }
 
-  // quick check for plausible XML string before parsing
-  if (!strstr(xml, INITIAL_ROOT_TAG)) {
+  // check for plausible XML string before parsing
+  if (!strstr(xml, LEVEL0_XML_MAGIC)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%s not in XMLPacket", INITIAL_ROOT_TAG);
+                "%s not in XMLPacket", LEVEL0_XML_MAGIC);
     return false;
   }
 
@@ -295,9 +314,9 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
 
   // check root tag name
   xmlNode *root = xmlDocGetRootElement(doc);
-  if (xmlStrcmp(root->name, BAD_CAST INITIAL_ROOT_TAG)) {
+  if (xmlStrcmp(root->name, BAD_CAST LEVEL0_XML_ROOT)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Root tag not %s", INITIAL_ROOT_TAG);
+                "Root tag not %s", LEVEL0_XML_ROOT);
     xmlFreeDoc(doc);
     return false;
   }
