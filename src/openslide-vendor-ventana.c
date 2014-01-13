@@ -409,8 +409,10 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
   }
 
   // query AOI metadata
-  info_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/SlideStitchInfo/ImageInfo");
-  origin_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/AoiOrigin/*");
+  info_result =
+    _openslide_xml_xpath_eval(ctx, "/EncodeInfo/SlideStitchInfo/ImageInfo");
+  origin_result =
+    _openslide_xml_xpath_eval(ctx, "/EncodeInfo/AoiOrigin/*");
   if (!info_result || !origin_result ||
       info_result->nodesetval->nodeNr != origin_result->nodesetval->nodeNr) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
