@@ -109,7 +109,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
-                '--leak-check=full'] + args
+                '--leak-check=full', '--num-callers=30'] + args
     return subprocess.Popen(args, env=env, **kwargs)
 
 
