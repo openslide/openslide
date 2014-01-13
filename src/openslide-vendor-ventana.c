@@ -49,8 +49,8 @@ static const char LEVEL_KEY[] = "level";
 static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_ROOT_TAG[] = "iScan";
-static const char ATTR_Z_LAYERS[] = "Z-layers";
 
+static const char ATTR_Z_LAYERS[] = "Z-layers";
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
 static const char ATTR_WIDTH[] = "Width";
 static const char ATTR_HEIGHT[] = "Height";
@@ -335,18 +335,20 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-static bool parse_initial_xml(openslide_t *osr, const char *xml,
-                              GError **err) {
-  // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
-  if (!doc) {
-    return false;
+static bool process_iscan_metadata(openslide_t *osr, xmlXPathContext *ctx,
+                                   GError **err) {
+  // get node
+  xmlNode *iscan =
+    _openslide_xml_xpath_get_node(ctx, "/EncodeInfo/SlideInfo/iScan");
+  if (!iscan) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Missing or duplicate iScan element");
+    goto FAIL;
   }
-  xmlNode *root = xmlDocGetRootElement(doc);
 
   // we don't know how to handle multiple Z layers
   int64_t z_layers;
-  PARSE_INT_ATTRIBUTE_OR_FAIL(root, ATTR_Z_LAYERS, z_layers);
+  PARSE_INT_ATTRIBUTE_OR_FAIL(iscan, ATTR_Z_LAYERS, z_layers);
   if (z_layers != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Slides with multiple Z layers are not supported");
@@ -354,8 +356,8 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   }
 
   // copy all iScan attributes to vendor properties
-  for (xmlAttr *attr = root->properties; attr; attr = attr->next) {
-    xmlChar *value = xmlGetNoNsProp(root, attr->name);
+  for (xmlAttr *attr = iscan->properties; attr; attr = attr->next) {
+    xmlChar *value = xmlGetNoNsProp(iscan, attr->name);
     if (value && *value) {
       g_hash_table_insert(osr->properties,
                           g_strdup_printf("ventana.%s", attr->name),
@@ -372,16 +374,14 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   _openslide_duplicate_double_prop(osr, "ventana.ScanRes",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
-  // clean up
-  xmlFreeDoc(doc);
   return true;
 
 FAIL:
-  xmlFreeDoc(doc);
   return false;
 }
 
-static struct slide_info *parse_level0_xml(const char *xml,
+static struct slide_info *parse_level0_xml(openslide_t *osr,
+                                           const char *xml,
                                            int64_t tiff_tile_width,
                                            int64_t tiff_tile_height,
                                            GError **err) {
@@ -402,6 +402,11 @@ static struct slide_info *parse_level0_xml(const char *xml,
     goto FAIL;
   }
   ctx = _openslide_xml_xpath_create(doc);
+
+  // read iScan element
+  if (!process_iscan_metadata(osr, ctx, err)) {
+    goto FAIL;
+  }
 
   // query AOI metadata
   info_result = _openslide_xml_xpath_eval(ctx, "/EncodeInfo/SlideStitchInfo/ImageInfo");
@@ -693,16 +698,6 @@ static bool ventana_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
-  // parse iScan XML
-  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
-                                                   err);
-  if (!xml) {
-    goto FAIL;
-  }
-  if (!parse_initial_xml(osr, xml, err)) {
-    goto FAIL;
-  }
-
   // walk directories
   int64_t next_level = 0;
   double prev_magnification = INFINITY;
@@ -754,12 +749,13 @@ static bool ventana_open(openslide_t *osr, const char *filename,
           goto FAIL;
         }
         // get XML
-        xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
+        const char *xml =
+          _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
         if (!xml) {
           goto FAIL;
         }
         // parse
-        slide = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
+        slide = parse_level0_xml(osr, xml, tiffl.tile_w, tiffl.tile_h, err);
         if (!slide) {
           goto FAIL;
         }
