@@ -1,0 +1,7 @@
+base: Mirax/CMU-1.zip
+error: "mirax: File does not exist"
+slide: CMU-1.mrxs
+success: false
+debug:
+  - detection
+vendor: null

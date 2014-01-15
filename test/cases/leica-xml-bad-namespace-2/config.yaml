@@ -1,0 +1,7 @@
+base: Leica/Leica-1.scn
+error: "leica: Unexpected XML namespace"
+slide: Leica-1.scn
+success: false
+debug:
+  - detection
+vendor: leica
