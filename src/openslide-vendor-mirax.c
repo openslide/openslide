@@ -1475,7 +1475,7 @@ static int get_associated_image_nonhier_offset(GKeyFile *keyfile,
 
   // verify image format
   // we have only ever seen JPEG
-  if (parse_image_format(format, err) != FORMAT_JPEG) {
+  if (parse_image_format(format, NULL) != FORMAT_JPEG) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported associated image format: %s", format);
     g_free(format);
