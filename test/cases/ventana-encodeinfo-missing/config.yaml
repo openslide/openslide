@@ -1,0 +1,7 @@
+base: Ventana/OS-2.bif
+error: "ventana: No such value: directory 2, tag 700"
+slide: OS-2.bif
+success: false
+debug:
+  - detection
+vendor: generic-tiff

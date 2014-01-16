@@ -1,0 +1,5 @@
+base: Ventana/OS-2.bif
+error: '^No floating-point attribute "OverlapX"$'
+slide: OS-2.bif
+success: false
+vendor: ventana

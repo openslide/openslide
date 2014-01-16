@@ -1,0 +1,5 @@
+base: Ventana/OS-2.bif
+error: "^Area origin not divisible by tile size: 7 % 1024, 38080 % 1360$"
+slide: OS-2.bif
+success: false
+vendor: ventana

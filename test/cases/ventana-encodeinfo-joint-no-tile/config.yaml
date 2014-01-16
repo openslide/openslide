@@ -1,0 +1,5 @@
+base: Ventana/OS-2.bif
+error: '^No integer attribute "Tile2"$'
+slide: OS-2.bif
+success: false
+vendor: ventana

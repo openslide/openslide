@@ -1,0 +1,5 @@
+base: Ventana/OS-2.bif
+error: ^Missing or duplicate iScan element$
+slide: OS-2.bif
+success: false
+vendor: ventana

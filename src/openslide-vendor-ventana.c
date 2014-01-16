@@ -500,12 +500,18 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_HEIGHT, tile_height);
     if (tile_width != tiff_tile_width || tile_height != tiff_tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Tile size mismatch");
+                  "Tile size mismatch: "
+                  "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
+                  "found %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
+                  tiff_tile_width, tiff_tile_height, tile_width, tile_height);
       goto FAIL;
     }
     if (start_col_x % tile_width || start_row_y % tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Area origin not divisible by tile size");
+                  "Area origin not divisible by tile size: "
+                  "%"G_GINT64_FORMAT" %% %"G_GINT64_FORMAT", "
+                  "%"G_GINT64_FORMAT" %% %"G_GINT64_FORMAT,
+                  start_col_x, tile_width, start_row_y, tile_height);
       goto FAIL;
     }
     area->start_col = start_col_x / tile_width;
@@ -661,7 +667,7 @@ static bool parse_level_info(const char *desc,
   char *magnification_str = g_hash_table_lookup(fields, MAGNIFICATION_KEY);
   if (!level_str || !magnification_str) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Missing level fields");
+                "Missing level field");
     goto DONE;
   }
 

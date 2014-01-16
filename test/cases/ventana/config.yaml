@@ -1,0 +1,8 @@
+base: Ventana/OS-2.bif
+slide: OS-2.bif
+success: true
+vendor: ventana
+primary: true
+properties:
+  openslide.vendor: ventana
+  openslide.quickhash-1: 18d3b9956a54fe8e1f25de083a0c43fcec93220d014ea3d54f11a3265e0ddc32

@@ -1,0 +1,7 @@
+base: Ventana/OS-2.bif
+error: "ventana: Could not parse XML"
+slide: OS-2.bif
+success: false
+debug:
+  - detection
+vendor: ventana
