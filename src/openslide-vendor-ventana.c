@@ -886,6 +886,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   g_ptr_array_sort(level_array, width_compare);
 
   // set hash and properties
+  g_assert(level_array->len > 0);
   struct level *top_level = level_array->pdata[level_array->len - 1];
   struct level *level0 = level_array->pdata[0];
   if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
