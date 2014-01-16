@@ -250,8 +250,7 @@ static uint32_t *read_image(openslide_t *osr,
                                        err);
     break;
   default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unknown image format %d", format);
+    g_assert_not_reached();
   }
 
   if (!result) {
