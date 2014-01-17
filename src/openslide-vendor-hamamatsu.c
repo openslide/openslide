@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2014 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -396,17 +396,18 @@ static bool find_bitstream_start(FILE *f,
   }
 }
 
-static uint8_t find_next_ff_marker(FILE *f,
-				   uint8_t *buf_start,
-				   uint8_t **buf,
-				   int buf_size,
-				   int64_t file_size,
-				   int64_t *after_marker_pos,
-				   int *bytes_in_buf) {
+static bool find_next_ff_marker(FILE *f,
+                                uint8_t *buf_start,
+                                uint8_t **buf,
+                                int buf_size,
+                                int64_t file_size,
+                                uint8_t *marker_byte,
+                                int64_t *after_marker_pos,
+                                int *bytes_in_buf,
+                                GError **err) {
   //g_debug("bytes_in_buf: %d", *bytes_in_buf);
   int64_t file_pos = ftello(f);
   bool last_was_ff = false;
-  *after_marker_pos = -1;
   while (true) {
     if (*bytes_in_buf == 0) {
       // fill buffer
@@ -416,7 +417,9 @@ static uint8_t find_next_ff_marker(FILE *f,
       //g_debug("bytes_to_read: %d", bytes_to_read);
       size_t result = fread(*buf, bytes_to_read, 1, f);
       if (result == 0) {
-	return 0;
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Short read searching for JPEG marker");
+        return false;
       }
 
       file_pos += bytes_to_read;
@@ -426,11 +429,11 @@ static uint8_t find_next_ff_marker(FILE *f,
     // special case where the last time ended with FF
     if (last_was_ff) {
       //g_debug("last_was_ff");
-      uint8_t marker = (*buf)[0];
+      *marker_byte = (*buf)[0];
       (*buf)++;
       (*bytes_in_buf)--;
       *after_marker_pos = file_pos - *bytes_in_buf;
-      return marker;
+      return true;
     }
 
     // search for ff
@@ -450,8 +453,9 @@ static uint8_t find_next_ff_marker(FILE *f,
       } else {
 	(*bytes_in_buf)--;
 	(*buf)++;
+	*marker_byte = ff[1];
 	*after_marker_pos = file_pos - *bytes_in_buf;
-	return ff[1];
+	return true;
       }
     }
   }
@@ -514,25 +518,25 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
   uint8_t *buf = buf_start;
   int bytes_in_buf = 0;
   while (first_good < target) {
+    uint8_t marker_byte;
     int64_t after_marker_pos;
-    uint8_t b = find_next_ff_marker(f, buf_start, &buf, 4096,
-				    jpeg->end_in_file,
-				    &after_marker_pos,
-				    &bytes_in_buf);
-    g_assert(after_marker_pos > 0 || after_marker_pos == -1);
-    if (after_marker_pos == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "after_marker_pos == -1");
+    if (!find_next_ff_marker(f, buf_start, &buf, 4096,
+                             jpeg->end_in_file,
+                             &marker_byte,
+                             &after_marker_pos,
+                             &bytes_in_buf,
+                             err)) {
       return false;
     }
+    g_assert(after_marker_pos > 0);
     //g_debug("after_marker_pos: %" G_GINT64_FORMAT, after_marker_pos);
 
     // EOI?
-    if (b == JPEG_EOI) {
+    if (marker_byte == JPEG_EOI) {
       // we're done
       break;
-    } else if (b >= 0xD0 && b < 0xD8) {
-      // marker
+    } else if (marker_byte >= 0xD0 && marker_byte < 0xD8) {
+      // restart marker
       jpeg->mcu_starts[1 + first_good++] = after_marker_pos;
     }
   }
