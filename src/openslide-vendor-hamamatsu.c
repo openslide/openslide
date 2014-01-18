@@ -256,7 +256,8 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   fseeko(infile, header_start_position, SEEK_SET);
   if (!fread(src->buffer, header_length, 1, infile)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot read header in JPEG");
+                "Cannot read header in JPEG at %"G_GINT64_FORMAT,
+                header_start_position);
     return false;
   }
 
@@ -265,7 +266,8 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     fseeko(infile, start_position, SEEK_SET);
     if (!fread(src->buffer + header_length, data_length, 1, infile)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot read data in JPEG");
+                  "Cannot read data in JPEG at %"G_GINT64_FORMAT,
+                  start_position);
       return false;
     }
 
@@ -350,7 +352,7 @@ static bool find_bitstream_start(FILE *f,
     pos = ftello(f);
     if (fread(buf, sizeof(buf), 1, f) != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read JPEG marker");
+                  "Couldn't read JPEG marker at %"G_GINT64_FORMAT, pos);
       return false;
     }
     if (buf[0] != 0xFF) {
@@ -375,7 +377,7 @@ static bool find_bitstream_start(FILE *f,
     // read length
     if (fread(buf, sizeof(buf), 1, f) != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read JPEG marker length");
+                  "Couldn't read JPEG marker length at %"G_GINT64_FORMAT, pos);
       return false;
     }
     memcpy(&len, buf, sizeof(len));
@@ -418,7 +420,8 @@ static bool find_next_ff_marker(FILE *f,
       size_t result = fread(*buf, bytes_to_read, 1, f);
       if (result == 0) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Short read searching for JPEG marker");
+                    "Short read searching for JPEG marker at %"G_GINT64_FORMAT,
+                    file_pos);
         return false;
       }
 
@@ -495,7 +498,8 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
       if (result == 0 ||
           buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Restart marker not found in expected place");
+                    "Restart marker not found at recorded position "
+                    "%"G_GINT64_FORMAT, offset - 2);
         return false;
       }
 
@@ -1066,6 +1070,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
 
   // store error, if any
   if (tmp_err) {
+    //g_debug("restart_marker_thread_func failed: %s", tmp_err->message);
     g_mutex_lock(data->restart_marker_cond_mutex);
     data->restart_marker_thread_error = tmp_err;
     g_mutex_unlock(data->restart_marker_cond_mutex);
@@ -1555,19 +1560,23 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
                jpeg0_ta != 0 && jpeg0_td != 0);
       if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Tile size not consistent");
+                    "Tile size not consistent for JPEG %d: "
+                    "expected %dx%d, found %dx%d", i, jpeg0_tw, jpeg0_th,
+                    jp->tile_width, jp->tile_height);
         goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
           jp->tiles_across != jpeg0_ta) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Tiles across not consistent");
+                    "Tiles across not consistent for JPEG %d: "
+                    "expected %d, found %d", i, jpeg0_ta, jp->tiles_across);
         goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
           jp->tiles_down != jpeg0_td) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Tiles down not consistent");
+                    "Tiles down not consistent for JPEG %d: "
+                    "expected %d, found %d", i, jpeg0_td, jp->tiles_down);
         goto FAIL;
       }
     }
@@ -1766,7 +1775,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // validate magic
     if ((fgetc(f) != 'G') || (fgetc(f) != 'N')) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Bad magic on NGR file");
+                  "Bad magic on NGR file, level %d", i);
       fclose(f);
       goto FAIL;
     }
@@ -1784,7 +1793,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     if ((l->base.w <= 0) || (l->base.h <= 0) ||
 	(l->column_width <= 0) || (l->start_in_file <= 0)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Error processing header");
+                  "Couldn't read header, level %d", i);
       fclose(f);
       goto FAIL;
     }
@@ -1792,7 +1801,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // ensure no remainder on columns
     if ((l->base.w % l->column_width) != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Width not multiple of column width");
+                  "Width %"G_GINT64_FORMAT" not multiple of column width %d",
+                  l->base.w, l->column_width);
       fclose(f);
       goto FAIL;
     }
