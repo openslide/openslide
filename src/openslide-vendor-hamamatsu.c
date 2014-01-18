@@ -535,11 +535,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
     g_assert(after_marker_pos > 0);
     //g_debug("after_marker_pos: %" G_GINT64_FORMAT, after_marker_pos);
 
-    // EOI?
-    if (marker_byte == JPEG_EOI) {
-      // we're done
-      break;
-    } else if (marker_byte >= 0xD0 && marker_byte < 0xD8) {
+    if (marker_byte >= 0xD0 && marker_byte < 0xD8) {
       // restart marker
       jpeg->mcu_starts[1 + first_good++] = after_marker_pos;
     }
