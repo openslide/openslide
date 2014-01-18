@@ -1415,12 +1415,26 @@ static bool init_jpeg_ops(openslide_t *osr,
 
   // for debugging
   if (_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS)) {
+    // run background thread to completion
     if (background_thread) {
       g_thread_join(data->restart_marker_thread);
       data->restart_marker_thread = NULL;
     } else {
       restart_marker_thread_func(osr);
     }
+
+    // check for errors
+    g_mutex_lock(data->restart_marker_cond_mutex);
+    if (data->restart_marker_thread_error) {
+      g_propagate_error(err, data->restart_marker_thread_error);
+      data->restart_marker_thread_error = NULL;
+      g_mutex_unlock(data->restart_marker_cond_mutex);
+      jpeg_do_destroy(osr);
+      return false;
+    }
+    g_mutex_unlock(data->restart_marker_cond_mutex);
+
+    // verify results
     if (!verify_mcu_starts(num_jpegs, jpegs, err)) {
       jpeg_do_destroy(osr);
       return false;
