@@ -346,6 +346,7 @@ static bool find_bitstream_start(FILE *f,
   uint8_t marker_byte;
   uint16_t len;
   int64_t pos;
+  bool have_sof = false;
 
   while (true) {
     // read marker
@@ -372,6 +373,7 @@ static bool find_bitstream_start(FILE *f,
         (marker_byte >= 0xC9 && marker_byte <= 0xCB) ||
         (marker_byte >= 0xCD && marker_byte <= 0xCF)) {
       *sof_position = pos;
+      have_sof = true;
     }
 
     // read length
@@ -393,9 +395,17 @@ static bool find_bitstream_start(FILE *f,
     if (marker_byte == 0xDA) {
       // found it; done
       //g_debug("found bitstream start at %"G_GINT64_FORMAT, ftello(f));
-      return true;
+      break;
     }
   }
+
+  if (!have_sof) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Reached SOS marker without finding SOF");
+    return false;
+  }
+
+  return true;
 }
 
 static bool find_next_ff_marker(FILE *f,

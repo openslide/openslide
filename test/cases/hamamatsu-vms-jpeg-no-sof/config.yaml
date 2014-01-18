@@ -1,0 +1,5 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: "^Can't verify JPEG 3: Reached SOS marker without finding SOF$"
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
+vendor: hamamatsu
