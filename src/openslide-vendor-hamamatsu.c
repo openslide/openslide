@@ -549,8 +549,6 @@ static bool compute_mcu_start(openslide_t *osr,
 			      struct jpeg *jpeg,
 			      FILE *f,
 			      int64_t tileno,
-			      int64_t *sof_position,
-			      int64_t *header_stop_position,
 			      int64_t *start_position,
 			      int64_t *stop_position,
 			      GError **err) {
@@ -567,17 +565,6 @@ static bool compute_mcu_start(openslide_t *osr,
 
   if (!_compute_mcu_start(jpeg, f, tileno, err)) {
     goto OUT;
-  }
-
-  // SOF position; always computed by _compute_mcu_start
-  if (sof_position) {
-    *sof_position = jpeg->sof_position;
-  }
-
-  // end of header; always computed by _compute_mcu_start
-  if (header_stop_position) {
-    *header_stop_position = jpeg->mcu_starts[0];
-    g_assert(*header_stop_position != -1);
   }
 
   // start of data stream
@@ -634,13 +621,9 @@ static bool read_from_jpeg(openslide_t *osr,
 
   if (setjmp(env) == 0) {
     // figure out where to start the data stream
-    int64_t sof_position;
-    int64_t header_stop_position;
     int64_t start_position;
     int64_t stop_position;
     if (!compute_mcu_start(osr, jpeg, f, tileno,
-                           &sof_position,
-                           &header_stop_position,
                            &start_position,
                            &stop_position,
                            err)) {
@@ -655,8 +638,8 @@ static bool read_from_jpeg(openslide_t *osr,
 
     if (!jpeg_random_access_src(&cinfo, f,
                                 jpeg->start_in_file,
-                                sof_position,
-                                header_stop_position,
+                                jpeg->sof_position,
+                                jpeg->header_stop_position,
                                 start_position,
                                 stop_position,
                                 err)) {
@@ -1048,7 +1031,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       }
 
       if (!compute_mcu_start(osr, jp, current_file, current_mcu_start,
-                             NULL, NULL, NULL, NULL, &tmp_err)) {
+                             NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
         fclose(current_file);
         break;
