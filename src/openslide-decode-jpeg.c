@@ -160,7 +160,7 @@ static bool jpeg_decode(FILE *f,  // or:
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
 
-  JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
@@ -199,9 +199,9 @@ static bool jpeg_decode(FILE *f,  // or:
 
     // allocate scanline buffers
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = (JSAMPROW) g_malloc(sizeof(JSAMPLE)
-				      * cinfo.output_width
-				      * cinfo.output_components);
+      buffer[i] = g_malloc(sizeof(JSAMPLE)
+                           * cinfo.output_width
+                           * cinfo.output_components);
     }
 
     // decompress

@@ -616,7 +616,7 @@ static bool read_from_jpeg(openslide_t *osr,
 
   gsize row_size = 0;
 
-  JSAMPARRAY buffer = (JSAMPARRAY) g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
+  JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
   cinfo.rec_outbuf_height = 0;
 
   if (setjmp(env) == 0) {
@@ -661,7 +661,7 @@ static bool read_from_jpeg(openslide_t *osr,
     // allocate scanline buffers
     row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
     for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
-      buffer[i] = (JSAMPROW) g_slice_alloc(row_size);
+      buffer[i] = g_slice_alloc(row_size);
       //g_debug("buffer[%d]: %p", i, buffer[i]);
     }
 
