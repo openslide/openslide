@@ -342,6 +342,7 @@ static void jpeg_destroy_data(int32_t num_jpegs, struct jpeg **jpegs,
 
 static bool find_bitstream_start(FILE *f,
                                  int64_t *sof_position,
+                                 int64_t *header_stop_position,
                                  GError **err) {
   uint8_t buf[2];
   uint8_t marker_byte;
@@ -395,7 +396,8 @@ static bool find_bitstream_start(FILE *f,
     // check for SOS
     if (marker_byte == 0xDA) {
       // found it; done
-      //g_debug("found bitstream start at %"G_GINT64_FORMAT, ftello(f));
+      *header_stop_position = ftello(f);
+      //g_debug("found bitstream start at %"G_GINT64_FORMAT, *header_stop_position);
       break;
     }
   }
@@ -1079,10 +1081,9 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
 
   // find limits of JPEG header
   int64_t header_start = ftello(f);
-  if (!find_bitstream_start(f, sof_position, err)) {
+  if (!find_bitstream_start(f, sof_position, header_stop_position, err)) {
     return false;
   }
-  *header_stop_position = ftello(f);
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
