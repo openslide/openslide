@@ -614,7 +614,7 @@ static bool read_from_jpeg(openslide_t *osr,
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
 
-  gsize row_size = 0;
+  volatile gsize row_size = 0;  // preserve across longjmp
 
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
   cinfo.rec_outbuf_height = 0;
