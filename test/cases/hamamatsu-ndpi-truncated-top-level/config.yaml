@@ -1,0 +1,5 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^Cannot hash TIFF tiles: Can't read from .*/CMU-1.ndpi$"
+slide: CMU-1.ndpi
+success: false
+vendor: hamamatsu

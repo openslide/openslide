@@ -1,0 +1,7 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: ^Short read searching for JPEG marker at 64910$
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
+vendor: hamamatsu
+regions:
+  - [0, 0, 0, 10, 10]

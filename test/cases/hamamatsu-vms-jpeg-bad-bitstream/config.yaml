@@ -1,0 +1,7 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: "^Corrupt JPEG data: premature end of data segment$"
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
+vendor: hamamatsu
+regions:
+  - [102395, 76280, 0, 10, 10]

@@ -1,0 +1,7 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: ^Expected 0xFF byte at end of JPEG data$
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
+vendor: hamamatsu
+regions:
+  - [102350, 76270, 0, 100, 100]

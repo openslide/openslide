@@ -1,0 +1,10 @@
+base: Hamamatsu/OS-2.ndpi
+slide: OS-2.ndpi
+success: true
+vendor: hamamatsu
+primary: true
+debug:
+  - jpeg-markers
+properties:
+  openslide.vendor: hamamatsu
+  openslide.quickhash-1: ff6a1e5e6dce63ee3b2dc37f05884cadb3f2c07e71f476fa9928b4c33daaf896

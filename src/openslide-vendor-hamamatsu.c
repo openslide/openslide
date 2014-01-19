@@ -701,7 +701,7 @@ static bool read_from_jpeg(openslide_t *osr,
     success = true;
   } else {
     // setjmp returns again
-    g_propagate_prefixed_error(err, jerr.err, "JPEG decompression failed: ");
+    g_propagate_error(err, jerr.err);
   }
 
 OUT_JPEG:
