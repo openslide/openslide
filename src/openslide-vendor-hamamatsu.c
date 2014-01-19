@@ -111,6 +111,7 @@ struct jpeg {
   int64_t *unreliable_mcu_starts;
 
   int64_t sof_position;
+  int64_t header_stop_position;
 };
 
 struct jpeg_level {
@@ -480,16 +481,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
 			       GError **err) {
   // special case for first
   if (jpeg->mcu_starts[0] == -1) {
-    // walk through marker segments in header
-    fseeko(f, jpeg->start_in_file, SEEK_SET);
-
-    if (!find_bitstream_start(f, &jpeg->sof_position, err)) {
-      g_prefix_error(err, "Reading JPEG header: ");
-      return false;
-    }
-
-    // set the first entry
-    jpeg->mcu_starts[0] = ftello(f);
+    jpeg->mcu_starts[0] = jpeg->header_stop_position;
   }
 
   // walk backwards to find the first non -1 offset
@@ -1090,6 +1082,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
 static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
                                  int32_t *w, int32_t *h,
                                  int32_t *tw, int32_t *th,
+                                 int64_t *sof_position,
+                                 int64_t *header_stop_position,
                                  char **comment, GError **err) {
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
@@ -1102,18 +1096,17 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
 
   // find limits of JPEG header
   int64_t header_start = ftello(f);
-  int64_t sof_position;
-  if (!find_bitstream_start(f, &sof_position, err)) {
+  if (!find_bitstream_start(f, sof_position, err)) {
     return false;
   }
-  int64_t header_stop = ftello(f);
+  *header_stop_position = ftello(f);
 
   if (setjmp(env) == 0) {
     cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
     jpeg_create_decompress(&cinfo);
     if (!jpeg_random_access_src(&cinfo, f,
-                                header_start, sof_position, header_stop,
-                                -1, -1, err)) {
+                                header_start, *sof_position,
+                                *header_stop_position, -1, -1, err)) {
       goto DONE;
     }
 
@@ -1538,6 +1531,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (!validate_jpeg_header(f, true,
                               &jp->width, &jp->height,
                               &jp->tile_width, &jp->tile_height,
+                              &jp->sof_position,
+                              &jp->header_stop_position,
                               comment_ptr, err)) {
       g_prefix_error(err, "Can't validate JPEG %d: ", i);
       fclose(f);
@@ -2378,6 +2373,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       int32_t jp_w = width;  // overwritten if dimensions_valid
       int32_t jp_h = height; // overwritten if dimensions_valid
       int32_t jp_tw, jp_th;
+      int64_t sof_position, header_stop_position;
       if (fseeko(f, start_in_file, SEEK_SET)) {
         _openslide_io_error(err, "Couldn't fseek %s", filename);
         goto FAIL;
@@ -2385,6 +2381,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       if (!validate_jpeg_header(f, dimensions_valid,
                                 &jp_w, &jp_h,
                                 &jp_tw, &jp_th,
+                                &sof_position, &header_stop_position,
                                 NULL, &tmp_err)) {
         if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
@@ -2422,6 +2419,8 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       jp->tile_width = jp_tw;
       jp->tile_height = jp_th;
       jp->tile_count = jp->tiles_across * jp->tiles_down;
+      jp->sof_position = sof_position;
+      jp->header_stop_position = header_stop_position;
       jp->mcu_starts = g_new(int64_t, jp->tile_count);
       // init all to -1
       for (int32_t i = 0; i < jp->tile_count; i++) {
