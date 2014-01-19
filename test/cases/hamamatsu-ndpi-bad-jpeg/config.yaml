@@ -1,5 +1,5 @@
 base: Hamamatsu/CMU-1.ndpi
-error: "^Can't verify JPEG for directory 1: Bogus marker length$"
+error: "^Can't validate JPEG for directory 1: Bogus marker length$"
 slide: CMU-1.ndpi
 success: false
 vendor: hamamatsu

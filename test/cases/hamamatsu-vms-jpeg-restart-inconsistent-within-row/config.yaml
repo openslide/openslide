@@ -1,5 +1,5 @@
 base: Hamamatsu-vms/CMU-1.zip
-error: "^Can't verify JPEG 4: Inconsistent restart marker spacing within row$"
+error: "^Can't validate JPEG 4: Inconsistent restart marker spacing within row$"
 generate:
     ? "CMU-1-40x - 2010-01-12 13.24.05_map2.jpg"
     : "jpegtran -restart 1024B -outfile %(out)s %(in)s"

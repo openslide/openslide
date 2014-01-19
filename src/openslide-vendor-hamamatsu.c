@@ -1086,12 +1086,11 @@ static gpointer restart_marker_thread_func(gpointer d) {
   return NULL;
 }
 
-// returns w and h and tw and th and comment as a convenience
 // if !use_jpeg_dimensions, use *w and *h instead of setting them
-static bool verify_jpeg(FILE *f, bool use_jpeg_dimensions,
-			int32_t *w, int32_t *h,
-			int32_t *tw, int32_t *th,
-			char **comment, GError **err) {
+static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
+                                 int32_t *w, int32_t *h,
+                                 int32_t *tw, int32_t *th,
+                                 char **comment, GError **err) {
   struct jpeg_decompress_struct cinfo;
   struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
@@ -1536,11 +1535,11 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!verify_jpeg(f, true,
-                     &jp->width, &jp->height,
-                     &jp->tile_width, &jp->tile_height,
-                     comment_ptr, err)) {
-      g_prefix_error(err, "Can't verify JPEG %d: ", i);
+    if (!validate_jpeg_header(f, true,
+                              &jp->width, &jp->height,
+                              &jp->tile_width, &jp->tile_height,
+                              comment_ptr, err)) {
+      g_prefix_error(err, "Can't validate JPEG %d: ", i);
       fclose(f);
       goto FAIL;
     }
@@ -2375,7 +2374,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
                                height <= JPEG_MAX_DIMENSION);
 
-      // verify JPEG
+      // validate JPEG
       int32_t jp_w = width;  // overwritten if dimensions_valid
       int32_t jp_h = height; // overwritten if dimensions_valid
       int32_t jp_tw, jp_th;
@@ -2383,10 +2382,10 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         _openslide_io_error(err, "Couldn't fseek %s", filename);
         goto FAIL;
       }
-      if (!verify_jpeg(f, dimensions_valid,
-                       &jp_w, &jp_h,
-                       &jp_tw, &jp_th,
-                       NULL, &tmp_err)) {
+      if (!validate_jpeg_header(f, dimensions_valid,
+                                &jp_w, &jp_h,
+                                &jp_tw, &jp_th,
+                                NULL, &tmp_err)) {
         if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
           // non-tiled image
@@ -2396,7 +2395,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
           jp_h = jp_th = height;
         } else {
           g_propagate_prefixed_error(err, tmp_err,
-                                     "Can't verify JPEG for directory "
+                                     "Can't validate JPEG for directory "
                                      "%"G_GINT64_FORMAT": ", dir);
           goto FAIL;
         }
