@@ -27,16 +27,16 @@ Requirements
 ============
 
 This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x,
-GDK-PixBuf, libxml2, cairo >= 1.2, and glib >= 2.16.  Leica and Ventana
-support require libtiff >= 4.
+GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
+Leica and Ventana support require libtiff >= 4.
 
 
 Features
 ========
 
-The library can read Aperio, Hamamatsu, Leica, MIRAX, Trestle, and Ventana
-formats, as well as TIFF files that conform to a simple convention.
-(InterScope files tend to be readable as this generic TIFF.)
+The library can read Aperio, Hamamatsu, Leica, MIRAX, Sakura, Trestle,
+and Ventana formats, as well as TIFF files that conform to a simple
+convention. (InterScope files tend to be readable as this generic TIFF.)
 
 More information about formats is here:
 http://openslide.org/formats/
@@ -63,6 +63,22 @@ OpenSlide itself creates these properties (for now):
  openslide.background-color
    The background color of the slide, given as an RGB hex triplet.
    This property is not always present.
+
+ openslide.bounds-height
+   The height of the rectangle bounding the non-empty region of the slide.
+   This property is not always present.
+
+ openslide.bounds-width
+   The width of the rectangle bounding the non-empty region of the slide.
+   This property is not always present.
+
+ openslide.bounds-x
+   The X coordinate of the rectangle bounding the non-empty region of the
+   slide. This property is not always present.
+
+ openslide.bounds-y
+   The Y coordinate of the rectangle bounding the non-empty region of the
+   slide. This property is not always present.
 
  openslide.comment
    A free-form text comment.
@@ -96,7 +112,16 @@ doc/html/openslide_8h.html in this distribution.
 Additional documentation is available from the OpenSlide website:
 http://openslide.org/
 
-There is also a Carnegie Mellon SCS Technical Report:
+The design and implementation of the library are described in a published
+technical note:
+
+ OpenSlide: A Vendor-Neutral Software Foundation for Digital Pathology
+ Adam Goode, Benjamin Gilbert, Jan Harkes, Drazen Jukic, M. Satyanarayanan
+ Journal of Pathology Informatics 2013, 4:27
+
+ http://download.openslide.org/docs/JPatholInform_2013_4_1_27_119005.pdf
+
+There is also an older technical report:
 
  CMU-CS-08-136
  A Vendor-Neutral Library and Viewer for Whole-Slide Images
@@ -104,9 +129,6 @@ There is also a Carnegie Mellon SCS Technical Report:
 
  http://reports-archive.adm.cs.cmu.edu/anon/2008/abstracts/08-136.html
  http://reports-archive.adm.cs.cmu.edu/anon/2008/CMU-CS-08-136.pdf
-
-Note that the tech report contains API documentation for a previous,
-unreleased version of this library.
 
 
 Acknowledgements
