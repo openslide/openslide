@@ -76,8 +76,8 @@ struct area {
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
 
-  int64_t clicks_offset_x;
-  int64_t clicks_offset_y;
+  int64_t offset_x;
+  int64_t offset_y;
 };
 
 struct read_tile_args {
@@ -226,10 +226,8 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
       .tiff = tiff,
       .area = area,
     };
-    int64_t ax = x / l->base.downsample -
-                 area->clicks_offset_x / l->clicks_per_pixel;
-    int64_t ay = y / l->base.downsample -
-                 area->clicks_offset_y / l->clicks_per_pixel;
+    int64_t ax = x / l->base.downsample - area->offset_x;
+    int64_t ay = y / l->base.downsample - area->offset_y;
     success = _openslide_grid_paint_region(area->grid, cr, &args,
                                            ax, ay, level, w, h,
                                            err);
@@ -350,38 +348,32 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
 
 static void set_bounds_props(openslide_t *osr,
                              struct level *level0) {
-  double x0 = INFINITY;
-  double y0 = INFINITY;
-  double x1 = 0;
-  double y1 = 0;
+  int64_t x0 = INT64_MAX;
+  int64_t y0 = INT64_MAX;
+  int64_t x1 = INT64_MIN;
+  int64_t y1 = INT64_MIN;
 
   g_assert(level0->areas->len);
   for (uint32_t n = 0; n < level0->areas->len; n++) {
     struct area *area = level0->areas->pdata[n];
-    double x = area->clicks_offset_x / level0->clicks_per_pixel;
-    double y = area->clicks_offset_y / level0->clicks_per_pixel;
-    x0 = MIN(x0, x);
-    y0 = MIN(y0, y);
-    x1 = MAX(x1, x + area->tiffl.image_w);
-    y1 = MAX(y1, y + area->tiffl.image_h);
+    x0 = MIN(x0, area->offset_x);
+    y0 = MIN(y0, area->offset_y);
+    x1 = MAX(x1, area->offset_x + area->tiffl.image_w);
+    y1 = MAX(y1, area->offset_y + area->tiffl.image_h);
   }
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
-                                      (int64_t) floor(x0)));
+                      g_strdup_printf("%"G_GINT64_FORMAT, x0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
-                                      (int64_t) floor(y0)));
+                      g_strdup_printf("%"G_GINT64_FORMAT, y0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
-                                      (int64_t) (ceil(x1) - floor(x0))));
+                      g_strdup_printf("%"G_GINT64_FORMAT, x1 - x0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
-                                      (int64_t) (ceil(y1) - floor(y0))));
+                      g_strdup_printf("%"G_GINT64_FORMAT, y1 - y0));
 }
 
 static struct collection *parse_xml_description(const char *xml,
@@ -681,9 +673,9 @@ static bool create_levels_from_collection(openslide_t *osr,
         return false;
       }
 
-      // set area offset
-      area->clicks_offset_x = image->clicks_offset_x;
-      area->clicks_offset_y = image->clicks_offset_y;
+      // set area offset, in clicks
+      area->offset_x = image->clicks_offset_x;
+      area->offset_y = image->clicks_offset_y;
       //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g", dimension->dir, dimension->clicks_per_pixel);
 
       // verify that we can read this compression (hard fail if not)
@@ -722,12 +714,21 @@ static bool create_levels_from_collection(openslide_t *osr,
     return false;
   }
 
-  // now we have minimized click densities; set level sizes
+  // now we have minimized click densities
   for (uint32_t level_num = 0; level_num < levels->len; level_num++) {
     struct level *l = levels->pdata[level_num];
+
+    // set level size
     l->base.w = ceil(collection->clicks_across / l->clicks_per_pixel);
     l->base.h = ceil(collection->clicks_down / l->clicks_per_pixel);
     //g_debug("level %d, clicks/pixel %g", level_num, l->clicks_per_pixel);
+
+    // convert area offsets from clicks to pixels
+    for (uint32_t area_num = 0; area_num < l->areas->len; area_num++) {
+      struct area *area = l->areas->pdata[area_num];
+      area->offset_x = area->offset_x / l->clicks_per_pixel;
+      area->offset_y = area->offset_y / l->clicks_per_pixel;
+    }
   }
 
   // process macro image
