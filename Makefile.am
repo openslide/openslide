@@ -65,7 +65,7 @@ src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL \
 	$(GDKPIXBUF_CFLAGS) $(ZLIB_CFLAGS) -DG_LOG_DOMAIN=\"Openslide\" \
 	-I$(top_srcdir)/src
 
-src_libopenslide_la_LDFLAGS = -version-info 3:3:3 -no-undefined
+src_libopenslide_la_LDFLAGS = -version-info 4:0:4 -no-undefined
 
 
 pkginclude_HEADERS = \

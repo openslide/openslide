@@ -1,6 +1,23 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.4.0, 2014-01-25
+ * Major internal restructuring
+ * New formats: Hamamatsu NDPI, Sakura SVSLIDE, Ventana BIF (preliminary)
+ * Add openslide_detect_vendor()
+ * Deprecate openslide_can_open() (not very useful and often misused)
+ * Document performance considerations for openslide_open()
+ * Add properties giving the bounds of the non-empty region of the slide
+ * leica: Support multiple main images if their levels are coplanar
+ * leica: Use slide size as level size
+ * mirax: Support PNG- and BMP-formatted slides
+ * mirax: Fix "Expected first 0 value" error opening some slides
+ * mirax: Fix incorrect tile placement on some slides without overlaps
+ * mirax: Never synthesize downsampled levels
+ * Add OPENSLIDE_DEBUG environment variable (OPENSLIDE_DEBUG=? for help)
+ * Fix some crashes in error paths
+ * Add tests for many error paths
+
 Version 3.3.3, 2013-04-13
  * Fix inclusion of openslide.h with MSVC
  * Properly handle Aperio JP2K slides with zero-length tiles
