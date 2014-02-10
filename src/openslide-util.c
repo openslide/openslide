@@ -150,24 +150,26 @@ FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
     return NULL;
   }
 
-  /* Redundant if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
+  /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
 #ifdef HAVE_FCNTL
-  int fd = fileno(f);
-  if (fd == -1) {
-    _openslide_io_error(err, "Couldn't fileno() %s", path);
-    fclose(f);
-    return NULL;
-  }
-  long flags = fcntl(fd, F_GETFD);
-  if (flags == -1) {
-    _openslide_io_error(err, "Couldn't F_GETFD %s", path);
-    fclose(f);
-    return NULL;
-  }
-  if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
-    _openslide_io_error(err, "Couldn't F_SETFD %s", path);
-    fclose(f);
-    return NULL;
+  if (!FOPEN_CLOEXEC_FLAG[0]) {
+    int fd = fileno(f);
+    if (fd == -1) {
+      _openslide_io_error(err, "Couldn't fileno() %s", path);
+      fclose(f);
+      return NULL;
+    }
+    long flags = fcntl(fd, F_GETFD);
+    if (flags == -1) {
+      _openslide_io_error(err, "Couldn't F_GETFD %s", path);
+      fclose(f);
+      return NULL;
+    }
+    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
+      _openslide_io_error(err, "Couldn't F_SETFD %s", path);
+      fclose(f);
+      return NULL;
+    }
   }
 #endif
 
