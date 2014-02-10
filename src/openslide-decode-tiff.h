@@ -70,6 +70,10 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           tdir_t dir,
                                           GError **err);
 
+bool _openslide_tiff_set_dir(TIFF *tiff,
+                             tdir_t dir,
+                             GError **err);
+
 
 /* TIFF handles are not thread-safe, so we have a handle cache for
    multithreaded access */

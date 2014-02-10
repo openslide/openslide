@@ -215,9 +215,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   for (uint32_t n = 0; n < l->areas->len; n++) {
     struct area *area = l->areas->pdata[n];
 
-    if (!TIFFSetDirectory(tiff, area->tiffl.dir)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot set TIFF directory");
+    if (!_openslide_tiff_set_dir(tiff, area->tiffl.dir, err)) {
       success = false;
       break;
     }
@@ -832,9 +830,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 
   // set MPP properties
-  if (!TIFFSetDirectory(tiff, property_dir)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't read directory");
+  if (!_openslide_tiff_set_dir(tiff, property_dir, err)) {
     goto FAIL;
   }
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,

@@ -59,9 +59,7 @@ struct associated_image {
 
 #define SET_DIR_OR_FAIL(tiff, i)					\
   do {									\
-    if (!TIFFSetDirectory(tiff, i)) {					\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
-                  "Cannot set TIFF directory %d", i);			\
+    if (!_openslide_tiff_set_dir(tiff, i, err)) {			\
       return false;							\
     }									\
   } while (0)
@@ -76,6 +74,21 @@ struct associated_image {
     }									\
     result = tmp;							\
   } while (0)
+
+bool _openslide_tiff_set_dir(TIFF *tiff,
+                             tdir_t dir,
+                             GError **err) {
+  if (dir == TIFFCurrentDirectory(tiff)) {
+    // avoid libtiff unnecessarily rereading directory contents
+    return true;
+  }
+  if (!TIFFSetDirectory(tiff, dir)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Cannot set TIFF directory %d", dir);
+    return false;
+  }
+  return true;
+}
 
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,

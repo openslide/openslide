@@ -201,15 +201,12 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
     return false;
   }
 
-  if (TIFFSetDirectory(tiff, l->tiffl.dir)) {
+  if (_openslide_tiff_set_dir(tiff, l->tiffl.dir, err)) {
     success = _openslide_grid_paint_region(l->grid, cr, tiff,
                                            x / l->base.downsample,
                                            y / l->base.downsample,
                                            level, w, h,
                                            err);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot set TIFF directory");
   }
   _openslide_tiffcache_put(data->tc, tiff);
 
@@ -405,7 +402,9 @@ static bool aperio_open(openslide_t *osr,
 
   levels = g_new0(struct level *, level_count);
   int32_t i = 0;
-  TIFFSetDirectory(tiff, 0);
+  if (!_openslide_tiff_set_dir(tiff, 0, err)) {
+    goto FAIL;
+  }
   do {
     tdir_t dir = TIFFCurrentDirectory(tiff);
     if (TIFFIsTiled(tiff)) {
@@ -447,7 +446,9 @@ static bool aperio_open(openslide_t *osr,
   } while (TIFFReadDirectory(tiff));
 
   // read properties
-  TIFFSetDirectory(tiff, 0);
+  if (!_openslide_tiff_set_dir(tiff, 0, err)) {
+    goto FAIL;
+  }
   char *image_desc;
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
