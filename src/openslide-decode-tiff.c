@@ -57,7 +57,7 @@ struct associated_image {
   tdir_t directory;
 };
 
-#define SET_DIR_OR_FAIL(tiff, i, err)					\
+#define SET_DIR_OR_FAIL(tiff, i)					\
   do {									\
     if (!TIFFSetDirectory(tiff, i)) {					\
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
@@ -66,7 +66,7 @@ struct associated_image {
     }									\
   } while (0)
 
-#define GET_FIELD_OR_FAIL(tiff, tag, result, err)			\
+#define GET_FIELD_OR_FAIL(tiff, tag, result)				\
   do {									\
     uint32 tmp;								\
     if (!TIFFGetField(tiff, tag, &tmp)) {				\
@@ -83,17 +83,17 @@ bool _openslide_tiff_level_init(TIFF *tiff,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err) {
   // set the directory
-  SET_DIR_OR_FAIL(tiff, dir, err);
+  SET_DIR_OR_FAIL(tiff, dir);
 
   // figure out tile size
   int64_t tw, th;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILEWIDTH, tw, err);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILELENGTH, th, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILEWIDTH, tw);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILELENGTH, th);
 
   // get image size
   int64_t iw, ih;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, iw, err);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, ih, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, iw);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, ih);
 
   // safe now, start writing
   if (level) {
@@ -180,7 +180,7 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                int64_t tile_col, int64_t tile_row,
                                GError **err) {
   // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir, err);
+  SET_DIR_OR_FAIL(tiff, tiffl->dir);
 
   // read tile
   return tiff_read_region(tiff, dest,
@@ -198,7 +198,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   *_len = 0;
 
   // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir, err);
+  SET_DIR_OR_FAIL(tiff, tiffl->dir);
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff,
@@ -247,11 +247,11 @@ static bool _get_associated_image_data(TIFF *tiff,
 
   // g_debug("read TIFF associated image: %d", img->directory);
 
-  SET_DIR_OR_FAIL(tiff, img->directory, err);
+  SET_DIR_OR_FAIL(tiff, img->directory);
 
   // ensure dimensions have not changed
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, width, err);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, height, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, width);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, height);
   if (img->base.w != width || img->base.h != height) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected associated image size: "
@@ -296,16 +296,16 @@ static bool _add_associated_image(openslide_t *osr,
                                   TIFF *tiff,
                                   GError **err) {
   // set directory
-  SET_DIR_OR_FAIL(tiff, dir, err);
+  SET_DIR_OR_FAIL(tiff, dir);
 
   // get the dimensions
   int64_t w, h;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, w, err);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, h, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, w);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, h);
 
   // check compression
   uint16_t compression;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, compression, err);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, compression);
   if (!TIFFIsCODECConfigured(compression)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported TIFF compression: %u", compression);
