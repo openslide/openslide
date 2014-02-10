@@ -215,11 +215,6 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   for (uint32_t n = 0; n < l->areas->len; n++) {
     struct area *area = l->areas->pdata[n];
 
-    if (!_openslide_tiff_set_dir(tiff, area->tiffl.dir, err)) {
-      success = false;
-      break;
-    }
-
     struct read_tile_args args = {
       .tiff = tiff,
       .area = area,

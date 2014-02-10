@@ -238,20 +238,17 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                          GError **err) {
   struct ventana_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
-  bool success = false;
 
   TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
   if (tiff == NULL) {
     return false;
   }
 
-  if (_openslide_tiff_set_dir(tiff, l->tiffl.dir, err)) {
-    success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                           x / l->base.downsample,
-                                           y / l->base.downsample,
-                                           level, w, h,
-                                           err);
-  }
+  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
+                                              x / l->base.downsample,
+                                              y / l->base.downsample,
+                                              level, w, h,
+                                              err);
   _openslide_tiffcache_put(data->tc, tiff);
 
   return success;
