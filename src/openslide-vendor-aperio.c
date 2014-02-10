@@ -80,12 +80,58 @@ static void destroy(openslide_t *osr) {
   destroy_data(data, levels, osr->level_count);
 }
 
+static bool check_for_empty_tile(struct _openslide_tiff_level *tiffl,
+                                 TIFF *tiff,
+                                 int64_t tile_col, int64_t tile_row,
+                                 bool *is_empty,
+                                 GError **err) {
+  // set directory
+  if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
+    return false;
+  }
+
+  // get tile number
+  ttile_t tile_no = TIFFComputeTile(tiff,
+                                    tile_col * tiffl->tile_w,
+                                    tile_row * tiffl->tile_h,
+                                    0, 0);
+
+  //g_debug("check_for_empty_tile: tile %d", tile_no);
+
+  // get tile size
+  toff_t *sizes;
+  if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Cannot get tile size");
+    return false;
+  }
+  tsize_t tile_size = sizes[tile_no];
+
+  // return result
+  *is_empty = tile_size == 0;
+  return true;
+}
+
 static bool decode_tile(struct level *l,
                         TIFF *tiff,
                         uint32_t *dest,
                         int64_t tile_col, int64_t tile_row,
                         GError **err) {
   struct _openslide_tiff_level *tiffl = &l->tiffl;
+
+  // some Aperio slides have some zero-length tiles, possibly due to an
+  // encoder bug
+  bool is_empty;
+  if (!check_for_empty_tile(tiffl, tiff,
+                            tile_col, tile_row,
+                            &is_empty, err)) {
+    return false;
+  }
+  if (is_empty) {
+    // fill with transparent
+    memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
+    return true;
+  }
 
   // select color space
   enum _openslide_jp2k_colorspace space;
@@ -111,12 +157,6 @@ static bool decode_tile(struct level *l,
                                       tile_col, tile_row,
                                       err)) {
     return false;  // ok, haven't allocated anything yet
-  }
-  if (!buflen) {
-    // a slide with zero-length tiles has been seen in the wild
-    // fill with transparent
-    memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
-    return true;  // ok, haven't allocated anything yet
   }
 
   // decompress

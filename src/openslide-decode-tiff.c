@@ -206,10 +206,6 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
                                     void **_buf, int32_t *_len,
                                     int64_t tile_col, int64_t tile_row,
                                     GError **err) {
-  // initialize out params
-  *_buf = NULL;
-  *_len = 0;
-
   // set directory
   SET_DIR_OR_FAIL(tiff, tiffl->dir);
 
@@ -229,12 +225,6 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
     return false;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
-
-  // a slide with zero-length tiles has been seen in the wild
-  if (!tile_size) {
-    //g_debug("no data for tile %d", tile_no);
-    return true;  // ok, haven't allocated anything yet
-  }
 
   // get raw tile
   tdata_t buf = g_malloc(tile_size);
