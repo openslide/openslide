@@ -47,6 +47,7 @@ static const char LEVEL0_XML_ROOT[] = "EncodeInfo";
 
 static const char LEVEL_DESCRIPTION_TOKEN[] = "level=";
 static const char MACRO_DESCRIPTION[] = "Label Image";
+static const char MACRO_DESCRIPTION2[] = "Label_Image";
 static const char THUMBNAIL_DESCRIPTION[] = "Thumbnail";
 
 static const char LEVEL_KEY[] = "level";
@@ -854,7 +855,8 @@ static bool ventana_open(openslide_t *osr, const char *filename,
         goto FAIL;
       }
 
-    } else if (!strcmp(image_desc, MACRO_DESCRIPTION)) {
+    } else if (!strcmp(image_desc, MACRO_DESCRIPTION) ||
+               !strcmp(image_desc, MACRO_DESCRIPTION2)) {
       // macro image
       if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir,
                                                 err)) {
