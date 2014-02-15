@@ -51,7 +51,7 @@ AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
 					 AC_MSG_FAILURE([cannot find libjpeg]))
 
 PKG_CHECK_MODULES(ZLIB, [zlib], [], [
-  dnl for Ubuntu Hardy and Lucid
+  dnl for Ubuntu Lucid, BSD
   AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
 ])
 
@@ -139,7 +139,7 @@ AS_CASE([$host],
         return 1;
       ])
     ], [
-      # glibc >= 2.7
+      # glibc >= 2.7, FreeBSD >= 10.0, NetBSD >= 6.0
       AC_MSG_RESULT([e])
       AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["e"])
     ], [
