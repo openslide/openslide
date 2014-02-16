@@ -64,9 +64,9 @@ struct associated_image {
     }									\
   } while (0)
 
-#define GET_FIELD_OR_FAIL(tiff, tag, result)				\
+#define GET_FIELD_OR_FAIL(tiff, tag, type, result)			\
   do {									\
-    uint32 tmp;								\
+    type tmp;								\
     if (!TIFFGetField(tiff, tag, &tmp)) {				\
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Cannot get required TIFF tag: %d", tag);		\
@@ -100,13 +100,13 @@ bool _openslide_tiff_level_init(TIFF *tiff,
 
   // figure out tile size
   int64_t tw, th;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILEWIDTH, tw);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILELENGTH, th);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILEWIDTH, uint32_t, tw);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_TILELENGTH, uint32_t, th);
 
   // get image size
   int64_t iw, ih;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, iw);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, ih);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, uint32_t, iw);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, uint32_t, ih);
 
   // safe now, start writing
   if (level) {
@@ -253,8 +253,8 @@ static bool _get_associated_image_data(TIFF *tiff,
   SET_DIR_OR_FAIL(tiff, img->directory);
 
   // ensure dimensions have not changed
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, width);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, height);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, uint32_t, width);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, uint32_t, height);
   if (img->base.w != width || img->base.h != height) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected associated image size: "
@@ -303,12 +303,12 @@ static bool _add_associated_image(openslide_t *osr,
 
   // get the dimensions
   int64_t w, h;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, w);
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, h);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, uint32_t, w);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, uint32_t, h);
 
   // check compression
   uint16_t compression;
-  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, compression);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, uint16_t, compression);
   if (!TIFFIsCODECConfigured(compression)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unsupported TIFF compression: %u", compression);
