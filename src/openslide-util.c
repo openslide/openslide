@@ -35,6 +35,8 @@
 #include <fcntl.h>
 #endif
 
+#define KEY_FILE_HARD_MAX_SIZE (100 << 20)
+
 static const char DEBUG_ENV_VAR[] = "OPENSLIDE_DEBUG";
 
 static const struct debug_option {
@@ -66,7 +68,7 @@ void _openslide_int64_free(gpointer data) {
 }
 
 bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                              int64_t max_size, GKeyFileFlags flags,
+                              int32_t max_size, GKeyFileFlags flags,
                               GError **err) {
   char *buf = NULL;
 
@@ -81,6 +83,12 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
+
+  // hard limit
+  if (max_size <= 0) {
+    max_size = KEY_FILE_HARD_MAX_SIZE;
+  }
+  max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
   FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
@@ -97,7 +105,7 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     _openslide_io_error(err, "Couldn't get size of %s", filename);
     goto FAIL;
   }
-  if (max_size > 0 && size > max_size) {
+  if (size > max_size) {
     g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                 "Key file %s too large", filename);
     goto FAIL;
