@@ -92,7 +92,7 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     _openslide_io_error(err, "Couldn't seek %s", filename);
     goto FAIL;
   }
-  ssize_t size = ftello(f);
+  int64_t size = ftello(f);
   if (size == -1) {
     _openslide_io_error(err, "Couldn't get size of %s", filename);
     goto FAIL;
@@ -110,7 +110,7 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
   }
   // catch file size changes
   buf = g_malloc(size + 1);
-  ssize_t total = 0;
+  int64_t total = 0;
   size_t cur_len;
   while ((cur_len = fread(buf + total, 1, size + 1 - total, f)) > 0) {
     total += cur_len;

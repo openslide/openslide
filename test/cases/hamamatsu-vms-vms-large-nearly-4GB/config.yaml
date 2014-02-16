@@ -1,0 +1,7 @@
+base: Hamamatsu-vms/CMU-1.zip
+error: "hamamatsu-vms-vmu: Can't read key file: Key file .*/CMU-1-40x - 2010-01-12 13.24.05.vms too large"
+slide: CMU-1-40x - 2010-01-12 13.24.05.vms
+success: false
+vendor: null
+debug:
+  - detection
