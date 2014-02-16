@@ -326,6 +326,7 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
 					  GError **err) {
   int32_t w, h;
   if (!_openslide_jpeg_read_dimensions(filename, offset, &w, &h, err)) {
+    g_prefix_error(err, "Can't read %s associated image: ", name);
     return false;
   }
 

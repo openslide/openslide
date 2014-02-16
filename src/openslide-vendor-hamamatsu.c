@@ -2060,7 +2060,6 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     g_free(macro_filename);
 
     if (!result) {
-      g_prefix_error(err, "Could not read macro image: ");
       g_free(tmp);
       goto DONE;
     }
@@ -2450,7 +2449,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       if (!_openslide_jpeg_add_associated_image(osr, "macro",
                                                 filename, start_in_file,
                                                 err)) {
-        g_prefix_error(err, "Couldn't read macro image: ");
         goto FAIL;
       }
     }

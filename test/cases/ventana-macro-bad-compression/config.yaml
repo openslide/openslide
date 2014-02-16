@@ -1,5 +1,5 @@
 base: Ventana/OS-2.bif
-error: "^Can't read macro image: Unsupported TIFF compression: 240$"
+error: "^Can't read macro associated image: Unsupported TIFF compression: 240$"
 slide: OS-2.bif
 success: false
 vendor: ventana

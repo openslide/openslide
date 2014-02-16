@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: "^Cannot read macro associated image: Not a JPEG file: starts with 0xff 0xd9$"
+error: "^Can't read macro associated image: Not a JPEG file: starts with 0xff 0xd9$"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

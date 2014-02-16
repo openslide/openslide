@@ -1062,23 +1062,20 @@ static bool add_associated_image(openslide_t *osr,
   char *path;
   int64_t size;
   int64_t offset;
-  bool result = false;
 
   if (recordno == -1) {
     // no such image
     return true;
   }
 
-  if (read_nonhier_record(indexfile, nonhier_root,
-                          datafile_count, datafile_paths, recordno,
-                          &path, &size, &offset, err)) {
-    result = _openslide_jpeg_add_associated_image(osr, name, path, offset, err);
+  if (!read_nonhier_record(indexfile, nonhier_root,
+                           datafile_count, datafile_paths, recordno,
+                           &path, &size, &offset, err)) {
+    g_prefix_error(err, "Cannot read %s associated image: ", name);
+    return false;
   }
 
-  if (!result) {
-    g_prefix_error(err, "Cannot read %s associated image: ", name);
-  }
-  return result;
+  return _openslide_jpeg_add_associated_image(osr, name, path, offset, err);
 }
 
 

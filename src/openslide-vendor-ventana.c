@@ -860,7 +860,6 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // macro image
       if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir,
                                                 err)) {
-	g_prefix_error(err, "Can't read macro image: ");
 	goto FAIL;
       }
 
@@ -868,7 +867,6 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // thumbnail image
       if (!_openslide_tiff_add_associated_image(osr, "thumbnail", tc, dir,
                                                 err)) {
-	g_prefix_error(err, "Can't read thumbnail image: ");
 	goto FAIL;
       }
     }

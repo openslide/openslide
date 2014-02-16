@@ -1,5 +1,5 @@
 base: Leica/Leica-1.scn
-error: ^Cannot set TIFF directory 42$
+error: "^Can't read macro associated image: Cannot set TIFF directory 42$"
 slide: Leica-1.scn
 success: false
 vendor: leica

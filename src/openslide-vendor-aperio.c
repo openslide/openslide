@@ -475,7 +475,6 @@ static bool aperio_open(openslide_t *osr,
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (!add_associated_image(osr, name, tc, tiff, err)) {
-	g_prefix_error(err, "Can't read associated image: ");
 	goto FAIL;
       }
       //g_debug("associated image: %d", dir);

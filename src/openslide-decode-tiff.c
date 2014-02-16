@@ -340,6 +340,9 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
     ret = _add_associated_image(osr, name, tc, dir, tiff, err);
   }
   _openslide_tiffcache_put(tc, tiff);
+
+  // safe even if successful
+  g_prefix_error(err, "Can't read %s associated image: ", name);
   return ret;
 }
 

@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: "^Cannot read label associated image: Warning: unknown JFIF revision number 2.01$"
+error: "^Can't read label associated image: Warning: unknown JFIF revision number 2.01$"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax
