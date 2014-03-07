@@ -20,6 +20,7 @@
  *
  */
 
+#include <string.h>
 #include <config.h>
 
 #include "openslide-private.h"
@@ -142,6 +143,27 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
 
   // check error
   if (tmp_err) {
+    // As of March 2014, the OpenJPEG patch in circulation for CVE-2013-6045
+    // disables decoding of images with color channels of dissimilar
+    // resolutions, including chroma-subsampled images.
+    //
+    // https://bugs.debian.org/734238
+    // https://bugzilla.redhat.com/1047494
+    // http://lists.andrew.cmu.edu/pipermail/openslide-users/2014-March/000751.html
+    //
+    // The patch produces this error:
+    //
+    //     Error decoding tile. Component %d contains only %d blocks while
+    //     component %d has %d blocks
+    //
+    // Check for this message and add explanatory text.
+    if (strstr(tmp_err->message, "contains only") &&
+        strstr(tmp_err->message, "blocks while component")) {
+      g_prefix_error(&tmp_err, "Cannot read this file because your OS vendor "
+                     "ships a modified version of OpenJPEG with broken "
+                     "support for chroma-subsampled images.  ");
+    }
+
     g_propagate_error(err, tmp_err);
     goto DONE;
   }
