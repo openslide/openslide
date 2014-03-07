@@ -366,6 +366,27 @@ static bool add_associated_image(openslide_t *osr,
   return result;
 }
 
+// check for OpenJPEG CVE-2013-6045 breakage
+// (see openslide-decode-jp2k.c)
+static bool test_tile_decoding(struct level *l,
+                               TIFF *tiff,
+                               GError **err) {
+  // only for JP2K slides.
+  // shouldn't affect RGB, but check anyway out of caution
+  if (l->compression != APERIO_COMPRESSION_JP2K_YCBCR &&
+      l->compression != APERIO_COMPRESSION_JP2K_RGB) {
+    return true;
+  }
+
+  int64_t tw = l->tiffl.tile_w;
+  int64_t th = l->tiffl.tile_h;
+
+  uint32_t *dest = g_slice_alloc(tw * th * 4);
+  bool ok = decode_tile(l, tiff, dest, 0, 0, err);
+  g_slice_free1(tw * th * 4, dest);
+  return ok;
+}
+
 static bool aperio_open(openslide_t *osr,
                         const char *filename,
                         struct _openslide_tifflike *tl,
@@ -480,6 +501,11 @@ static bool aperio_open(openslide_t *osr,
       //g_debug("associated image: %d", dir);
     }
   } while (TIFFReadDirectory(tiff));
+
+  // check for OpenJPEG CVE-2013-6045 breakage
+  if (!test_tile_decoding(levels[0], tiff, err)) {
+    goto FAIL;
+  }
 
   // read properties
   if (!_openslide_tiff_set_dir(tiff, 0, err)) {
