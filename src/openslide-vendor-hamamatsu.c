@@ -388,7 +388,7 @@ static bool find_bitstream_start(FILE *f,
     len = GUINT16_FROM_BE(len);
 
     // seek
-    if (fseek(f, pos + sizeof(buf) + len, SEEK_SET)) {
+    if (fseeko(f, pos + sizeof(buf) + len, SEEK_SET)) {
       _openslide_io_error(err, "Couldn't seek");
       return false;
     }

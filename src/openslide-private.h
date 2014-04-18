@@ -330,5 +330,8 @@ int openslide_give_prefetch_hint(openslide_t *osr,
 OPENSLIDE_PUBLIC()
 void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 
+/* Poison dangerous functions */
+#define fseek use_fseeko_not_fseek
+
 
 #endif

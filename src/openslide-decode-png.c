@@ -76,7 +76,7 @@ bool _openslide_png_read(const char *filename,
   if (!f) {
     goto DONE;
   }
-  if (fseek(f, offset, SEEK_SET)) {
+  if (fseeko(f, offset, SEEK_SET)) {
     _openslide_io_error(err, "Couldn't fseek %s", filename);
     goto DONE;
   }
