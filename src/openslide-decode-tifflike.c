@@ -523,7 +523,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   // read and check magic
   uint16_t magic;
-  fseeko(f, 0, SEEK_SET);
   if (fread(&magic, sizeof magic, 1, f) != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read TIFF magic number");
