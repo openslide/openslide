@@ -254,7 +254,10 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 
   // read in the 2 parts
   //  g_debug("reading header from %"G_GINT64_FORMAT, header_start_position);
-  fseeko(infile, header_start_position, SEEK_SET);
+  if (fseeko(infile, header_start_position, SEEK_SET)) {
+    _openslide_io_error(err, "Couldn't seek to header start");
+    return false;
+  }
   if (!fread(src->buffer, header_length, 1, infile)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read header in JPEG at %"G_GINT64_FORMAT,
@@ -264,7 +267,10 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 
   if (data_length) {
     //  g_debug("reading from %" G_GINT64_FORMAT, start_position);
-    fseeko(infile, start_position, SEEK_SET);
+    if (fseeko(infile, start_position, SEEK_SET)) {
+      _openslide_io_error(err, "Couldn't seek to data start");
+      return false;
+    }
     if (!fread(src->buffer + header_length, data_length, 1, infile)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read data in JPEG at %"G_GINT64_FORMAT,
@@ -389,7 +395,7 @@ static bool find_bitstream_start(FILE *f,
 
     // seek
     if (fseeko(f, pos + sizeof(buf) + len, SEEK_SET)) {
-      _openslide_io_error(err, "Couldn't seek");
+      _openslide_io_error(err, "Couldn't seek to next marker");
       return false;
     }
 
@@ -496,7 +502,11 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
     }
     if (offset != -1) {
       uint8_t buf[2];
-      fseeko(f, offset - 2, SEEK_SET);
+      if (fseeko(f, offset - 2, SEEK_SET)) {
+        _openslide_io_error(err, "Couldn't seek to recorded restart "
+                            "marker at %"G_GINT64_FORMAT, offset - 2);
+        return false;
+      }
 
       size_t result = fread(buf, 2, 1, f);
       if (result == 0 ||
@@ -520,7 +530,10 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
   //  g_debug("target: %"G_GINT64_FORMAT", first_good: %"G_GINT64_FORMAT, target, first_good);
 
   // now search for the new restart markers
-  fseeko(f, jpeg->mcu_starts[first_good], SEEK_SET);
+  if (fseeko(f, jpeg->mcu_starts[first_good], SEEK_SET)) {
+    _openslide_io_error(err, "Couldn't seek to first good restart marker");
+    return false;
+  }
 
   uint8_t buf_start[4096];
   uint8_t *buf = buf_start;
@@ -956,7 +969,8 @@ static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
          current_mcu_start++) {
       int64_t offset = jp->mcu_starts[current_mcu_start];
       CHK(offset != -1);
-      fseeko(f, offset - 2, SEEK_SET);
+      int seek_failed = fseeko(f, offset - 2, SEEK_SET);
+      CHK(!seek_failed);
       int prefix = getc(f);
       CHK(prefix == 0xFF);
       int marker = getc(f);
@@ -1532,11 +1546,14 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 			  comment);
     }
 
-    fseeko(f, 0, SEEK_END);
+    if (fseeko(f, 0, SEEK_END)) {
+      _openslide_io_error(err, "Can't seek to end of JPEG %d", i);
+      fclose(f);
+      goto FAIL;
+    }
     jp->end_in_file = ftello(f);
     if (jp->end_in_file == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read file size for JPEG %d", i);
+      _openslide_io_error(err, "Can't read file size for JPEG %d", i);
       fclose(f);
       goto FAIL;
     }
@@ -1669,7 +1686,11 @@ static bool ngr_read_tile(openslide_t *osr,
     //    g_debug("tile_x: %" G_GINT64_FORMAT ", "
     //      "tile_y: %" G_GINT64_FORMAT ", "
     //      "seeking to %" G_GINT64_FORMAT, tile_x, tile_y, offset);
-    fseeko(f, offset, SEEK_SET);
+    if (fseeko(f, offset, SEEK_SET)) {
+      _openslide_io_error(err, "Couldn't seek to tile offset");
+      fclose(f);
+      return false;
+    }
 
     // alloc and read
     int buf_size = tw * th * 6;
@@ -1779,12 +1800,20 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     }
 
     // read w, h, column width, headersize
-    fseeko(f, 4, SEEK_SET);
+    if (fseeko(f, 4, SEEK_SET)) {
+      _openslide_io_error(err, "Couldn't seek to NGR header");
+      fclose(f);
+      goto FAIL;
+    }
     l->base.w = read_le_int32_from_file(f);
     l->base.h = read_le_int32_from_file(f);
     l->column_width = read_le_int32_from_file(f);
 
-    fseeko(f, 24, SEEK_SET);
+    if (fseeko(f, 24, SEEK_SET)) {
+      _openslide_io_error(err, "Couldn't seek within NGR header");
+      fclose(f);
+      goto FAIL;
+    }
     l->start_in_file = read_le_int32_from_file(f);
 
     // validate
@@ -2358,7 +2387,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       int32_t jp_tw, jp_th;
       int64_t sof_position, header_stop_position;
       if (fseeko(f, start_in_file, SEEK_SET)) {
-        _openslide_io_error(err, "Couldn't fseek %s", filename);
+        _openslide_io_error(err, "Couldn't seek to JPEG start");
         goto FAIL;
       }
       if (!validate_jpeg_header(f, dimensions_valid,
