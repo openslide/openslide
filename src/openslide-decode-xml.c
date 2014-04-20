@@ -87,13 +87,11 @@ double _openslide_xml_parse_double_attr(xmlNode *node, const char *name,
     return NAN;
   }
 
-  gchar *endptr;
-  double result = g_ascii_strtod((gchar *) value, &endptr);
-  if (value[0] == 0 || endptr[0] != 0) {
+  double result = _openslide_parse_double((char *) value);
+  if (isnan(result)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid floating-point attribute \"%s\"", name);
-    xmlFree(value);
-    return NAN;
+    // fall through
   }
 
   xmlFree(value);

@@ -676,8 +676,8 @@ static bool parse_level_info(const char *desc,
   }
 
   // parse magnification
-  *magnification = g_ascii_strtod(magnification_str, &endptr);
-  if (magnification_str[0] == 0 || endptr[0] != 0) {
+  *magnification = _openslide_parse_double(magnification_str);
+  if (isnan(*magnification)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid magnification");
     goto DONE;

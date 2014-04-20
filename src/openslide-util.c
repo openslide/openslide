@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 #include <glib.h>
 #include <cairo.h>
 
@@ -184,6 +185,24 @@ FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
   return f;
 }
 
+double _openslide_parse_double(const char *value) {
+  // Canonicalize comma to decimal point, since the locale of the
+  // originating system sometimes leaks into slide files.
+  // This will break if the value includes grouping characters.
+  char *canonical = g_strdup(value);
+  g_strdelimit(canonical, ",", '.');
+
+  char *endptr;
+  double result = g_ascii_strtod(canonical, &endptr);
+  // fail on overflow/underflow
+  if (canonical[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
+    result = NAN;
+  }
+
+  g_free(canonical);
+  return result;
+}
+
 char *_openslide_format_double(double d) {
   char buf[G_ASCII_DTOSTR_BUF_SIZE];
 
@@ -214,10 +233,9 @@ void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
   g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
   char *value = g_hash_table_lookup(osr->properties, src);
-  if (value && value[0]) {
-    char *endptr;
-    double result = g_ascii_strtod(value, &endptr);
-    if (endptr[0] == 0) {
+  if (value) {
+    double result = _openslide_parse_double(value);
+    if (!isnan(result)) {
       g_hash_table_insert(osr->properties, g_strdup(dest),
                           _openslide_format_double(result));
     }

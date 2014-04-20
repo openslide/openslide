@@ -149,6 +149,10 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 
+/* Parse string to double, returning NAN on failure.  Accept both comma
+   and period as decimal separator. */
+double _openslide_parse_double(const char *value);
+
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 
