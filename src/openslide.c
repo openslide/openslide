@@ -46,6 +46,7 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_trestle,
   &_openslide_format_aperio,
   &_openslide_format_leica,
+  &_openslide_format_philips,
   &_openslide_format_ventana,
   &_openslide_format_generic_tiff,
   NULL,
