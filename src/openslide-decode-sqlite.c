@@ -22,8 +22,8 @@
 #include <config.h>
 #include <string.h>
 
-#include "openslide-private.h"
 #include "openslide-decode-sqlite.h"
+#include "openslide-private.h"
 
 #define BUSY_TIMEOUT 500  // ms
 #define PROFILE 0
@@ -40,6 +40,7 @@ static void profile_callback(void *arg G_GNUC_UNUSED, const char *sql,
 }
 #endif
 
+#undef sqlite3_open_v2
 sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   sqlite3 *db;
 
@@ -81,6 +82,7 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
 
   return db;
 }
+#define sqlite3_open_v2 _OPENSLIDE_POISON(_openslide_sqlite_open)
 
 sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
                                         GError **err) {
@@ -116,6 +118,7 @@ void _openslide_sqlite_propagate_stmt_error(sqlite3_stmt *stmt, GError **err) {
   _openslide_sqlite_propagate_error(sqlite3_db_handle(stmt), err);
 }
 
+#undef sqlite3_close
 void _openslide_sqlite_close(sqlite3 *db) {
   // sqlite3_close() failures indicate a leaked resource, probably a
   // prepared statement.
@@ -123,3 +126,4 @@ void _openslide_sqlite_close(sqlite3 *db) {
     g_warning("SQLite error: %s", sqlite3_errmsg(db));
   }
 }
+#define sqlite3_close _OPENSLIDE_POISON(_openslide_sqlite_close)

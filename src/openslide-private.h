@@ -334,11 +334,20 @@ int openslide_give_prefetch_hint(openslide_t *osr,
 OPENSLIDE_PUBLIC()
 void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 
-/* Prevent use of wrapped or dangerous functions */
+/* Prevent use of dangerous functions and functions with mandatory wrappers.
+   Every @p replacement must be unique to avoid conflicting-type errors. */
 #define _OPENSLIDE_POISON(replacement) error__use_ ## replacement ## _instead
 #define fopen _OPENSLIDE_POISON(_openslide_fopen)
 #define fseek _OPENSLIDE_POISON(fseeko)
-#define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double)
+#define strtod _OPENSLIDE_POISON(_openslide_parse_double)
+#define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double_)
+#define sqlite3_open _OPENSLIDE_POISON(_openslide_sqlite_open)
+#define sqlite3_open_v2 _OPENSLIDE_POISON(_openslide_sqlite_open_)
+#define sqlite3_close _OPENSLIDE_POISON(_openslide_sqlite_close)
+#define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
+#define TIFFFdOpen _OPENSLIDE_POISON(_openslide_tiffcache_get_)
+#define TIFFOpen _OPENSLIDE_POISON(_openslide_tiffcache_get__)
+#define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
 
 
 #endif

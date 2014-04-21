@@ -75,6 +75,7 @@ struct associated_image {
     result = tmp;							\
   } while (0)
 
+#undef TIFFSetDirectory
 bool _openslide_tiff_set_dir(TIFF *tiff,
                              tdir_t dir,
                              GError **err) {
@@ -89,6 +90,7 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
   }
   return true;
 }
+#define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
 
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
@@ -404,6 +406,7 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
+#undef TIFFClientOpen
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
   FILE *f = _openslide_fopen(tc->filename, "rb", err);
@@ -484,6 +487,7 @@ NOT_TIFF:
               "Not a TIFF file: %s", tc->filename);
   return NULL;
 }
+#define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
 
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
