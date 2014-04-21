@@ -22,6 +22,8 @@
 #ifndef OPENSLIDE_OPENSLIDE_DECODE_SQLITE_H_
 #define OPENSLIDE_OPENSLIDE_DECODE_SQLITE_H_
 
+#include <stdbool.h>
+#include <glib.h>
 #include <sqlite3.h>
 
 /* SQLite support code */
