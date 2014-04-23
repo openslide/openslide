@@ -30,6 +30,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-jpeg.h"
 #include "openslide-decode-tiff.h"
 #include "openslide-decode-tifflike.h"
 #include "openslide-decode-xml.h"
@@ -43,6 +44,14 @@ static const char XML_ROOT[] = "DataObject";
 static const char XML_ROOT_TYPE_ATTR[] = "ObjectType";
 static const char XML_ROOT_TYPE_VALUE[] = "DPUfsImport";
 
+#define ASSOCIATED_IMAGE_DATA_XPATH(image_type) \
+  "/DataObject/Attribute[@Name='PIM_DP_SCANNED_IMAGES']/Array" \
+  "/DataObject[Attribute/@Name='PIM_DP_IMAGE_TYPE' and " \
+  "Attribute/text()='" image_type "'][1]" \
+  "/Attribute[@Name='PIM_DP_IMAGE_DATA']/text()"
+static const char LABEL_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("LABELIMAGE");
+static const char MACRO_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("MACROIMAGE");
+
 struct philips_ops_data {
   struct _openslide_tiffcache *tc;
 };
@@ -51,6 +60,12 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+};
+
+struct associated_image {
+  struct _openslide_associated_image base;
+  struct _openslide_tiffcache *tc;
+  const char *xpath;  // static string; do not free
 };
 
 static void destroy(openslide_t *osr) {
@@ -211,17 +226,139 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
+static xmlDoc *parse_xml(TIFF *tiff, GError **err) {
+  if (!_openslide_tiff_set_dir(tiff, 0, err)) {
+    return NULL;
+  }
+
+  const char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read ImageDescription");
+    return NULL;
+  }
+  return _openslide_xml_parse(image_desc, err);
+}
+
+static bool get_compressed_associated_image_data(xmlDoc *doc,
+                                                 const char *xpath,
+                                                 void **out_data,
+                                                 gsize *out_len,
+                                                 GError **err) {
+  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
+  char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
+  if (b64_data) {
+    *out_data = g_base64_decode(b64_data, out_len);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read associated image data");
+  }
+  g_free(b64_data);
+  xmlXPathFreeContext(ctx);
+  return b64_data != NULL;
+}
+
+static bool get_associated_image_data(struct _openslide_associated_image *_img,
+                                      uint32_t *dest,
+                                      GError **err) {
+  struct associated_image *img = (struct associated_image *) _img;
+  void *data = NULL;
+  bool success = false;
+
+  TIFF *tiff = _openslide_tiffcache_get(img->tc, err);
+  if (!tiff) {
+    return false;
+  }
+
+  xmlDoc *doc = parse_xml(tiff, err);
+  if (!doc) {
+    goto DONE;
+  }
+
+  gsize len;
+  if (!get_compressed_associated_image_data(doc, img->xpath,
+                                            &data, &len, err)) {
+    goto DONE;
+  }
+
+  success = _openslide_jpeg_decode_buffer(data, len, dest,
+                                          img->base.w, img->base.h, err);
+
+DONE:
+  g_free(data);
+  if (doc) {
+    xmlFreeDoc(doc);
+  }
+  _openslide_tiffcache_put(img->tc, tiff);
+  return success;
+}
+
+static void destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct associated_image *img = (struct associated_image *) _img;
+
+  g_slice_free(struct associated_image, img);
+}
+
+static const struct _openslide_associated_image_ops philips_associated_ops = {
+  .get_argb_data = get_associated_image_data,
+  .destroy = destroy_associated_image,
+};
+
+// xpath is not copied (must be a static string)
+static bool add_associated_image(openslide_t *osr,
+                                 struct _openslide_tiffcache *tc,
+                                 xmlDoc *doc,
+                                 const char *name,
+                                 const char *xpath,
+                                 GError **err) {
+  void *data;
+  gsize len;
+  if (!get_compressed_associated_image_data(doc, xpath,
+                                            &data, &len, err)) {
+    g_prefix_error(err, "Can't locate %s associated image: ", name);
+    return false;
+  }
+
+  int32_t w, h;
+  bool success =
+    _openslide_jpeg_decode_buffer_dimensions(data, len, &w, &h, err);
+  g_free(data);
+  if (!success) {
+    g_prefix_error(err, "Can't decode %s associated image: ", name);
+    return false;
+  }
+
+  struct associated_image *img = g_slice_new0(struct associated_image);
+  img->base.ops = &philips_associated_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->tc = tc;
+  img->xpath = xpath;
+
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
+
+  return true;
+}
+
 static bool philips_open(openslide_t *osr,
                          const char *filename,
                          struct _openslide_tifflike *tl,
                          struct _openslide_hash *quickhash1,
                          GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
+  xmlDoc *doc = NULL;
+  bool success = false;
 
   // open TIFF
   struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
   TIFF *tiff = _openslide_tiffcache_get(tc, err);
   if (!tiff) {
+    goto FAIL;
+  }
+
+  // parse XML document
+  doc = parse_xml(tiff, err);
+  if (doc == NULL) {
     goto FAIL;
   }
 
@@ -306,6 +443,11 @@ static bool philips_open(openslide_t *osr,
   g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 
+  // add associated images
+  // errors are non-fatal
+  add_associated_image(osr, tc, doc, "label", LABEL_DATA_XPATH, NULL);
+  add_associated_image(osr, tc, doc, "macro", MACRO_DATA_XPATH, NULL);
+
   // unwrap level array
   int32_t level_count = level_array->len;
   struct level **levels =
@@ -327,7 +469,9 @@ static bool philips_open(openslide_t *osr,
   _openslide_tiffcache_put(tc, tiff);
   data->tc = tc;
 
-  return true;
+  // done
+  success = true;
+  goto DONE;
 
 FAIL:
   // free the level array
@@ -342,7 +486,13 @@ FAIL:
   // free TIFF
   _openslide_tiffcache_put(tc, tiff);
   _openslide_tiffcache_destroy(tc);
-  return false;
+
+DONE:
+  // free XML
+  if (doc) {
+    xmlFreeDoc(doc);
+  }
+  return success;
 }
 
 const struct _openslide_format _openslide_format_philips = {
