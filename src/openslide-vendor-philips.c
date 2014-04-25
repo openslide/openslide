@@ -43,11 +43,18 @@ static const char PHILIPS_SOFTWARE[] = "Philips";
 static const char XML_ROOT[] = "DataObject";
 static const char XML_ROOT_TYPE_ATTR[] = "ObjectType";
 static const char XML_ROOT_TYPE_VALUE[] = "DPUfsImport";
+static const char XML_NAME_ATTR[] = "Name";
+static const char XML_SCANNED_IMAGES_NAME[] = "PIM_DP_SCANNED_IMAGES";
+static const char XML_DATA_REPRESENTATION_NAME[] = "PIIM_PIXEL_DATA_REPRESENTATION_SEQUENCE";
 
-#define ASSOCIATED_IMAGE_DATA_XPATH(image_type) \
+#define SCANNED_IMAGE_XPATH(image_type) \
   "/DataObject/Attribute[@Name='PIM_DP_SCANNED_IMAGES']/Array" \
   "/DataObject[Attribute/@Name='PIM_DP_IMAGE_TYPE' and " \
-  "Attribute/text()='" image_type "'][1]" \
+  "Attribute/text()='" image_type "']"
+static const char MAIN_IMAGE_XPATH[] = SCANNED_IMAGE_XPATH("WSI");
+
+#define ASSOCIATED_IMAGE_DATA_XPATH(image_type) \
+  SCANNED_IMAGE_XPATH(image_type) "[1]" \
   "/Attribute[@Name='PIM_DP_IMAGE_DATA']/text()"
 static const char LABEL_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("LABELIMAGE");
 static const char MACRO_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("MACROIMAGE");
@@ -340,6 +347,79 @@ static bool add_associated_image(openslide_t *osr,
   return true;
 }
 
+static void add_properties(openslide_t *osr,
+                           xmlXPathContext *ctx,
+                           const char *prefix,
+                           const char *xpath);
+
+static void add_properties_from_array(openslide_t *osr,
+                                      xmlXPathContext *ctx,
+                                      const char *prefix,
+                                      xmlNode *node) {
+  xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+  ctx->node = node;
+  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, "Array/DataObject");
+  for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
+    ctx->node = result->nodesetval->nodeTab[i];
+    char *sub_prefix = g_strdup_printf("%s.%s[%d]", prefix, name, i);
+    add_properties(osr, ctx, sub_prefix, "Attribute");
+    g_free(sub_prefix);
+  }
+  xmlXPathFreeObject(result);
+  xmlFree(name);
+}
+
+static void add_properties(openslide_t *osr,
+                           xmlXPathContext *ctx,
+                           const char *prefix,
+                           const char *xpath) {
+  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, xpath);
+  for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
+    xmlNode *node = result->nodesetval->nodeTab[i];
+    xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+
+    if (name) {
+      if (!xmlStrcmp(name, BAD_CAST XML_SCANNED_IMAGES_NAME)) {
+        // Recurse only into first WSI image
+        ctx->node = node;
+        add_properties(osr, ctx, prefix,
+                       "Array/DataObject[Attribute/@Name='PIM_DP_IMAGE_TYPE' "
+                       "and Attribute/text()='WSI'][1]/Attribute");
+
+      } else if (!xmlStrcmp(name, BAD_CAST XML_DATA_REPRESENTATION_NAME)) {
+        // Recurse into every PixelDataRepresentation
+        add_properties_from_array(osr, ctx, prefix, node);
+
+      } else if (!xmlFirstElementChild(node)) {
+        // Add value
+        xmlChar *value = xmlNodeGetContent(node);
+        if (value) {
+          g_hash_table_insert(osr->properties,
+                              g_strdup_printf("%s.%s", prefix, (char *) name),
+                              g_strdup((char *) value));
+        }
+        xmlFree(value);
+      }
+    }
+    xmlFree(name);
+  }
+  xmlXPathFreeObject(result);
+}
+
+static bool verify_main_image_count(xmlDoc *doc, GError **err) {
+  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
+  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
+  int count = result ? result->nodesetval->nodeNr : 0;
+  xmlXPathFreeObject(result);
+  xmlXPathFreeContext(ctx);
+  if (count != 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Expected one WSI image, found %d", count);
+    return false;
+  }
+  return true;
+}
+
 static bool philips_open(openslide_t *osr,
                          const char *filename,
                          struct _openslide_tifflike *tl,
@@ -359,6 +439,11 @@ static bool philips_open(openslide_t *osr,
   // parse XML document
   doc = parse_xml(tiff, err);
   if (doc == NULL) {
+    goto FAIL;
+  }
+
+  // ensure there is only one WSI DPScannedImage in the XML
+  if (!verify_main_image_count(doc, err)) {
     goto FAIL;
   }
 
@@ -442,6 +527,11 @@ static bool philips_open(openslide_t *osr,
   // keep the XML document out of the properties
   g_hash_table_remove(osr->properties, OPENSLIDE_PROPERTY_NAME_COMMENT);
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
+
+  // add properties from XML
+  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
+  add_properties(osr, ctx, "philips", "/DataObject/Attribute");
+  xmlXPathFreeContext(ctx);
 
   // add associated images
   // errors are non-fatal
