@@ -36,6 +36,7 @@
 #include "openslide-decode-xml.h"
 
 #include <glib.h>
+#include <math.h>
 #include <string.h>
 #include <tiffio.h>
 
@@ -406,6 +407,34 @@ static void add_properties(openslide_t *osr,
   xmlXPathFreeObject(result);
 }
 
+static void add_mpp_properties(openslide_t *osr) {
+  const char *spacing = g_hash_table_lookup(osr->properties,
+                                            "philips.DICOM_PIXEL_SPACING");
+  if (spacing) {
+    char **spacings = g_strsplit(spacing, " ", 0);
+    if (g_strv_length(spacings) == 2) {
+      double parsed[2];
+      bool ok = true;
+      for (int i = 0; i < 2; i++) {
+        // strip quotes
+        g_strstrip(g_strdelimit(spacings[i], "\"", ' '));
+        parsed[i] = _openslide_parse_double(spacings[i]) * 1e3;
+        ok = ok && !isnan(parsed[i]);
+      }
+      if (ok) {
+        // row spacing, then column spacing
+        g_hash_table_insert(osr->properties,
+                            g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                            _openslide_format_double(parsed[0]));
+        g_hash_table_insert(osr->properties,
+                            g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                            _openslide_format_double(parsed[1]));
+      }
+    }
+    g_strfreev(spacings);
+  }
+}
+
 static bool verify_main_image_count(xmlDoc *doc, GError **err) {
   xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
   xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
@@ -531,6 +560,7 @@ static bool philips_open(openslide_t *osr,
   // add properties from XML
   xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
   add_properties(osr, ctx, "philips", "/DataObject/Attribute");
+  add_mpp_properties(osr);
   xmlXPathFreeContext(ctx);
 
   // add associated images
