@@ -1875,17 +1875,10 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
                                    struct _openslide_hash *quickhash1,
                                    GError **err) {
   // initialize any variables destroyed/used in DONE
-  bool success = false;
-
   char *dirname = g_path_get_dirname(filename);
-
   int num_images = 0;
   char **image_filenames = NULL;
-
-  int num_cols = -1;
-  int num_rows = -1;
-
-  char **all_keys = NULL;
+  bool success = false;
 
   int num_layers = -1;
 
@@ -1899,6 +1892,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   // select group or fail, then read dimensions
   const char *groupname;
+  int num_cols, num_rows;
   if (g_key_file_has_group(key_file, GROUP_VMS)) {
     groupname = GROUP_VMS;
 
@@ -1973,7 +1967,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   }
 
   // now each ImageFile
-  all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
+  char **all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
   for (char **tmp = all_keys; *tmp != NULL; tmp++) {
     char *key = *tmp;
     char *value = g_key_file_get_string(key_file, groupname, key, NULL);
