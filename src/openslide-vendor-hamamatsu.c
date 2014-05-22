@@ -62,7 +62,6 @@ static const char GROUP_VMS[] = "Virtual Microscope Specimen";
 static const char GROUP_VMU[] = "Uncompressed Virtual Microscope Specimen";
 static const char KEY_MAP_FILE[] = "MapFile";
 static const char KEY_IMAGE_FILE[] = "ImageFile";
-static const char KEY_NUM_LAYERS[] = "NoLayers";
 static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
@@ -1880,8 +1879,6 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   char **image_filenames = NULL;
   bool success = false;
 
-  int num_layers = -1;
-
   // first, see if it's a VMS/VMU file
   GKeyFile *key_file = g_key_file_new();
   if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
@@ -1928,15 +1925,6 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   // hash in the key file
   if (!_openslide_hash_file(quickhash1, filename, err)) {
-    goto DONE;
-  }
-
-  // make sure values are within known bounds
-  num_layers = g_key_file_get_integer(key_file, groupname, KEY_NUM_LAYERS,
-				      NULL);
-  if (num_layers < 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot handle Hamamatsu files with NoLayers < 1");
     goto DONE;
   }
 
