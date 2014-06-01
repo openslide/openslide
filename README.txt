@@ -26,7 +26,7 @@ See the file lgpl-2.1.txt for the text of the license.
 Requirements
 ============
 
-This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x,
+This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x or >= 2.1,
 GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
 Leica and Ventana support require libtiff >= 4.
 

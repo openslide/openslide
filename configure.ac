@@ -55,37 +55,44 @@ PKG_CHECK_MODULES(ZLIB, [zlib], [], [
   AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
 ])
 
-PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
-  dnl OpenJPEG < 1.4 has no pkg-config file
+PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
+   AC_DEFINE([HAVE_OPENJPEG2], [1], [Define to 1 if you have OpenJPEG >= 2.1.0.])
+   OPENJPEG_CFLAGS="$OPENJPEG2_CFLAGS"
+   OPENJPEG_LIBS="$OPENJPEG2_LIBS"
+ ], [
+  dnl Fall back to OpenJPEG 1.x
+  PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
+    dnl OpenJPEG < 1.4 has no pkg-config file
 
-  AC_MSG_CHECKING([for OpenJPEG (fallback)])
-  dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
-  dnl because of the stdcall calling convention which requires
-  dnl configure to read openjpeg.h.
+    AC_MSG_CHECKING([for OpenJPEG (fallback)])
+    dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
+    dnl because of the stdcall calling convention which requires
+    dnl configure to read openjpeg.h.
 
-  old_LIBS="$LIBS"
-  LIBS="-lopenjpeg $LIBS"
-  AC_LINK_IFELSE(
-    [AC_LANG_SOURCE(
-[[
-#include <openjpeg.h>
-int
-main ()
-{
-  const char *ver = opj_version();
-  return 0;
-}
-]])],
-    openjpeg_ok=yes,
-    openjpeg_ok=no)
-  LIBS="$old_LIBS"
+    old_LIBS="$LIBS"
+    LIBS="-lopenjpeg $LIBS"
+    AC_LINK_IFELSE(
+      [AC_LANG_SOURCE(
+  [[
+  #include <openjpeg.h>
+  int
+  main ()
+  {
+    const char *ver = opj_version();
+    return 0;
+  }
+  ]])],
+      openjpeg_ok=yes,
+      openjpeg_ok=no)
+    LIBS="$old_LIBS"
 
-  if test "$openjpeg_ok" = yes; then
-    OPENJPEG_LIBS="-lopenjpeg"
-    AC_MSG_RESULT($openjpeg_ok)
-  else
-    AC_MSG_FAILURE([cannot find OpenJPEG])
-  fi
+    if test "$openjpeg_ok" = yes; then
+      OPENJPEG_LIBS="-lopenjpeg"
+      AC_MSG_RESULT($openjpeg_ok)
+    else
+      AC_MSG_FAILURE([cannot find OpenJPEG])
+    fi
+  ])
 ])
 
 PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
