@@ -53,6 +53,7 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+  GHashTable *missing_tiles;
   uint16_t compression;
 };
 
@@ -66,6 +67,9 @@ static void destroy_data(struct aperio_ops_data *data,
   if (levels) {
     for (int32_t i = 0; i < level_count; i++) {
       if (levels[i]) {
+        if (levels[i]->missing_tiles) {
+          g_hash_table_destroy(levels[i]->missing_tiles);
+        }
         _openslide_grid_destroy(levels[i]->grid);
         g_slice_free(struct level, levels[i]);
       }
@@ -80,38 +84,6 @@ static void destroy(openslide_t *osr) {
   destroy_data(data, levels, osr->level_count);
 }
 
-static bool check_for_empty_tile(struct _openslide_tiff_level *tiffl,
-                                 TIFF *tiff,
-                                 int64_t tile_col, int64_t tile_row,
-                                 bool *is_empty,
-                                 GError **err) {
-  // set directory
-  if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
-    return false;
-  }
-
-  // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff,
-                                    tile_col * tiffl->tile_w,
-                                    tile_row * tiffl->tile_h,
-                                    0, 0);
-
-  //g_debug("check_for_empty_tile: tile %d", tile_no);
-
-  // get tile size
-  toff_t *sizes;
-  if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot get tile size");
-    return false;
-  }
-  tsize_t tile_size = sizes[tile_no];
-
-  // return result
-  *is_empty = tile_size == 0;
-  return true;
-}
-
 static bool decode_tile(struct level *l,
                         TIFF *tiff,
                         uint32_t *dest,
@@ -119,17 +91,12 @@ static bool decode_tile(struct level *l,
                         GError **err) {
   struct _openslide_tiff_level *tiffl = &l->tiffl;
 
-  // some Aperio slides have some zero-length tiles, possibly due to an
-  // encoder bug
-  bool is_empty;
-  if (!check_for_empty_tile(tiffl, tiff,
-                            tile_col, tile_row,
-                            &is_empty, err)) {
-    return false;
-  }
-  if (is_empty) {
+  // check for missing tile
+  int64_t tile_no = tile_row * tiffl->tiles_across + tile_col;
+  if (g_hash_table_lookup_extended(l->missing_tiles, &tile_no, NULL, NULL)) {
     // fill with transparent
     memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
+    //g_debug("missing tile (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", tile_col, tile_row);
     return true;
   }
 
@@ -491,6 +458,25 @@ static bool aperio_open(openslide_t *osr,
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
+      }
+
+      // some Aperio slides have some zero-length tiles, apparently due to
+      // an encoder bug
+      toff_t *tile_sizes;
+      if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &tile_sizes)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Cannot get tile sizes");
+        goto FAIL;
+      }
+      l->missing_tiles = g_hash_table_new_full(g_int64_hash, g_int64_equal,
+                                               g_free, NULL);
+      for (ttile_t tile_no = 0;
+           tile_no < tiffl->tiles_across * tiffl->tiles_down; tile_no++) {
+        if (tile_sizes[tile_no] == 0) {
+          int64_t *p_tile_no = g_new(int64_t, 1);
+          *p_tile_no = tile_no;
+          g_hash_table_insert(l->missing_tiles, p_tile_no, NULL);
+        }
       }
     } else {
       // associated image
