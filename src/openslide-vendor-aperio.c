@@ -38,6 +38,7 @@
 #include <glib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <tiffio.h>
 
 static const char APERIO_DESCRIPTION[] = "Aperio";
@@ -53,6 +54,7 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+  struct level *prev;
   GHashTable *missing_tiles;
   uint16_t compression;
 };
@@ -84,6 +86,53 @@ static void destroy(openslide_t *osr) {
   destroy_data(data, levels, osr->level_count);
 }
 
+static bool render_missing_tile(struct level *l,
+                                TIFF *tiff,
+                                uint32_t *dest,
+                                int64_t tile_col, int64_t tile_row,
+                                GError **err) {
+  bool success = true;
+
+  int64_t tw = l->tiffl.tile_w;
+  int64_t th = l->tiffl.tile_h;
+
+  // always fill with transparent (needed for SATURATE)
+  memset(dest, 0, tw * th * 4);
+
+  if (l->prev) {
+    // recurse into previous level
+    double relative_ds = l->prev->base.downsample / l->base.downsample;
+
+    cairo_surface_t *surface =
+      cairo_image_surface_create_for_data((unsigned char *) dest,
+                                          CAIRO_FORMAT_ARGB32,
+                                          tw, th, tw * 4);
+    cairo_t *cr = cairo_create(surface);
+    cairo_surface_destroy(surface);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+    cairo_translate(cr, -1, -1);
+    cairo_scale(cr, relative_ds, relative_ds);
+
+    // For the usual case that we are on a tile boundary in the previous
+    // level, extend the region by one pixel in each direction to ensure we
+    // paint the surrounding tiles.  This reduces the visible seam that
+    // would otherwise occur with non-integer downsamples.
+    success = _openslide_grid_paint_region(l->prev->grid, cr, tiff,
+                                           (tile_col * tw - 1) / relative_ds,
+                                           (tile_row * th - 1) / relative_ds,
+                                           (struct _openslide_level *) l->prev,
+                                           ceil((tw + 2) / relative_ds),
+                                           ceil((th + 2) / relative_ds),
+                                           err);
+    if (success) {
+      success = _openslide_check_cairo_status(cr, err);
+    }
+    cairo_destroy(cr);
+  }
+
+  return success;
+}
+
 static bool decode_tile(struct level *l,
                         TIFF *tiff,
                         uint32_t *dest,
@@ -94,10 +143,9 @@ static bool decode_tile(struct level *l,
   // check for missing tile
   int64_t tile_no = tile_row * tiffl->tiles_across + tile_col;
   if (g_hash_table_lookup_extended(l->missing_tiles, &tile_no, NULL, NULL)) {
-    // fill with transparent
-    memset(dest, 0, tiffl->tile_w * tiffl->tile_h * 4);
-    //g_debug("missing tile (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", tile_col, tile_row);
-    return true;
+    //g_debug("missing tile in level %p: (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", (void *) l, tile_col, tile_row);
+    return render_missing_tile(l, tiff, dest,
+                               tile_col, tile_row, err);
   }
 
   // select color space
@@ -436,6 +484,9 @@ static bool aperio_open(openslide_t *osr,
       //g_debug("tiled directory: %d", dir);
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
+      if (i) {
+        l->prev = levels[i - 1];
+      }
       levels[i++] = l;
 
       if (!_openslide_tiff_level_init(tiff,
