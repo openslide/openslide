@@ -381,6 +381,32 @@ static bool add_associated_image(openslide_t *osr,
   return result;
 }
 
+static void propagate_missing_tile(void *key, void *value G_GNUC_UNUSED,
+                                   void *data) {
+  const int64_t *tile_no = key;
+  struct level *next_l = data;
+  struct level *l = next_l->prev;
+  struct _openslide_tiff_level *tiffl = &l->tiffl;
+  struct _openslide_tiff_level *next_tiffl = &next_l->tiffl;
+
+  int64_t tile_col = *tile_no % tiffl->tiles_across;
+  int64_t tile_row = *tile_no / tiffl->tiles_across;
+
+  int64_t tile_concat_x = round((double) tiffl->tiles_across /
+                                next_tiffl->tiles_across);
+  int64_t tile_concat_y = round((double) tiffl->tiles_down /
+                                next_tiffl->tiles_down);
+
+  int64_t next_tile_col = tile_col / tile_concat_x;
+  int64_t next_tile_row = tile_row / tile_concat_y;
+
+  //g_debug("propagating %p (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT") to %p (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", (void *) l, tile_col, tile_row, (void *) next_l, next_tile_col, next_tile_row);
+
+  int64_t *next_tile_no = g_new(int64_t, 1);
+  *next_tile_no = next_tile_row * next_tiffl->tiles_across + next_tile_col;
+  g_hash_table_insert(next_l->missing_tiles, next_tile_no, NULL);
+}
+
 // check for OpenJPEG CVE-2013-6045 breakage
 // (see openslide-decode-jp2k.c)
 static bool test_tile_decoding(struct level *l,
@@ -538,6 +564,13 @@ static bool aperio_open(openslide_t *osr,
       //g_debug("associated image: %d", dir);
     }
   } while (TIFFReadDirectory(tiff));
+
+  // tiles concatenating a missing tile are sometimes corrupt, so we mark
+  // them missing too
+  for (i = 0; i < level_count - 1; i++) {
+    g_hash_table_foreach(levels[i]->missing_tiles, propagate_missing_tile,
+                         levels[i + 1]);
+  }
 
   // check for OpenJPEG CVE-2013-6045 breakage
   if (!test_tile_decoding(levels[0], tiff, err)) {
