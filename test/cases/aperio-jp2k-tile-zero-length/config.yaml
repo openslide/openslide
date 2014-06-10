@@ -3,4 +3,6 @@ slide: JP2K-33003-1.svs
 success: true
 vendor: aperio
 regions:
-  - [0, 0, 0, 100, 100]
+  - [0, 0, 0, 256, 256]  # Missing tile
+  - [0, 0, 1, 256, 256]  # Propagated missing tile
+  - [0, 0, 2, 256, 256]  # Propagated missing tile, different concat factor
