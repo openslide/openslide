@@ -73,7 +73,7 @@ static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 static const int KEY_FILE_MAX_SIZE = 64 << 10;
 
 // NDPI
-static const char NDPI_SOFTWARE[] = "NDP.scan";
+#define NDPI_FORMAT_FLAG 65420
 #define NDPI_SOURCELENS 65421
 #define NDPI_XOFFSET 65422
 #define NDPI_YOFFSET 65423
@@ -2169,15 +2169,10 @@ static bool hamamatsu_ndpi_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
 
-  // check Software tag
-  const char *software = _openslide_tifflike_get_buffer(tl, 0,
-                                                        TIFFTAG_SOFTWARE, err);
-  if (software == NULL) {
-    return false;
-  }
-  if (strncmp(software, NDPI_SOFTWARE, strlen(NDPI_SOFTWARE))) {
+  // check for a TIFF tag unique to NDPI and always present in it
+  if (!_openslide_tifflike_get_value_count(tl, 0, NDPI_FORMAT_FLAG)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected Software tag");
+                "No TIFF tag %d", NDPI_FORMAT_FLAG);
     return false;
   }
 

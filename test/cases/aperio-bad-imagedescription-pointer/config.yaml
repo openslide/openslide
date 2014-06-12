@@ -1,0 +1,7 @@
+base: Aperio/CMU-1.svs
+error: "aperio: Couldn't read TIFF value"
+slide: CMU-1.svs
+success: false
+vendor: generic-tiff
+debug:
+  - detection

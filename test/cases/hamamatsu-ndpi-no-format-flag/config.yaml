@@ -1,5 +1,5 @@
 base: Hamamatsu/CMU-1.ndpi
-error: "hamamatsu-ndpi: Couldn't read TIFF value"
+error: "hamamatsu-ndpi: No TIFF tag 65420"
 slide: CMU-1.ndpi
 success: false
 vendor: null
