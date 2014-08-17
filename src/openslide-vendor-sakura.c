@@ -39,6 +39,7 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 #include <string.h>
+#include <errno.h>
 
 static const char MAGIC_BYTES[] = "SVGigaPixelImage";
 
@@ -63,6 +64,7 @@ enum color_index {
   INDEX_RED = 0,
   INDEX_GREEN = 1,
   INDEX_BLUE = 2,
+  NUM_INDEXES = 3,
 };
 
 #define PREPARE_OR_FAIL(DEST, DB, SQL) do {				\
@@ -189,6 +191,98 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 }
 
+static char *make_tileid(int64_t x, int64_t y,
+                         int64_t downsample,
+                         enum color_index color) {
+  // T;x|y;downsample;color;0
+  return g_strdup_printf("T;%"G_GINT64_FORMAT"|%"G_GINT64_FORMAT";"
+                         "%"G_GINT64_FORMAT";%d;0",
+                         x, y, downsample, color);
+}
+
+static bool _parse_tileid_column(const char *tileid, const char *col,
+                                 int64_t *result,
+                                 GError **err) {
+  char *endptr;
+  errno = 0;
+  int64_t val = g_ascii_strtoll(col, &endptr, 10);
+  if (*col == 0 || *endptr != 0 || errno == ERANGE || val < 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Bad field value in tile ID %s", tileid);
+    return false;
+  }
+  *result = val;
+  return true;
+}
+
+static bool parse_tileid(const char *tileid,
+                         int64_t *_x, int64_t *_y,
+                         int64_t *_downsample,
+                         enum color_index *_color,
+                         GError **err) {
+  // T;x|y;downsample;color;0
+  gchar **fields = NULL;
+  gchar *synth_tileid = NULL;
+  bool success = false;
+
+  // preliminary checks
+  if (!g_str_has_prefix(tileid, "T;") || // not a tile
+      g_str_has_suffix(tileid, "#")) {   // hash of a tile
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
+                "Not a tile ID");
+    goto OUT;
+  }
+
+  // parse and check fields
+  fields = g_strsplit_set(tileid, ";|", 0);
+  if (g_strv_length(fields) != 6) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Bad field count in tile ID %s", tileid);
+    goto OUT;
+  }
+  int64_t x, y, downsample, color, last_value;
+  if (!_parse_tileid_column(tileid, fields[1], &x, err) ||
+      !_parse_tileid_column(tileid, fields[2], &y, err) ||
+      !_parse_tileid_column(tileid, fields[3], &downsample, err) ||
+      !_parse_tileid_column(tileid, fields[4], &color, err) ||
+      !_parse_tileid_column(tileid, fields[5], &last_value, err)) {
+    goto OUT;
+  }
+  if (downsample < 1 || color >= NUM_INDEXES || last_value != 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Bad field value in tile ID %s", tileid);
+    goto OUT;
+  }
+
+  // verify round trip (no leading zeros, etc.)
+  synth_tileid = make_tileid(x, y, downsample, color);
+  if (strcmp(tileid, synth_tileid)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't round-trip tile ID %s", tileid);
+    goto OUT;
+  }
+
+  // commit
+  if (_x) {
+    *_x = x;
+  }
+  if (_y) {
+    *_y = y;
+  }
+  if (_downsample) {
+    *_downsample = downsample;
+  }
+  if (_color) {
+    *_color = color;
+  }
+  success = true;
+
+OUT:
+  g_strfreev(fields);
+  g_free(synth_tileid);
+  return success;
+}
+
 static bool read_channel(uint8_t *channeldata,
                          int64_t tile_col, int64_t tile_row,
                          int64_t downsample,
@@ -197,12 +291,9 @@ static bool read_channel(uint8_t *channeldata,
                          sqlite3_stmt *stmt,
                          GError **err) {
   // compute tile id
-  // T;x|y;downsample;color;0
-  char *tileid = g_strdup_printf("T;%"G_GINT64_FORMAT"|%"G_GINT64_FORMAT";"
-                                 "%"G_GINT64_FORMAT";%d;0",
-                                 tile_col * tile_size * downsample,
-                                 tile_row * tile_size * downsample,
-                                 downsample, color);
+  char *tileid = make_tileid(tile_col * tile_size * downsample,
+                             tile_row * tile_size * downsample,
+                             downsample, color);
 
   // retrieve compressed tile
   sqlite3_reset(stmt);
@@ -733,6 +824,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   struct level **levels = NULL;
   int32_t level_count = 0;
   char *unique_table_name = NULL;
+  char *sql = NULL;
   sqlite3_stmt *stmt = NULL;
   GHashTable *level_hash =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
@@ -740,6 +832,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   GQueue *quickhash_tileids = g_queue_new();
   int64_t quickhash_downsample = 0;
   bool success = false;
+  GError *tmp_err = NULL;
 
   // open database
   sqlite3 *db = _openslide_sqlite_open(filename, err);
@@ -754,8 +847,10 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   }
 
   // read header
-  int64_t image_width, image_height;
-  int32_t tile_size = 0;  // avoid spurious warning
+  // initialize to avoid spurious warnings
+  int64_t image_width = 0;
+  int64_t image_height = 0;
+  int32_t tile_size = 0;
   if (!read_header(db, unique_table_name,
                    &image_width, &image_height,
                    &tile_size, err)) {
@@ -763,11 +858,23 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   }
 
   // create levels; gather tileids for top level
-  PREPARE_OR_FAIL(stmt, db, "SELECT PYRAMIDLEVEL, TILEID FROM tile");
+  sql = g_strdup_printf("SELECT id FROM %s", unique_table_name);
+  PREPARE_OR_FAIL(stmt, db, sql);
   int ret;
   while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-    int64_t downsample = sqlite3_column_int64(stmt, 0);
-    const char *tileid = (const char *) sqlite3_column_text(stmt, 1);
+    const char *tileid = (const char *) sqlite3_column_text(stmt, 0);
+    int64_t downsample;
+    if (!parse_tileid(tileid, NULL, NULL, &downsample, NULL, &tmp_err)) {
+      if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                          OPENSLIDE_ERROR_NO_VALUE)) {
+        // not a tile
+        g_clear_error(&tmp_err);
+        continue;
+      } else {
+        g_propagate_error(err, tmp_err);
+        goto FAIL;
+      }
+    }
 
     // create level if new
     struct level *l = g_hash_table_lookup(level_hash, &downsample);
@@ -814,6 +921,8 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   }
   sqlite3_finalize(stmt);
   stmt = NULL;
+  g_free(sql);
+  sql = NULL;
 
   // move levels to level array
   level_count = g_hash_table_size(level_hash);
@@ -886,6 +995,7 @@ FAIL:
   clear_tileids(quickhash_tileids);
   g_queue_free(quickhash_tileids);
   g_hash_table_destroy(level_hash);
+  g_free(sql);
   g_free(unique_table_name);
   return success;
 }
