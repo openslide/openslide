@@ -181,7 +181,7 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
   if (!software) {
     return false;
   }
-  if (strncmp(TRESTLE_SOFTWARE, software, strlen(TRESTLE_SOFTWARE))) {
+  if (!g_str_has_prefix(software, TRESTLE_SOFTWARE)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Trestle slide");
     return false;

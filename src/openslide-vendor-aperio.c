@@ -293,7 +293,7 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
   if (!tagval) {
     return false;
   }
-  if (strncmp(APERIO_DESCRIPTION, tagval, strlen(APERIO_DESCRIPTION))) {
+  if (!g_str_has_prefix(tagval, APERIO_DESCRIPTION)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not an Aperio slide");
     return false;

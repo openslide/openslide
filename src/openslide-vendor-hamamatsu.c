@@ -1962,8 +1962,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
     //    g_debug("%s", key);
 
-    if (strncmp(KEY_IMAGE_FILE, key, strlen(KEY_IMAGE_FILE)) == 0) {
-      // starts with ImageFile
+    if (g_str_has_prefix(key, KEY_IMAGE_FILE)) {
       char *suffix = key + strlen(KEY_IMAGE_FILE);
 
       int layer;
