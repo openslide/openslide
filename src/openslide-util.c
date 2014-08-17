@@ -196,6 +196,7 @@ double _openslide_parse_double(const char *value) {
   g_strdelimit(canonical, ",", '.');
 
   char *endptr;
+  errno = 0;
   double result = g_ascii_strtod(canonical, &endptr);
   // fail on overflow/underflow
   if (canonical[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
