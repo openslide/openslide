@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+from contextlib import closing
 import filecmp
 import fnmatch
 from hashlib import sha256
@@ -197,7 +198,7 @@ def _fetch_one(slide):
 
         if is_zip:
             print 'Unpacking %s...' % slide
-            with ZipFile(dest) as zf:
+            with closing(ZipFile(dest)) as zf:
                 zf.extractall(path=destpath)
 
         dest.close()
