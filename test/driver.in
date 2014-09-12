@@ -48,6 +48,11 @@ PRISTINE = '!!BUILDDIR!!/_slidedata/_pristine'
 FEATURES = set('!!FEATURES!!'.split())
 TESTCONF = 'config.yaml'
 
+GREEN = '\033[1;32m'
+BLUE = '\033[1;34m'
+RED = '\033[1;31m'
+RESET = '\033[1;0m'
+
 _commands = []
 _command_funcs = {}
 
@@ -59,6 +64,11 @@ def _command(f):
     _commands.append(f.func_name)
     _command_funcs[f.func_name] = f
     return f
+
+
+def _color(color, str):
+    '''Return str, wrapped in the specified ANSI color escape sequence.'''
+    return color + str + RESET
 
 
 def _list_tests(pattern='*'):
@@ -370,7 +380,7 @@ def _run_one(testname, valgrind=False, testdir=None):
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
-        print '%s: skipped' % testname
+        print _color(BLUE, '%s: skipped' % testname)
         return True
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
@@ -380,20 +390,21 @@ def _run_one(testname, valgrind=False, testdir=None):
             debug=conf.get('debug', []))
 
     if result is None and not conf['success']:
-        print '%s: unexpected success' % testname
+        print _color(RED, '%s: unexpected success' % testname)
         return False
     elif result is not None and conf['success']:
-        print '%s: unexpected failure: %s' % (testname, result)
+        print _color(RED, '%s: unexpected failure: %s' % (testname, result))
         return False
     elif result is not None and not re.search(conf['error'], result):
-        print '%s: incorrect error: %s' % (testname, result)
+        print _color(RED, '%s: incorrect error: %s' % (testname, result))
         return False
     elif conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
-            print '%s: extended test failed: %s' % (testname, result)
+            print _color(RED, '%s: extended test failed: %s' % (testname,
+                    result))
             return False
-    print '%s: OK' % testname
+    print _color(GREEN, '%s: OK' % testname)
     return True
 
 
