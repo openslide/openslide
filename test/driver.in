@@ -29,6 +29,7 @@ import re
 import requests
 import shlex
 from shutil import copytree, rmtree
+import struct
 import subprocess
 import sys
 import tarfile
@@ -95,6 +96,26 @@ def _features_available(conf):
         if feature not in FEATURES:
             return False
     return True
+
+
+def _is_bigtiff(path):
+    '''Return True if the specified file is a BigTIFF.'''
+    try:
+        with open(path, 'rb') as fh:
+            # Check endianness
+            sig = fh.read(2)
+            if sig == 'II':
+                fmt = '<'
+            elif sig == 'MM':
+                fmt = '>'
+            else:
+                return False
+            # Check magic number
+            fmt += 'H'
+            magic = struct.unpack(fmt, fh.read(struct.calcsize(fmt)))[0]
+            return magic == 43
+    except IOError:
+        return False
 
 
 def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
@@ -233,14 +254,16 @@ def create(testname, slide):
     print 'Creating test %s for %s' % (testname, slide)
 
     for relpath in _list_slide_files(slide):
-        if _try_open_slide(os.path.join(srcpath, relpath)) is None:
+        curpath = os.path.join(srcpath, relpath)
+        if _try_open_slide(curpath) is None:
             slidefile = relpath
+            slidepath = curpath
             break
     else:
         raise IOError('Could not locate readable slide file')
 
-    query = _launch_test('query', os.path.join(srcpath, slidefile),
-            args=['-n'], stdout=subprocess.PIPE)
+    query = _launch_test('query', slidepath, args=['-n'],
+            stdout=subprocess.PIPE)
     vendor, _ = query.communicate()
     if query.returncode:
         raise IOError('Could not query slide vendor')
@@ -255,6 +278,8 @@ def create(testname, slide):
         'slide': slidefile,
         'vendor': vendor,
     }
+    if _is_bigtiff(slidepath):
+        conf['requires'] = ['libtiff-4']
     with open(os.path.join(testpath, TESTCONF), 'w') as fh:
         yaml.safe_dump(conf, fh, default_flow_style=False)
 
