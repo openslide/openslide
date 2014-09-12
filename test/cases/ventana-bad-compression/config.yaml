@@ -3,3 +3,4 @@ error: "^Unsupported TIFF compression: 240$"
 slide: OS-2.bif
 success: false
 vendor: ventana
+requires: [libtiff-4]

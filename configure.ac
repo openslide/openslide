@@ -59,6 +59,7 @@ PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
    AC_DEFINE([HAVE_OPENJPEG2], [1], [Define to 1 if you have OpenJPEG >= 2.1.0.])
    OPENJPEG_CFLAGS="$OPENJPEG2_CFLAGS"
    OPENJPEG_LIBS="$OPENJPEG2_LIBS"
+   FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-2"
  ], [
   dnl Fall back to OpenJPEG 1.x
   PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
@@ -93,6 +94,7 @@ PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
       AC_MSG_FAILURE([cannot find OpenJPEG])
     fi
   ])
+  FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-1"
 ])
 
 PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
@@ -102,6 +104,17 @@ PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
   LIBS="$old_LIBS"
   LIBTIFF_LIBS="-ltiff"
 ])
+old_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS $LIBTIFF_CFLAGS"
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+  #include <tiff.h>
+  int ver = TIFF_VERSION_BIG;
+])], [
+  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-4"
+], [
+  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-3"
+])
+CFLAGS="$old_CFLAGS"
 
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0, gio-2.0, gobject-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
@@ -175,6 +188,7 @@ AC_SUBST([CFLAG_MS_FORMAT])
 # handling for API changes that old
 AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs $(CFLAG_MS_FORMAT) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_26 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
 
+AC_SUBST(FEATURE_FLAGS)
 
 AC_CONFIG_FILES([
 Makefile

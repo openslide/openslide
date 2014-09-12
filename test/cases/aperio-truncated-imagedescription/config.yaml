@@ -7,3 +7,4 @@ error: ASCII value for tag "ImageDescription" does not end in null byte
 slide: CMU-1.svs
 success: false
 vendor: generic-tiff
+requires: [libtiff-4]

@@ -44,6 +44,7 @@ CASEROOT = '!!SRCDIR!!/cases'
 SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
 WORKROOT = '!!BUILDDIR!!/_slidedata'
 PRISTINE = '!!BUILDDIR!!/_slidedata/_pristine'
+FEATURES = set('!!FEATURES!!'.split())
 TESTCONF = 'config.yaml'
 
 _commands = []
@@ -85,6 +86,15 @@ def _load_test_config(testname):
     '''Parse and return the config.yaml for the specified test.'''
     with open(os.path.join(CASEROOT, testname, TESTCONF)) as fh:
         return yaml.safe_load(fh)
+
+
+def _features_available(conf):
+    '''Return True if the features required by the test configuration
+    are available in this build.'''
+    for feature in conf.get('requires', []):
+        if feature not in FEATURES:
+            return False
+    return True
 
 
 def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
@@ -334,6 +344,9 @@ def _run_one(testname, valgrind=False, testdir=None):
     to succeed, and 3) do in fact succeed.'''
 
     conf = _load_test_config(testname)
+    if not _features_available(conf):
+        print '%s: skipped' % testname
+        return True
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
             vendor=conf.get('vendor', None),
@@ -445,7 +458,8 @@ def time(pattern='*'):
     tests = _list_tests(pattern)
     for testname in tests:
         conf = _load_test_config(testname)
-        if not conf.get('primary', False) or not conf['success']:
+        if (not conf.get('primary', False) or not conf['success']
+                or not _features_available(conf)):
             continue
         _unpack_one(testname)
         slidefile = os.path.join(WORKROOT, testname, conf['slide'])

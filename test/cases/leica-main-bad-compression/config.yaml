@@ -3,3 +3,4 @@ error: "^Unsupported TIFF compression: 42$"
 slide: Leica-1.scn
 success: false
 vendor: leica
+requires: [libtiff-4]

@@ -1,6 +1,6 @@
 base: Ventana/OS-2.bif
-error: '^Bad direction attribute "ANGLE"$'
 slide: OS-2.bif
+error: BigTIFF support requires libtiff >= 4
 success: false
 vendor: ventana
-requires: [libtiff-4]
+requires: [libtiff-3]
