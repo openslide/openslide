@@ -32,7 +32,8 @@ Leica and Ventana support require libtiff >= 4.
 
 If you want to run the test suite, you will need PyYAML, python-requests,
 xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
-and > 120 GB of disk space.  Valgrind and gcov are optional.
+and > 120 GB of disk space.  Valgrind mode requires Valgrind and debug
+symbols for glib2.  Coverage mode requires gcov and Doxygen.
 
 
 Features
