@@ -35,6 +35,7 @@ import sys
 import tarfile
 from tempfile import mkdtemp, TemporaryFile
 import textwrap
+from time import time as curtime
 from urlparse import urljoin
 import yaml
 from zipfile import ZipFile
@@ -216,6 +217,7 @@ def _fetch_one(slide):
     r.raise_for_status()
 
     cur = 0
+    last_update = 0
     size = int(r.headers['Content-Length'])
     filename = os.path.basename(slide)
     is_zip = os.path.splitext(filename)[1] == '.zip'
@@ -227,13 +229,19 @@ def _fetch_one(slide):
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
         hash = sha256()
-        for chunk in r.iter_content(1 << 20):
+        for chunk in r.iter_content(128 << 10):
             dest.write(chunk)
             hash.update(chunk)
+
             cur += len(chunk)
-            print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20, size >> 20),
-            sys.stdout.flush()
-        print
+            now = curtime()
+            if now - last_update >= 1:
+                print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20,
+                        size >> 20),
+                sys.stdout.flush()
+                last_update = now
+        print '%-79s' % ('Fetched %s (%d MB)' % (slide, size >> 20))
+
         if hash.hexdigest() != slides[slide]:
             raise ValueError('Hash mismatch: %s' % slide)
 
