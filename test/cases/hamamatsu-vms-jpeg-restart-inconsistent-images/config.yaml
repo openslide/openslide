@@ -2,7 +2,7 @@ base: Hamamatsu-vms/CMU-1.zip
 error: "^Tile size not consistent for JPEG 3: expected 4096x8, found 2048x8$"
 generate:
     ? "CMU-1-40x - 2010-01-12 13.24.05(1,1).jpg"
-    : "jpegtran -restart 256B -outfile %(out)s %(in)s"
+    : "djpeg %(in)s | cjpeg -outfile %(out)s -sample 1x1 -restart 256B"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false
 vendor: hamamatsu

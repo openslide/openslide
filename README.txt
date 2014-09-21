@@ -31,8 +31,8 @@ GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
 Leica and Ventana support require libtiff >= 4.
 
 If you want to run the test suite, you will need PyYAML, python-requests,
-xdelta3, jpegtran (from libjpeg), a Git checkout of OpenSlide, and > 120 GB
-of disk space.  Valgrind and gcov are optional.
+xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
+and > 120 GB of disk space.  Valgrind and gcov are optional.
 
 
 Features
