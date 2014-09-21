@@ -373,6 +373,13 @@ def _unpack_one(testname):
                 os.symlink(src, newpath)
 
 
+@_command
+def unpack(pattern='*'):
+    '''Unpack all tests matching the specified pattern.'''
+    for testname in _list_tests(pattern):
+        _unpack_one(testname)
+
+
 def _run_one(testname, valgrind=False, testdir=None):
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
@@ -424,14 +431,14 @@ def _run_all(pattern='*', valgrind=False, testdir=None):
 
 @_command
 def run(pattern='*'):
-    '''Run all tests matching the specified pattern.'''
+    '''Unpack and run all tests matching the specified pattern.'''
     if _run_all(pattern):
         sys.exit(1)
 
 
 @_command
 def coverage(outfile):
-    '''Run all tests and write coverage report to outfile.'''
+    '''Unpack and run all tests and write coverage report to outfile.'''
     # We have to rebuild the source in order to do profiling.  To minimize
     # collateral damage, we unpack the dist tarball into a temp directory and
     # build there.
@@ -482,7 +489,7 @@ def coverage(outfile):
 
 @_command
 def valgrind(pattern='*'):
-    '''Valgrind all tests matching the specified pattern.'''
+    '''Unpack and Valgrind all tests matching the specified pattern.'''
     if _run_all(pattern, valgrind=True):
         sys.exit(1)
 
