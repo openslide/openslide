@@ -6,7 +6,6 @@
    Memcheck:Leak
    ...
    fun:g_type_init_with_debug_flags
-   fun:_openslide_init
 }
 {
    New GObject constructor leaks
