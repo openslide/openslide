@@ -515,8 +515,12 @@ def coverage(outfile):
     subprocess.check_call(['gcov'] + paths)
 
     # Record unexecuted lines
-    report = subprocess.check_output(['grep', '-FC', '2', '#####'] +
-            fnmatch.filter(sorted(os.listdir('.')), '*.gcov'))
+    proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
+            fnmatch.filter(sorted(os.listdir('.')), '*.gcov'),
+            stdout=subprocess.PIPE)
+    report, _ = proc.communicate()
+    if proc.returncode:
+        raise IOError('Process returned exit status %d' % proc.returncode)
     report = '\n'.join(l.replace('.c.gcov', '.c', 1)
             for l in report.split('\n'))
     os.chdir(prevdir)
