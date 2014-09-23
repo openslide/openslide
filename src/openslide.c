@@ -302,7 +302,7 @@ openslide_t *openslide_open(const char *filename) {
   g_hash_table_insert(osr->properties,
 		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT),
 		      g_strdup_printf("%d", osr->level_count));
-  bool should_have_geometry;
+  bool should_have_geometry = false;  // initialize for gcc 4.4
   for (int32_t i = 0; i < osr->level_count; i++) {
     struct _openslide_level *l = osr->levels[i];
 
