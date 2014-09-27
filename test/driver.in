@@ -508,11 +508,11 @@ def coverage(outfile):
     _run_all(testdir='test')
 
     # Generate coverage reports
-    paths = []
     for dirpath, dirnames, filenames in os.walk('src'):
-        paths.extend(os.path.join(dirpath, name)
-                for name in fnmatch.filter(sorted(filenames), '*.gcda'))
-    subprocess.check_call(['gcov'] + paths)
+        paths = [os.path.join(dirpath, name)
+                for name in fnmatch.filter(sorted(filenames), '*.gcda')]
+        if paths:
+            subprocess.check_call(['gcov', '-o', dirpath] + paths)
 
     # Record unexecuted lines
     proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
