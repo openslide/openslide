@@ -39,5 +39,4 @@
     ...
     fun:FcPatternObjectInsertElt
     fun:FcPatternObjectAddWithBinding
-    fun:FcPatternDuplicate
 }
