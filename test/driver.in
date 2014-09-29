@@ -142,7 +142,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
     env.update(
         G_DEBUG='gc-friendly',
         G_MESSAGES_DEBUG='',
-        G_SLICE='always-malloc,debug-blocks',
+        G_SLICE='always-malloc',
         MALLOC_CHECK_='1',
         OPENSLIDE_DEBUG=','.join(debug),
         GIO_USE_VFS='local',
@@ -153,6 +153,10 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
                 'valgrind', '--quiet', '--error-exitcode=3',
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--leak-check=full', '--num-callers=30'] + args
+    else:
+        # debug-blocks retains pointers to freed slices, so don't use it
+        # with Valgrind
+        env['G_SLICE'] += ',debug-blocks'
     return subprocess.Popen(args, env=env, **kwargs)
 
 
