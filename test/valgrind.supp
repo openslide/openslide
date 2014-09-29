@@ -26,6 +26,12 @@
    fun:g_type_register_fundamental
 }
 {
+   GType registration
+   Memcheck:Leak
+   ...
+   fun:g_type_add_interface_static
+}
+{
    GType referencing
    Memcheck:Leak
    ...
