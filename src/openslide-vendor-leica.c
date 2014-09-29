@@ -127,6 +127,7 @@ static void destroy_level(struct level *l) {
     _openslide_grid_destroy(area->grid);
     g_slice_free(struct area, area);
   }
+  g_ptr_array_free(l->areas, true);
   g_slice_free(struct level, l);
 }
 
