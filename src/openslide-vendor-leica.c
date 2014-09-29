@@ -445,6 +445,7 @@ static struct collection *parse_xml_description(const char *xml,
     // create image struct
     struct image *image = g_slice_new0(struct image);
     image->dimensions = g_ptr_array_new();
+    g_ptr_array_add(collection->images, image);
 
     image->creation_date = _openslide_xml_xpath_get_string(ctx, "d:creationDate/text()");
     image->device_model = _openslide_xml_xpath_get_string(ctx, "d:device/@model");
@@ -490,6 +491,7 @@ static struct collection *parse_xml_description(const char *xml,
       xmlFree(z);
 
       struct dimension *dimension = g_slice_new0(struct dimension);
+      g_ptr_array_add(image->dimensions, dimension);
 
       PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_IFD,
                                   dimension->dir);
@@ -500,17 +502,12 @@ static struct collection *parse_xml_description(const char *xml,
 
       dimension->clicks_per_pixel =
         (double) image->clicks_across / dimension->width;
-
-      g_ptr_array_add(image->dimensions, dimension);
     }
     xmlXPathFreeObject(result);
     result = NULL;
 
     // sort dimensions
     g_ptr_array_sort(image->dimensions, dimension_compare);
-
-    // add image
-    g_ptr_array_add(collection->images, image);
   }
 
   success = true;
