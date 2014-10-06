@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+from ConfigParser import RawConfigParser
 from contextlib import closing
 import filecmp
 import fnmatch
@@ -44,6 +45,7 @@ TESTDATA_URL = 'http://openslide.cs.cmu.edu/download/openslide-testdata/'
 VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
 CASEROOT = '!!SRCDIR!!/cases'
 SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
+MOSAICLIST = '!!SRCDIR!!/cases/mosaic.ini'
 WORKROOT = '!!BUILDDIR!!/_slidedata'
 PRISTINE = '!!BUILDDIR!!/_slidedata/_pristine'
 FEATURES = set('!!FEATURES!!'.split())
@@ -540,6 +542,18 @@ def valgrind(pattern='*'):
     '''Unpack and Valgrind all tests matching the specified pattern.'''
     if _run_all(pattern, valgrind=True):
         sys.exit(1)
+
+
+@_command
+def mosaic(outfile):
+    '''Produce a mosaic image of slide data from various formats.'''
+    cfg = RawConfigParser()
+    cfg.optionxform = str
+    cfg.read(MOSAICLIST)
+    for section in cfg.sections():
+        _fetch_one(cfg.get(section, 'base'))
+    subprocess.check_call([os.path.join('!!BUILDDIR!!', 'mosaic'),
+            PRISTINE, MOSAICLIST, outfile])
 
 
 @_command
