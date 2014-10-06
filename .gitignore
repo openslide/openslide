@@ -40,6 +40,7 @@ Makefile.in
 /test/_slidedata
 /test/driver
 /test/extended
+/test/mosaic
 /test/parallel
 /test/query
 /test/test

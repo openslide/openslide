@@ -90,7 +90,7 @@ noinst_HEADERS = \
 
 
 noinst_PROGRAMS = test/test test/try_open test/parallel test/query \
-	test/extended
+	test/extended test/mosaic
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
@@ -110,6 +110,9 @@ test_query_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test_extended_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_extended_LDADD = src/libopenslide.la $(GLIB2_LIBS)
+
+test_mosaic_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -I$(top_srcdir)/src
+test_mosaic_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
