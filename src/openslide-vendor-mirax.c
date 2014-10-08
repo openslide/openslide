@@ -80,10 +80,6 @@ static const char VALUE_SCAN_DATA_LAYER_LABEL[] = "ScanDataLayer_SlideBarcode";
 static const char VALUE_SCAN_DATA_LAYER_THUMBNAIL[] = "ScanDataLayer_SlidePreview";
 static const char VALUE_SLIDE_ZOOM_LEVEL[] = "Slide zoom level";
 
-static const char GROUP_NONHIERLAYER_d_SECTION[] = "NONHIERLAYER_%d_SECTION";
-static const char KEY_VIMSLIDE_POSITION_DATA_FORMAT_VERSION[] =
-  "VIMSLIDE_POSITION_DATA_FORMAT_VERSION";
-static const int VALUE_VIMSLIDE_POSITION_DATA_FORMAT_VERSION = 257;
 static const int SLIDE_POSITION_RECORD_SIZE = 9;
 
 static const char GROUP_DATAFILE[] = "DATAFILE";
