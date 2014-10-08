@@ -947,7 +947,7 @@ static void *inflate_buffer(const void *src,
 ZLIB_ERROR:
   if (error_code == Z_STREAM_END) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Short read while decompressing: %lu/%"G_GINT64_FORMAT,
+                "Short read while decompressing: %lu/%"PRId64,
                 strm.total_out, dst_len);
   } else if (strm.msg) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -1765,7 +1765,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     g_debug("  overlap_y: %g", hs->overlap_y);
     g_debug("  mpp_x: %g", hs->mpp_x);
     g_debug("  mpp_y: %g", hs->mpp_y);
-    g_debug("  fill_rgb: %" G_GUINT32_FORMAT, hs->fill_rgb);
+    g_debug("  fill_rgb: %"PRIu32, hs->fill_rgb);
     g_debug("  image_w: %d", hs->image_w);
     g_debug("  image_h: %d", hs->image_h);
   }
@@ -1933,7 +1933,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
                                              lp->tile_advance_y,
                                              read_tile, tile_free);
 
-    //g_debug("level %d tile advance %.10g %.10g, dim %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->base.w, l->base.h, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
+    //g_debug("level %d tile advance %.10g %.10g, dim %"PRId64" %"PRId64", image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->base.w, l->base.h, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }
 
   // load the position map and build up the tiles
@@ -1979,7 +1979,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   for (int i = 0; i < zoom_levels; i++) {
     struct level *l = levels[i];
     g_debug("level %d", i);
-    g_debug(" size %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, l->base.w, l->base.h);
+    g_debug(" size %"PRId64" %"PRId64, l->base.w, l->base.h);
     g_debug(" image size %d %d", l->image_width, l->image_height);
     g_debug(" tile advance %g %g", lp->tile_advance_x, lp->tile_advance_y);
   }

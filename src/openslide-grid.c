@@ -19,7 +19,6 @@
  *
  */
 
-#include <stdint.h>
 #include <stdarg.h>
 #include <math.h>
 #include <glib.h>
@@ -167,8 +166,8 @@ static bool read_tiles(cairo_t *cr,
   //  cairo_paint(cr);
   //g_debug("offset: %d %d", region->offset_x, region->offset_y);
 
-  //g_debug("start: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, region->start_tile_x, region->start_tile_y);
-  //g_debug("end: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, region->end_tile_x, region->end_tile_y);
+  //g_debug("start: %"PRId64" %"PRId64, region->start_tile_x, region->start_tile_y);
+  //g_debug("end: %"PRId64" %"PRId64, region->end_tile_x, region->end_tile_y);
 
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
@@ -183,7 +182,7 @@ static bool read_tiles(cairo_t *cr,
     while (tile_x >= region->start_tile_x) {
       double translate_x = ((tile_x - region->start_tile_x) *
                             grid->tile_advance_x) - region->offset_x;
-      //      g_debug("read_tiles %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, tile_x, tile_y);
+      //      g_debug("read_tiles %"PRId64" %"PRId64, tile_x, tile_y);
       cairo_translate(cr, translate_x, translate_y);
       bool success = grid->ops->read_tile(grid, region, cr,
                                           level, tile_x, tile_y,
@@ -220,8 +219,7 @@ static void label_tile(struct _openslide_grid *grid,
   cairo_stroke(cr);
 
   cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
-  char *str = g_strdup_printf("%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT,
-                              tile_col, tile_row);
+  char *str = g_strdup_printf("%"PRId64", %"PRId64, tile_col, tile_row);
   cairo_text_extents_t extents;
   cairo_text_extents(cr, str, &extents);
   cairo_move_to(cr,
@@ -414,7 +412,7 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   };
   struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
-    //g_debug("no tile at %"G_GINT64_FORMAT", %"G_GINT64_FORMAT, tile_col, tile_row);
+    //g_debug("no tile at %"PRId64", %"PRId64, tile_col, tile_row);
     return true;
   }
 
@@ -427,11 +425,11 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
       y + tile->h <= region->y ||
       x >= region->x + region->w ||
       y >= region->y + region->h) {
-    //g_debug("skip x %g w %g y %g h %g, region x %g w %"G_GINT32_FORMAT" y %g h %"G_GINT32_FORMAT, x, tile->w, y, tile->h, region->x, region->w, region->y, region->h);
+    //g_debug("skip x %g w %g y %g h %g, region x %g w %d y %g h %d", x, tile->w, y, tile->h, region->x, region->w, region->y, region->h);
     return true;
   }
 
-  //g_debug("tilemap read_tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", offset: %g %g, dim: %g %g", tile_col, tile_row, tile->offset_x, tile->offset_y, tile->w, tile->h);
+  //g_debug("tilemap read_tile: %"PRId64" %"PRId64", offset: %g %g, dim: %g %g", tile_col, tile_row, tile->offset_x, tile->offset_y, tile->w, tile->h);
 
   cairo_matrix_t matrix;
   cairo_get_matrix(cr, &matrix);
@@ -460,7 +458,7 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
 
   //g_debug("coords: %g %g", x, y);
   //g_debug("advances: %g %g", grid->base.tile_advance_x, grid->base.tile_advance_y);
-  //g_debug("start tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT ", end tile: %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, start_tile_x, start_tile_y, end_tile_x, end_tile_y);
+  //g_debug("start tile: %"PRId64" %"PRId64", end tile: %"PRId64" %"PRId64, start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 
   // save
   cairo_matrix_t matrix;

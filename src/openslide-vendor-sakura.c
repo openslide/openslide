@@ -195,8 +195,7 @@ static char *make_tileid(int64_t x, int64_t y,
                          int64_t downsample,
                          enum color_index color) {
   // T;x|y;downsample;color;0
-  return g_strdup_printf("T;%"G_GINT64_FORMAT"|%"G_GINT64_FORMAT";"
-                         "%"G_GINT64_FORMAT";%d;0",
+  return g_strdup_printf("T;%"PRId64"|%"PRId64";%"PRId64";%d;0",
                          x, y, downsample, color);
 }
 
@@ -882,7 +881,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
       // ensure downsample is > 0 and a power of 2
       if (downsample <= 0 || (downsample & (downsample - 1))) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Invalid downsample %"G_GINT64_FORMAT, downsample);
+                    "Invalid downsample %"PRId64, downsample);
         goto FAIL;
       }
 

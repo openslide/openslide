@@ -260,7 +260,7 @@ bool _openslide_jpeg_read(const char *filename,
                           uint32_t *dest,
                           int32_t w, int32_t h,
                           GError **err) {
-  //g_debug("read JPEG: %s %" G_GINT64_FORMAT, filename, offset);
+  //g_debug("read JPEG: %s %"PRId64, filename, offset);
 
   FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
@@ -301,7 +301,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
 
-  //g_debug("read JPEG associated image: %s %" G_GINT64_FORMAT, img->filename, img->offset);
+  //g_debug("read JPEG associated image: %s %"PRId64, img->filename, img->offset);
 
   return _openslide_jpeg_read(img->filename, img->offset, dest,
                               img->base.w, img->base.h, err);

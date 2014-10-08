@@ -403,7 +403,7 @@ static bool get_tile_coordinates(const struct area *area,
   PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, attr_name, tile);
   if (tile < 1 || tile > area->tile_count) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Tile number out of bounds: %"G_GINT64_FORMAT, tile);
+                "Tile number out of bounds: %"PRId64, tile);
     goto FAIL;
   }
 
@@ -496,16 +496,14 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
     if (tile_width != tiff_tile_width || tile_height != tiff_tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Tile size mismatch: "
-                  "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
-                  "found %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
+                  "expected %"PRId64"x%"PRId64", found %"PRId64"x%"PRId64,
                   tiff_tile_width, tiff_tile_height, tile_width, tile_height);
       goto FAIL;
     }
     if (start_col_x % tile_width || start_row_y % tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Area origin not divisible by tile size: "
-                  "%"G_GINT64_FORMAT" %% %"G_GINT64_FORMAT", "
-                  "%"G_GINT64_FORMAT" %% %"G_GINT64_FORMAT,
+                  "%"PRId64" %% %"PRId64", %"PRId64" %% %"PRId64,
                   start_col_x, tile_width, start_row_y, tile_height);
       goto FAIL;
     }
@@ -516,7 +514,7 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_COLS, area->tiles_across);
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_ROWS, area->tiles_down);
 
-    //g_debug("area %d: start %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", count %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down);
+    //g_debug("area %d: start %"PRId64" %"PRId64", count %"PRId64" %"PRId64, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down);
 
     // create tile structs
     area->tile_count = area->tiles_across * area->tiles_down;
@@ -553,7 +551,7 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
       struct joint *joint;
       bool ok;
       bool direction_y = false;
-      //g_debug("%s, tile1 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT", tile2 %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
+      //g_debug("%s, tile1 %"PRId64" %"PRId64", tile2 %"PRId64" %"PRId64, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
       if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
         // get left joint of right tile
         struct tile *tile =
@@ -576,8 +574,7 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
       if (!ok) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected tile join: %s, "
-                    "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT"), "
-                    "(%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")",
+                    "(%"PRId64", %"PRId64"), (%"PRId64", %"PRId64")",
                     (char *) direction, tile1_col, tile1_row,
                     tile2_col, tile2_row);
         xmlFree(direction);
@@ -760,13 +757,12 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // verify that levels and magnifications are properly ordered
       if (level != next_level++) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Unexpected encounter with level %"G_GINT64_FORMAT, level);
+                    "Unexpected encounter with level %"PRId64, level);
         goto FAIL;
       }
       if (magnification >= prev_magnification) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Unexpected magnification in level %"G_GINT64_FORMAT,
-                    level);
+                    "Unexpected magnification in level %"PRId64, level);
         goto FAIL;
       }
       prev_magnification = magnification;
@@ -840,7 +836,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
       l->base.w = ceil(x + w);
       l->base.h = ceil(y + h);
-      //g_debug("level %"G_GINT64_FORMAT": magnification %g, downsample %g, size %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, level, magnification, downsample, l->base.w, l->base.h);
+      //g_debug("level %"PRId64": magnification %g, downsample %g, size %"PRId64" %"PRId64, level, magnification, downsample, l->base.w, l->base.h);
 
       // add to array
       g_ptr_array_add(level_array, l);

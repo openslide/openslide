@@ -102,7 +102,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
       goto DONE;
     }
 
-    //    g_debug("hash '%s' %" G_GINT64_FORMAT " %d", filename, offset + (size - bytes_left), bytes_to_read);
+    //    g_debug("hash '%s' %"PRId64" %d", filename, offset + (size - bytes_left), bytes_to_read);
 
     bytes_left -= bytes_read;
 

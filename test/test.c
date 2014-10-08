@@ -30,8 +30,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <inttypes.h>
 #include <sys/time.h>
 
 #include <glib.h>
@@ -58,7 +58,7 @@ static void test_next_biggest(openslide_t *osr, double downsample) {
 /*
 static void test_tile_walk(openslide_t *osr,
 			   int64_t tile_size) {
-  printf("test_tile_walk: %" G_GINT64_FORMAT "\n", tile_size);
+  printf("test_tile_walk: %"PRId64"\n", tile_size);
 
   uint32_t *buf = malloc(tile_size * tile_size * 4);
   //struct timeval tv, tv2;
@@ -95,7 +95,7 @@ static void write_as_ppm(const char *filename,
     return;
   }
 
-  fprintf(f, "P6\n%" G_GINT64_FORMAT " %" G_GINT64_FORMAT "\n255\n", w, h);
+  fprintf(f, "P6\n%"PRId64" %"PRId64"\n255\n", w, h);
   for (int64_t i = 0; i < w * h; i++) {
     uint32_t val = buf[i];
     uint8_t a = (val >> 24) & 0xFF;
@@ -141,10 +141,10 @@ static void test_image_fetch(openslide_t *osr,
   for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
     filename = g_strdup_printf("%s-%.2d.ppm", name, level);
     int64_t num_bytes = w * h * 4;
-    printf("Going to allocate %" G_GINT64_FORMAT " bytes...\n", num_bytes);
+    printf("Going to allocate %"PRId64" bytes...\n", num_bytes);
     uint32_t *buf = malloc(num_bytes);
 
-    printf("x: %" G_GINT64_FORMAT ", y: %" G_GINT64_FORMAT ", level: %d, w: %" G_GINT64_FORMAT ", h: %" G_GINT64_FORMAT "\n", x, y, level, w, h);
+    printf("x: %"PRId64", y: %"PRId64", level: %d, w: %"PRId64", h: %"PRId64"\n", x, y, level, w, h);
     openslide_read_region(osr, buf, x, y, level, w, h);
 
     // write as PPM
@@ -172,7 +172,7 @@ static void test_horizontal_walk(openslide_t *osr,
 
   for (int64_t x = start_x; x < d; x += stride) {
     openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
-    printf("%" G_GINT64_FORMAT "\r", x);
+    printf("%"PRId64"\r", x);
     fflush(stdout);
   }
 
@@ -193,7 +193,7 @@ static void test_vertical_walk(openslide_t *osr,
 
   for (int64_t y = start_y; y < d; y += stride) {
     openslide_read_region(osr, buf, x, y, level, patch_w, patch_h);
-    printf("%" G_GINT64_FORMAT "\r", y);
+    printf("%"PRId64"\r", y);
     fflush(stdout);
   }
 
@@ -212,8 +212,7 @@ static void test_pdf(openslide_t *osr, const char *filename) {
     int64_t w = MIN(orig_w, 2000);
     int64_t h = MIN(orig_h, 2000);
 
-    printf(" level %d (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ").",
-	   i, w, h);
+    printf(" level %d (%"PRId64"x%"PRId64").", i, w, h);
     fflush(stdout);
 
     cairo_pdf_surface_set_size(pdf, w, h);
@@ -268,7 +267,7 @@ int main(int argc, char **argv) {
   }
 
   openslide_get_level0_dimensions(osr, &w, &h);
-  printf("dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", w, h);
+  printf("dimensions: %"PRId64" x %"PRId64"\n", w, h);
 
   int32_t levels = openslide_get_level_count(osr);
   printf("num levels: %d\n", levels);
@@ -276,7 +275,7 @@ int main(int argc, char **argv) {
   for (int32_t i = -1; i < levels + 1; i++) {
     int64_t ww, hh;
     openslide_get_level_dimensions(osr, i, &ww, &hh);
-    printf(" level %d dimensions: %" G_GINT64_FORMAT " x %" G_GINT64_FORMAT "\n", i, ww, hh);
+    printf(" level %d dimensions: %"PRId64" x %"PRId64"\n", i, ww, hh);
   }
 
   print_downsamples(osr);
@@ -331,7 +330,7 @@ int main(int argc, char **argv) {
     const char *name = *associated_image_names;
     openslide_get_associated_image_dimensions(osr, name, &w, &h);
 
-    printf("associated image: %s -> (%" G_GINT64_FORMAT "x%" G_GINT64_FORMAT ")\n", name, w, h);
+    printf("associated image: %s -> (%"PRId64"x%"PRId64")\n", name, w, h);
 
     uint32_t *buf = g_new(uint32_t, w * h);
     openslide_read_associated_image(osr, name, buf);

@@ -22,8 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -54,8 +54,8 @@ static void test_image_fetch(openslide_t *osr,
 
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Read failed: %"G_GINT64_FORMAT" %"G_GINT64_FORMAT
-         " %"G_GINT64_FORMAT" %"G_GINT64_FORMAT": %s", x, y, w, h, err);
+    fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
+         x, y, w, h, err);
   }
 }
 

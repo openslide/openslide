@@ -111,8 +111,7 @@ bool _openslide_png_read(const char *filename,
     if (width != w || height != h) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Dimensional mismatch reading PNG: "
-                  "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
-                  "found %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
+                  "expected %"PRId64"x%"PRId64", found %"PRId64"x%"PRId64,
                   w, h, width, height);
       goto DONE;
     }
@@ -148,7 +147,7 @@ bool _openslide_png_read(const char *filename,
     uint32_t rowbytes = png_get_rowbytes(png, info);
     if (rowbytes != w * sizeof(*dest)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected bufsize %u for %"G_GINT64_FORMAT" pixels",
+                  "Unexpected bufsize %u for %"PRId64" pixels",
                   rowbytes, w);
       goto DONE;
     }

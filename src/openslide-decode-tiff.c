@@ -260,8 +260,7 @@ static bool _get_associated_image_data(TIFF *tiff,
   if (img->base.w != width || img->base.h != height) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected associated image size: "
-                "expected %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT", "
-                "got %"G_GINT64_FORMAT"x%"G_GINT64_FORMAT,
+                "expected %"PRId64"x%"PRId64", got %"PRId64"x%"PRId64,
                 img->base.w, img->base.h, width, height);
     return false;
   }

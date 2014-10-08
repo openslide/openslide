@@ -36,7 +36,7 @@
 static void profile_callback(void *arg G_GNUC_UNUSED, const char *sql,
                              sqlite3_uint64 ns) {
   uint64_t ms = ns / 1e6;
-  g_debug("%s --> %"G_GUINT64_FORMAT" ms", sql, ms);
+  g_debug("%s --> %"PRIu64" ms", sql, ms);
 }
 #endif
 

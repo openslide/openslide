@@ -279,7 +279,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_entry *entry = value->entry;
   g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("cache hit! %p %p %"G_GINT64_FORMAT" %"G_GINT64_FORMAT, (void *) entry, (void *) plane, x, y);
+  //g_debug("cache hit! %p %p %"PRId64" %"PRId64, (void *) entry, (void *) plane, x, y);
 
   // unlock
   g_mutex_unlock(cache->mutex);

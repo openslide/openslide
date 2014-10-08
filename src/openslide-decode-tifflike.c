@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <math.h>
 #include <glib.h>
 
@@ -338,7 +337,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
     goto FAIL;
   }
 
-  //g_debug("reading tiff value: len: %"G_GINT64_FORMAT", offset %"G_GINT64_FORMAT, len, item->offset);
+  //g_debug("reading tiff value: len: %"PRId64", offset %"PRIu64, len, item->offset);
   if (fseeko(f, item->offset, SEEK_SET)) {
     _openslide_io_error(err, "Couldn't seek to read TIFF value");
     goto FAIL;
@@ -385,7 +384,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   GHashTable *result = NULL;
   bool ok = true;
 
-  //  g_debug("diroff: %" PRId64, off);
+  //  g_debug("diroff: %"PRId64, off);
 
   if (off <= 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -418,7 +417,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
     goto FAIL;
   }
 
-  //  g_debug("dircount: %"G_GUINT64_FORMAT, dircount);
+  //  g_debug("dircount: %"PRIu64, dircount);
 
 
   // initial checks passed, initialize the hashtable
@@ -437,7 +436,7 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
       goto FAIL;
     }
 
-    //    g_debug(" tag: %d, type: %d, count: %" PRId64, tag, type, count);
+    //    g_debug(" tag: %d, type: %d, count: %"PRId64, tag, type, count);
 
     // allocate the item
     struct tiff_item *item = g_slice_new0(struct tiff_item);
@@ -649,7 +648,7 @@ static void print_tag(struct _openslide_tifflike *tl,
   struct tiff_item *item = get_item(tl, dir, tag);
   g_assert(item != NULL);
 
-  printf(" %d: type: %d, count: %" G_GINT64_FORMAT "\n ", tag, item->type, item->count);
+  printf(" %d: type: %d, count: %"PRId64"\n ", tag, item->type, item->count);
 
   switch (item->type) {
   case TIFF_ASCII: {
@@ -673,7 +672,7 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_LONG8: {
     const uint64_t *uints = _openslide_tifflike_get_uints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
-      printf(" %" G_GUINT64_FORMAT, uints[i]);
+      printf(" %"PRIu64, uints[i]);
     }
     break;
   }
@@ -682,7 +681,7 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_IFD8: {
     const uint64_t *uints = _openslide_tifflike_get_uints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
-      printf(" %.16" G_GINT64_MODIFIER "x", uints[i]);
+      printf(" %.16"PRIx64, uints[i]);
     }
     break;
   }
@@ -693,7 +692,7 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_SLONG8: {
     const int64_t *sints = _openslide_tifflike_get_sints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
-      printf(" %" G_GINT64_FORMAT, sints[i]);
+      printf(" %"PRId64, sints[i]);
     }
     break;
   }
@@ -766,8 +765,7 @@ static struct tiff_item *get_and_check_item(struct _openslide_tifflike *tl,
   struct tiff_item *item = get_item(tl, dir, tag);
   if (item == NULL || item->count == 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
-                "No such value: directory %"G_GINT64_FORMAT", tag %d",
-                dir, tag);
+                "No such value: directory %"PRId64", tag %d", dir, tag);
     return NULL;
   }
   return item;
@@ -782,7 +780,7 @@ uint64_t _openslide_tifflike_get_uint(struct _openslide_tifflike *tl,
   }
   if (!item->uints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
@@ -798,7 +796,7 @@ int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
   }
   if (!item->sints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return 0;
   }
@@ -814,7 +812,7 @@ double _openslide_tifflike_get_float(struct _openslide_tifflike *tl,
   }
   if (!item->floats) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return NAN;
   }
@@ -830,7 +828,7 @@ const uint64_t *_openslide_tifflike_get_uints(struct _openslide_tifflike *tl,
   }
   if (!item->uints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }
@@ -846,7 +844,7 @@ const int64_t *_openslide_tifflike_get_sints(struct _openslide_tifflike *tl,
   }
   if (!item->sints) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }
@@ -862,7 +860,7 @@ const double *_openslide_tifflike_get_floats(struct _openslide_tifflike *tl,
   }
   if (!item->floats) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }
@@ -878,7 +876,7 @@ const void *_openslide_tifflike_get_buffer(struct _openslide_tifflike *tl,
   }
   if (!item->buffer) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected value type: directory %"G_GINT64_FORMAT", "
+                "Unexpected value type: directory %"PRId64", "
                 "tag %d, type %d", dir, tag, item->type);
     return NULL;
   }

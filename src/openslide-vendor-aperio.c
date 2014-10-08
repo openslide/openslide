@@ -143,7 +143,7 @@ static bool decode_tile(struct level *l,
   // check for missing tile
   int64_t tile_no = tile_row * tiffl->tiles_across + tile_col;
   if (g_hash_table_lookup_extended(l->missing_tiles, &tile_no, NULL, NULL)) {
-    //g_debug("missing tile in level %p: (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", (void *) l, tile_col, tile_row);
+    //g_debug("missing tile in level %p: (%"PRId64", %"PRId64")", (void *) l, tile_col, tile_row);
     return render_missing_tile(l, tiff, dest,
                                tile_col, tile_row, err);
   }
@@ -400,7 +400,7 @@ static void propagate_missing_tile(void *key, void *value G_GNUC_UNUSED,
   int64_t next_tile_col = tile_col / tile_concat_x;
   int64_t next_tile_row = tile_row / tile_concat_y;
 
-  //g_debug("propagating %p (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT") to %p (%"G_GINT64_FORMAT", %"G_GINT64_FORMAT")", (void *) l, tile_col, tile_row, (void *) next_l, next_tile_col, next_tile_row);
+  //g_debug("propagating %p (%"PRId64", %"PRId64") to %p (%"PRId64", %"PRId64")", (void *) l, tile_col, tile_row, (void *) next_l, next_tile_col, next_tile_row);
 
   int64_t *next_tile_no = g_new(int64_t, 1);
   *next_tile_no = next_tile_row * next_tiffl->tiles_across + next_tile_col;

@@ -358,16 +358,16 @@ static void set_bounds_props(openslide_t *osr,
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
-                      g_strdup_printf("%"G_GINT64_FORMAT, x0));
+                      g_strdup_printf("%"PRId64, x0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
-                      g_strdup_printf("%"G_GINT64_FORMAT, y0));
+                      g_strdup_printf("%"PRId64, y0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
-                      g_strdup_printf("%"G_GINT64_FORMAT, x1 - x0));
+                      g_strdup_printf("%"PRId64, x1 - x0));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
-                      g_strdup_printf("%"G_GINT64_FORMAT, y1 - y0));
+                      g_strdup_printf("%"PRId64, y1 - y0));
 }
 
 static struct collection *parse_xml_description(const char *xml,
@@ -667,7 +667,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       // set area offset, in clicks
       area->offset_x = image->clicks_offset_x;
       area->offset_y = image->clicks_offset_y;
-      //g_debug("directory %"G_GINT64_FORMAT", clicks/pixel %g", dimension->dir, dimension->clicks_per_pixel);
+      //g_debug("directory %"PRId64", clicks/pixel %g", dimension->dir, dimension->clicks_per_pixel);
 
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
@@ -767,7 +767,7 @@ static bool create_levels_from_collection(openslide_t *osr,
     return false;
   }
 
-  //g_debug("quickhash directory %"G_GINT64_FORMAT, *quickhash_dir);
+  //g_debug("quickhash directory %"PRId64, *quickhash_dir);
   return true;
 }
 

@@ -24,7 +24,6 @@
 #include "openslide-private.h"
 
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 #include <math.h>
 #include <errno.h>
@@ -233,7 +232,7 @@ void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
     if (endptr[0] == 0) {
       g_hash_table_insert(osr->properties,
                           g_strdup(dest),
-                          g_strdup_printf("%"G_GINT64_FORMAT, result));
+                          g_strdup_printf("%"PRId64, result));
     }
   }
 }
@@ -273,19 +272,19 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
+                      g_strdup_printf("%"PRId64,
                                       (int64_t) floor(x)));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_Y),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
+                      g_strdup_printf("%"PRId64,
                                       (int64_t) floor(y)));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
+                      g_strdup_printf("%"PRId64,
                                       (int64_t) (ceil(x + w) - floor(x))));
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT),
-                      g_strdup_printf("%"G_GINT64_FORMAT,
+                      g_strdup_printf("%"PRId64,
                                       (int64_t) (ceil(y + h) - floor(y))));
 }
 
