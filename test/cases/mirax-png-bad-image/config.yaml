@@ -1,6 +1,7 @@
 base: Mirax/Mirax2.2-4-PNG.zip
-# libpng 1.5 says "unknown critical chunk", 1.6 says "unhandled"
-error: "^PNG error: IHDZ: un.+ critical chunk$"
+# libpng 1.5 says "unknown critical chunk", 1.6 says "unhandled",
+# 1.6.13 says "CRC error"
+error: "^PNG error: IHDZ: (un.+ critical chunk|CRC error)$"
 slide: Mirax2.2-4-PNG.mrxs
 success: false
 vendor: mirax
