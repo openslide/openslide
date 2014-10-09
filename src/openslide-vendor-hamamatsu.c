@@ -141,6 +141,7 @@ struct hamamatsu_jpeg_ops_data {
   GCond *restart_marker_cond;
   GMutex *restart_marker_cond_mutex;
   uint32_t restart_marker_users;
+  bool restart_marker_thread_throttle;
   bool restart_marker_thread_stop;
   GError *restart_marker_thread_error;
 };
@@ -1012,7 +1013,8 @@ static gpointer restart_marker_thread_func(gpointer d) {
     // should we sleep?
     double time_to_sleep = 1.0 - g_timer_elapsed(data->restart_marker_timer,
 						 NULL);
-    if (time_to_sleep > 0) {
+    if (data->restart_marker_thread_throttle &&
+        time_to_sleep > 0) {
       GTimeVal abstime;
       gulong sleep_time = G_USEC_PER_SEC * time_to_sleep;
 
@@ -1400,6 +1402,8 @@ static bool init_jpeg_ops(openslide_t *osr,
   data->restart_marker_mutex = g_mutex_new();
   data->restart_marker_cond = g_cond_new();
   data->restart_marker_cond_mutex = g_mutex_new();
+  data->restart_marker_thread_throttle =
+    !_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS);
   if (background_thread) {
     data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
                                                   osr,
