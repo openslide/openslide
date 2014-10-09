@@ -183,7 +183,7 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
             testdir=testdir, debug=debug, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
     out, err = proc.communicate()
-    if out or err:
+    if out or err or proc.returncode > 0:
         return (out + err).strip()
     elif proc.returncode:
         return 'Exited with status %d' % proc.returncode
