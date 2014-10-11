@@ -32,8 +32,8 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
-struct _openslide_jpeg_error_mgr {
-  struct jpeg_error_mgr pub;
+struct openslide_jpeg_error_mgr {
+  struct jpeg_error_mgr base;
   jmp_buf *env;
   GError *err;
 };
@@ -46,18 +46,18 @@ struct associated_image {
 
 
 static void my_error_exit(j_common_ptr cinfo) {
-  struct _openslide_jpeg_error_mgr *jerr =
-    (struct _openslide_jpeg_error_mgr *) cinfo->err;
+  struct openslide_jpeg_error_mgr *jerr =
+    (struct openslide_jpeg_error_mgr *) cinfo->err;
 
-  (jerr->pub.output_message) (cinfo);
+  (jerr->base.output_message) (cinfo);
 
   //  g_debug("JUMP");
   longjmp(*(jerr->env), 1);
 }
 
 static void my_output_message(j_common_ptr cinfo) {
-  struct _openslide_jpeg_error_mgr *jerr =
-    (struct _openslide_jpeg_error_mgr *) cinfo->err;
+  struct openslide_jpeg_error_mgr *jerr =
+    (struct openslide_jpeg_error_mgr *) cinfo->err;
   char buffer[JMSG_LENGTH_MAX];
 
   (*cinfo->err->format_message) (cinfo, buffer);
@@ -82,12 +82,12 @@ struct jpeg_decompress_struct *_openslide_jpeg_create_decompress(void) {
 // after setjmp(), initialize error handler and start decompressing
 void _openslide_jpeg_init_decompress(struct jpeg_decompress_struct *cinfo,
                                      jmp_buf *env) {
-  struct _openslide_jpeg_error_mgr *jerr =
-    g_slice_new0(struct _openslide_jpeg_error_mgr);
-  jpeg_std_error(&(jerr->pub));
-  jerr->pub.error_exit = my_error_exit;
-  jerr->pub.output_message = my_output_message;
-  jerr->pub.emit_message = my_emit_message;
+  struct openslide_jpeg_error_mgr *jerr =
+    g_slice_new0(struct openslide_jpeg_error_mgr);
+  jpeg_std_error(&(jerr->base));
+  jerr->base.error_exit = my_error_exit;
+  jerr->base.output_message = my_output_message;
+  jerr->base.emit_message = my_emit_message;
   jerr->env = env;
   cinfo->err = (struct jpeg_error_mgr *) jerr;
   jpeg_create_decompress(cinfo);
@@ -96,8 +96,8 @@ void _openslide_jpeg_init_decompress(struct jpeg_decompress_struct *cinfo,
 void _openslide_jpeg_propagate_error(GError **err,
                                      struct jpeg_decompress_struct *cinfo) {
   g_assert(cinfo->err->error_exit == my_error_exit);
-  struct _openslide_jpeg_error_mgr *jerr =
-    (struct _openslide_jpeg_error_mgr *) cinfo->err;
+  struct openslide_jpeg_error_mgr *jerr =
+    (struct openslide_jpeg_error_mgr *) cinfo->err;
   g_propagate_error(err, jerr->err);
   jerr->err = NULL;
 }
@@ -106,10 +106,10 @@ void _openslide_jpeg_destroy_decompress(struct jpeg_decompress_struct *cinfo) {
   jpeg_destroy_decompress(cinfo);
   if (cinfo->err) {
     g_assert(cinfo->err->error_exit == my_error_exit);
-    struct _openslide_jpeg_error_mgr *jerr =
-      (struct _openslide_jpeg_error_mgr *) cinfo->err;
+    struct openslide_jpeg_error_mgr *jerr =
+      (struct openslide_jpeg_error_mgr *) cinfo->err;
     g_assert(jerr->err == NULL);
-    g_slice_free(struct _openslide_jpeg_error_mgr, jerr);
+    g_slice_free(struct openslide_jpeg_error_mgr, jerr);
   }
   g_slice_free(struct jpeg_decompress_struct, cinfo);
 }
