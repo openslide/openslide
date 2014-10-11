@@ -172,8 +172,6 @@ static GQuark _openslide_hamamatsu_error_quark(void) {
  */
 struct my_src_mgr {
   struct jpeg_source_mgr base;
-  JOCTET *buffer;               /* start of buffer */
-  int buffer_size;
 };
 
 static void init_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
@@ -232,9 +230,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 	       header_start_position, sof_position, header_stop_position,
 	       start_position, stop_position);
 
-    src->buffer_size = 0;
     src->base.bytes_in_buffer = 0;
-    src->buffer = NULL;
     return false;
   }
 
@@ -245,11 +241,12 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     data_length = stop_position - start_position;
   }
 
-  src->buffer_size = header_length + data_length;
-  src->base.bytes_in_buffer = src->buffer_size;
-  src->buffer = g_slice_alloc(src->buffer_size);
+  int buffer_size = header_length + data_length;
+  src->base.bytes_in_buffer = buffer_size;
 
-  src->base.next_input_byte = src->buffer;
+  JOCTET *buffer = (*cinfo->mem->alloc_large)((j_common_ptr) cinfo,
+                                              JPOOL_IMAGE, buffer_size);
+  src->base.next_input_byte = buffer;
 
   // read in the 2 parts
   //  g_debug("reading header from %"PRId64, header_start_position);
@@ -257,7 +254,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     _openslide_io_error(err, "Couldn't seek to header start");
     return false;
   }
-  if (!fread(src->buffer, header_length, 1, infile)) {
+  if (!fread(buffer, header_length, 1, infile)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read header in JPEG at %"PRId64,
                 header_start_position);
@@ -270,46 +267,40 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
       _openslide_io_error(err, "Couldn't seek to data start");
       return false;
     }
-    if (!fread(src->buffer + header_length, data_length, 1, infile)) {
+    if (!fread(buffer + header_length, data_length, 1, infile)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read data in JPEG at %"PRId64, start_position);
       return false;
     }
 
     // change the final byte to EOI
-    if (src->buffer[src->buffer_size - 2] != 0xFF) {
+    if (buffer[buffer_size - 2] != 0xFF) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Expected 0xFF byte at end of JPEG data");
       return false;
     }
-    src->buffer[src->buffer_size - 1] = JPEG_EOI;
+    buffer[buffer_size - 1] = JPEG_EOI;
   }
 
   // check for overlarge or 0 X/Y in SOF (some NDPI JPEGs have this)
   // change them to a value libjpeg will accept
   int64_t size_offset = sof_position - header_start_position + 5;
-  uint16_t y = (src->buffer[size_offset + 0] << 8) +
-                src->buffer[size_offset + 1];
+  uint16_t y = (buffer[size_offset + 0] << 8) +
+                buffer[size_offset + 1];
   if (y > JPEG_MAX_DIMENSION || y == 0) {
     //g_debug("fixing up SOF Y");
-    src->buffer[size_offset + 0] = JPEG_MAX_DIMENSION_HIGH;
-    src->buffer[size_offset + 1] = JPEG_MAX_DIMENSION_LOW;
+    buffer[size_offset + 0] = JPEG_MAX_DIMENSION_HIGH;
+    buffer[size_offset + 1] = JPEG_MAX_DIMENSION_LOW;
   }
-  uint16_t x = (src->buffer[size_offset + 2] << 8) +
-                src->buffer[size_offset + 3];
+  uint16_t x = (buffer[size_offset + 2] << 8) +
+                buffer[size_offset + 3];
   if (x > JPEG_MAX_DIMENSION || x == 0) {
     //g_debug("fixing up SOF X");
-    src->buffer[size_offset + 2] = JPEG_MAX_DIMENSION_HIGH;
-    src->buffer[size_offset + 3] = JPEG_MAX_DIMENSION_LOW;
+    buffer[size_offset + 2] = JPEG_MAX_DIMENSION_HIGH;
+    buffer[size_offset + 3] = JPEG_MAX_DIMENSION_LOW;
   }
 
   return true;
-}
-
-// does not destroy cinfo
-static void random_access_src_destroy(j_decompress_ptr cinfo) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;   // sorry
-  g_slice_free1(src->buffer_size, src->buffer);
 }
 
 static void jpeg_level_free(gpointer data) {
@@ -651,7 +642,7 @@ static bool read_from_jpeg(openslide_t *osr,
                                 start_position,
                                 stop_position,
                                 err)) {
-      goto OUT_SOURCE;
+      goto OUT;
     }
 
     jpeg_read_header(cinfo, TRUE);
@@ -680,7 +671,7 @@ static bool read_from_jpeg(openslide_t *osr,
                   "Dimensional mismatch in read_from_jpeg, "
                   "expected %dx%d, got %dx%d",
                   w, h, cinfo->output_width, cinfo->output_height);
-      goto OUT_SOURCE;
+      goto OUT;
     }
 
     // decompress
@@ -713,10 +704,6 @@ static bool read_from_jpeg(openslide_t *osr,
     // setjmp returns again
     _openslide_jpeg_propagate_error(err, cinfo);
   }
-
-OUT_SOURCE:
-  // stop custom source
-  random_access_src_destroy(cinfo);
 
 OUT:
   // free buffers
@@ -1184,7 +1171,6 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
   success = true;
 
 DONE:
-  random_access_src_destroy(cinfo);
   _openslide_jpeg_destroy_decompress(cinfo);
   return success;
 }
