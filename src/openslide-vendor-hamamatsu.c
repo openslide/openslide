@@ -171,8 +171,7 @@ static GQuark _openslide_hamamatsu_error_quark(void) {
  * initially copied from jdatasrc.c from IJG libjpeg.
  */
 struct my_src_mgr {
-  struct jpeg_source_mgr pub;   /* public fields */
-
+  struct jpeg_source_mgr base;
   JOCTET *buffer;               /* start of buffer */
   int buffer_size;
 };
@@ -184,8 +183,8 @@ static void init_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
 static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
   struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
 
-  src->pub.next_input_byte += (size_t) num_bytes;
-  src->pub.bytes_in_buffer -= (size_t) num_bytes;
+  src->base.next_input_byte += (size_t) num_bytes;
+  src->base.bytes_in_buffer -= (size_t) num_bytes;
 }
 
 
@@ -210,11 +209,11 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   src = (struct my_src_mgr *) cinfo->src;
-  src->pub.init_source = init_source;
-  src->pub.fill_input_buffer = NULL;  /* this should never be called */
-  src->pub.skip_input_data = skip_input_data;
-  src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
-  src->pub.term_source = term_source;
+  src->base.init_source = init_source;
+  src->base.fill_input_buffer = NULL;  /* this should never be called */
+  src->base.skip_input_data = skip_input_data;
+  src->base.resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  src->base.term_source = term_source;
 
   // check for problems
   if ((0 > header_start_position) ||
@@ -234,7 +233,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 	       start_position, stop_position);
 
     src->buffer_size = 0;
-    src->pub.bytes_in_buffer = 0;
+    src->base.bytes_in_buffer = 0;
     src->buffer = NULL;
     return false;
   }
@@ -247,10 +246,10 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   src->buffer_size = header_length + data_length;
-  src->pub.bytes_in_buffer = src->buffer_size;
+  src->base.bytes_in_buffer = src->buffer_size;
   src->buffer = g_slice_alloc(src->buffer_size);
 
-  src->pub.next_input_byte = src->buffer;
+  src->base.next_input_byte = src->buffer;
 
   // read in the 2 parts
   //  g_debug("reading header from %"PRId64, header_start_position);
