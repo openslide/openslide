@@ -65,6 +65,9 @@ bool _openslide_png_read(const char *filename,
   png_info *info = NULL;
   bool success = false;
 
+  // allocate error context
+  struct png_error_ctx *ectx = g_slice_new0(struct png_error_ctx);
+
   // allocate row pointers
   png_byte **rows = g_slice_alloc(h * sizeof(*rows));
   for (int64_t y = 0; y < h; y++) {
@@ -82,10 +85,7 @@ bool _openslide_png_read(const char *filename,
   }
 
   // init libpng
-  struct png_error_ctx ectx = {
-    .err = NULL,
-  };
-  png = png_create_read_struct(PNG_LIBPNG_VER_STRING, &ectx,
+  png = png_create_read_struct(PNG_LIBPNG_VER_STRING, ectx,
                                error_callback, warning_callback);
   if (!png) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -99,7 +99,7 @@ bool _openslide_png_read(const char *filename,
     goto DONE;
   }
 
-  if (!setjmp(ectx.env)) {
+  if (!setjmp(ectx->env)) {
     // We can't use png_init_io(): passing FILE * between libraries isn't
     // safe on Windows
     png_set_read_fn(png, f, read_callback);
@@ -172,7 +172,7 @@ bool _openslide_png_read(const char *filename,
     success = true;
   } else {
     // setjmp returned again
-    g_propagate_error(err, ectx.err);
+    g_propagate_error(err, ectx->err);
   }
 
 DONE:
@@ -181,5 +181,6 @@ DONE:
     fclose(f);
   }
   g_slice_free1(h * sizeof(*rows), rows);
+  g_slice_free(struct png_error_ctx, ectx);
   return success;
 }

@@ -32,6 +32,12 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
+struct _openslide_jpeg_error_mgr {
+  struct jpeg_error_mgr pub;
+  jmp_buf *env;
+  GError *err;
+};
+
 struct associated_image {
   struct _openslide_associated_image base;
   char *filename;
@@ -67,17 +73,45 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
-// jerr->err will be set when setjmp returns again
-struct jpeg_error_mgr *_openslide_jpeg_set_error_handler(struct _openslide_jpeg_error_mgr *jerr,
-							 jmp_buf *env) {
+// the caller must assign the jpeg_decompress_struct * before calling setjmp()
+// so that nothing will be clobbered by a longjmp()
+struct jpeg_decompress_struct *_openslide_jpeg_create_decompress(void) {
+  return g_slice_new0(struct jpeg_decompress_struct);
+}
+
+// after setjmp(), initialize error handler and start decompressing
+void _openslide_jpeg_init_decompress(struct jpeg_decompress_struct *cinfo,
+                                     jmp_buf *env) {
+  struct _openslide_jpeg_error_mgr *jerr =
+    g_slice_new0(struct _openslide_jpeg_error_mgr);
   jpeg_std_error(&(jerr->pub));
   jerr->pub.error_exit = my_error_exit;
   jerr->pub.output_message = my_output_message;
   jerr->pub.emit_message = my_emit_message;
   jerr->env = env;
-  jerr->err = NULL;
+  cinfo->err = (struct jpeg_error_mgr *) jerr;
+  jpeg_create_decompress(cinfo);
+}
 
-  return (struct jpeg_error_mgr *) jerr;
+void _openslide_jpeg_propagate_error(GError **err,
+                                     struct jpeg_decompress_struct *cinfo) {
+  g_assert(cinfo->err->error_exit == my_error_exit);
+  struct _openslide_jpeg_error_mgr *jerr =
+    (struct _openslide_jpeg_error_mgr *) cinfo->err;
+  g_propagate_error(err, jerr->err);
+  jerr->err = NULL;
+}
+
+void _openslide_jpeg_destroy_decompress(struct jpeg_decompress_struct *cinfo) {
+  jpeg_destroy_decompress(cinfo);
+  if (cinfo->err) {
+    g_assert(cinfo->err->error_exit == my_error_exit);
+    struct _openslide_jpeg_error_mgr *jerr =
+      (struct _openslide_jpeg_error_mgr *) cinfo->err;
+    g_assert(jerr->err == NULL);
+    g_slice_free(struct _openslide_jpeg_error_mgr, jerr);
+  }
+  g_slice_free(struct jpeg_decompress_struct, cinfo);
 }
 
 static bool jpeg_get_dimensions(FILE *f,  // or:
@@ -85,21 +119,20 @@ static bool jpeg_get_dimensions(FILE *f,  // or:
                                 int32_t *w, int32_t *h,
                                 GError **err) {
   bool result = false;
-  struct jpeg_decompress_struct cinfo;
-  struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
 
+  struct jpeg_decompress_struct *cinfo = _openslide_jpeg_create_decompress();
+
   if (setjmp(env) == 0) {
-    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
-    jpeg_create_decompress(&cinfo);
+    _openslide_jpeg_init_decompress(cinfo, &env);
 
     if (f) {
-      _openslide_jpeg_stdio_src(&cinfo, f);
+      _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(&cinfo, (void *) buf, buflen);
+      _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
     }
 
-    int header_result = jpeg_read_header(&cinfo, TRUE);
+    int header_result = jpeg_read_header(cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -107,19 +140,19 @@ static bool jpeg_get_dimensions(FILE *f,  // or:
       goto DONE;
     }
 
-    jpeg_calc_output_dimensions(&cinfo);
+    jpeg_calc_output_dimensions(cinfo);
 
-    *w = cinfo.output_width;
-    *h = cinfo.output_height;
+    *w = cinfo->output_width;
+    *h = cinfo->output_height;
     result = true;
   } else {
     // setjmp returned again
-    g_propagate_error(err, jerr.err);
+    _openslide_jpeg_propagate_error(err, cinfo);
   }
 
 DONE:
   // free buffers
-  jpeg_destroy_decompress(&cinfo);
+  _openslide_jpeg_destroy_decompress(cinfo);
 
   return result;
 }
@@ -156,26 +189,24 @@ static bool jpeg_decode(FILE *f,  // or:
                         int32_t w, int32_t h,
                         GError **err) {
   bool result = false;
-  struct jpeg_decompress_struct cinfo;
-  struct _openslide_jpeg_error_mgr jerr;
   jmp_buf env;
   volatile gsize row_size = 0;  // preserve across longjmp
 
+  struct jpeg_decompress_struct *cinfo = _openslide_jpeg_create_decompress();
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
   if (setjmp(env) == 0) {
-    cinfo.err = _openslide_jpeg_set_error_handler(&jerr, &env);
-    jpeg_create_decompress(&cinfo);
+    _openslide_jpeg_init_decompress(cinfo, &env);
 
     // set up I/O
     if (f) {
-      _openslide_jpeg_stdio_src(&cinfo, f);
+      _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(&cinfo, (void *) buf, buflen);
+      _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
     }
 
     // read header
-    int header_result = jpeg_read_header(&cinfo, TRUE);
+    int header_result = jpeg_read_header(cinfo, TRUE);
     if ((header_result != JPEG_HEADER_OK
 	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -183,53 +214,54 @@ static bool jpeg_decode(FILE *f,  // or:
       goto DONE;
     }
 
-    cinfo.out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
+    cinfo->out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
 
-    jpeg_start_decompress(&cinfo);
+    jpeg_start_decompress(cinfo);
 
     // ensure buffer dimensions are correct
-    int32_t width = cinfo.output_width;
-    int32_t height = cinfo.output_height;
+    int32_t width = cinfo->output_width;
+    int32_t height = cinfo->output_height;
     if (w != width || h != height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Dimensional mismatch reading JPEG, "
                   "expected %dx%d, got %dx%d",
-                  w, h, cinfo.output_width, cinfo.output_height);
+                  w, h, width, height);
       goto DONE;
     }
 
     // allocate scanline buffers
-    row_size = sizeof(JSAMPLE) * cinfo.output_width * cinfo.output_components;
-    for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+    row_size = sizeof(JSAMPLE) * cinfo->output_width *
+               cinfo->output_components;
+    for (int i = 0; i < cinfo->rec_outbuf_height; i++) {
       buffer[i] = g_slice_alloc(row_size);
     }
 
     // decompress
     uint32_t *dest32 = _dest;
     uint8_t *dest8 = _dest;
-    while (cinfo.output_scanline < cinfo.output_height) {
-      JDIMENSION rows_read = jpeg_read_scanlines(&cinfo,
+    while (cinfo->output_scanline < cinfo->output_height) {
+      JDIMENSION rows_read = jpeg_read_scanlines(cinfo,
 						 buffer,
-						 cinfo.rec_outbuf_height);
+						 cinfo->rec_outbuf_height);
       int cur_buffer = 0;
       while (rows_read > 0) {
         // copy a row
         int32_t i;
-        if (cinfo.output_components == 1) {
+        if (cinfo->output_components == 1) {
           // grayscale
-          for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+          for (i = 0; i < (int32_t) cinfo->output_width; i++) {
             dest8[i] = buffer[cur_buffer][i];
           }
-          dest8 += cinfo.output_width;
+          dest8 += cinfo->output_width;
         } else {
           // RGB
-          for (i = 0; i < (int32_t) cinfo.output_width; i++) {
+          for (i = 0; i < (int32_t) cinfo->output_width; i++) {
             dest32[i] = 0xFF000000 |                // A
               buffer[cur_buffer][i * 3 + 0] << 16 | // R
               buffer[cur_buffer][i * 3 + 1] << 8 |  // G
               buffer[cur_buffer][i * 3 + 2];        // B
           }
-          dest32 += cinfo.output_width;
+          dest32 += cinfo->output_width;
         }
 
 	// advance 1 row
@@ -240,17 +272,17 @@ static bool jpeg_decode(FILE *f,  // or:
     result = true;
   } else {
     // setjmp has returned again
-    g_propagate_error(err, jerr.err);
+    _openslide_jpeg_propagate_error(err, cinfo);
   }
 
 DONE:
   // free buffers
-  for (int i = 0; i < cinfo.rec_outbuf_height; i++) {
+  for (int i = 0; i < cinfo->rec_outbuf_height; i++) {
     g_slice_free1(row_size, buffer[i]);
   }
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
-  jpeg_destroy_decompress(&cinfo);
+  _openslide_jpeg_destroy_decompress(cinfo);
 
   return result;
 }
