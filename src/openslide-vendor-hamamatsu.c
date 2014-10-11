@@ -719,8 +719,6 @@ static bool read_from_jpeg(openslide_t *osr,
   }
 
 OUT_JPEG:
-  (void) 0; // dummy statement for label
-
   // stop jpeg
   random_access_src_destroy(&cinfo);
   jpeg_destroy_decompress(&cinfo);
