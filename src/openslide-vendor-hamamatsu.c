@@ -167,29 +167,9 @@ static GQuark _openslide_hamamatsu_error_quark(void) {
 #define OPENSLIDE_HAMAMATSU_ERROR _openslide_hamamatsu_error_quark()
 
 /*
- * Source manager for doing fancy things with libjpeg and restart markers,
- * initially copied from jdatasrc.c from IJG libjpeg.
+ * Source manager for reading a run of MCUs between two restart markers
+ * as a complete JPEG.  Originally based on jdatasrc.c from IJG libjpeg.
  */
-struct my_src_mgr {
-  struct jpeg_source_mgr base;
-};
-
-static void init_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
-  /* nothing to be done */
-}
-
-static void skip_input_data (j_decompress_ptr cinfo, long num_bytes) {
-  struct my_src_mgr *src = (struct my_src_mgr *) cinfo->src;
-
-  src->base.next_input_byte += (size_t) num_bytes;
-  src->base.bytes_in_buffer -= (size_t) num_bytes;
-}
-
-
-static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED) {
-  /* nothing to do */
-}
-
 static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                    FILE *infile,
                                    int64_t header_start_position,
@@ -198,21 +178,6 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                    int64_t start_position,
                                    int64_t stop_position,
                                    GError **err) {
-  struct my_src_mgr *src;
-
-  if (cinfo->src == NULL) {     /* first time for this JPEG object? */
-    cinfo->src = (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo,
-                                             JPOOL_PERMANENT,
-                                             sizeof(struct my_src_mgr));
-  }
-
-  src = (struct my_src_mgr *) cinfo->src;
-  src->base.init_source = init_source;
-  src->base.fill_input_buffer = NULL;  /* this should never be called */
-  src->base.skip_input_data = skip_input_data;
-  src->base.resync_to_restart = jpeg_resync_to_restart; /* use default method */
-  src->base.term_source = term_source;
-
   // check for problems
   if ((0 > header_start_position) ||
       (header_start_position >= sof_position) ||
@@ -229,8 +194,6 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 	       "stop_position: %"PRId64,
 	       header_start_position, sof_position, header_stop_position,
 	       start_position, stop_position);
-
-    src->base.bytes_in_buffer = 0;
     return false;
   }
 
@@ -242,11 +205,8 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   int buffer_size = header_length + data_length;
-  src->base.bytes_in_buffer = buffer_size;
-
   JOCTET *buffer = (*cinfo->mem->alloc_large)((j_common_ptr) cinfo,
                                               JPOOL_IMAGE, buffer_size);
-  src->base.next_input_byte = buffer;
 
   // read in the 2 parts
   //  g_debug("reading header from %"PRId64, header_start_position);
@@ -299,6 +259,9 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     buffer[size_offset + 2] = JPEG_MAX_DIMENSION_HIGH;
     buffer[size_offset + 3] = JPEG_MAX_DIMENSION_LOW;
   }
+
+  // pass the buffer off to mem_src
+  _openslide_jpeg_mem_src(cinfo, buffer, buffer_size);
 
   return true;
 }
