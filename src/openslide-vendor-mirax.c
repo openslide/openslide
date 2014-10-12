@@ -175,8 +175,8 @@ struct slide_zoom_level_params {
 
 struct image {
   int32_t fileno;
-  int64_t start_in_file;
-  int64_t length;
+  int32_t start_in_file;
+  int32_t length;
   int32_t imageno;   // used only for cache lookup
   int refcount;
 };
