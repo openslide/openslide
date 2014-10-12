@@ -27,8 +27,10 @@
 
 /* Support for formats supported by gdk-pixbuf (BMP, PNM, etc.) */
 
-bool _openslide_gdkpixbuf_read(const char *filename,
+bool _openslide_gdkpixbuf_read(const char *format,
+                               const char *filename,
                                int64_t offset,
+                               int64_t length,
                                uint32_t *dest,
                                int32_t w, int32_t h,
                                GError **err);

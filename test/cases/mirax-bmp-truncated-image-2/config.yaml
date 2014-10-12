@@ -1,7 +1,7 @@
 base: Mirax/Mirax2.2-4-BMP.zip
-error: "gdk-pixbuf error: BMP image has bogus header data"
+error: "^gdk-pixbuf error: Premature end-of-file encountered$"
 slide: Mirax2.2-4-BMP.mrxs
 success: false
 vendor: mirax
 regions:
-- [50000, 100000, 9, 100, 100]
+- [50000, 100000, 9, 200, 200]

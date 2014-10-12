@@ -1,5 +1,5 @@
 base: Mirax/Mirax2.2-4-BMP.zip
-error: "gdk-pixbuf error: BMP image has bogus header data"
+error: ^Unsupported pixbuf parameters$
 slide: Mirax2.2-4-BMP.mrxs
 success: false
 vendor: mirax

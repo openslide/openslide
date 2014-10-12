@@ -176,6 +176,7 @@ struct slide_zoom_level_params {
 struct image {
   int32_t fileno;
   int64_t start_in_file;
+  int64_t length;
   int32_t imageno;   // used only for cache lookup
   int refcount;
 };
@@ -240,8 +241,9 @@ static uint32_t *read_image(openslide_t *osr,
                                  err);
     break;
   case FORMAT_BMP:
-    result = _openslide_gdkpixbuf_read(data->datafile_paths[image->fileno],
-                                       image->start_in_file,
+    result = _openslide_gdkpixbuf_read("bmp",
+                                       data->datafile_paths[image->fileno],
+                                       image->start_in_file, image->length,
                                        dest, w, h,
                                        err);
     break;
@@ -836,6 +838,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	struct image *image = g_slice_new0(struct image);
 	image->fileno = fileno;
 	image->start_in_file = offset;
+	image->length = length;
 	image->imageno = image_number++;
 	image->refcount = 1;
 
