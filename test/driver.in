@@ -574,10 +574,8 @@ def time(pattern='*'):
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
         if proc.returncode or err:
-            print '%s: failed: %s' % (testname, err.strip())
-            sys.exit(1)
-        else:
-            print '%-40s %10s' % (testname, out.strip())
+            out = 'failed'
+        print '%-40s %10s' % (testname, out.strip())
 
 
 @_command
