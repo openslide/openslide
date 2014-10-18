@@ -10,6 +10,7 @@ AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Check for cross build
+AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 
 # Checks for programs.
@@ -178,6 +179,18 @@ AS_CASE([$host_os],
 )
 # Fallback: racily use fcntl()
 AC_CHECK_FUNCS([fcntl])
+
+# The test driver has special support for testing Windows builds from Cygwin
+AC_MSG_CHECKING([whether to cross-test from Cygwin])
+if test "$host_os" = "mingw32" -a "$build_os" = "cygwin"; then
+  AC_MSG_RESULT([yes])
+  CYGWIN_CROSS_TEST=yes
+else
+  AC_MSG_RESULT([no])
+  CYGWIN_CROSS_TEST=""
+fi
+AC_SUBST([CYGWIN_CROSS_TEST])
+AM_CONDITIONAL([CYGWIN_CROSS_TEST], [test -n "$CYGWIN_CROSS_TEST"])
 
 # Only enable this on MinGW, since otherwise gcc will complain about an
 # unknown option whenever it produces any *other* warnings

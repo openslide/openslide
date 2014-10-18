@@ -114,10 +114,16 @@ test_extended_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 test_mosaic_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -I$(top_srcdir)/src
 test_mosaic_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
+if CYGWIN_CROSS_TEST
+noinst_PROGRAMS += test/symlink
+test_symlink_LDADD = -lkernel32
+endif
+
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
 		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
 		-e 's:!!VERSION!!:$(VERSION):g' \
+		-e 's:!!CYGWIN_CROSS_TEST!!:$(CYGWIN_CROSS_TEST):g' \
 		-e 's:!!FEATURES!!:$(FEATURE_FLAGS):g' "$<" > "$@" && \
 		chmod +x "$@"
 

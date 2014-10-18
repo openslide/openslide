@@ -62,6 +62,35 @@ _command_funcs = {}
 SKIP = object()
 
 
+if '!!CYGWIN_CROSS_TEST!!':
+    import ctypes
+
+    _cygwin = ctypes.CDLL('cygwin1', use_errno=True)
+    _cygwin_conv_path = _cygwin.cygwin_conv_path
+    _cygwin_conv_path.argtypes = [ctypes.c_uint, ctypes.c_void_p,
+            ctypes.c_void_p, ctypes.c_size_t]
+    _cygwin_conv_path.restype = ctypes.c_ssize_t
+
+    def native_path(path):
+        flags = 0x100  # CCP_POSIX_TO_WIN_A | CCP_RELATIVE
+        size = _cygwin_conv_path(flags, path, None, 0)
+        if size == -1:
+            raise OSError(ctypes.get_errno(), "Couldn't convert path")
+        buf = ctypes.create_string_buffer(size)
+        if _cygwin_conv_path(flags, path, buf, size) == -1:
+            raise OSError(ctypes.get_errno(), "Couldn't convert path")
+        return buf.value
+
+    def symlink(src, dst):
+        if not os.path.isabs(src):
+            src = os.path.abspath(os.path.join(os.path.dirname(dst), src))
+        subprocess.check_call(['!!BUILDDIR!!/symlink', native_path(src),
+                native_path(dst)])
+else:
+    native_path = lambda p: p
+    symlink = os.symlink
+
+
 def _command(f):
     '''Decorator to mark the function as a user command.'''
     _commands.append(f.func_name)
@@ -149,7 +178,7 @@ def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
         OPENSLIDE_DEBUG=','.join(debug),
         GIO_USE_VFS='local',
     )
-    args = [os.path.join(testdir, test), slidefile] + args
+    args = [os.path.join(testdir, test), native_path(slidefile)] + args
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
@@ -418,7 +447,7 @@ def _unpack_one(testname):
                         origpath, deltapath, newpath])
             else:
                 src = os.path.relpath(origpath, os.path.dirname(newpath))
-                os.symlink(src, newpath)
+                symlink(src, newpath)
 
 
 @_command
@@ -555,7 +584,8 @@ def mosaic(outfile):
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
     subprocess.check_call([os.path.join('!!BUILDDIR!!', 'mosaic'),
-            PRISTINE, MOSAICLIST, outfile])
+            native_path(PRISTINE), native_path(MOSAICLIST),
+            native_path(outfile)])
 
 
 @_command
