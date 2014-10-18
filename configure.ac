@@ -9,6 +9,9 @@ AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
+# Check for cross build
+AC_CANONICAL_HOST
+
 # Checks for programs.
 AM_PROG_CC_C_O
 AC_PROG_CC_C99
@@ -132,8 +135,8 @@ gl_VISIBILITY
 
 # CLOEXEC
 AC_MSG_CHECKING([fopen() close-on-exec flag])
-AS_CASE([$host],
-  [*-*-mingw32], [
+AS_CASE([$host_os],
+  [mingw32], [
     # Assume that if we're building for Windows, we want to pass N to fopen().
     AC_MSG_RESULT([N])
     AC_DEFINE([FOPEN_CLOEXEC_FLAG], ["N"], [Set to the fopen() flag string that sets FD_CLOEXEC, or an empty string if not supported.])
@@ -178,10 +181,11 @@ AC_CHECK_FUNCS([fcntl])
 
 # Only enable this on MinGW, since otherwise gcc will complain about an
 # unknown option whenever it produces any *other* warnings
-AS_CASE([$host],
-  [*-*-mingw32],   [CFLAG_MS_FORMAT=-Wno-pedantic-ms-format],
-  [CFLAG_MS_FORMAT=""]
-)
+if test "$host_os" = "mingw32"; then
+  CFLAG_MS_FORMAT=-Wno-pedantic-ms-format
+else
+  CFLAG_MS_FORMAT=""
+fi
 AC_SUBST([CFLAG_MS_FORMAT])
 
 # The min/max glib version is actually 2.16, but glib doesn't have special
