@@ -30,7 +30,7 @@
 #ifndef OPENSLIDE_OPENSLIDE_H_
 #define OPENSLIDE_OPENSLIDE_H_
 
-#include <openslide-features.h>
+#include "openslide-features.h"
 
 #include <stdint.h>
 

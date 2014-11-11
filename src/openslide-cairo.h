@@ -27,8 +27,8 @@
 #ifndef OPENSLIDE_OPENSLIDE_CAIRO_H_
 #define OPENSLIDE_OPENSLIDE_CAIRO_H_
 
-#include <openslide-features.h>
-#include <openslide.h>
+#include "openslide-features.h"
+#include "openslide.h"
 
 #include <cairo.h>
 
