@@ -66,6 +66,8 @@ static const char KEY_NUM_JPEG_COLS[] = "NoJpegColumns";
 static const char KEY_NUM_JPEG_ROWS[] = "NoJpegRows";
 static const char KEY_OPTIMISATION_FILE[] = "OptimisationFile";
 static const char KEY_MACRO_IMAGE[] = "MacroImage";
+static const char KEY_PHYSICAL_WIDTH[] = "PhysicalWidth";
+static const char KEY_PHYSICAL_HEIGHT[] = "PhysicalHeight";
 static const char KEY_BITS_PER_PIXEL[] = "BitsPerPixel";
 static const char KEY_PIXEL_ORDER[] = "PixelOrder";
 // probing any file under this limit will load the entire file into RAM,
@@ -1192,8 +1194,20 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
   return NULL;
 }
 
-static void add_properties(openslide_t *osr, GKeyFile *kf,
-			   const char *group) {
+static void add_mpp_property(openslide_t *osr, GKeyFile *kf,
+                             const char *group, const char *key,
+                             int64_t pixels, const char *property) {
+  int64_t nm = g_key_file_get_int64(kf, group, key, NULL);
+  if (nm > 0) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(property),
+                        _openslide_format_double(nm / (1000.0 * pixels)));
+  }
+}
+
+static void add_properties(openslide_t *osr,
+                           GKeyFile *kf, const char *group,
+                           struct _openslide_level *level0) {
   char **keys = g_key_file_get_keys(kf, group, NULL, NULL);
   if (keys == NULL) {
     return;
@@ -1215,7 +1229,10 @@ static void add_properties(openslide_t *osr, GKeyFile *kf,
   // but it's better than rounding
   _openslide_duplicate_double_prop(osr, "hamamatsu.SourceLens",
                                    OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
-  // TODO: can we calculate MPP from PhysicalWidth/PhysicalHeight?
+  add_mpp_property(osr, kf, group, KEY_PHYSICAL_WIDTH, level0->w,
+                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  add_mpp_property(osr, kf, group, KEY_PHYSICAL_HEIGHT, level0->h,
+                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
 }
 
 // create scale_denom levels
@@ -1872,9 +1889,6 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     goto DONE;
   }
 
-  // add properties
-  add_properties(osr, key_file, groupname);
-
   // extract MapFile
   char *tmp;
   tmp = g_key_file_get_string(key_file,
@@ -2079,6 +2093,11 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     g_free(pixel_order);
   } else {
     g_assert_not_reached();
+  }
+
+  // now that we have the level 0 dimensions, add properties
+  if (success) {
+    add_properties(osr, key_file, groupname, osr->levels[0]);
   }
 
  DONE:
