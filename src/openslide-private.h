@@ -22,10 +22,6 @@
 #ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
 #define OPENSLIDE_OPENSLIDE_PRIVATE_H_
 
-#ifdef _WIN32
-#define WIN32 1
-#endif
-
 #include <config.h>
 
 #include "openslide.h"
