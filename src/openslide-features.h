@@ -50,6 +50,9 @@
 #  else
 #    define OPENSLIDE_PUBLIC() __declspec(dllimport)
 #  endif
+#elif defined OPENSLIDE_SIMPLIFY_HEADERS
+// avoid constructs that could confuse a simplistic header parser
+# define OPENSLIDE_PUBLIC()
 #elif __GNUC__ > 3
 # define OPENSLIDE_PUBLIC() __attribute__ ((visibility("default")))
 #else
@@ -59,7 +62,9 @@
 
 // if possible, produce compiler warnings when deprecated functions
 // are used
-#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)
+#if defined OPENSLIDE_SIMPLIFY_HEADERS
+# define OPENSLIDE_DEPRECATED()
+#elif __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1)
 # define OPENSLIDE_DEPRECATED() __attribute__((deprecated))
 #elif defined _MSC_VER
 # define OPENSLIDE_DEPRECATED() __declspec(deprecated)
@@ -67,7 +72,9 @@
 # define OPENSLIDE_DEPRECATED()
 #endif
 
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
+#if defined OPENSLIDE_SIMPLIFY_HEADERS
+# define OPENSLIDE_DEPRECATED_FOR(f)
+#elif __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
 # define OPENSLIDE_DEPRECATED_FOR(f) \
   __attribute__((deprecated("Use " #f " instead")))
 #elif defined _MSC_VER
