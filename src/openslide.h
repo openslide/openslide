@@ -559,6 +559,7 @@ const char *openslide_get_comment(openslide_t *osr);
 
 //@}
 
+#ifndef OPENSLIDE_SIMPLIFY_HEADERS
 // these are meant to throw compile- and link-time errors,
 // since the functions they replace were never implemented
 int _openslide_give_prefetch_hint_UNIMPLEMENTED(void);
@@ -567,6 +568,7 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
   _openslide_give_prefetch_hint_UNIMPLEMENTED(-1);
 #define openslide_cancel_prefetch_hint(osr, prefetch_id)	\
   _openslide_cancel_prefetch_hint_UNIMPLEMENTED(-1)
+#endif
 
 /**
  * @mainpage OpenSlide
