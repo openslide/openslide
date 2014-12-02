@@ -32,6 +32,7 @@
 
 #include <glib.h>
 #include <openslide.h>
+#include "test-common.h"
 
 static void fail(const char *str, ...) {
   va_list ap;
@@ -95,12 +96,10 @@ static gpointer cloexec_thread(const gpointer prog) {
 
 static void child_check_open_fds(void) {
   for (int i = 3; i < 128; i++) {
-    gchar *proc = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
-    gchar *link = g_file_read_link(proc, NULL);
-    g_free(proc);
-    if (link != NULL) {
-      printf("%s\n", link);
-      g_free(link);
+    gchar *path = get_fd_path(i);
+    if (path != NULL) {
+      printf("%s\n", path);
+      g_free(path);
     }
   }
 }

@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <glib.h>
 #include "openslide.h"
+#include "test-common.h"
 
 #define MAX_FDS 128
 #define TIME_ITERATIONS 5
@@ -198,18 +199,14 @@ int main(int argc, char **argv) {
 
   // Check for file descriptor leaks
   for (int i = 0; i < MAX_FDS; i++) {
-    struct stat st;
-    if (!fstat(i, &st) && !g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
-      // leaked
-      char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), i);
-      char *target = g_file_read_link(link_path, NULL);
-      if (target == NULL) {
-        target = g_strdup("<unknown>");
+    if (!g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
+      char *path = get_fd_path(i);
+      if (path != NULL) {
+        // leaked
+        fprintf(stderr, "Leaked file descriptor to %s\n", path);
+        have_error = TRUE;
+        g_free(path);
       }
-      fprintf(stderr, "Leaked file descriptor to %s\n", target);
-      have_error = TRUE;
-      g_free(target);
-      g_free(link_path);
     }
   }
   g_hash_table_destroy(fds);

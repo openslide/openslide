@@ -85,6 +85,7 @@ noinst_HEADERS = \
 	src/openslide-error.h \
 	src/openslide-hash.h \
 	src/openslide-private.h \
+	test/test-common.h \
 	tools/openslide-tools-common.h
 
 
@@ -99,6 +100,7 @@ test_test_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) $(VALGRIND_CFLAGS) -I$(top_
 # VALGRIND_LIBS not needed
 test_test_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
 
+test_try_open_SOURCES = test/test-common.c test/try_open.c
 test_try_open_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_try_open_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
@@ -108,6 +110,7 @@ test_parallel_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 test_query_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_query_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
+test_extended_SOURCES = test/test-common.c test/extended.c
 test_extended_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src
 test_extended_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
