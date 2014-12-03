@@ -19,15 +19,20 @@
  *
  */
 
+#ifdef WIN32
+#define _WIN32_WINNT 0x0600
+#include <windows.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <glib.h>
 
-#ifdef WIN32
-#define _WIN32_WINNT 0x0600
-#include <windows.h>
+#ifdef F_GETPATH
+// Mac OS X: MAXPATHLEN
+#include <sys/param.h>
 #endif
 
 #include "test-common.h"
@@ -42,12 +47,12 @@ char *get_fd_path(int fd) {
 
 #if defined WIN32
   // Windows
-  intptr_t hdl = _get_osfhandle(fd);
+  HANDLE hdl = (HANDLE) _get_osfhandle(fd);
   if (hdl != INVALID_HANDLE_VALUE) {
-    uint32_t size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
+    DWORD size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
     if (size) {
       path = g_malloc(size);
-      uint32_t ret = GetFinalPathNameByHandle(hdl, path, size - 1, 0);
+      DWORD ret = GetFinalPathNameByHandle(hdl, path, size - 1, 0);
       if (!ret || ret > size) {
         g_free(path);
         path = NULL;
