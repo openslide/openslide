@@ -188,12 +188,6 @@ typedef bool (*_openslide_tilemap_fn)(openslide_t *osr,
                                       void *arg,
                                       GError **err);
 
-typedef void (*_openslide_tilemap_foreach_fn)(struct _openslide_grid *grid,
-                                              int64_t tile_col,
-                                              int64_t tile_row,
-                                              void *tile,
-                                              void *arg);
-
 struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int64_t tiles_across,
                                                       int64_t tiles_down,
@@ -212,13 +206,6 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       double offset_x, double offset_y,
                                       double w, double h,
                                       void *data);
-
-void *_openslide_grid_tilemap_get_tile(struct _openslide_grid *_grid,
-                                       int64_t col, int64_t row);
-
-void _openslide_grid_tilemap_foreach(struct _openslide_grid *grid,
-                                     _openslide_tilemap_foreach_fn func,
-                                     void *arg);
 
 void _openslide_grid_get_bounds(struct _openslide_grid *grid,
                                 double *x, double *y,
