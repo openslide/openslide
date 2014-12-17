@@ -82,14 +82,14 @@ struct simple_grid {
 
   int64_t tiles_across;
   int64_t tiles_down;
-  _openslide_tileread_fn read_tile;
+  _openslide_grid_simple_read_fn read_tile;
 };
 
 struct tilemap_grid {
   struct _openslide_grid base;
 
   GHashTable *tiles;
-  _openslide_tilemap_fn read_tile;
+  _openslide_grid_tilemap_read_fn read_tile;
   GDestroyNotify destroy_tile;
 
   // outer boundaries of grid
@@ -106,7 +106,7 @@ struct tilemap_grid {
   int32_t extra_tiles_right;
 };
 
-struct grid_tile {
+struct tilemap_tile {
   struct tilemap_grid *grid;
   void *data;
 
@@ -325,7 +325,7 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int64_t tiles_down,
                                                       int32_t tile_w,
                                                       int32_t tile_h,
-                                                      _openslide_tileread_fn read_tile) {
+                                                      _openslide_grid_simple_read_fn read_tile) {
   struct simple_grid *grid = g_slice_new0(struct simple_grid);
   grid->base.osr = osr;
   grid->base.ops = &simple_grid_ops;
@@ -339,26 +339,26 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
 
 
 
-static guint grid_tile_hash_func(gconstpointer key) {
-  const struct grid_tile *tile = key;
+static guint tilemap_tile_hash_func(gconstpointer key) {
+  const struct tilemap_tile *tile = key;
 
   // assume 32-bit hash
   return (guint) ((34369 * (uint64_t) tile->row) + ((uint64_t) tile->col));
 }
 
-static gboolean grid_tile_hash_key_equal(gconstpointer a, gconstpointer b) {
-  const struct grid_tile *c_a = a;
-  const struct grid_tile *c_b = b;
+static gboolean tilemap_tile_hash_key_equal(gconstpointer a, gconstpointer b) {
+  const struct tilemap_tile *c_a = a;
+  const struct tilemap_tile *c_b = b;
 
   return (c_a->col == c_b->col) && (c_a->row == c_b->row);
 }
 
-static void grid_tile_hash_destroy_value(gpointer data) {
-  struct grid_tile *tile = data;
+static void tilemap_tile_hash_destroy_value(gpointer data) {
+  struct tilemap_tile *tile = data;
   if (tile->grid->destroy_tile && tile->data) {
     tile->grid->destroy_tile(tile->data);
   }
-  g_slice_free(struct grid_tile, tile);
+  g_slice_free(struct tilemap_tile, tile);
 }
 
 static void tilemap_get_bounds(struct _openslide_grid *_grid,
@@ -378,11 +378,11 @@ static void tilemap_get_tile_size(struct _openslide_grid *_grid,
                                   struct bounds *bounds) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
 
-  struct grid_tile coords = {
+  struct tilemap_tile coords = {
     .col = tile_col,
     .row = tile_row,
   };
-  struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
+  struct tilemap_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
     return;
   }
@@ -400,11 +400,11 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
                               GError **err) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
 
-  struct grid_tile coords = {
+  struct tilemap_tile coords = {
     .col = tile_col,
     .row = tile_row,
   };
-  struct grid_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
+  struct tilemap_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
     //g_debug("no tile at %"PRId64", %"PRId64, tile_col, tile_row);
     return true;
@@ -499,7 +499,7 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
   g_assert(grid->base.ops == &tilemap_grid_ops);
 
-  struct grid_tile *tile = g_slice_new0(struct grid_tile);
+  struct tilemap_tile *tile = g_slice_new0(struct tilemap_tile);
   tile->grid = grid;
   tile->col = col;
   tile->row = row;
@@ -549,7 +549,7 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_x,
                                                        double tile_advance_y,
-                                                       _openslide_tilemap_fn read_tile,
+                                                       _openslide_grid_tilemap_read_fn read_tile,
                                                        GDestroyNotify destroy_tile) {
   struct tilemap_grid *grid = g_slice_new0(struct tilemap_grid);
   grid->base.osr = osr;
@@ -564,10 +564,10 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
   grid->left = INFINITY;
   grid->right = -INFINITY;
 
-  grid->tiles = g_hash_table_new_full(grid_tile_hash_func,
-                                      grid_tile_hash_key_equal,
+  grid->tiles = g_hash_table_new_full(tilemap_tile_hash_func,
+                                      tilemap_tile_hash_key_equal,
                                       NULL,
-                                      grid_tile_hash_destroy_value);
+                                      tilemap_tile_hash_destroy_value);
 
   return (struct _openslide_grid *) grid;
 }
