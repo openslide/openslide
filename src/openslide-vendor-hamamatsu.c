@@ -1197,7 +1197,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
 static void add_mpp_property(openslide_t *osr, GKeyFile *kf,
                              const char *group, const char *key,
                              int64_t pixels, const char *property) {
-  int64_t nm = g_key_file_get_int64(kf, group, key, NULL);
+  int nm = g_key_file_get_integer(kf, group, key, NULL);
   if (nm > 0) {
     g_hash_table_insert(osr->properties,
                         g_strdup(property),

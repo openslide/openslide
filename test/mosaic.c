@@ -197,8 +197,8 @@ int main(int argc, char **argv) {
       slide = g_path_get_basename(base);
     }
     int level = g_key_file_get_integer(kf, name, KEY_LEVEL, NULL);
-    int64_t x = g_key_file_get_int64(kf, name, KEY_X, NULL);
-    int64_t y = g_key_file_get_int64(kf, name, KEY_Y, NULL);
+    int x = g_key_file_get_integer(kf, name, KEY_X, NULL);
+    int y = g_key_file_get_integer(kf, name, KEY_Y, NULL);
     char *path = g_build_filename(base_dir, base, slide, NULL);
     render_tile(cr, name, path, x, y, level);
     g_free(path);
