@@ -24,6 +24,7 @@
 #include <glib.h>
 #include <cairo.h>
 #include "openslide-private.h"
+#include "openslide-decode-sqlite.h"
 
 struct region {
   double x;
@@ -116,6 +117,32 @@ struct tilemap_tile {
   // delta from the "natural" position
   double offset_x;
   double offset_y;
+};
+
+struct range_grid {
+  struct _openslide_grid base;
+
+  GPtrArray *tiles;
+  sqlite3 *index;
+  sqlite3_stmt *insert_stmt;
+
+  _openslide_grid_range_read_fn read_tile;
+  GDestroyNotify destroy_tile;
+
+  // outer boundaries of grid
+  double top;
+  double bottom;
+  double left;
+  double right;
+};
+
+struct range_tile {
+  void *data;
+
+  double x;
+  double y;
+  double w;
+  double h;
 };
 
 static void compute_region(struct _openslide_grid *grid,
@@ -542,6 +569,229 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                       tilemap_tile_hash_destroy_value);
 
   return (struct _openslide_grid *) grid;
+}
+
+
+
+static void range_get_bounds(struct _openslide_grid *_grid,
+                             struct bounds *bounds) {
+  struct range_grid *grid = (struct range_grid *) _grid;
+
+  if (!isinf(grid->left)) {
+    bounds->x = grid->left;
+    bounds->y = grid->top;
+    bounds->w = grid->right - grid->left;
+    bounds->h = grid->bottom - grid->top;
+  }
+}
+
+static bool range_paint_region(struct _openslide_grid *_grid,
+                               cairo_t *cr,
+                               void *arg,
+                               double x, double y,
+                               struct _openslide_level *level,
+                               int32_t w, int32_t h,
+                               GError **err) {
+  struct range_grid *grid = (struct range_grid *) _grid;
+  bool result = false;
+
+  // ensure _openslide_grid_range_finish_adding_tiles() was called
+  g_assert(!grid->insert_stmt);
+
+  // save
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
+  // prepare query
+  sqlite3_stmt *stmt =
+    _openslide_sqlite_prepare(grid->index, "SELECT id FROM tiles WHERE "
+                              "xmax >= ? AND xmin <= ? AND "
+                              "ymax >= ? AND ymin <= ? "
+                              "ORDER BY ymin DESC, xmin DESC;", err);
+  if (!stmt) {
+    return false;
+  }
+  if (sqlite3_bind_double(stmt, 1, x) ||
+      sqlite3_bind_double(stmt, 2, x + w) ||
+      sqlite3_bind_double(stmt, 3, y) ||
+      sqlite3_bind_double(stmt, 4, y + h)) {
+    _openslide_sqlite_propagate_error(grid->index, err);
+    goto DONE;
+  }
+
+  // walk tiles
+  int ret;
+  while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+    // look up tile struct
+    int64_t id = sqlite3_column_int64(stmt, 0);
+    g_assert(id >= 0 && id < grid->tiles->len);
+    struct range_tile *tile = grid->tiles->pdata[id];
+
+    // skip tile if it's outside the requested region
+    // (R*Tree gave us an irrelevant tile due to round-off error)
+    if (tile->x + tile->w <= x ||
+        tile->y + tile->h <= y ||
+        tile->x >= x + w ||
+        tile->y >= y + h) {
+      //g_debug("skip x %g w %g y %g h %g, region x %g w %d y %g h %d", tile->x, tile->w, tile->y, tile->h, x, w, y, h);
+      continue;
+    }
+
+    // draw
+    //g_debug("tile x %g y %g", tile->x, tile->y);
+    cairo_translate(cr, tile->x - x, tile->y - y);
+    bool success = grid->read_tile(grid->base.osr, cr, level,
+                                   id, tile->data,
+                                   arg, err);
+    if (success && _openslide_debug(OPENSLIDE_DEBUG_TILES)) {
+      char *coordinates = g_strdup_printf("%"PRId64, id);
+      label_tile(cr, tile->w, tile->h, coordinates);
+      g_free(coordinates);
+    }
+    cairo_set_matrix(cr, &matrix);
+    if (!success) {
+      goto DONE;
+    }
+  }
+  if (ret != SQLITE_DONE) {
+    _openslide_sqlite_propagate_error(grid->index, err);
+    goto DONE;
+  }
+
+  // success
+  result = true;
+
+DONE:
+  sqlite3_finalize(stmt);
+  return result;
+}
+
+static void range_destroy(struct _openslide_grid *_grid) {
+  struct range_grid *grid = (struct range_grid *) _grid;
+
+  _openslide_grid_range_finish_adding_tiles(_grid, NULL);
+  _openslide_sqlite_close(grid->index);
+  for (uint64_t cur = 0; cur < grid->tiles->len; cur++) {
+    struct range_tile *tile = grid->tiles->pdata[cur];
+    if (grid->destroy_tile && tile->data) {
+      grid->destroy_tile(tile->data);
+    }
+    g_slice_free(struct range_tile, tile);
+  }
+  g_ptr_array_free(grid->tiles, true);
+  g_slice_free(struct range_grid, grid);
+}
+
+const struct grid_ops range_grid_ops = {
+  .get_bounds = range_get_bounds,
+  .paint_region = range_paint_region,
+  .destroy = range_destroy,
+};
+
+bool _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
+                                    double x, double y,
+                                    double w, double h,
+                                    void *data,
+                                    GError **err) {
+  struct range_grid *grid = (struct range_grid *) _grid;
+  g_assert(grid->base.ops == &range_grid_ops);
+  g_assert(grid->insert_stmt);
+
+  int64_t id = grid->tiles->len;
+  sqlite3_reset(grid->insert_stmt);
+  if (sqlite3_bind_int64(grid->insert_stmt, 1, id) ||
+      sqlite3_bind_double(grid->insert_stmt, 2, x) ||
+      sqlite3_bind_double(grid->insert_stmt, 3, x + w) ||
+      sqlite3_bind_double(grid->insert_stmt, 4, y) ||
+      sqlite3_bind_double(grid->insert_stmt, 5, y + h)) {
+    _openslide_sqlite_propagate_error(grid->index, err);
+    return false;
+  }
+  if (sqlite3_step(grid->insert_stmt) != SQLITE_DONE) {
+    _openslide_sqlite_propagate_error(grid->index, err);
+    return false;
+  }
+
+  struct range_tile *tile = g_slice_new0(struct range_tile);
+  tile->data = data;
+  tile->x = x;
+  tile->y = y;
+  tile->w = w;
+  tile->h = h;
+  g_ptr_array_add(grid->tiles, tile);
+
+  grid->left = MIN(x, grid->left);
+  grid->top = MIN(y, grid->top);
+  grid->right = MAX(x + w, grid->right);
+  grid->bottom = MAX(y + h, grid->bottom);
+
+  return true;
+}
+
+bool _openslide_grid_range_finish_adding_tiles(struct _openslide_grid *_grid,
+                                               GError **err) {
+  struct range_grid *grid = (struct range_grid *) _grid;
+  g_assert(grid->base.ops == &range_grid_ops);
+
+  if (grid->insert_stmt) {
+    sqlite3_finalize(grid->insert_stmt);
+    grid->insert_stmt = NULL;
+
+    if (!_openslide_sqlite_exec(grid->index, "COMMIT", err)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
+                                                     _openslide_grid_range_read_fn read_tile,
+                                                     GDestroyNotify destroy_tile,
+                                                     GError **err) {
+  sqlite3 *index = _openslide_sqlite_open_memory(err);
+  if (!index) {
+    g_prefix_error(err, "Creating R*Tree database: ");
+    return NULL;
+  }
+
+  if (!_openslide_sqlite_exec(index, "BEGIN", err)) {
+    goto FAIL;
+  }
+
+  if (!_openslide_sqlite_exec(index, "CREATE VIRTUAL TABLE tiles USING "
+                              "rtree(id, xmin, xmax, ymin, ymax);", err)) {
+    g_prefix_error(err, "Creating R*Tree table: ");
+    goto FAIL;
+  }
+
+  sqlite3_stmt *insert_stmt =
+    _openslide_sqlite_prepare(index, "INSERT INTO tiles "
+                              "VALUES(?, ?, ?, ?, ?);", err);
+  if (!insert_stmt) {
+    goto FAIL;
+  }
+
+  struct range_grid *grid = g_slice_new0(struct range_grid);
+  grid->base.osr = osr;
+  grid->base.ops = &range_grid_ops;
+  grid->base.tile_advance_x = NAN;  // unused
+  grid->base.tile_advance_y = NAN;  // unused
+  grid->tiles = g_ptr_array_new();
+  grid->index = index;
+  grid->insert_stmt = insert_stmt;
+  grid->read_tile = read_tile;
+  grid->destroy_tile = destroy_tile;
+
+  grid->top = INFINITY;
+  grid->bottom = -INFINITY;
+  grid->left = INFINITY;
+  grid->right = -INFINITY;
+
+  return (struct _openslide_grid *) grid;
+
+FAIL:
+  _openslide_sqlite_close(index);
+  return NULL;
 }
 
 

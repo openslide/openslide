@@ -188,6 +188,14 @@ typedef bool (*_openslide_grid_tilemap_read_fn)(openslide_t *osr,
                                                 void *arg,
                                                 GError **err);
 
+typedef bool (*_openslide_grid_range_read_fn)(openslide_t *osr,
+                                              cairo_t *cr,
+                                              struct _openslide_level *level,
+                                              int64_t tile_unique_id,
+                                              void *tile,
+                                              void *arg,
+                                              GError **err);
+
 struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int64_t tiles_across,
                                                       int64_t tiles_down,
@@ -206,6 +214,20 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       double offset_x, double offset_y,
                                       double w, double h,
                                       void *data);
+
+struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
+                                                     _openslide_grid_range_read_fn read_tile,
+                                                     GDestroyNotify destroy_tile,
+                                                     GError **err);
+
+bool _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
+                                    double x, double y,
+                                    double w, double h,
+                                    void *data,
+                                    GError **err);
+
+bool _openslide_grid_range_finish_adding_tiles(struct _openslide_grid *_grid,
+                                               GError **err);
 
 void _openslide_grid_get_bounds(struct _openslide_grid *grid,
                                 double *x, double *y,

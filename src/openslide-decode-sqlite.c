@@ -41,7 +41,7 @@ static void profile_callback(void *arg G_GNUC_UNUSED, const char *sql,
 #endif
 
 #undef sqlite3_open_v2
-sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
+static sqlite3 *do_open(const char *filename, int flags, GError **err) {
   sqlite3 *db;
 
   int ret = sqlite3_initialize();
@@ -51,17 +51,7 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
     return NULL;
   }
 
-  // ":" filename prefix is reserved.
-  // "file:" prefix invokes URI filename interpretation if enabled, which
-  // might have been done globally.
-  char *path;
-  if (g_str_has_prefix(filename, ":") || g_str_has_prefix(filename, "file:")) {
-    path = g_strdup_printf("./%s", filename);
-  } else {
-    path = g_strdup(filename);
-  }
-  ret = sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, NULL);
-  g_free(path);
+  ret = sqlite3_open_v2(filename, &db, flags, NULL);
 
   if (ret) {
     if (db) {
@@ -83,6 +73,49 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   return db;
 }
 #define sqlite3_open_v2 _OPENSLIDE_POISON(_openslide_sqlite_open)
+
+sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
+  // ":" filename prefix is reserved.
+  // "file:" prefix invokes URI filename interpretation if enabled, which
+  // might have been done globally.
+  char *path;
+  if (g_str_has_prefix(filename, ":") || g_str_has_prefix(filename, "file:")) {
+    path = g_strdup_printf("./%s", filename);
+  } else {
+    path = g_strdup(filename);
+  }
+  sqlite3 *db = do_open(path, SQLITE_OPEN_READONLY, err);
+  g_free(path);
+  return db;
+}
+
+sqlite3 *_openslide_sqlite_open_memory(GError **err) {
+  // Since there's no persistent file on disk, OpenSlide can't reopen the
+  // database for each thread, so we need thread-safe access to the
+  // database handle.  If SQLite has been set to single-thread mode at
+  // compile time, or by the application before calling into OpenSlide, we
+  // will silently get non-thread-safe semantics.  We could check for the
+  // first case (but not the second) with sqlite3_threadsafe(), but lack of
+  // thread safety isn't actually a problem if the application is
+  // single-threaded.  So, assume we will get thread safety if we need it.
+  return do_open(":memory:", SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE,
+                 err);
+}
+
+bool _openslide_sqlite_exec(sqlite3 *db, const char *sql, GError **err) {
+  sqlite3_stmt *stmt = _openslide_sqlite_prepare(db, sql, err);
+  if (!stmt) {
+    return false;
+  }
+  int ret = sqlite3_step(stmt);
+  if (ret != SQLITE_DONE && ret != SQLITE_ROW) {
+    _openslide_sqlite_propagate_error(db, err);
+    sqlite3_finalize(stmt);
+    return false;
+  }
+  sqlite3_finalize(stmt);
+  return true;
+}
 
 sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
                                         GError **err) {
