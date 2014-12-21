@@ -718,6 +718,25 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
   return grid;
 }
 
+static void set_region_props(openslide_t *osr, struct slide_info *slide,
+                             struct level *level0) {
+  for (int32_t i = 0; i < slide->num_areas; i++) {
+    struct area *area = slide->areas[i];
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
+                        g_strdup_printf("%"PRId64, (int64_t) (slide->tile_advance_x * area->start_col)));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, i),
+                        g_strdup_printf("%"PRId64, (int64_t) (slide->tile_advance_y * area->start_row)));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, i),
+                        g_strdup_printf("%"PRId64, (int64_t) ceil(slide->tile_advance_x * (area->tiles_across - 1) + level0->tiffl.tile_w)));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, i),
+                        g_strdup_printf("%"PRId64, (int64_t) ceil(slide->tile_advance_y * (area->tiles_down - 1) + level0->tiffl.tile_h)));
+  }
+}
+
 static bool ventana_open(openslide_t *osr, const char *filename,
                          struct _openslide_tifflike *tl,
                          struct _openslide_hash *quickhash1, GError **err) {
@@ -868,17 +887,20 @@ static bool ventana_open(openslide_t *osr, const char *filename,
     }
   } while (TIFFReadDirectory(tiff));
 
+  // sort tiled levels
+  g_ptr_array_sort(level_array, width_compare);
+
+  // set region properties
+  g_assert(level_array->len > 0);
+  struct level *level0 = level_array->pdata[0];
+  set_region_props(osr, slide, level0);
+
   // free slide info
   slide_info_free(slide);
   slide = NULL;
 
-  // sort tiled levels
-  g_ptr_array_sort(level_array, width_compare);
-
-  // set hash and properties
-  g_assert(level_array->len > 0);
+  // set hash and TIFF properties
   struct level *top_level = level_array->pdata[level_array->len - 1];
-  struct level *level0 = level_array->pdata[0];
   if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
                                                     top_level->tiffl.dir,
                                                     level0->tiffl.dir,

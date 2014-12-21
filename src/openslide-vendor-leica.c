@@ -340,8 +340,8 @@ static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
   }
 }
 
-static void set_bounds_props(openslide_t *osr,
-                             struct level *level0) {
+static void set_region_bounds_props(openslide_t *osr,
+                                    struct level *level0) {
   int64_t x0 = INT64_MAX;
   int64_t y0 = INT64_MAX;
   int64_t x1 = INT64_MIN;
@@ -350,6 +350,18 @@ static void set_bounds_props(openslide_t *osr,
   g_assert(level0->areas->len);
   for (uint32_t n = 0; n < level0->areas->len; n++) {
     struct area *area = level0->areas->pdata[n];
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, n),
+                        g_strdup_printf("%"PRId64, area->offset_x));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, n),
+                        g_strdup_printf("%"PRId64, area->offset_y));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, n),
+                        g_strdup_printf("%"PRId64, area->tiffl.image_w));
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, n),
+                        g_strdup_printf("%"PRId64, area->tiffl.image_h));
     x0 = MIN(x0, area->offset_x);
     y0 = MIN(y0, area->offset_y);
     x1 = MAX(x1, area->offset_x + area->tiffl.image_w);
@@ -829,8 +841,8 @@ static bool leica_open(openslide_t *osr, const char *filename,
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
                       TIFFTAG_YRESOLUTION);
 
-  // set bounds properties
-  set_bounds_props(osr, level0);
+  // set region bounds properties
+  set_region_bounds_props(osr, level0);
 
   // unwrap level array
   int32_t level_count = level_array->len;
