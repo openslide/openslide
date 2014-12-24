@@ -27,6 +27,8 @@
 #include "openslide-private.h"
 
 #define RANGE_BIN_SIZE_MULTIPLIER 3
+#define COLOR_TILE 0.6, 0,   0,   0.3
+#define COLOR_BIN  0,   0,   0.6, 0.15
 
 struct region {
   double x;
@@ -233,16 +235,17 @@ static bool read_tiles(cairo_t *cr,
 }
 
 static void label_tile(cairo_t *cr,
+                       double r, double g, double b, double a,
                        double w, double h,
                        const char *coordinates) {
   cairo_save(cr);
   cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
-  cairo_set_source_rgba(cr, 0.6, 0, 0, 0.3);
+  cairo_set_source_rgba(cr, r, g, b, a);
   cairo_rectangle(cr, 0, 0, w, h);
   cairo_stroke(cr);
 
-  cairo_set_source_rgba(cr, 0.6, 0, 0, 1);
+  cairo_set_source_rgba(cr, r, g, b, 1);  // no transparency
   cairo_text_extents_t extents;
   cairo_text_extents(cr, coordinates, &extents);
   cairo_move_to(cr,
@@ -279,7 +282,7 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
   if (_openslide_debug(OPENSLIDE_DEBUG_TILES)) {
     char *coordinates = g_strdup_printf("%"PRId64", %"PRId64,
                                         tile_col, tile_row);
-    label_tile(cr,
+    label_tile(cr, COLOR_TILE,
                grid->base.tile_advance_x, grid->base.tile_advance_y,
                coordinates);
     g_free(coordinates);
@@ -442,7 +445,7 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   if (success && _openslide_debug(OPENSLIDE_DEBUG_TILES)) {
     char *coordinates = g_strdup_printf("%"PRId64", %"PRId64,
                                         tile_col, tile_row);
-    label_tile(cr, tile->w, tile->h, coordinates);
+    label_tile(cr, COLOR_TILE, tile->w, tile->h, coordinates);
     g_free(coordinates);
   }
   cairo_set_matrix(cr, &matrix);
@@ -650,6 +653,10 @@ static bool range_paint_region(struct _openslide_grid *_grid,
   // ensure _openslide_grid_range_finish_adding_tiles() was called
   g_assert(grid->bins_runtime);
 
+  // save
+  cairo_matrix_t matrix;
+  cairo_get_matrix(cr, &matrix);
+
   // accumulate relevant tiles
   struct range_bin_address addr;
   for (addr.row = y / grid->bin_height;
@@ -674,13 +681,21 @@ static bool range_paint_region(struct _openslide_grid *_grid,
           tiles = g_list_prepend(tiles, tile);
         }
       }
+      if (_openslide_debug(OPENSLIDE_DEBUG_TILES)) {
+        char *coordinates = g_strdup_printf("%"PRId64", %"PRId64,
+                                            addr.col, addr.row);
+        cairo_translate(cr,
+                        addr.col * grid->bin_width - x,
+                        addr.row * grid->bin_height - y);
+        label_tile(cr, COLOR_BIN,
+                   grid->bin_width, grid->bin_height,
+                   coordinates);
+        cairo_set_matrix(cr, &matrix);
+        g_free(coordinates);
+      }
     }
   }
   tiles = g_list_sort(tiles, range_compare_tiles);
-
-  // save
-  cairo_matrix_t matrix;
-  cairo_get_matrix(cr, &matrix);
 
   // draw tiles
   struct range_tile *prev_tile = NULL;
@@ -701,7 +716,7 @@ static bool range_paint_region(struct _openslide_grid *_grid,
                                    arg, err);
     if (success && _openslide_debug(OPENSLIDE_DEBUG_TILES)) {
       char *coordinates = g_strdup_printf("%"PRId64, tile->id);
-      label_tile(cr, tile->w, tile->h, coordinates);
+      label_tile(cr, COLOR_TILE, tile->w, tile->h, coordinates);
       g_free(coordinates);
     }
     cairo_set_matrix(cr, &matrix);
