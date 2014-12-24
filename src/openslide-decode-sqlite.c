@@ -89,34 +89,6 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   return db;
 }
 
-sqlite3 *_openslide_sqlite_open_memory(GError **err) {
-  // Since there's no persistent file on disk, OpenSlide can't reopen the
-  // database for each thread, so we need thread-safe access to the
-  // database handle.  If SQLite has been set to single-thread mode at
-  // compile time, or by the application before calling into OpenSlide, we
-  // will silently get non-thread-safe semantics.  We could check for the
-  // first case (but not the second) with sqlite3_threadsafe(), but lack of
-  // thread safety isn't actually a problem if the application is
-  // single-threaded.  So, assume we will get thread safety if we need it.
-  return do_open(":memory:", SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_READWRITE,
-                 err);
-}
-
-bool _openslide_sqlite_exec(sqlite3 *db, const char *sql, GError **err) {
-  sqlite3_stmt *stmt = _openslide_sqlite_prepare(db, sql, err);
-  if (!stmt) {
-    return false;
-  }
-  int ret = sqlite3_step(stmt);
-  if (ret != SQLITE_DONE && ret != SQLITE_ROW) {
-    _openslide_sqlite_propagate_error(db, err);
-    sqlite3_finalize(stmt);
-    return false;
-  }
-  sqlite3_finalize(stmt);
-  return true;
-}
-
 sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
                                         GError **err) {
   sqlite3_stmt *stmt;

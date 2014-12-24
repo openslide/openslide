@@ -216,18 +216,17 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       void *data);
 
 struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
+                                                     int typical_tile_width,
+                                                     int typical_tile_height,
                                                      _openslide_grid_range_read_fn read_tile,
-                                                     GDestroyNotify destroy_tile,
-                                                     GError **err);
+                                                     GDestroyNotify destroy_tile);
 
-bool _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
+void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
                                     double x, double y,
                                     double w, double h,
-                                    void *data,
-                                    GError **err);
+                                    void *data);
 
-bool _openslide_grid_range_finish_adding_tiles(struct _openslide_grid *_grid,
-                                               GError **err);
+void _openslide_grid_range_finish_adding_tiles(struct _openslide_grid *_grid);
 
 void _openslide_grid_get_bounds(struct _openslide_grid *grid,
                                 double *x, double *y,

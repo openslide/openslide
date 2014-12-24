@@ -29,8 +29,6 @@
 /* SQLite support code */
 
 sqlite3 *_openslide_sqlite_open(const char *filename, GError **err);
-sqlite3 *_openslide_sqlite_open_memory(GError **err);
-bool _openslide_sqlite_exec(sqlite3 *db, const char *sql, GError **err);
 sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
                                         GError **err);
 bool _openslide_sqlite_step(sqlite3_stmt *stmt, GError **err);
