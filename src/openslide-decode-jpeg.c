@@ -118,7 +118,7 @@ static bool jpeg_get_dimensions(FILE *f,  // or:
                                 const void *buf, uint32_t buflen,
                                 int32_t *w, int32_t *h,
                                 GError **err) {
-  bool result = false;
+  volatile bool result = false;
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo = _openslide_jpeg_create_decompress();
@@ -188,7 +188,7 @@ static bool jpeg_decode(FILE *f,  // or:
                         void * const _dest, bool grayscale,
                         int32_t w, int32_t h,
                         GError **err) {
-  bool result = false;
+  volatile bool result = false;
   jmp_buf env;
   volatile gsize row_size = 0;  // preserve across longjmp
 

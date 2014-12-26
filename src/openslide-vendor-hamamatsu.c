@@ -563,6 +563,25 @@ OUT:
   return success;
 }
 
+// wrapper that takes out-pointers to volatile, to avoid spurious longjmp
+// clobber warnings in read_from_jpeg() on gcc 4.9
+static bool compute_mcu_start_volatile(openslide_t *osr,
+                                       struct jpeg *jpeg,
+                                       FILE *f,
+                                       int64_t tileno,
+                                       volatile int64_t *start_position,
+                                       volatile int64_t *stop_position,
+                                       GError **err) {
+  int64_t start;
+  int64_t stop;
+  if (!compute_mcu_start(osr, jpeg, f, tileno, &start, &stop, err)) {
+    return false;
+  }
+  *start_position = start;
+  *stop_position = stop;
+  return true;
+}
+
 static bool read_from_jpeg(openslide_t *osr,
                            struct jpeg *jpeg,
                            int32_t tileno,
@@ -570,7 +589,7 @@ static bool read_from_jpeg(openslide_t *osr,
                            uint32_t * const dest,
                            int32_t w, int32_t h,
                            GError **err) {
-  bool success = false;
+  volatile bool success = false;
 
   // open file
   FILE *f = _openslide_fopen(jpeg->filename, "rb", err);
@@ -586,17 +605,18 @@ static bool read_from_jpeg(openslide_t *osr,
 
   JSAMPARRAY buffer = g_slice_alloc0(sizeof(JSAMPROW) * MAX_SAMP_FACTOR);
 
-  if (setjmp(env) == 0) {
-    // figure out where to start the data stream
-    int64_t start_position;
-    int64_t stop_position;
-    if (!compute_mcu_start(osr, jpeg, f, tileno,
-                           &start_position,
-                           &stop_position,
-                           err)) {
-      goto OUT;
-    }
+  // figure out where to start the data stream
+  // volatile to avoid spurious longjmp clobber warnings
+  volatile int64_t start_position;
+  volatile int64_t stop_position;
+  if (!compute_mcu_start_volatile(osr, jpeg, f, tileno,
+                                  &start_position,
+                                  &stop_position,
+                                  err)) {
+    goto OUT;
+  }
 
+  if (setjmp(env) == 0) {
     // start decompressing
     _openslide_jpeg_init_decompress(cinfo, &env);
 
@@ -1032,7 +1052,7 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
                                  int64_t *header_stop_position,
                                  char **comment, GError **err) {
   jmp_buf env;
-  bool success = false;
+  volatile bool success = false;
 
   if (comment) {
     *comment = NULL;
