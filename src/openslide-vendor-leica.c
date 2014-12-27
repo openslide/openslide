@@ -42,7 +42,8 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
-static const char LEICA_XMLNS[] = "http://www.leica-microsystems.com/scn/2010/10/01";
+static const char LEICA_XMLNS_1[] = "http://www.leica-microsystems.com/scn/2010/03/10";
+static const char LEICA_XMLNS_2[] = "http://www.leica-microsystems.com/scn/2010/10/01";
 static const char LEICA_ATTR_SIZE_X[] = "sizeX";
 static const char LEICA_ATTR_SIZE_Y[] = "sizeY";
 static const char LEICA_ATTR_OFFSET_X[] = "offsetX";
@@ -263,7 +264,8 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   if (!image_desc) {
     return false;
   }
-  if (!strstr(image_desc, LEICA_XMLNS)) {
+  if (!strstr(image_desc, LEICA_XMLNS_1) &&
+      !strstr(image_desc, LEICA_XMLNS_2)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Leica slide");
     return false;
@@ -276,7 +278,8 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // check default namespace
-  if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS)) {
+  if (!_openslide_xml_has_default_namespace(doc, LEICA_XMLNS_1) &&
+      !_openslide_xml_has_default_namespace(doc, LEICA_XMLNS_2)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected XML namespace");
     xmlFreeDoc(doc);
@@ -403,7 +406,7 @@ static struct collection *parse_xml_description(const char *xml,
   /*
     scn (root node)
       collection
-        barcode
+        barcode		(2010/10/01 namespace only)
         image
           dimension
           dimension
@@ -425,7 +428,12 @@ static struct collection *parse_xml_description(const char *xml,
   collection = g_slice_new0(struct collection);
   collection->images = g_ptr_array_new();
 
+  // Get barcode as stored in 2010/10/01 namespace
   collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
+  if (!collection->barcode) {
+    // Fall back to 2010/03/10 namespace
+    collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/@barcode");
+  }
 
   PARSE_INT_ATTRIBUTE_OR_FAIL(collection_node, LEICA_ATTR_SIZE_X,
                               collection->nm_across);
