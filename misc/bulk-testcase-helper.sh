@@ -13,7 +13,7 @@ function start() {
         testcase="$1"
     fi
 
-    ./driver create "$testcase" "$slide"
+    ./driver create "$slide" "$testcase"
     pushd "cases/$testcase"
     [ -n "$EDITOR" ] && $EDITOR config.yaml
 }

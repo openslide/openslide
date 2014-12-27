@@ -294,7 +294,7 @@ def _fetch_one(slide):
 
 
 @_command
-def create(testname, slide):
+def create(slide, testname):
     '''Create a new test case with the specified name and base slide (e.g.
     "Mirax/CMU-1.zip").'''
 
