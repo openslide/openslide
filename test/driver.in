@@ -30,6 +30,7 @@ import re
 import requests
 import shlex
 from shutil import copytree, rmtree
+import socket
 import struct
 import subprocess
 import sys
@@ -89,6 +90,10 @@ if '!!CYGWIN_CROSS_TEST!!':
 else:
     native_path = lambda p: p
     symlink = os.symlink
+
+
+class ConnectionInterrupted(Exception):
+    pass
 
 
 def _command(f):
@@ -236,6 +241,46 @@ def _try_extended(slidefile, valgrind=False, testdir=None):
         return None
 
 
+def _download(url, name, fh):
+    '''Download the specified URL, write to the specified file handle, and
+    return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
+    or short read.'''
+
+    print 'Fetching %s...\r' % name,
+    sys.stdout.flush()
+    r = requests.get(url, stream=True, timeout=30)
+    r.raise_for_status()
+
+    cur = 0
+    last_update = 0
+    size = int(r.headers['Content-Length'])
+    hash = sha256()
+
+    try:
+        for chunk in r.iter_content(128 << 10):
+            fh.write(chunk)
+            hash.update(chunk)
+
+            cur += len(chunk)
+            now = curtime()
+            if now - last_update >= 1:
+                print 'Fetching %s (%d/%d MB)...\r' % (name, cur >> 20,
+                        size >> 20),
+                sys.stdout.flush()
+                last_update = now
+        if cur != size:
+            raise ConnectionInterrupted
+    except (ConnectionInterrupted,
+            requests.exceptions.Timeout,
+            socket.timeout):
+        print '%-79s' % ('Failure fetching %s (%d/%d MB)' % (name,
+                cur >> 20, size >> 20))
+        raise ConnectionInterrupted
+    else:
+        print '%-79s' % ('Fetched %s (%d MB)' % (name, size >> 20))
+        return hash.hexdigest()
+
+
 def _fetch_one(slide):
     '''Download and unpack the base slide if we don't already have it.'''
 
@@ -248,15 +293,8 @@ def _fetch_one(slide):
     if slide not in slides:
         raise ValueError('%s not in %s' % (slide, SLIDELIST))
 
-    print 'Fetching %s...\r' % slide,
-    sys.stdout.flush()
-    r = requests.get(urljoin(TESTDATA_URL, slide), stream=True)
-    r.raise_for_status()
-
-    cur = 0
-    last_update = 0
-    size = int(r.headers['Content-Length'])
     filename = os.path.basename(slide)
+    url = urljoin(TESTDATA_URL, slide)
     is_zip = os.path.splitext(filename)[1] == '.zip'
 
     os.makedirs(destpath)
@@ -265,29 +303,28 @@ def _fetch_one(slide):
             dest = TemporaryFile()
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
-        hash = sha256()
-        for chunk in r.iter_content(128 << 10):
-            dest.write(chunk)
-            hash.update(chunk)
 
-            cur += len(chunk)
-            now = curtime()
-            if now - last_update >= 1:
-                print 'Fetching %s (%d/%d MB)...\r' % (slide, cur >> 20,
-                        size >> 20),
-                sys.stdout.flush()
-                last_update = now
-        print '%-79s' % ('Fetched %s (%d MB)' % (slide, size >> 20))
+        with dest:
+            for retries_remaining in range(4, -1, -1):
+                try:
+                    digest = _download(url, slide, dest)
+                except ConnectionInterrupted:
+                    if retries_remaining == 0:
+                        raise
+                    else:
+                        print 'Retrying...'
+                        dest.seek(0)
+                        dest.truncate()
+                else:
+                    break
 
-        if hash.hexdigest() != slides[slide]:
-            raise ValueError('Hash mismatch: %s' % slide)
+            if digest != slides[slide]:
+                raise ValueError('Hash mismatch: %s' % slide)
 
-        if is_zip:
-            print 'Unpacking %s...' % slide
-            with closing(ZipFile(dest)) as zf:
-                zf.extractall(path=destpath)
-
-        dest.close()
+            if is_zip:
+                print 'Unpacking %s...' % slide
+                with closing(ZipFile(dest)) as zf:
+                    zf.extractall(path=destpath)
     except:
         rmtree(destpath, ignore_errors=True)
         raise
