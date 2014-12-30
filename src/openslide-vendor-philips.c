@@ -482,65 +482,62 @@ static bool philips_open(openslide_t *osr,
     // get directory
     tdir_t dir = TIFFCurrentDirectory(tiff);
 
-    // confirm that this directory is tiled
-    if (!TIFFIsTiled(tiff)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Directory %d is not tiled", dir);
-      goto FAIL;
-    }
+    if (TIFFIsTiled(tiff)) {
+      // pyramid level
 
-    // confirm it is either the first image, or reduced-resolution
-    if (dir > 0) {
-      uint32_t subfiletype;
-      if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
-          !(subfiletype & FILETYPE_REDUCEDIMAGE)) {
+      // confirm it is either the first image, or reduced-resolution
+      if (prev_l) {
+        uint32_t subfiletype;
+        if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
+            !(subfiletype & FILETYPE_REDUCEDIMAGE)) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "Directory %d is not reduced-resolution", dir);
+          goto FAIL;
+        }
+      }
+
+      // verify that we can read this compression
+      uint16_t compression;
+      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Directory %d is not reduced-resolution", dir);
+                    "Can't read compression scheme");
+        goto FAIL;
+      };
+      if (!TIFFIsCODECConfigured(compression)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Unsupported TIFF compression: %u", compression);
         goto FAIL;
       }
-    }
 
-    // verify that we can read this compression
-    uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read compression scheme");
-      goto FAIL;
-    };
-    if (!TIFFIsCODECConfigured(compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported TIFF compression: %u", compression);
-      goto FAIL;
-    }
+      // create level
+      struct level *l = g_slice_new0(struct level);
+      struct _openslide_tiff_level *tiffl = &l->tiffl;
+      if (!_openslide_tiff_level_init(tiff, dir,
+                                      (struct _openslide_level *) l, tiffl,
+                                      err)) {
+        g_slice_free(struct level, l);
+        goto FAIL;
+      }
+      l->grid = _openslide_grid_create_simple(osr,
+                                              tiffl->tiles_across,
+                                              tiffl->tiles_down,
+                                              tiffl->tile_w,
+                                              tiffl->tile_h,
+                                              read_tile);
 
-    // create level
-    struct level *l = g_slice_new0(struct level);
-    struct _openslide_tiff_level *tiffl = &l->tiffl;
-    if (!_openslide_tiff_level_init(tiff, dir,
-                                    (struct _openslide_level *) l, tiffl,
-                                    err)) {
-      g_slice_free(struct level, l);
-      goto FAIL;
-    }
-    l->grid = _openslide_grid_create_simple(osr,
-                                            tiffl->tiles_across,
-                                            tiffl->tiles_down,
-                                            tiffl->tile_w,
-                                            tiffl->tile_h,
-                                            read_tile);
+      // add to array
+      g_ptr_array_add(level_array, l);
 
-    // add to array
-    g_ptr_array_add(level_array, l);
-
-    // verify that levels are sorted by size
-    if (prev_l &&
-        (tiffl->image_w > prev_l->tiffl.image_w ||
-         tiffl->image_h > prev_l->tiffl.image_h)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected dimensions for directory %d", dir);
-      goto FAIL;
+      // verify that levels are sorted by size
+      if (prev_l &&
+          (tiffl->image_w > prev_l->tiffl.image_w ||
+           tiffl->image_h > prev_l->tiffl.image_h)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Unexpected dimensions for directory %d", dir);
+        goto FAIL;
+      }
+      prev_l = l;
     }
-    prev_l = l;
   } while (TIFFReadDirectory(tiff));
 
   // set hash and properties
