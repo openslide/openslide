@@ -191,7 +191,7 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   if (!software) {
     return false;
   }
-  if (strncmp(software, PHILIPS_SOFTWARE, strlen(PHILIPS_SOFTWARE))) {
+  if (!g_str_has_prefix(software, PHILIPS_SOFTWARE)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Philips slide");
     return false;
