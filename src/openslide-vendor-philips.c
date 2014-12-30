@@ -70,7 +70,7 @@ struct level {
   struct _openslide_grid *grid;
 };
 
-struct associated_image {
+struct xml_associated_image {
   struct _openslide_associated_image base;
   struct _openslide_tiffcache *tc;
   const char *xpath;  // static string; do not free
@@ -248,11 +248,11 @@ static xmlDoc *parse_xml(TIFF *tiff, GError **err) {
   return _openslide_xml_parse(image_desc, err);
 }
 
-static bool get_compressed_associated_image_data(xmlDoc *doc,
-                                                 const char *xpath,
-                                                 void **out_data,
-                                                 gsize *out_len,
-                                                 GError **err) {
+static bool get_compressed_xml_associated_image_data(xmlDoc *doc,
+                                                     const char *xpath,
+                                                     void **out_data,
+                                                     gsize *out_len,
+                                                     GError **err) {
   xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
   char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
   if (b64_data) {
@@ -266,10 +266,10 @@ static bool get_compressed_associated_image_data(xmlDoc *doc,
   return b64_data != NULL;
 }
 
-static bool get_associated_image_data(struct _openslide_associated_image *_img,
-                                      uint32_t *dest,
-                                      GError **err) {
-  struct associated_image *img = (struct associated_image *) _img;
+static bool get_xml_associated_image_data(struct _openslide_associated_image *_img,
+                                          uint32_t *dest,
+                                          GError **err) {
+  struct xml_associated_image *img = (struct xml_associated_image *) _img;
   void *data = NULL;
   bool success = false;
 
@@ -284,8 +284,8 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
   }
 
   gsize len;
-  if (!get_compressed_associated_image_data(doc, img->xpath,
-                                            &data, &len, err)) {
+  if (!get_compressed_xml_associated_image_data(doc, img->xpath,
+                                                &data, &len, err)) {
     goto DONE;
   }
 
@@ -301,28 +301,28 @@ DONE:
   return success;
 }
 
-static void destroy_associated_image(struct _openslide_associated_image *_img) {
-  struct associated_image *img = (struct associated_image *) _img;
+static void destroy_xml_associated_image(struct _openslide_associated_image *_img) {
+  struct xml_associated_image *img = (struct xml_associated_image *) _img;
 
-  g_slice_free(struct associated_image, img);
+  g_slice_free(struct xml_associated_image, img);
 }
 
-static const struct _openslide_associated_image_ops philips_associated_ops = {
-  .get_argb_data = get_associated_image_data,
-  .destroy = destroy_associated_image,
+static const struct _openslide_associated_image_ops philips_xml_associated_ops = {
+  .get_argb_data = get_xml_associated_image_data,
+  .destroy = destroy_xml_associated_image,
 };
 
 // xpath is not copied (must be a static string)
-static bool add_associated_image(openslide_t *osr,
-                                 struct _openslide_tiffcache *tc,
-                                 xmlDoc *doc,
-                                 const char *name,
-                                 const char *xpath,
-                                 GError **err) {
+static bool add_xml_associated_image(openslide_t *osr,
+                                     struct _openslide_tiffcache *tc,
+                                     xmlDoc *doc,
+                                     const char *name,
+                                     const char *xpath,
+                                     GError **err) {
   void *data;
   gsize len;
-  if (!get_compressed_associated_image_data(doc, xpath,
-                                            &data, &len, err)) {
+  if (!get_compressed_xml_associated_image_data(doc, xpath,
+                                                &data, &len, err)) {
     g_prefix_error(err, "Can't locate %s associated image: ", name);
     return false;
   }
@@ -336,8 +336,8 @@ static bool add_associated_image(openslide_t *osr,
     return false;
   }
 
-  struct associated_image *img = g_slice_new0(struct associated_image);
-  img->base.ops = &philips_associated_ops;
+  struct xml_associated_image *img = g_slice_new0(struct xml_associated_image);
+  img->base.ops = &philips_xml_associated_ops;
   img->base.w = w;
   img->base.h = h;
   img->tc = tc;
@@ -563,10 +563,10 @@ static bool philips_open(openslide_t *osr,
   add_mpp_properties(osr);
   xmlXPathFreeContext(ctx);
 
-  // add associated images
+  // add associated images from XML
   // errors are non-fatal
-  add_associated_image(osr, tc, doc, "label", LABEL_DATA_XPATH, NULL);
-  add_associated_image(osr, tc, doc, "macro", MACRO_DATA_XPATH, NULL);
+  add_xml_associated_image(osr, tc, doc, "label", LABEL_DATA_XPATH, NULL);
+  add_xml_associated_image(osr, tc, doc, "macro", MACRO_DATA_XPATH, NULL);
 
   // unwrap level array
   int32_t level_count = level_array->len;
