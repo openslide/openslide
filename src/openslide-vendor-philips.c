@@ -48,6 +48,9 @@ static const char XML_NAME_ATTR[] = "Name";
 static const char XML_SCANNED_IMAGES_NAME[] = "PIM_DP_SCANNED_IMAGES";
 static const char XML_DATA_REPRESENTATION_NAME[] = "PIIM_PIXEL_DATA_REPRESENTATION_SEQUENCE";
 
+static const char LABEL_DESCRIPTION[] = "Label";
+static const char MACRO_DESCRIPTION[] = "Macro";
+
 #define SCANNED_IMAGE_XPATH(image_type) \
   "/DataObject/Attribute[@Name='PIM_DP_SCANNED_IMAGES']/Array" \
   "/DataObject[Attribute/@Name='PIM_DP_IMAGE_TYPE' and " \
@@ -313,12 +316,17 @@ static const struct _openslide_associated_image_ops philips_xml_associated_ops =
 };
 
 // xpath is not copied (must be a static string)
-static bool add_xml_associated_image(openslide_t *osr,
-                                     struct _openslide_tiffcache *tc,
-                                     xmlDoc *doc,
-                                     const char *name,
-                                     const char *xpath,
-                                     GError **err) {
+static bool maybe_add_xml_associated_image(openslide_t *osr,
+                                           struct _openslide_tiffcache *tc,
+                                           xmlDoc *doc,
+                                           const char *name,
+                                           const char *xpath,
+                                           GError **err) {
+  if (g_hash_table_lookup(osr->associated_images, name)) {
+    // already added from TIFF directory
+    return true;
+  }
+
   void *data;
   gsize len;
   if (!get_compressed_xml_associated_image_data(doc, xpath,
@@ -336,6 +344,7 @@ static bool add_xml_associated_image(openslide_t *osr,
     return false;
   }
 
+  //g_debug("Adding %s image from XML", name);
   struct xml_associated_image *img = g_slice_new0(struct xml_associated_image);
   img->base.ops = &philips_xml_associated_ops;
   img->base.w = w;
@@ -482,6 +491,12 @@ static bool philips_open(openslide_t *osr,
     // get directory
     tdir_t dir = TIFFCurrentDirectory(tiff);
 
+    // get ImageDescription
+    const char *image_desc;
+    if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+      image_desc = NULL;
+    }
+
     if (TIFFIsTiled(tiff)) {
       // pyramid level
 
@@ -537,6 +552,22 @@ static bool philips_open(openslide_t *osr,
         goto FAIL;
       }
       prev_l = l;
+
+    } else if (image_desc &&
+               g_str_has_prefix(image_desc, LABEL_DESCRIPTION)) {
+      // label
+      //g_debug("Adding label image from directory %d", dir);
+      if (!_openslide_tiff_add_associated_image(osr, "label", tc, dir, err)) {
+        goto FAIL;
+      }
+
+    } else if (image_desc &&
+               g_str_has_prefix(image_desc, MACRO_DESCRIPTION)) {
+      // macro image
+      //g_debug("Adding macro image from directory %d", dir);
+      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, err)) {
+        goto FAIL;
+      }
     }
   } while (TIFFReadDirectory(tiff));
 
@@ -562,8 +593,10 @@ static bool philips_open(openslide_t *osr,
 
   // add associated images from XML
   // errors are non-fatal
-  add_xml_associated_image(osr, tc, doc, "label", LABEL_DATA_XPATH, NULL);
-  add_xml_associated_image(osr, tc, doc, "macro", MACRO_DATA_XPATH, NULL);
+  maybe_add_xml_associated_image(osr, tc, doc,
+                                 "label", LABEL_DATA_XPATH, NULL);
+  maybe_add_xml_associated_image(osr, tc, doc,
+                                 "macro", MACRO_DATA_XPATH, NULL);
 
   // unwrap level array
   int32_t level_count = level_array->len;
