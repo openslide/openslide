@@ -112,20 +112,34 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    tiledata = g_slice_alloc(tw * th * 4);
-    if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                   tiledata, tile_col, tile_row,
-                                   err)) {
-      g_slice_free1(tw * th * 4, tiledata);
+    // slides with multiple ROIs are sparse
+    bool is_missing;
+    if (!_openslide_tiff_check_missing_tile(tiffl, tiff,
+                                            tile_col, tile_row,
+                                            &is_missing, err)) {
       return false;
     }
 
-    // clip, if necessary
-    if (!_openslide_tiff_clip_tile(tiffl, tiledata,
-                                   tile_col, tile_row,
-                                   err)) {
-      g_slice_free1(tw * th * 4, tiledata);
-      return false;
+    if (is_missing) {
+      // fill with transparent
+      tiledata = g_slice_alloc0(tw * th * 4);
+
+    } else {
+      tiledata = g_slice_alloc(tw * th * 4);
+      if (!_openslide_tiff_read_tile(tiffl, tiff,
+                                     tiledata, tile_col, tile_row,
+                                     err)) {
+        g_slice_free1(tw * th * 4, tiledata);
+        return false;
+      }
+
+      // clip, if necessary
+      if (!_openslide_tiff_clip_tile(tiffl, tiledata,
+                                     tile_col, tile_row,
+                                     err)) {
+        g_slice_free1(tw * th * 4, tiledata);
+        return false;
+      }
     }
 
     // put it in the cache
