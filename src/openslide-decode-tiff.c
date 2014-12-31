@@ -244,6 +244,40 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   return true;
 }
 
+// sets out-argument to indicate whether the tile data is zero bytes long
+// returns false on error
+bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
+                                        TIFF *tiff,
+                                        int64_t tile_col, int64_t tile_row,
+                                        bool *is_missing,
+                                        GError **err) {
+  // set directory
+  if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
+    return false;
+  }
+
+  // get tile number
+  ttile_t tile_no = TIFFComputeTile(tiff,
+                                    tile_col * tiffl->tile_w,
+                                    tile_row * tiffl->tile_h,
+                                    0, 0);
+
+  //g_debug("_openslide_tiff_check_missing_tile: tile %d", tile_no);
+
+  // get tile size
+  toff_t *sizes;
+  if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Cannot get tile size");
+    return false;
+  }
+  tsize_t tile_size = sizes[tile_no];
+
+  // return result
+  *is_missing = tile_size == 0;
+  return true;
+}
+
 static bool _get_associated_image_data(TIFF *tiff,
                                        struct associated_image *img,
                                        uint32_t *dest,
