@@ -134,9 +134,11 @@ static bool read_tile(openslide_t *osr,
       }
 
       // clip, if necessary
-      if (!_openslide_tiff_clip_tile(tiffl, tiledata,
-                                     tile_col, tile_row,
-                                     err)) {
+      if (!_openslide_clip_tile(tiledata,
+                                tw, th,
+                                l->base.w - tile_col * tw,
+                                l->base.h - tile_row * th,
+                                err)) {
         g_slice_free1(tw * th * 4, tiledata);
         return false;
       }
@@ -470,12 +472,13 @@ static void add_mpp_properties(openslide_t *osr) {
   }
 }
 
-static bool set_level_downsamples(struct level **levels,
-                                  int32_t level_count,
-                                  xmlDoc *doc,
-                                  GError **err) {
+static bool fix_level_dimensions(struct level **levels,
+                                 int32_t level_count,
+                                 xmlDoc *doc,
+                                 GError **err) {
   bool success = false;
 
+  // query pixel spacings
   xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
   xmlXPathObject *result =
     _openslide_xml_xpath_eval(ctx,
@@ -495,6 +498,7 @@ static bool set_level_downsamples(struct level **levels,
     goto DONE;
   }
 
+  // walk levels
   double l0_w = 0;
   double l0_h = 0;
   for (int32_t i = 0; i < level_count; i++) {
@@ -510,10 +514,16 @@ static bool set_level_downsamples(struct level **levels,
     if (i == 0) {
       l0_w = w;
       l0_h = h;
+    } else {
+      // calculate downsample
+      // assume integer downsamples (which seems valid so far) to avoid
+      // issues with floating-point error
+      levels[i]->base.downsample = round(((w / l0_w) + (h / l0_h)) / 2);
+
+      // clip excess padding
+      levels[i]->base.w = levels[0]->base.w / levels[i]->base.downsample;
+      levels[i]->base.h = levels[0]->base.h / levels[i]->base.downsample;
     }
-    // assume integer downsamples (which seems valid so far) to avoid
-    // issues with floating-point error
-    levels[i]->base.downsample = round(((w / l0_w) + (h / l0_h)) / 2);
   }
 
   success = true;
@@ -651,10 +661,11 @@ static bool philips_open(openslide_t *osr,
     }
   } while (TIFFReadDirectory(tiff));
 
-  // override downsamples to work around incorrect level widths/heights
-  if (!set_level_downsamples((struct level **) level_array->pdata,
-                             level_array->len,
-                             doc, err)) {
+  // override level dimensions and downsamples to work around incorrect
+  // level dimensions in the metadata
+  if (!fix_level_dimensions((struct level **) level_array->pdata,
+                            level_array->len,
+                            doc, err)) {
     goto FAIL;
   }
 
