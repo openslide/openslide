@@ -430,32 +430,98 @@ static void add_properties(openslide_t *osr,
   xmlXPathFreeObject(result);
 }
 
+// returns *w and *h in mm
+static bool parse_pixel_spacing(const char *spacing,
+                                double *w, double *h,
+                                GError **err) {
+  bool success = false;
+  char **spacings = g_strsplit(spacing, " ", 0);
+  if (g_strv_length(spacings) == 2) {
+    for (int i = 0; i < 2; i++) {
+      // strip quotes
+      g_strstrip(g_strdelimit(spacings[i], "\"", ' '));
+    }
+    // row spacing, then column spacing
+    *w = _openslide_parse_double(spacings[1]);
+    *h = _openslide_parse_double(spacings[0]);
+    success = !isnan(*w) && !isnan(*h);
+  }
+  g_strfreev(spacings);
+  if (!success) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't parse pixel spacing");
+  }
+  return success;
+}
+
 static void add_mpp_properties(openslide_t *osr) {
   const char *spacing = g_hash_table_lookup(osr->properties,
                                             "philips.DICOM_PIXEL_SPACING");
   if (spacing) {
-    char **spacings = g_strsplit(spacing, " ", 0);
-    if (g_strv_length(spacings) == 2) {
-      double parsed[2];
-      bool ok = true;
-      for (int i = 0; i < 2; i++) {
-        // strip quotes
-        g_strstrip(g_strdelimit(spacings[i], "\"", ' '));
-        parsed[i] = _openslide_parse_double(spacings[i]) * 1e3;
-        ok = ok && !isnan(parsed[i]);
-      }
-      if (ok) {
-        // row spacing, then column spacing
-        g_hash_table_insert(osr->properties,
-                            g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                            _openslide_format_double(parsed[0]));
-        g_hash_table_insert(osr->properties,
-                            g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                            _openslide_format_double(parsed[1]));
-      }
+    double w, h;
+    if (parse_pixel_spacing(spacing, &w, &h, NULL)) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                          _openslide_format_double(1e3 * w));
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                          _openslide_format_double(1e3 * h));
     }
-    g_strfreev(spacings);
   }
+}
+
+static bool set_level_downsamples(struct level **levels,
+                                  int32_t level_count,
+                                  xmlDoc *doc,
+                                  GError **err) {
+  bool success = false;
+
+  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
+  xmlXPathObject *result =
+    _openslide_xml_xpath_eval(ctx,
+                              "/DataObject"
+                              "/Attribute[@Name='PIM_DP_SCANNED_IMAGES']"
+                              "/Array"
+                              "/DataObject[Attribute/@Name='PIM_DP_IMAGE_TYPE' "
+                              "and Attribute/text()='WSI'][1]"
+                              "/Attribute[@Name='PIIM_PIXEL_DATA_REPRESENTATION_SEQUENCE']"
+                              "/Array"
+                              "/DataObject[@ObjectType='PixelDataRepresentation']"
+                              "/Attribute[@Name='DICOM_PIXEL_SPACING']"
+                              "/text()");
+  if (!result || result->nodesetval->nodeNr != level_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't get level downsamples");
+    goto DONE;
+  }
+
+  double l0_w = 0;
+  double l0_h = 0;
+  for (int32_t i = 0; i < level_count; i++) {
+    xmlChar *spacing = xmlNodeGetContent(result->nodesetval->nodeTab[i]);
+    double w, h;
+    bool ok = parse_pixel_spacing((const char *) spacing, &w, &h, err);
+    xmlFree(spacing);
+    if (!ok) {
+      g_prefix_error(err, "Level %d: ", i);
+      goto DONE;
+    }
+
+    if (i == 0) {
+      l0_w = w;
+      l0_h = h;
+    }
+    // assume integer downsamples (which seems valid so far) to avoid
+    // issues with floating-point error
+    levels[i]->base.downsample = round(((w / l0_w) + (h / l0_h)) / 2);
+  }
+
+  success = true;
+
+DONE:
+  xmlXPathFreeObject(result);
+  xmlXPathFreeContext(ctx);
+  return success;
 }
 
 static bool verify_main_image_count(xmlDoc *doc, GError **err) {
@@ -584,6 +650,13 @@ static bool philips_open(openslide_t *osr,
       }
     }
   } while (TIFFReadDirectory(tiff));
+
+  // override downsamples to work around incorrect level widths/heights
+  if (!set_level_downsamples((struct level **) level_array->pdata,
+                             level_array->len,
+                             doc, err)) {
+    goto FAIL;
+  }
 
   // set hash and properties
   g_assert(level_array->len > 0);
