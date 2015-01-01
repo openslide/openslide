@@ -43,6 +43,8 @@
 
 #define NO_OFFSET UINT64_MAX
 
+#define NDPI_TAG 65420
+
 
 struct _openslide_tifflike {
   char *filename;
@@ -377,6 +379,7 @@ static void tiff_item_destroy(gpointer data) {
 static GHashTable *read_directory(FILE *f, int64_t *diroff,
 				  GHashTable *loop_detector,
 				  bool bigtiff,
+				  bool ndpi,
 				  bool big_endian,
 				  GError **err) {
   int64_t off = *diroff;
@@ -490,7 +493,8 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
   }
 
   // read the next dir offset
-  int64_t nextdiroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
+  int64_t nextdiroff = read_uint(f, (bigtiff || ndpi) ? 8 : 4,
+                                 big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read next directory offset");
@@ -546,7 +550,8 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
     offset_size = read_uint(f, 2, big_endian, &ok);
     pad = read_uint(f, 2, big_endian, &ok);
   }
-  int64_t diroff = read_uint(f, bigtiff ? 8 : 4, big_endian, &ok);
+  // for classic TIFF, will mask off the high bytes after NDPI detection
+  int64_t diroff = read_uint(f, 8, big_endian, &ok);
 
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -581,11 +586,46 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
                                         _openslide_int64_equal,
                                         _openslide_int64_free,
                                         NULL);
+
+  // NDPI needs special quirks, since it is classic TIFF pretending to be
+  // BigTIFF.  Enable NDPI mode if this is classic TIFF but the offset to
+  // the first directory -- when treated as a 64-bit value -- points to a
+  // valid directory containing the NDPI_TAG.
+  bool ndpi = false;
+  if (!bigtiff && diroff != 0) {
+    int64_t trial_diroff = diroff;
+    GHashTable *ht = read_directory(f, &trial_diroff, loop_detector, bigtiff,
+                                    true, big_endian, NULL);
+    if (ht) {
+      struct tiff_item *item =
+        g_hash_table_lookup(ht, GINT_TO_POINTER(NDPI_TAG));
+      if (item && item->count) {
+        // NDPI
+        //g_debug("NDPI detected");
+        ndpi = true;
+        // save the parsed directory rather than reparsing it below
+        g_ptr_array_add(tl->directories, ht);
+        diroff = trial_diroff;
+      } else {
+        // correctly parsed the directory in NDPI mode, but didn't find
+        // NDPI_TAG
+        g_hash_table_destroy(ht);
+      }
+    }
+    if (!ndpi) {
+      // This is classic TIFF, so diroff is 32 bits.  Mask off the high bits
+      // and reset.
+      //g_debug("not NDPI");
+      diroff &= 0xffffffff;
+      g_hash_table_remove_all(loop_detector);
+    }
+  }
+
   // read all the directories
   while (diroff != 0) {
     // read a directory
     GHashTable *ht = read_directory(f, &diroff, loop_detector, bigtiff,
-                                    big_endian, err);
+                                    ndpi, big_endian, err);
 
     // was the directory successfully read?
     if (ht == NULL) {
