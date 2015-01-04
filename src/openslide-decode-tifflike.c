@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -167,6 +167,17 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
   default:
     return 0;
   }
+}
+
+// Re-add implied high-order bits to a 32-bit offset.
+// Heuristic: maximize high-order bits while keeping the offset below diroff.
+static int64_t fix_offset_ndpi(int64_t diroff, int64_t offset) {
+  int64_t result = (diroff & ~(int64_t) UINT32_MAX) | (offset & UINT32_MAX);
+  if (result >= diroff) {
+    result -= (int64_t) UINT32_MAX + 1;
+  }
+  //g_debug("diroff %"PRIx64": %"PRIx64" -> %"PRIx64, diroff, offset, result);
+  return result;
 }
 
 #define ALLOC_VALUES_OR_FAIL(OUT, TYPE, COUNT) do {			\
@@ -377,6 +388,7 @@ static void tiff_item_destroy(gpointer data) {
 }
 
 static GHashTable *read_directory(FILE *f, int64_t *diroff,
+				  GHashTable *first_dir,
 				  GHashTable *loop_detector,
 				  bool bigtiff,
 				  bool ndpi,
@@ -489,6 +501,19 @@ static GHashTable *read_directory(FILE *f, int64_t *diroff,
         fix_byte_order(&off32, sizeof(off32), 1, big_endian);
         item->offset = off32;
       }
+
+      if (ndpi) {
+        // heuristically set high-order bits of offset
+        // if this tag has the same offset in the first IFD, reuse that value
+        struct tiff_item *first_dir_item = NULL;
+        if (first_dir) {
+          first_dir_item = g_hash_table_lookup(first_dir,
+                                               GINT_TO_POINTER(tag));
+        }
+        if (!first_dir_item || first_dir_item->offset != item->offset) {
+          item->offset = fix_offset_ndpi(off, item->offset);
+        }
+      }
     }
   }
 
@@ -581,11 +606,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   tl->directories = g_ptr_array_new();
   tl->value_lock = g_mutex_new();
 
-  // initialize loop detector
+  // initialize directory reading
   loop_detector = g_hash_table_new_full(_openslide_int64_hash,
                                         _openslide_int64_equal,
                                         _openslide_int64_free,
                                         NULL);
+  GHashTable *first_dir = NULL;
 
   // NDPI needs special quirks, since it is classic TIFF pretending to be
   // BigTIFF.  Enable NDPI mode if this is classic TIFF but the offset to
@@ -594,8 +620,8 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   bool ndpi = false;
   if (!bigtiff && diroff != 0) {
     int64_t trial_diroff = diroff;
-    GHashTable *ht = read_directory(f, &trial_diroff, loop_detector, bigtiff,
-                                    true, big_endian, NULL);
+    GHashTable *ht = read_directory(f, &trial_diroff, NULL, loop_detector,
+                                    bigtiff, true, big_endian, NULL);
     if (ht) {
       struct tiff_item *item =
         g_hash_table_lookup(ht, GINT_TO_POINTER(NDPI_TAG));
@@ -605,6 +631,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
         ndpi = true;
         // save the parsed directory rather than reparsing it below
         g_ptr_array_add(tl->directories, ht);
+        first_dir = ht;
         diroff = trial_diroff;
       } else {
         // correctly parsed the directory in NDPI mode, but didn't find
@@ -624,16 +651,19 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // read all the directories
   while (diroff != 0) {
     // read a directory
-    GHashTable *ht = read_directory(f, &diroff, loop_detector, bigtiff,
-                                    ndpi, big_endian, err);
+    GHashTable *ht = read_directory(f, &diroff, first_dir, loop_detector,
+                                    bigtiff, ndpi, big_endian, err);
 
     // was the directory successfully read?
     if (ht == NULL) {
       goto FAIL;
     }
 
-    // add result to array
+    // store result
     g_ptr_array_add(tl->directories, ht);
+    if (!first_dir) {
+      first_dir = ht;
+    }
   }
 
   // ensure there are directories
