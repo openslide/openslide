@@ -49,12 +49,14 @@
 struct _openslide_tifflike {
   char *filename;
   bool big_endian;
+  bool ndpi;
   GPtrArray *directories;
   GMutex *value_lock;
 };
 
 struct tiff_directory {
   GHashTable *items;
+  uint64_t offset;  // only for NDPI fixups
 };
 
 struct tiff_item {
@@ -175,10 +177,10 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
 
 // Re-add implied high-order bits to a 32-bit offset.
 // Heuristic: maximize high-order bits while keeping the offset below diroff.
-static int64_t fix_offset_ndpi(int64_t diroff, int64_t offset) {
-  int64_t result = (diroff & ~(int64_t) UINT32_MAX) | (offset & UINT32_MAX);
+static uint64_t fix_offset_ndpi(uint64_t diroff, uint64_t offset) {
+  uint64_t result = (diroff & ~(uint64_t) UINT32_MAX) | (offset & UINT32_MAX);
   if (result >= diroff) {
-    result -= (int64_t) UINT32_MAX + 1;
+    result -= (uint64_t) UINT32_MAX + 1;
   }
   //g_debug("diroff %"PRIx64": %"PRIx64" -> %"PRIx64, diroff, offset, result);
   return result;
@@ -451,6 +453,7 @@ static struct tiff_directory *read_directory(FILE *f, int64_t *diroff,
   d = g_slice_new0(struct tiff_directory);
   d->items = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                    NULL, tiff_item_destroy);
+  d->offset = off;
 
   // read all directory entries
   for (uint64_t n = 0; n < dircount; n++) {
@@ -628,7 +631,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // BigTIFF.  Enable NDPI mode if this is classic TIFF but the offset to
   // the first directory -- when treated as a 64-bit value -- points to a
   // valid directory containing the NDPI_TAG.
-  bool ndpi = false;
   if (!bigtiff && diroff != 0) {
     int64_t trial_diroff = diroff;
     struct tiff_directory *d = read_directory(f, &trial_diroff,
@@ -642,7 +644,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
       if (item && item->count) {
         // NDPI
         //g_debug("NDPI detected");
-        ndpi = true;
+        tl->ndpi = true;
         // save the parsed directory rather than reparsing it below
         g_ptr_array_add(tl->directories, d);
         first_dir = d;
@@ -653,7 +655,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
         tiff_directory_destroy(d);
       }
     }
-    if (!ndpi) {
+    if (!tl->ndpi) {
       // This is classic TIFF, so diroff is 32 bits.  Mask off the high bits
       // and reset.
       //g_debug("not NDPI");
@@ -668,7 +670,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
     struct tiff_directory *d = read_directory(f, &diroff,
                                               first_dir,
                                               loop_detector,
-                                              bigtiff, ndpi, big_endian,
+                                              bigtiff, tl->ndpi, big_endian,
                                               err);
 
     // was the directory successfully read?
@@ -975,6 +977,16 @@ bool _openslide_tifflike_is_tiled(struct _openslide_tifflike *tl,
                                   int64_t dir) {
   return _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILEWIDTH) &&
          _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILELENGTH);
+}
+
+uint64_t _openslide_tifflike_uint_fix_offset_ndpi(struct _openslide_tifflike *tl,
+                                                  int64_t dir, uint64_t offset) {
+  g_assert(dir >= 0 && dir < tl->directories->len);
+  if (!tl->ndpi) {
+    return offset;
+  }
+  struct tiff_directory *d = tl->directories->pdata[dir];
+  return fix_offset_ndpi(d->offset, offset);
 }
 
 static const char *store_string_property(struct _openslide_tifflike *tl,
