@@ -180,7 +180,8 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
 static uint64_t fix_offset_ndpi(uint64_t diroff, uint64_t offset) {
   uint64_t result = (diroff & ~(uint64_t) UINT32_MAX) | (offset & UINT32_MAX);
   if (result >= diroff) {
-    result -= (uint64_t) UINT32_MAX + 1;
+    // ensure result doesn't wrap around
+    result = MIN(result - UINT32_MAX - 1, result);
   }
   //g_debug("diroff %"PRIx64": %"PRIx64" -> %"PRIx64, diroff, offset, result);
   return result;
