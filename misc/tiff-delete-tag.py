@@ -114,8 +114,9 @@ with TiffFile(filename) as fh:
         cur_tag, _type, _count, _value = fh.read_fmt('HHZZ')
         tags_remaining -= 1
         if cur_tag == tag:
-            # Delete it
-            buf = fh.read(entry_size * tags_remaining + fh.fmt_size('Z'))
+            # Delete it.  Always copy the next-IFD offset as a 64-bit value
+            # to support NDPI.
+            buf = fh.read(entry_size * tags_remaining + fh.fmt_size('Q'))
             fh.seek(pos)
             fh.write(buf)
             fh.seek(dir_base)
