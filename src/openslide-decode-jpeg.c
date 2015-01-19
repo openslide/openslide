@@ -271,9 +271,7 @@ static bool jpeg_get_dimensions(FILE *f,  // or:
       _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
     }
 
-    int header_result = jpeg_read_header(cinfo, TRUE);
-    if ((header_result != JPEG_HEADER_OK
-	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+    if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;
@@ -345,9 +343,7 @@ static bool jpeg_decode(FILE *f,  // or:
     }
 
     // read header
-    int header_result = jpeg_read_header(cinfo, TRUE);
-    if ((header_result != JPEG_HEADER_OK
-	 && header_result != JPEG_HEADER_TABLES_ONLY)) {
+    if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;

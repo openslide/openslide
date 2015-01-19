@@ -628,7 +628,11 @@ static bool read_from_jpeg(openslide_t *osr,
       goto OUT;
     }
 
-    jpeg_read_header(cinfo, TRUE);
+    if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't read JPEG header");
+      goto OUT;
+    }
     cinfo->scale_num = 1;
     cinfo->scale_denom = scale_denom;
     cinfo->image_width = jpeg->tile_width;  // cunning
@@ -1024,16 +1028,12 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
       goto DONE;
     }
 
-    int header_result;
-
     if (comment) {
       // extract comment
       jpeg_save_markers(cinfo, JPEG_COM, 0xFFFF);
     }
 
-    header_result = jpeg_read_header(cinfo, TRUE);
-    if (header_result != JPEG_HEADER_OK
-        && header_result != JPEG_HEADER_TABLES_ONLY) {
+    if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
       goto DONE;
