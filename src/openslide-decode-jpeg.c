@@ -32,6 +32,14 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
+#ifndef JCS_ALPHA_EXTENSIONS
+// Compiled against libjpeg-turbo < 1.2.0 or IJG libjpeg
+#define JCS_EXT_BGRA 13
+#define JCS_EXT_ARGB 15
+#endif
+
+static GOnce jcs_alpha_extensions_detector = G_ONCE_INIT;
+
 struct openslide_jpeg_error_mgr {
   struct jpeg_error_mgr base;
   jmp_buf *env;
@@ -80,6 +88,49 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
+static struct jpeg_error_mgr *error_handler_init(struct openslide_jpeg_error_mgr *jerr,
+                                                 jmp_buf *env) {
+  jpeg_std_error(&jerr->base);
+  jerr->base.error_exit = my_error_exit;
+  jerr->base.output_message = my_output_message;
+  jerr->base.emit_message = my_emit_message;
+  jerr->env = env;
+  return (struct jpeg_error_mgr *) jerr;
+}
+
+
+// Detect support for JCS_ALPHA_EXTENSIONS.  Even if the extensions were
+// available at compile time, they may not be available at runtime because
+// support for JCS_ALPHA_EXTENSIONS isn't reflected in the libjpeg soname.
+// Uses the detection method documented in jcstest.c.
+static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
+  jmp_buf env;
+  volatile bool alpha_extensions = false;
+
+  struct jpeg_compress_struct *cinfo =
+    g_slice_new0(struct jpeg_compress_struct);
+  struct openslide_jpeg_error_mgr *jerr =
+    g_slice_new0(struct openslide_jpeg_error_mgr);
+
+  if (!setjmp(env)) {
+    cinfo->err = error_handler_init(jerr, &env);
+    jpeg_create_compress(cinfo);
+    cinfo->input_components = 3;
+    jpeg_set_defaults(cinfo);
+    cinfo->in_color_space = JCS_EXT_BGRA;
+    jpeg_default_colorspace(cinfo);
+    alpha_extensions = true;
+  } else {
+    g_clear_error(&jerr->err);
+  }
+
+  jpeg_destroy_compress(cinfo);
+  g_slice_free(struct jpeg_compress_struct, cinfo);
+  g_slice_free(struct openslide_jpeg_error_mgr, jerr);
+  //g_debug("have JCS_ALPHA_EXTENSIONS: %d", alpha_extensions);
+  return GINT_TO_POINTER(alpha_extensions);
+}
+
 // the caller must assign the struct _openslide_jpeg_decompress * before
 // calling setjmp() so that nothing will be clobbered by a longjmp()
 struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg_decompress_struct **out_cinfo) {
@@ -91,13 +142,7 @@ struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg
 // after setjmp(), initialize error handler and start decompressing
 void _openslide_jpeg_decompress_init(struct _openslide_jpeg_decompress *dc,
                                      jmp_buf *env) {
-  struct openslide_jpeg_error_mgr *jerr = &dc->jerr;
-  jpeg_std_error(&(jerr->base));
-  jerr->base.error_exit = my_error_exit;
-  jerr->base.output_message = my_output_message;
-  jerr->base.emit_message = my_emit_message;
-  jerr->env = env;
-  dc->cinfo.err = (struct jpeg_error_mgr *) jerr;
+  dc->cinfo.err = error_handler_init(&dc->jerr, env);
   jpeg_create_decompress(&dc->cinfo);
 }
 
@@ -109,7 +154,14 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
                                     GError **err) {
   struct jpeg_decompress_struct *cinfo = &dc->cinfo;
 
-  cinfo->out_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
+  // set color space
+  bool alpha_extensions = GPOINTER_TO_INT(g_once(&jcs_alpha_extensions_detector,
+                                                 detect_jcs_alpha_extensions,
+                                                 NULL));
+  cinfo->out_color_space =
+    grayscale ? JCS_GRAYSCALE :
+    !alpha_extensions ? JCS_RGB :
+    G_BYTE_ORDER == G_LITTLE_ENDIAN ? JCS_EXT_BGRA : JCS_EXT_ARGB;
 
   jpeg_start_decompress(cinfo);
 
@@ -127,22 +179,23 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
   // verify we haven't run already
   g_assert(dc->rows[0] == NULL);
 
-  if (cinfo->output_components == 1) {
-    // grayscale; decode directly to output
+  if (cinfo->out_color_space != JCS_RGB) {
+    // decode directly to output
 
     uint8_t *dest = _dest;
+    int bytes_per_pixel = cinfo->output_components == 1 ? 1 : 4;
     while (cinfo->output_scanline < cinfo->output_height) {
       // set row pointers
       for (int32_t i = 0; i < cinfo->rec_outbuf_height; i++) {
         dc->rows[i] = cinfo->output_scanline + i < cinfo->output_height ?
-                      dest + i * cinfo->output_width : NULL;
+                      dest + i * cinfo->output_width * bytes_per_pixel : NULL;
       }
 
       // decompress
       JDIMENSION rows_read = jpeg_read_scanlines(cinfo,
                                                  dc->rows,
                                                  cinfo->rec_outbuf_height);
-      dest += rows_read * cinfo->output_width;
+      dest += rows_read * cinfo->output_width * bytes_per_pixel;
     }
 
   } else {
