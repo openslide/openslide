@@ -193,10 +193,11 @@ static void destroy(openslide_t *osr) {
 
 static char *make_tileid(int64_t x, int64_t y,
                          int64_t downsample,
-                         enum color_index color) {
+                         enum color_index color,
+                         int32_t focal_plane) {
   // T;x|y;downsample;color;0
-  return g_strdup_printf("T;%"PRId64"|%"PRId64";%"PRId64";%d;0",
-                         x, y, downsample, color);
+  return g_strdup_printf("T;%"PRId64"|%"PRId64";%"PRId64";%d;%d",
+                         x, y, downsample, color, focal_plane);
 }
 
 static bool _parse_tileid_column(const char *tileid, const char *col,
@@ -218,6 +219,7 @@ static bool parse_tileid(const char *tileid,
                          int64_t *_x, int64_t *_y,
                          int64_t *_downsample,
                          enum color_index *_color,
+                         int32_t *_focal_plane,
                          GError **err) {
   // T;x|y;downsample;color;0
   gchar **fields = NULL;
@@ -239,22 +241,22 @@ static bool parse_tileid(const char *tileid,
                 "Bad field count in tile ID %s", tileid);
     goto OUT;
   }
-  int64_t x, y, downsample, color, last_value;
+  int64_t x, y, downsample, color, focal_plane;
   if (!_parse_tileid_column(tileid, fields[1], &x, err) ||
       !_parse_tileid_column(tileid, fields[2], &y, err) ||
       !_parse_tileid_column(tileid, fields[3], &downsample, err) ||
       !_parse_tileid_column(tileid, fields[4], &color, err) ||
-      !_parse_tileid_column(tileid, fields[5], &last_value, err)) {
+      !_parse_tileid_column(tileid, fields[5], &focal_plane, err)) {
     goto OUT;
   }
-  if (downsample < 1 || color >= NUM_INDEXES || last_value != 0) {
+  if (downsample < 1 || color >= NUM_INDEXES) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Bad field value in tile ID %s", tileid);
     goto OUT;
   }
 
   // verify round trip (no leading zeros, etc.)
-  synth_tileid = make_tileid(x, y, downsample, color);
+  synth_tileid = make_tileid(x, y, downsample, color, focal_plane);
   if (strcmp(tileid, synth_tileid)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't round-trip tile ID %s", tileid);
@@ -274,6 +276,9 @@ static bool parse_tileid(const char *tileid,
   if (_color) {
     *_color = color;
   }
+  if (_focal_plane) {
+    *_focal_plane = focal_plane;
+  }
   success = true;
 
 OUT:
@@ -286,13 +291,14 @@ static bool read_channel(uint8_t *channeldata,
                          int64_t tile_col, int64_t tile_row,
                          int64_t downsample,
                          enum color_index color,
+                         int32_t focal_plane,
                          int32_t tile_size,
                          sqlite3_stmt *stmt,
                          GError **err) {
   // compute tile id
   char *tileid = make_tileid(tile_col * tile_size * downsample,
                              tile_row * tile_size * downsample,
-                             downsample, color);
+                             downsample, color, focal_plane);
 
   // retrieve compressed tile
   sqlite3_reset(stmt);
@@ -314,6 +320,7 @@ FAIL:
 static bool read_image(uint32_t *tiledata,
                        int64_t tile_col, int64_t tile_row,
                        int64_t downsample,
+                       int32_t focal_plane,
                        int32_t tile_size,
                        sqlite3_stmt *stmt,
                        GError **err) {
@@ -323,15 +330,15 @@ static bool read_image(uint32_t *tiledata,
   bool success = false;
 
   if (!read_channel(red_channel, tile_col, tile_row, downsample,
-                    INDEX_RED, tile_size, stmt, err)) {
+                    INDEX_RED, focal_plane, tile_size, stmt, err)) {
     goto OUT;
   }
   if (!read_channel(green_channel, tile_col, tile_row, downsample,
-                    INDEX_GREEN, tile_size, stmt, err)) {
+                    INDEX_GREEN, focal_plane, tile_size, stmt, err)) {
     goto OUT;
   }
   if (!read_channel(blue_channel, tile_col, tile_row, downsample,
-                    INDEX_BLUE, tile_size, stmt, err)) {
+                    INDEX_BLUE, focal_plane, tile_size, stmt, err)) {
     goto OUT;
   }
 
@@ -372,7 +379,7 @@ static bool read_tile(openslide_t *osr,
     tiledata = g_slice_alloc(tile_size * tile_size * 4);
 
     // read tile
-    if (!read_image(tiledata, tile_col, tile_row, l->base.downsample,
+    if (!read_image(tiledata, tile_col, tile_row, l->base.downsample, 0,
                     tile_size, stmt, &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
                           OPENSLIDE_ERROR_NO_VALUE)) {
@@ -863,7 +870,9 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
     const char *tileid = (const char *) sqlite3_column_text(stmt, 0);
     int64_t downsample;
-    if (!parse_tileid(tileid, NULL, NULL, &downsample, NULL, &tmp_err)) {
+    int32_t focal_plane;
+    if (!parse_tileid(tileid, NULL, NULL, &downsample, NULL, &focal_plane,
+                      &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
                           OPENSLIDE_ERROR_NO_VALUE)) {
         // not a tile
@@ -877,7 +886,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
 
     // create level if new
     struct level *l = g_hash_table_lookup(level_hash, &downsample);
-    if (!l) {
+    if (!l && focal_plane == 0) {
       // ensure downsample is > 0 and a power of 2
       if (downsample <= 0 || (downsample & (downsample - 1))) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -902,14 +911,13 @@ static bool sakura_open(openslide_t *osr, const char *filename,
       int64_t *downsample_val = g_new(int64_t, 1);
       *downsample_val = downsample;
       g_hash_table_insert(level_hash, downsample_val, l);
-
-      if (downsample > quickhash_downsample) {
-        clear_tileids(quickhash_tileids);
-        quickhash_downsample = downsample;
-      }
     }
 
     // save tileid if smallest level
+    if (downsample > quickhash_downsample) {
+      clear_tileids(quickhash_tileids);
+      quickhash_downsample = downsample;
+    }
     if (downsample == quickhash_downsample) {
       g_queue_push_tail(quickhash_tileids, g_strdup(tileid));
     }
