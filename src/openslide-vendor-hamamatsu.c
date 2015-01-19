@@ -598,7 +598,9 @@ static bool read_from_jpeg(openslide_t *osr,
   }
 
   // begin decompress
-  struct jpeg_decompress_struct *cinfo = _openslide_jpeg_create_decompress();
+  struct jpeg_decompress_struct *cinfo;
+  struct _openslide_jpeg_decompress *dc =
+    _openslide_jpeg_decompress_create(&cinfo);
   jmp_buf env;
 
   volatile gsize row_size = 0;  // preserve across longjmp
@@ -618,7 +620,7 @@ static bool read_from_jpeg(openslide_t *osr,
 
   if (setjmp(env) == 0) {
     // start decompressing
-    _openslide_jpeg_init_decompress(cinfo, &env);
+    _openslide_jpeg_decompress_init(dc, &env);
 
     if (!jpeg_random_access_src(cinfo, f,
                                 jpeg->start_in_file,
@@ -687,7 +689,7 @@ static bool read_from_jpeg(openslide_t *osr,
     success = true;
   } else {
     // setjmp returns again
-    _openslide_jpeg_propagate_error(err, cinfo);
+    _openslide_jpeg_propagate_error(err, dc);
   }
 
 OUT:
@@ -697,7 +699,7 @@ OUT:
   }
   g_slice_free1(sizeof(JSAMPROW) * MAX_SAMP_FACTOR, buffer);
 
-  _openslide_jpeg_destroy_decompress(cinfo);
+  _openslide_jpeg_decompress_destroy(dc);
 
   fclose(f);
 
@@ -1064,10 +1066,12 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
     return false;
   }
 
-  struct jpeg_decompress_struct *cinfo = _openslide_jpeg_create_decompress();
+  struct jpeg_decompress_struct *cinfo;
+  struct _openslide_jpeg_decompress *dc =
+    _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
-    _openslide_jpeg_init_decompress(cinfo, &env);
+    _openslide_jpeg_decompress_init(dc, &env);
     if (!jpeg_random_access_src(cinfo, f,
                                 header_start, *sof_position,
                                 *header_stop_position, -1, -1, err)) {
@@ -1149,14 +1153,14 @@ static bool validate_jpeg_header(FILE *f, bool use_jpeg_dimensions,
     //g_debug("size: %d %d, tile size: %d %d, mcu size: %d %d, restart_interval: %d, mcus_per_row: %u, leftover mcus: %d", *w, *h, *tw, *th, mcu_width, mcu_height, cinfo->restart_interval, mcus_per_row, leftover_mcus);
   } else {
     // setjmp has returned again
-    _openslide_jpeg_propagate_error(err, cinfo);
+    _openslide_jpeg_propagate_error(err, dc);
     goto DONE;
   }
 
   success = true;
 
 DONE:
-  _openslide_jpeg_destroy_decompress(cinfo);
+  _openslide_jpeg_decompress_destroy(dc);
   return success;
 }
 

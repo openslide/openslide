@@ -78,16 +78,16 @@ void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
 
 
 /*
- * Low-level jpeg_decompress_struct lifecycle
+ * Low-level JPEG decoding mechanism
  */
-struct jpeg_decompress_struct *_openslide_jpeg_create_decompress(void);
+struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg_decompress_struct **out_cinfo);
 
-void _openslide_jpeg_init_decompress(struct jpeg_decompress_struct *cinfo,
+void _openslide_jpeg_decompress_init(struct _openslide_jpeg_decompress *dc,
                                      jmp_buf *env);
 
 void _openslide_jpeg_propagate_error(GError **err,
-                                     struct jpeg_decompress_struct *cinfo);
+                                     struct _openslide_jpeg_decompress *dc);
 
-void _openslide_jpeg_destroy_decompress(struct jpeg_decompress_struct *cinfo);
+void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc);
 
 #endif
