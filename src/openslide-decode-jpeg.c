@@ -124,45 +124,58 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
     return false;
   }
 
-  // allocate scanline buffers
+  // verify we haven't run already
   g_assert(dc->rows[0] == NULL);
-  dc->allocated_row_size = sizeof(JSAMPLE) * cinfo->output_width *
-                           cinfo->output_components;
-  for (int i = 0; i < cinfo->rec_outbuf_height; i++) {
-    dc->rows[i] = g_slice_alloc(dc->allocated_row_size);
-  }
 
-  // decompress
-  uint32_t *dest32 = _dest;
-  uint8_t *dest8 = _dest;
-  while (cinfo->output_scanline < cinfo->output_height) {
-    JDIMENSION rows_read = jpeg_read_scanlines(cinfo,
-                                               dc->rows,
-                                               cinfo->rec_outbuf_height);
-    int cur_row = 0;
-    while (rows_read > 0) {
-      // copy a row
-      int32_t i;
-      if (cinfo->output_components == 1) {
-        // grayscale
-        for (i = 0; i < (int32_t) cinfo->output_width; i++) {
-          dest8[i] = dc->rows[cur_row][i];
-        }
-        dest8 += cinfo->output_width;
-      } else {
-        // RGB
-        for (i = 0; i < (int32_t) cinfo->output_width; i++) {
-          dest32[i] = 0xFF000000 |               // A
+  if (cinfo->output_components == 1) {
+    // grayscale; decode directly to output
+
+    uint8_t *dest = _dest;
+    while (cinfo->output_scanline < cinfo->output_height) {
+      // set row pointers
+      for (int32_t i = 0; i < cinfo->rec_outbuf_height; i++) {
+        dc->rows[i] = cinfo->output_scanline + i < cinfo->output_height ?
+                      dest + i * cinfo->output_width : NULL;
+      }
+
+      // decompress
+      JDIMENSION rows_read = jpeg_read_scanlines(cinfo,
+                                                 dc->rows,
+                                                 cinfo->rec_outbuf_height);
+      dest += rows_read * cinfo->output_width;
+    }
+
+  } else {
+    // decode into temporary buffer, then reformat
+
+    // allocate scanline buffers
+    dc->allocated_row_size = sizeof(JSAMPLE) * cinfo->output_width *
+                             cinfo->output_components;
+    for (int i = 0; i < cinfo->rec_outbuf_height; i++) {
+      dc->rows[i] = g_slice_alloc(dc->allocated_row_size);
+    }
+
+    // decompress
+    uint32_t *dest = _dest;
+    while (cinfo->output_scanline < cinfo->output_height) {
+      JDIMENSION rows_read = jpeg_read_scanlines(cinfo,
+                                                 dc->rows,
+                                                 cinfo->rec_outbuf_height);
+      int cur_row = 0;
+      while (rows_read > 0) {
+        // copy a row
+        for (int32_t i = 0; i < (int32_t) cinfo->output_width; i++) {
+          dest[i] = 0xFF000000 |                 // A
             dc->rows[cur_row][i * 3 + 0] << 16 | // R
             dc->rows[cur_row][i * 3 + 1] << 8 |  // G
             dc->rows[cur_row][i * 3 + 2];        // B
         }
-        dest32 += cinfo->output_width;
-      }
+        dest += cinfo->output_width;
 
-      // advance 1 row
-      rows_read--;
-      cur_row++;
+        // advance 1 row
+        rows_read--;
+        cur_row++;
+      }
     }
   }
   return true;
