@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -91,6 +91,7 @@ struct sakura_ops_data {
   char *filename;
   char *data_sql;
   int32_t tile_size;
+  int32_t focal_plane;
 };
 
 struct level {
@@ -379,8 +380,8 @@ static bool read_tile(openslide_t *osr,
     tiledata = g_slice_alloc(tile_size * tile_size * 4);
 
     // read tile
-    if (!read_image(tiledata, tile_col, tile_row, l->base.downsample, 0,
-                    tile_size, stmt, &tmp_err)) {
+    if (!read_image(tiledata, tile_col, tile_row, l->base.downsample,
+                    data->focal_plane, tile_size, stmt, &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
                           OPENSLIDE_ERROR_NO_VALUE)) {
         // no such tile
@@ -563,7 +564,7 @@ static gint compare_downsamples(const void *a, const void *b) {
 
 static bool read_header(sqlite3 *db, const char *unique_table_name,
                         int64_t *image_width, int64_t *image_height,
-                        int32_t *_tile_size,
+                        int32_t *_tile_size, int32_t *_focal_planes,
                         GError **err) {
   GInputStream *strm = NULL;
   GDataInputStream *dstrm = NULL;
@@ -609,11 +610,21 @@ static bool read_header(sqlite3 *db, const char *unique_table_name,
     g_propagate_error(err, tmp_err);
     goto FAIL;
   }
+  if (!g_seekable_seek(G_SEEKABLE(dstrm), 16, G_SEEK_SET, NULL, err)) {
+    goto FAIL;
+  }
+  uint32_t focal_planes = g_data_input_stream_read_uint32(dstrm, NULL,
+                                                          &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
+    goto FAIL;
+  }
 
   // commit
   *image_width = w;
   *image_height = h;
   *_tile_size = tile_size;
+  *_focal_planes = focal_planes;
   success = true;
 
 FAIL:
@@ -857,11 +868,16 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   int64_t image_width = 0;
   int64_t image_height = 0;
   int32_t tile_size = 0;
+  int32_t focal_planes = 0;
   if (!read_header(db, unique_table_name,
                    &image_width, &image_height,
-                   &tile_size, err)) {
+                   &tile_size, &focal_planes, err)) {
     goto FAIL;
   }
+
+  // select middle focal plane
+  int32_t chosen_focal_plane = (focal_planes / 2) + (focal_planes % 2) - 1;
+  //g_debug("Using focal plane %d", chosen_focal_plane);
 
   // create levels; gather tileids for top level
   sql = g_strdup_printf("SELECT id FROM %s", unique_table_name);
@@ -978,6 +994,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   data->data_sql =
     g_strdup_printf("SELECT data FROM %s WHERE id=?", unique_table_name);
   data->tile_size = tile_size;
+  data->focal_plane = chosen_focal_plane;
 
   // commit
   g_assert(osr->data == NULL);
