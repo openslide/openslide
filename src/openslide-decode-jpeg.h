@@ -85,6 +85,13 @@ struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg
 void _openslide_jpeg_decompress_init(struct _openslide_jpeg_decompress *dc,
                                      jmp_buf *env);
 
+bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
+                                    // uint8_t * if grayscale, else uint32_t *
+                                    void *dest,
+                                    bool grayscale,
+                                    int32_t w, int32_t h,
+                                    GError **err);
+
 void _openslide_jpeg_propagate_error(GError **err,
                                      struct _openslide_jpeg_decompress *dc);
 
