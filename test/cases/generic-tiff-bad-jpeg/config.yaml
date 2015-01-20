@@ -1,6 +1,5 @@
 base: Generic-TIFF/CMU-1.tiff
-# libtiff also spews to stderr; check only for OpenSlide message
-error: TIFFRGBAImageGet failed$
+error: "^Not a JPEG file: starts with 0xfe 0xd8$"
 slide: CMU-1.tiff
 success: false
 vendor: generic-tiff

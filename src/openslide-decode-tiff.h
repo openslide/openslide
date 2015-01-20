@@ -37,6 +37,9 @@ struct _openslide_tiff_level {
   int64_t tile_h;
   int64_t tiles_across;
   int64_t tiles_down;
+
+  bool tile_read_direct;
+  uint16_t photometric;
 };
 
 struct _openslide_tiffcache;

@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2013 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -24,6 +24,7 @@
 
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
+#include "openslide-decode-jpeg.h"
 
 #include <glib.h>
 #include <tiffio.h>
@@ -110,6 +111,22 @@ bool _openslide_tiff_level_init(TIFF *tiff,
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGEWIDTH, uint32_t, iw);
   GET_FIELD_OR_FAIL(tiff, TIFFTAG_IMAGELENGTH, uint32_t, ih);
 
+  // decide whether we can bypass libtiff when reading tiles
+  uint16_t compression, planar_config, photometric;
+  uint16_t bits_per_sample, samples_per_pixel;
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_COMPRESSION, uint16_t, compression);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_PLANARCONFIG, uint16_t, planar_config);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_PHOTOMETRIC, uint16_t, photometric);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_BITSPERSAMPLE, uint16_t, bits_per_sample);
+  GET_FIELD_OR_FAIL(tiff, TIFFTAG_SAMPLESPERPIXEL, uint16_t, samples_per_pixel);
+  bool read_direct =
+    compression == COMPRESSION_JPEG &&
+    planar_config == PLANARCONFIG_CONTIG &&
+    (photometric == PHOTOMETRIC_RGB || photometric == PHOTOMETRIC_YCBCR) &&
+    bits_per_sample == 8 &&
+    samples_per_pixel == 3;
+  //g_debug("directory %d, read_direct %d", dir, read_direct);
+
   // safe now, start writing
   if (level) {
     level->w = iw;
@@ -129,6 +146,9 @@ bool _openslide_tiff_level_init(TIFF *tiff,
     // num tiles in each dimension
     tiffl->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
     tiffl->tiles_down = (ih / th) + !!(ih % th);
+
+    tiffl->tile_read_direct = read_direct;
+    tiffl->photometric = photometric;
   }
 
   return true;
@@ -189,6 +209,61 @@ static bool tiff_read_region(TIFF *tiff,
   return success;
 }
 
+static bool decode_jpeg(const void *buf, uint32_t buflen,
+                        const void *tables, uint32_t tables_len,  // optional
+                        J_COLOR_SPACE space,
+                        uint32_t *dest,
+                        int32_t w, int32_t h,
+                        GError **err) {
+  volatile bool result = false;
+  jmp_buf env;
+
+  struct jpeg_decompress_struct *cinfo;
+  struct _openslide_jpeg_decompress *dc =
+    _openslide_jpeg_decompress_create(&cinfo);
+
+  if (setjmp(env) == 0) {
+    _openslide_jpeg_decompress_init(dc, &env);
+
+    // load JPEG tables
+    if (tables) {
+      _openslide_jpeg_mem_src(cinfo, (void *) tables, tables_len);
+      if (jpeg_read_header(cinfo, false) != JPEG_HEADER_TABLES_ONLY) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Couldn't load JPEG tables");
+        goto DONE;
+      }
+    }
+
+    // set up I/O
+    _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
+
+    // read header
+    if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't read JPEG header");
+      goto DONE;
+    }
+
+    // set color space from TIFF photometric tag (for Aperio)
+    cinfo->jpeg_color_space = space;
+
+    // decompress
+    if (!_openslide_jpeg_decompress_run(dc, dest, false, w, h, err)) {
+      goto DONE;
+    }
+    result = true;
+  } else {
+    // setjmp has returned again
+    _openslide_jpeg_propagate_error(err, dc);
+  }
+
+DONE:
+  _openslide_jpeg_decompress_destroy(dc);
+
+  return result;
+}
+
 bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                TIFF *tiff,
                                uint32_t *dest,
@@ -197,10 +272,47 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
   // set directory
   SET_DIR_OR_FAIL(tiff, tiffl->dir);
 
-  // read tile
-  return tiff_read_region(tiff, dest,
-                          tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
-                          tiffl->tile_w, tiffl->tile_h, err);
+  if (tiffl->tile_read_direct) {
+    // Fast path: read raw data, decode through libjpeg
+    // Reading through tiff_read_region() reformats pixel data in three
+    // passes: libjpeg converts from planar to R G B, libtiff converts
+    // to BGRA, we convert to ARGB.  If we can bypass libtiff when
+    // decoding JPEG tiles, we can reduce this to one optimized pass in
+    // libjpeg-turbo.
+
+    // read tables
+    void *tables;
+    uint32_t tables_len;
+    if (!TIFFGetField(tiff, TIFFTAG_JPEGTABLES, &tables_len, &tables)) {
+      // no separate tables
+      tables = NULL;
+      tables_len = 0;
+    }
+
+    // read data
+    void *buf;
+    int32_t buflen;
+    if (!_openslide_tiff_read_tile_data(tiffl, tiff,
+                                        &buf, &buflen,
+                                        tile_col, tile_row,
+                                        err)) {
+      return false;
+    }
+
+    // decompress
+    bool ret = decode_jpeg(buf, buflen, tables, tables_len,
+                           tiffl->photometric == PHOTOMETRIC_YCBCR ? JCS_YCbCr : JCS_RGB,
+                           dest,
+                           tiffl->tile_w, tiffl->tile_h,
+                           err);
+    g_free(buf);
+    return ret;
+  } else {
+    // Fallback: read tile through libtiff
+    return tiff_read_region(tiff, dest,
+                            tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
+                            tiffl->tile_w, tiffl->tile_h, err);
+  }
 }
 
 bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
