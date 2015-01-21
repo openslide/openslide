@@ -1,5 +1,7 @@
 base: Generic-TIFF/CMU-1.tiff
-error: "^Not a JPEG file: starts with 0xfe 0xd8$"
+# Older libjpeg repeats the message multiple times, sometimes prefixed
+# with "JPEGLib: "
+error: "Not a JPEG file: starts with 0xfe 0xd8"
 slide: CMU-1.tiff
 success: false
 vendor: generic-tiff
