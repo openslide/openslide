@@ -47,17 +47,23 @@ static void make_ycbcr_tables(FILE *f) {
   fprintf(f, "\n};\n\n");
 
   // G
-  fprintf(f, "const int16_t _openslide_G_CbCr[256][256] = {");
+  // Store precursors in fixed point, scaled up by 16 bits.
+  // At runtime we add the precursors and right-shift by 16.
+  // We add 0.5 to one precursor to precalculate rounding.
+  fprintf(f, "const int32_t _openslide_G_Cb[256] = {");
   for (int i = 0; i < 256; i++) {
-    fprintf(f, "\n  {");
-    for (int j = 0; j < 256; j++) {
-      if (!(j % 10)) {
-        fprintf(f, "\n   ");
-      }
-      fprintf(f, "%5d,",
-              (int) round(-0.34414 * (i - 128) - 0.71414 * (j - 128)));
+    if (!(i % 5)) {
+      fprintf(f, "\n ");
     }
-    fprintf(f, "\n  },");
+    fprintf(f, "%9d,", (int) round((1 << 16) * (0.5 - 0.34414 * (i - 128))));
+  }
+  fprintf(f, "\n};\n\n");
+  fprintf(f, "const int32_t _openslide_G_Cr[256] = {");
+  for (int i = 0; i < 256; i++) {
+    if (!(i % 5)) {
+      fprintf(f, "\n ");
+    }
+    fprintf(f, "%9d,", (int) round((1 << 16) * -0.71414 * (i - 128)));
   }
   fprintf(f, "\n};\n\n");
 

@@ -328,7 +328,8 @@ bool _openslide_debug(enum _openslide_debug_flag flag);
 /* Tables */
 // YCbCr -> RGB chroma contributions
 extern const int16_t _openslide_R_Cr[256];
-extern const int16_t _openslide_G_CbCr[256][256];
+extern const int32_t _openslide_G_Cb[256];
+extern const int32_t _openslide_G_Cr[256];
 extern const int16_t _openslide_B_Cb[256];
 
 // deprecated prefetch stuff (maybe we'll undeprecate it someday),

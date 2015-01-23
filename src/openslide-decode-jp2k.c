@@ -79,7 +79,7 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
         uint8_t c1 = comps[1].data[c1_row_base + (x / 2)];
         uint8_t c2 = comps[2].data[c2_row_base + (x / 2)];
         int16_t R_chroma = _openslide_R_Cr[c2];
-        int16_t G_chroma = _openslide_G_CbCr[c1][c2];
+        int16_t G_chroma = (_openslide_G_Cb[c1] + _openslide_G_Cr[c2]) >> 16;
         int16_t B_chroma = _openslide_B_Cb[c1];
         write_pixel_ycbcr(dest++, c0, R_chroma, G_chroma, B_chroma);
         c0 = comps[0].data[c0_row_base + x + 1];
@@ -90,7 +90,7 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
         uint8_t c1 = comps[1].data[c1_row_base + (x / 2)];
         uint8_t c2 = comps[2].data[c2_row_base + (x / 2)];
         int16_t R_chroma = _openslide_R_Cr[c2];
-        int16_t G_chroma = _openslide_G_CbCr[c1][c2];
+        int16_t G_chroma = (_openslide_G_Cb[c1] + _openslide_G_Cr[c2]) >> 16;
         int16_t B_chroma = _openslide_B_Cb[c1];
         write_pixel_ycbcr(dest++, c0, R_chroma, G_chroma, B_chroma);
       }
@@ -107,7 +107,7 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
         uint8_t c1 = comps[1].data[c1_row_base + (x / c1_sub_x)];
         uint8_t c2 = comps[2].data[c2_row_base + (x / c2_sub_x)];
         int16_t R_chroma = _openslide_R_Cr[c2];
-        int16_t G_chroma = _openslide_G_CbCr[c1][c2];
+        int16_t G_chroma = (_openslide_G_Cb[c1] + _openslide_G_Cr[c2]) >> 16;
         int16_t B_chroma = _openslide_B_Cb[c1];
         write_pixel_ycbcr(dest++, c0, R_chroma, G_chroma, B_chroma);
       }
