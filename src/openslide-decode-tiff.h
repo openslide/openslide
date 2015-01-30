@@ -39,6 +39,7 @@ struct _openslide_tiff_level {
   int64_t tiles_down;
 
   bool tile_read_direct;
+  gint warned_read_indirect;
   uint16_t photometric;
 };
 

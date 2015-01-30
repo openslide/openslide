@@ -309,6 +309,9 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
     return ret;
   } else {
     // Fallback: read tile through libtiff
+    _openslide_warn_once(&tiffl->warned_read_indirect,
+                         "Using slow libtiff read path for directory %d",
+                         tiffl->dir);
     return tiff_read_region(tiff, dest,
                             tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
                             tiffl->tile_w, tiffl->tile_h, err);

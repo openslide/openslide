@@ -122,6 +122,7 @@ static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
     alpha_extensions = true;
   } else {
     g_clear_error(&jerr->err);
+    _openslide_warn("Optimized libjpeg color space not available");
   }
 
   jpeg_destroy_compress(cinfo);

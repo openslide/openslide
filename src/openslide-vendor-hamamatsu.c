@@ -1548,6 +1548,11 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
   }
 
+  // warn if we rejected the optimisation file
+  if (!optimisation_file) {
+    _openslide_warn("Bad or missing optimisation file");
+  }
+
   // create levels: base image + map
   level_count = 2;
   levels = g_new0(struct jpeg_level *, level_count);
@@ -2372,6 +2377,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         if (jp->unreliable_mcu_starts == NULL) {
           // no marker positions; scan for them in the background
           //g_debug("enabling restart marker thread for directory %"PRId64, dir);
+          _openslide_warn("Bad or missing MCU starts for directory %"PRId64, dir);
           restart_marker_scan = true;
         }
       }

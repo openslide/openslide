@@ -307,11 +307,16 @@ enum _openslide_debug_flag {
   OPENSLIDE_DEBUG_DETECTION,
   OPENSLIDE_DEBUG_JPEG_MARKERS,
   OPENSLIDE_DEBUG_TILES,
+  OPENSLIDE_DEBUG_WARNINGS,
 };
 
 void _openslide_debug_init(void);
 
 bool _openslide_debug(enum _openslide_debug_flag flag);
+
+#define _openslide_warn(...) _openslide_warn_once(NULL, __VA_ARGS__)
+
+void _openslide_warn_once(gint *warned_flag, const char *str, ...) G_GNUC_PRINTF(2, 3);
 
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"

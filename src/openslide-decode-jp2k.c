@@ -98,6 +98,13 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
 
   } else if (space == OPENSLIDE_JP2K_YCBCR) {
     // Slow fallback
+    static gint warned_slowpath_ycbcr;
+    _openslide_warn_once(&warned_slowpath_ycbcr,
+                         "Decoding YCbCr JP2K image via slow fallback, "
+                         "subsamples x %d-%d-%d y %d-%d-%d",
+                         c0_sub_x, c1_sub_x, c2_sub_x,
+                         c0_sub_y, c1_sub_y, c2_sub_y);
+
     for (int32_t y = 0; y < h; y++) {
       int32_t c0_row_base = (y / c0_sub_y) * comps[0].w;
       int32_t c1_row_base = (y / c1_sub_y) * comps[1].w;
@@ -131,6 +138,13 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
 
   } else if (space == OPENSLIDE_JP2K_RGB) {
     // Slow fallback
+    static gint warned_slowpath_rgb;
+    _openslide_warn_once(&warned_slowpath_rgb,
+                         "Decoding RGB JP2K image via slow fallback, "
+                         "subsamples x %d-%d-%d y %d-%d-%d",
+                         c0_sub_x, c1_sub_x, c2_sub_x,
+                         c0_sub_y, c1_sub_y, c2_sub_y);
+
     for (int32_t y = 0; y < h; y++) {
       int32_t c0_row_base = (y / c0_sub_y) * comps[0].w;
       int32_t c1_row_base = (y / c1_sub_y) * comps[1].w;

@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -24,6 +24,7 @@
 #include "openslide-private.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <math.h>
 #include <errno.h>
@@ -48,6 +49,8 @@ static const struct debug_option {
   {"jpeg-markers", OPENSLIDE_DEBUG_JPEG_MARKERS,
    "verify Hamamatsu restart markers"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
+  {"warnings", OPENSLIDE_DEBUG_WARNINGS,
+   "log non-fatal but unexpected conditions"},
   {NULL, 0, NULL}
 };
 
@@ -350,4 +353,16 @@ void _openslide_debug_init(void) {
 
 bool _openslide_debug(enum _openslide_debug_flag flag) {
   return !!(debug_flags & (1 << flag));
+}
+
+void _openslide_warn_once(gint *warned_flag, const char *str, ...) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_WARNINGS)) {
+    if (warned_flag == NULL ||
+        g_atomic_int_compare_and_exchange(warned_flag, 0, 1)) {
+      va_list ap;
+      va_start(ap, str);
+      g_logv(G_LOG_DOMAIN, G_LOG_LEVEL_MESSAGE, str, ap);
+      va_end(ap);
+    }
+  }
 }

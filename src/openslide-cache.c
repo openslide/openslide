@@ -63,6 +63,8 @@ struct _openslide_cache {
 
   int capacity;
   int total_size;
+
+  gint warned_overlarge_entry;
 };
 
 // eviction
@@ -212,6 +214,9 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   if (size_in_bytes > cache->capacity) {
     //g_debug("refused %p", entry);
     g_mutex_unlock(cache->mutex);
+    _openslide_warn_once(&cache->warned_overlarge_entry,
+                         "Rejecting overlarge cache entry of size %d bytes",
+                         size_in_bytes);
     return;
   }
 
