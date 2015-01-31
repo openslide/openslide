@@ -48,9 +48,9 @@ static const struct debug_option {
   {"detection", OPENSLIDE_DEBUG_DETECTION, "log format detection errors"},
   {"jpeg-markers", OPENSLIDE_DEBUG_JPEG_MARKERS,
    "verify Hamamatsu restart markers"},
+  {"performance", OPENSLIDE_DEBUG_PERFORMANCE,
+   "log conditions causing poor performance"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
-  {"warnings", OPENSLIDE_DEBUG_WARNINGS,
-   "log non-fatal but unexpected conditions"},
   {NULL, 0, NULL}
 };
 
@@ -355,8 +355,9 @@ bool _openslide_debug(enum _openslide_debug_flag flag) {
   return !!(debug_flags & (1 << flag));
 }
 
-void _openslide_warn_once(gint *warned_flag, const char *str, ...) {
-  if (_openslide_debug(OPENSLIDE_DEBUG_WARNINGS)) {
+void _openslide_performance_warn_once(gint *warned_flag,
+                                      const char *str, ...) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_PERFORMANCE)) {
     if (warned_flag == NULL ||
         g_atomic_int_compare_and_exchange(warned_flag, 0, 1)) {
       va_list ap;
