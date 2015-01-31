@@ -2,7 +2,7 @@
 #
 # OpenSlide, a library for reading whole slide image files
 #
-# Copyright (c) 2012-2014 Carnegie Mellon University
+# Copyright (c) 2012-2015 Carnegie Mellon University
 # All rights reserved.
 #
 # OpenSlide is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #
 
 from ConfigParser import RawConfigParser
-from contextlib import closing
+from contextlib import closing, contextmanager
 import filecmp
 import fnmatch
 from hashlib import sha256
@@ -550,12 +550,12 @@ def run(pattern='*'):
         sys.exit(1)
 
 
-@_command
-def coverage(outfile):
-    '''Unpack and run all tests and write coverage report to outfile.'''
-    # We have to rebuild the source in order to do profiling.  To minimize
-    # collateral damage, we unpack the dist tarball into a temp directory and
-    # build there.
+@contextmanager
+def _rebuild(cflags):
+    '''Context manager: rebuild the source with the specified CFLAGS and
+    yield to the caller to do profiling.'''
+    # To minimize collateral damage, unpack the dist tarball into a temp
+    # directory and build there.
 
     top_builddir = os.path.dirname('!!BUILDDIR!!')
     prevdir = os.getcwd()
@@ -573,36 +573,44 @@ def coverage(outfile):
     os.unlink(tarpath)
     os.chdir('openslide-!!VERSION!!')
 
-    # Build with profiling enabled
-    subprocess.check_call(['./configure',
-            'CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage'])
+    # Build with specified CFLAGS
+    subprocess.check_call(['./configure', 'CFLAGS=' + cflags])
     subprocess.check_call(['make'])
 
-    # Run tests
-    _run_all(testdir='test')
-
-    # Generate coverage reports
-    for dirpath, dirnames, filenames in os.walk('src'):
-        paths = [os.path.join(dirpath, name)
-                for name in fnmatch.filter(sorted(filenames), '*.gcda')]
-        if paths:
-            subprocess.check_call(['gcov', '-o', dirpath] + paths)
-
-    # Record unexecuted lines
-    proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
-            fnmatch.filter(sorted(os.listdir('.')), '*.gcov'),
-            stdout=subprocess.PIPE)
-    report, _ = proc.communicate()
-    if proc.returncode:
-        raise IOError('Process returned exit status %d' % proc.returncode)
-    report = '\n'.join(l.replace('.c.gcov', '.c', 1)
-            for l in report.split('\n'))
-    os.chdir(prevdir)
-    with open(outfile, 'w') as fh:
-        fh.write(report)
+    # Let the caller run, passing it the directory we came from.
+    # Intentionally don't clean up tempdir on exception.
+    yield prevdir
 
     # Remove temporary directory
+    os.chdir(prevdir)
     rmtree(tempdir)
+
+
+@_command
+def coverage(outfile):
+    '''Unpack and run all tests and write coverage report to outfile.'''
+    with _rebuild('-O0 -g -fprofile-arcs -ftest-coverage') as basedir:
+        # Run tests
+        _run_all(testdir='test')
+
+        # Generate coverage reports
+        for dirpath, dirnames, filenames in os.walk('src'):
+            paths = [os.path.join(dirpath, name)
+                    for name in fnmatch.filter(sorted(filenames), '*.gcda')]
+            if paths:
+                subprocess.check_call(['gcov', '-o', dirpath] + paths)
+
+        # Record unexecuted lines
+        proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
+                fnmatch.filter(sorted(os.listdir('.')), '*.gcov'),
+                stdout=subprocess.PIPE)
+        report, _ = proc.communicate()
+        if proc.returncode:
+            raise IOError('Process returned exit status %d' % proc.returncode)
+        report = '\n'.join(l.replace('.c.gcov', '.c', 1)
+                for l in report.split('\n'))
+        with open(os.path.join(basedir, outfile), 'w') as fh:
+            fh.write(report)
 
 
 @_command
