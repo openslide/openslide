@@ -92,7 +92,7 @@ noinst_HEADERS = \
 
 
 noinst_PROGRAMS = test/test test/try_open test/parallel test/query \
-	test/extended test/mosaic
+	test/extended test/mosaic test/profile
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
@@ -117,6 +117,9 @@ test_extended_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 test_mosaic_CPPFLAGS = $(GLIB2_CFLAGS) $(CAIRO_CFLAGS) -I$(top_srcdir)/src
 test_mosaic_LDADD = src/libopenslide.la $(GLIB2_LIBS) $(CAIRO_LIBS)
+
+test_profile_CPPFLAGS = $(GLIB2_CFLAGS) $(VALGRIND_CFLAGS) -I$(top_srcdir)/src
+test_profile_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink

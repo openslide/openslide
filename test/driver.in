@@ -35,7 +35,7 @@ import struct
 import subprocess
 import sys
 import tarfile
-from tempfile import mkdtemp, TemporaryFile
+from tempfile import mkdtemp, TemporaryFile, NamedTemporaryFile
 import textwrap
 from time import time as curtime
 from urlparse import urljoin
@@ -662,6 +662,29 @@ def time(pattern='*'):
         if proc.returncode or err:
             out = 'failed'
         print '%-40s %10s' % (testname, out.strip())
+
+
+@_command
+def profile(pattern='*', level=0):
+    '''Profile openslide_read_region() on the specified level for all
+    successful primary tests matching the specified pattern.'''
+    env = os.environ.copy()
+    env.update(
+        G_MESSAGES_DEBUG='',
+        OPENSLIDE_DEBUG='performance',
+    )
+    line = '#' * 79
+    for testname, slidefile in _successful_primary_tests(pattern):
+        print '%s\n# %s\n%s\n' % (line, testname, line)
+        with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
+            args = ['!!BUILDDIR!!/../libtool', '--mode=execute',
+                    'valgrind', '--quiet', '--error-exitcode=3',
+                    '--tool=callgrind', '--callgrind-out-file=' + fh.name,
+                    '--instr-atstart=no',
+                    '!!BUILDDIR!!/profile', slidefile, str(level)]
+            if subprocess.call(args, env=env) == 0:
+                subprocess.check_call(['callgrind_annotate',
+                        '--threshold=80', fh.name])
 
 
 @_command

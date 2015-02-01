@@ -34,7 +34,8 @@ If you want to run the test suite, you will need PyYAML, python-requests,
 xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
 at least one installed font, and > 120 GB of disk space.  Valgrind mode
 requires Valgrind, plus debug symbols for library dependencies (particularly
-glib2) and Fontconfig.  Coverage mode requires gcov and Doxygen.
+glib2) and Fontconfig.  Profile mode requires Valgrind.  Coverage mode
+requires gcov and Doxygen.
 
 
 Features

@@ -42,6 +42,7 @@ Makefile.in
 /test/extended
 /test/mosaic
 /test/parallel
+/test/profile
 /test/query
 /test/test
 /test/try_open
