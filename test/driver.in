@@ -633,18 +633,23 @@ def mosaic(outfile):
             native_path(outfile)])
 
 
-@_command
-def time(pattern='*'):
-    '''Time openslide_open() for all successful primary tests matching the
-    specified pattern.'''
-    tests = _list_tests(pattern)
-    for testname in tests:
+def _successful_primary_tests(pattern='*'):
+    '''Yield testname and slide path for each successful primary test.'''
+    for testname in _list_tests(pattern):
         conf = _load_test_config(testname)
         if (not conf.get('primary', False) or not conf['success']
                 or not _features_available(conf)):
             continue
         _unpack_one(testname)
         slidefile = os.path.join(WORKROOT, testname, conf['slide'])
+        yield testname, slidefile
+
+
+@_command
+def time(pattern='*'):
+    '''Time openslide_open() for all successful primary tests matching the
+    specified pattern.'''
+    for testname, slidefile in _successful_primary_tests(pattern):
         proc = _launch_test('try_open', slidefile, args=['-t'],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = proc.communicate()
