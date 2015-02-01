@@ -1545,12 +1545,11 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     } else if (optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
       optimisation_file = NULL;
+      // complain if this happens before we reach the map file
+      if (i < num_jpegs - 1) {
+        _openslide_performance_warn("Bad optimisation file");
+      }
     }
-  }
-
-  // warn if we rejected the optimisation file
-  if (!optimisation_file) {
-    _openslide_performance_warn("Bad or missing optimisation file");
   }
 
   // create levels: base image + map
@@ -2029,6 +2028,9 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       g_free(optimisation_filename);
     } else {
       // g_debug("Optimisation file key not present");
+    }
+    if (!optimisation_file) {
+      _openslide_performance_warn("Missing optimisation file");
     }
 
     // do all the jpeg stuff
