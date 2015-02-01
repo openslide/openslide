@@ -165,31 +165,36 @@ def _is_bigtiff(path):
         return False
 
 
-def _launch_test(test, slidefile, valgrind=False, testdir=None, debug=[],
-        args=[], **kwargs):
+def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
+        testdir=None, debug=[], args=[], **kwargs):
     '''Start the specified test from the testdir directory against the
-    specified slide, running under Valgrind if requested.  debug options are
-    passed in OPENSLIDE_DEBUG.  args are appended to the command line.
-    kwargs are passed to the Popen constructor.  Return the Popen instance.'''
+    specified slide, running under Valgrind if requested.  If extra_checks
+    is False, turn off debug instrumentation that would invalidate benchmark
+    results.  debug options are passed in OPENSLIDE_DEBUG.  args are
+    appended to the command line.  kwargs are passed to the Popen
+    constructor.  Return the Popen instance.'''
 
     if testdir is None:
         testdir = '!!BUILDDIR!!'
     env = os.environ.copy()
     env.update(
-        G_DEBUG='gc-friendly',
         G_MESSAGES_DEBUG='',
-        G_SLICE='always-malloc',
-        MALLOC_CHECK_='1',
         OPENSLIDE_DEBUG=','.join(debug),
         GIO_USE_VFS='local',
     )
+    if extra_checks:
+        env.update(
+            G_DEBUG='gc-friendly',
+            G_SLICE='always-malloc',
+            MALLOC_CHECK_='1',
+        )
     args = [os.path.join(testdir, test), native_path(slidefile)] + args
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--leak-check=full', '--num-callers=30'] + args
-    else:
+    elif extra_checks:
         # debug-blocks retains pointers to freed slices, so don't use it
         # with Valgrind
         env['G_SLICE'] += ',debug-blocks'
@@ -651,7 +656,8 @@ def time(pattern='*'):
     specified pattern.'''
     for testname, slidefile in _successful_primary_tests(pattern):
         proc = _launch_test('try_open', slidefile, args=['-t'],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                extra_checks=False, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
