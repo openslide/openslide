@@ -26,6 +26,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-decode-sqlite.c \
 	src/openslide-decode-tiff.c \
 	src/openslide-decode-tifflike.c \
+	src/openslide-decode-dicom.c \
 	src/openslide-decode-xml.c \
 	src/openslide-error.c \
 	src/openslide-grid.c \
@@ -35,6 +36,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-util.c \
 	src/openslide-vendor-aperio.c \
 	src/openslide-vendor-generic-tiff.c \
+	src/openslide-vendor-dicom.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-vendor-leica.c \
 	src/openslide-vendor-mirax.c \
