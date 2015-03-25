@@ -358,6 +358,7 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 #define _OPENSLIDE_POISON(replacement) error__use_ ## replacement ## _instead
 #define fopen _OPENSLIDE_POISON(_openslide_fopen)
 #define fseek _OPENSLIDE_POISON(fseeko)
+#define ftell _OPENSLIDE_POISON(ftello)
 #define strtod _OPENSLIDE_POISON(_openslide_parse_double)
 #define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double_)
 #define sqlite3_open _OPENSLIDE_POISON(_openslide_sqlite_open)
