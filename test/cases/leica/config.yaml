@@ -5,5 +5,6 @@ vendor: leica
 requires: [libtiff-4]
 primary: true
 properties:
+  leica.barcode: 04050629C
   openslide.quickhash-1: f600ae1d83abaa21b6fda9284ff35a51d7031f60854b5674fac88c8ac6d66298
   openslide.vendor: leica

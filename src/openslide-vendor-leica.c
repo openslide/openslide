@@ -429,9 +429,19 @@ static struct collection *parse_xml_description(const char *xml,
   collection->images = g_ptr_array_new();
 
   // Get barcode as stored in 2010/10/01 namespace
-  collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
-  if (!collection->barcode) {
-    // Fall back to 2010/03/10 namespace
+  char *barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
+  if (barcode) {
+    // Decode Base64
+    gsize len;
+    void *decoded = g_base64_decode(barcode, &len);
+    // null-terminate
+    collection->barcode = g_realloc(decoded, len + 1);
+    collection->barcode[len] = 0;
+    g_free(barcode);
+  } else {
+    // Fall back to 2010/03/10 namespace.  It's not clear whether this
+    // namespace also Base64-encodes the barcode, so we avoid performing
+    // a transformation that may not be correct.
     collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/@barcode");
   }
 
