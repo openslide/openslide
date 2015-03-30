@@ -51,8 +51,8 @@ static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_XML_ISCAN[] = "iScan";
 static const char INITIAL_XML_ALT_ROOT[] = "Metadata";
-
 static const char ATTR_Z_LAYERS[] = "Z-layers";
+
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
 static const char ATTR_WIDTH[] = "Width";
 static const char ATTR_HEIGHT[] = "Height";
@@ -352,14 +352,17 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-static bool process_iscan_metadata(openslide_t *osr, xmlXPathContext *ctx,
-                                   GError **err) {
-  // get node
-  xmlNode *iscan =
-    _openslide_xml_xpath_get_node(ctx, "/EncodeInfo/SlideInfo/iScan");
+static bool parse_initial_xml(openslide_t *osr, const char *xml,
+                              GError **err) {
+  // parse
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  if (!doc) {
+    return false;
+  }
+
+  // get iScan element
+  xmlNode *iscan = get_initial_xml_iscan(doc, err);
   if (!iscan) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Missing or duplicate iScan element");
     goto FAIL;
   }
 
@@ -391,9 +394,12 @@ static bool process_iscan_metadata(openslide_t *osr, xmlXPathContext *ctx,
   _openslide_duplicate_double_prop(osr, "ventana.ScanRes",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
+  // clean up
+  xmlFreeDoc(doc);
   return true;
 
 FAIL:
+  xmlFreeDoc(doc);
   return false;
 }
 
@@ -433,8 +439,7 @@ FAIL:
   return false;
 }
 
-static struct slide_info *parse_level0_xml(openslide_t *osr,
-                                           const char *xml,
+static struct slide_info *parse_level0_xml(const char *xml,
                                            int64_t tiff_tile_width,
                                            int64_t tiff_tile_height,
                                            GError **err) {
@@ -455,11 +460,6 @@ static struct slide_info *parse_level0_xml(openslide_t *osr,
     goto FAIL;
   }
   ctx = _openslide_xml_xpath_create(doc);
-
-  // read iScan element
-  if (!process_iscan_metadata(osr, ctx, err)) {
-    goto FAIL;
-  }
 
   // query AOI metadata
   info_result =
@@ -753,6 +753,16 @@ static bool ventana_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
+  // parse initial XML
+  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
+                                                   err);
+  if (!xml) {
+    goto FAIL;
+  }
+  if (!parse_initial_xml(osr, xml, err)) {
+    goto FAIL;
+  }
+
   // walk directories
   int64_t next_level = 0;
   double prev_magnification = INFINITY;
@@ -803,13 +813,12 @@ static bool ventana_open(openslide_t *osr, const char *filename,
           goto FAIL;
         }
         // get XML
-        const char *xml =
-          _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
+        xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
         if (!xml) {
           goto FAIL;
         }
         // parse
-        slide = parse_level0_xml(osr, xml, tiffl.tile_w, tiffl.tile_h, err);
+        slide = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
         if (!slide) {
           goto FAIL;
         }
