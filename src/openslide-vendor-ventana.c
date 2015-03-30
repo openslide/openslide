@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
  *  All rights reserved.
  *
@@ -41,10 +41,6 @@
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 
-static const char LEVEL0_IMAGEDESCRIPTION_MAGIC[] = "level=0";
-static const char LEVEL0_XML_MAGIC[] = "iScan";
-static const char LEVEL0_XML_ROOT[] = "EncodeInfo";
-
 static const char LEVEL_DESCRIPTION_TOKEN[] = "level=";
 static const char MACRO_DESCRIPTION[] = "Label Image";
 static const char MACRO_DESCRIPTION2[] = "Label_Image";
@@ -52,6 +48,9 @@ static const char THUMBNAIL_DESCRIPTION[] = "Thumbnail";
 
 static const char LEVEL_KEY[] = "level";
 static const char MAGNIFICATION_KEY[] = "mag";
+
+static const char INITIAL_XML_ISCAN[] = "iScan";
+static const char INITIAL_XML_ALT_ROOT[] = "Metadata";
 
 static const char ATTR_Z_LAYERS[] = "Z-layers";
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
@@ -260,6 +259,30 @@ static const struct _openslide_ops ventana_ops = {
   .destroy = destroy,
 };
 
+static xmlNode *get_initial_xml_iscan(xmlDoc *doc, GError **err) {
+  xmlNode *root = xmlDocGetRootElement(doc);
+  if (!xmlStrcmp(root->name, BAD_CAST INITIAL_XML_ISCAN)) {
+    // /iScan
+    return root;
+
+  } else if (!xmlStrcmp(root->name, BAD_CAST INITIAL_XML_ALT_ROOT)) {
+    for (xmlNode *node = root->children; node; node = node->next) {
+      if (!xmlStrcmp(node->name, BAD_CAST INITIAL_XML_ISCAN)) {
+        // /Metadata/iScan, found in some slides
+        return node;
+      }
+    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't find iScan element in initial XML");
+    return false;
+
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unrecognized root tag in initial XML");
+    return false;
+  }
+}
+
 static bool ventana_detect(const char *filename G_GNUC_UNUSED,
                            struct _openslide_tifflike *tl,
                            GError **err) {
@@ -270,34 +293,17 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
 
-  // find the TIFF directory for level 0
-  int64_t dir_count = _openslide_tifflike_get_directory_count(tl);
-  int64_t dir;
-  for (dir = 0; dir < dir_count; dir++) {
-    const char *image_desc =
-      _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_IMAGEDESCRIPTION, NULL);
-    if (image_desc && strstr(image_desc, LEVEL0_IMAGEDESCRIPTION_MAGIC)) {
-      // found it
-      break;
-    }
-  }
-  if (dir == dir_count) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a Ventana file");
-    return false;
-  }
-
   // read XMLPacket
-  const char *xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET,
+  const char *xml = _openslide_tifflike_get_buffer(tl, 0, TIFFTAG_XMLPACKET,
                                                    err);
   if (!xml) {
     return false;
   }
 
   // check for plausible XML string before parsing
-  if (!strstr(xml, LEVEL0_XML_MAGIC)) {
+  if (!strstr(xml, INITIAL_XML_ISCAN)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%s not in XMLPacket", LEVEL0_XML_MAGIC);
+                "%s not in XMLPacket", INITIAL_XML_ISCAN);
     return false;
   }
 
@@ -307,11 +313,8 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
 
-  // check root tag name
-  xmlNode *root = xmlDocGetRootElement(doc);
-  if (xmlStrcmp(root->name, BAD_CAST LEVEL0_XML_ROOT)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Root tag not %s", LEVEL0_XML_ROOT);
+  // check for iScan element
+  if (!get_initial_xml_iscan(doc, err)) {
     xmlFreeDoc(doc);
     return false;
   }
