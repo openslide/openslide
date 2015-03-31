@@ -99,8 +99,8 @@ struct level {
   struct _openslide_grid *grid;
 };
 
-// structs used during open
-struct slide_info {
+// structs used during BIF open
+struct bif {
   struct area **areas;
   int32_t num_areas;
 
@@ -323,20 +323,20 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
-static void slide_info_free(struct slide_info *slide) {
-  if (!slide) {
+static void bif_free(struct bif *bif) {
+  if (!bif) {
     return;
   }
-  for (int32_t i = 0; i < slide->num_areas; i++) {
-    struct area *area = slide->areas[i];
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    struct area *area = bif->areas[i];
     for (int64_t j = 0; j < area->tile_count; j++) {
       g_slice_free(struct tile, area->tiles[j]);
     }
     g_free(area->tiles);
     g_slice_free(struct area, area);
   }
-  g_free(slide->areas);
-  g_slice_free(struct slide_info, slide);
+  g_free(bif->areas);
+  g_slice_free(struct bif, bif);
 }
 
 static int width_compare(gconstpointer a, gconstpointer b) {
@@ -439,10 +439,10 @@ FAIL:
   return false;
 }
 
-static struct slide_info *parse_level0_xml(const char *xml,
-                                           int64_t tiff_tile_width,
-                                           int64_t tiff_tile_height,
-                                           GError **err) {
+static struct bif *parse_level0_xml(const char *xml,
+                                    int64_t tiff_tile_width,
+                                    int64_t tiff_tile_height,
+                                    GError **err) {
   GPtrArray *area_array = g_ptr_array_new();
   xmlXPathContext *ctx = NULL;
   xmlXPathObject *info_result = NULL;
@@ -621,20 +621,20 @@ FAIL:
   }
 
   // create wrapper struct
-  struct slide_info *slide = g_slice_new0(struct slide_info);
-  slide->num_areas = area_array->len;
-  slide->areas = (struct area **) g_ptr_array_free(area_array, false);
-  slide->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
-  slide->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
-  //g_debug("advances: %g %g", slide->tile_advance_x, slide->tile_advance_y);
+  struct bif *bif = g_slice_new0(struct bif);
+  bif->num_areas = area_array->len;
+  bif->areas = (struct area **) g_ptr_array_free(area_array, false);
+  bif->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
+  bif->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
+  //g_debug("advances: %g %g", bif->tile_advance_x, bif->tile_advance_y);
 
   // free on failure
   if (!success) {
-    slide_info_free(slide);
-    slide = NULL;
+    bif_free(bif);
+    bif = NULL;
   }
 
-  return slide;
+  return bif;
 }
 
 static bool parse_level_info(const char *desc,
@@ -691,7 +691,7 @@ DONE:
 }
 
 static struct _openslide_grid *create_grid(openslide_t *osr,
-                                           struct slide_info *slide,
+                                           struct bif *bif,
                                            double downsample,
                                            int64_t tile_w, int64_t tile_h) {
   double subtile_w = tile_w / downsample;
@@ -699,12 +699,12 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
 
   struct _openslide_grid *grid =
     _openslide_grid_create_tilemap(osr,
-                                   slide->tile_advance_x / downsample,
-                                   slide->tile_advance_y / downsample,
+                                   bif->tile_advance_x / downsample,
+                                   bif->tile_advance_y / downsample,
                                    read_subtile, NULL);
 
-  for (int32_t i = 0; i < slide->num_areas; i++) {
-    struct area *area = slide->areas[i];
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    struct area *area = bif->areas[i];
     for (int64_t row = area->start_row;
          row < area->start_row + area->tiles_down; row++) {
       for (int64_t col = area->start_col;
@@ -721,22 +721,22 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
   return grid;
 }
 
-static void set_region_props(openslide_t *osr, struct slide_info *slide,
+static void set_region_props(openslide_t *osr, struct bif *bif,
                              struct level *level0) {
-  for (int32_t i = 0; i < slide->num_areas; i++) {
-    struct area *area = slide->areas[i];
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    struct area *area = bif->areas[i];
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
-                        g_strdup_printf("%"PRId64, (int64_t) (slide->tile_advance_x * area->start_col)));
+                        g_strdup_printf("%"PRId64, (int64_t) (bif->tile_advance_x * area->start_col)));
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, i),
-                        g_strdup_printf("%"PRId64, (int64_t) (slide->tile_advance_y * area->start_row)));
+                        g_strdup_printf("%"PRId64, (int64_t) (bif->tile_advance_y * area->start_row)));
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, i),
-                        g_strdup_printf("%"PRId64, (int64_t) ceil(slide->tile_advance_x * (area->tiles_across - 1) + level0->tiffl.tile_w)));
+                        g_strdup_printf("%"PRId64, (int64_t) ceil(bif->tile_advance_x * (area->tiles_across - 1) + level0->tiffl.tile_w)));
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, i),
-                        g_strdup_printf("%"PRId64, (int64_t) ceil(slide->tile_advance_y * (area->tiles_down - 1) + level0->tiffl.tile_h)));
+                        g_strdup_printf("%"PRId64, (int64_t) ceil(bif->tile_advance_y * (area->tiles_down - 1) + level0->tiffl.tile_h)));
   }
 }
 
@@ -744,7 +744,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
                          struct _openslide_tifflike *tl,
                          struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
-  struct slide_info *slide = NULL;
+  struct bif *bif = NULL;
 
   // open TIFF
   struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
@@ -818,8 +818,8 @@ static bool ventana_open(openslide_t *osr, const char *filename,
           goto FAIL;
         }
         // parse
-        slide = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
-        if (!slide) {
+        bif = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
+        if (!bif) {
           goto FAIL;
         }
       }
@@ -858,7 +858,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
         level0 = level_array->pdata[0];
       }
       l->base.downsample = downsample;
-      l->grid = create_grid(osr, slide,
+      l->grid = create_grid(osr, bif,
                             downsample,
                             tiffl->tile_w, tiffl->tile_h);
       // the format doesn't seem to record the level size, so make it
@@ -905,11 +905,11 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   // set region properties
   g_assert(level_array->len > 0);
   struct level *level0 = level_array->pdata[0];
-  set_region_props(osr, slide, level0);
+  set_region_props(osr, bif, level0);
 
-  // free slide info
-  slide_info_free(slide);
-  slide = NULL;
+  // free bif info
+  bif_free(bif);
+  bif = NULL;
 
   // set hash and TIFF properties
   struct level *top_level = level_array->pdata[level_array->len - 1];
@@ -944,8 +944,8 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   return true;
 
 FAIL:
-  // free slide info
-  slide_info_free(slide);
+  // free bif info
+  bif_free(bif);
   // free the level array
   if (level_array) {
     for (uint32_t n = 0; n < level_array->len; n++) {
