@@ -21,7 +21,7 @@
  */
 
 /*
- * Ventana (bif) support
+ * Ventana (bif/tif) support
  *
  * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
@@ -97,6 +97,7 @@ struct level {
   struct _openslide_level base;
   struct _openslide_tiff_level tiffl;
   struct _openslide_grid *grid;
+  int64_t subtiles_per_tile;
 };
 
 // structs used during BIF open
@@ -145,26 +146,24 @@ static bool read_subtile(openslide_t *osr,
                          cairo_t *cr,
                          struct _openslide_level *level,
                          int64_t subtile_col, int64_t subtile_row,
-                         void *subtile G_GNUC_UNUSED,
                          void *arg,
                          GError **err) {
   struct level *l = (struct level *) level;
   struct _openslide_tiff_level *tiffl = &l->tiffl;
   TIFF *tiff = arg;
-  const int64_t subtiles_per_tile = l->base.downsample;
   bool success = true;
 
   // tile size and coordinates
-  int64_t tile_col = subtile_col / subtiles_per_tile;
-  int64_t tile_row = subtile_row / subtiles_per_tile;
+  int64_t tile_col = subtile_col / l->subtiles_per_tile;
+  int64_t tile_row = subtile_row / l->subtiles_per_tile;
   int64_t tw = tiffl->tile_w;
   int64_t th = tiffl->tile_h;
 
   // subtile offset and size
-  double subtile_w = (double) tw / subtiles_per_tile;
-  double subtile_h = (double) th / subtiles_per_tile;
-  double subtile_x = subtile_col % subtiles_per_tile * subtile_w;
-  double subtile_y = subtile_row % subtiles_per_tile * subtile_h;
+  double subtile_w = (double) tw / l->subtiles_per_tile;
+  double subtile_h = (double) th / l->subtiles_per_tile;
+  double subtile_x = subtile_col % l->subtiles_per_tile * subtile_w;
+  double subtile_y = subtile_row % l->subtiles_per_tile * subtile_h;
 
   // get tile data, possibly from cache
   struct _openslide_cache_entry *cache_entry;
@@ -202,7 +201,7 @@ static bool read_subtile(openslide_t *osr,
 
   // if we are drawing a subtile, we must do an additional copy,
   // because cairo lacks source clipping
-  if (subtiles_per_tile > 1) {
+  if (l->subtiles_per_tile > 1) {
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(subtile_w),
                                                            ceil(subtile_h));
@@ -229,6 +228,20 @@ static bool read_subtile(openslide_t *osr,
   _openslide_cache_entry_unref(cache_entry);
 
   return success;
+}
+
+// read_subtile wrapper for BIF that drops the extra argument passed by
+// the tilemap grid
+static bool read_subtile_tilemap(openslide_t *osr,
+                                 cairo_t *cr,
+                                 struct _openslide_level *level,
+                                 int64_t subtile_col, int64_t subtile_row,
+                                 void *subtile G_GNUC_UNUSED,
+                                 void *arg,
+                                 GError **err) {
+  return read_subtile(osr, cr, level,
+                      subtile_col, subtile_row,
+                      arg, err);
 }
 
 static bool paint_region(openslide_t *osr, cairo_t *cr,
@@ -690,10 +703,10 @@ DONE:
   return success;
 }
 
-static struct _openslide_grid *create_grid(openslide_t *osr,
-                                           struct bif *bif,
-                                           double downsample,
-                                           int64_t tile_w, int64_t tile_h) {
+static struct _openslide_grid *create_bif_grid(openslide_t *osr,
+                                               struct bif *bif,
+                                               double downsample,
+                                               int64_t tile_w, int64_t tile_h) {
   double subtile_w = tile_w / downsample;
   double subtile_h = tile_h / downsample;
 
@@ -701,7 +714,7 @@ static struct _openslide_grid *create_grid(openslide_t *osr,
     _openslide_grid_create_tilemap(osr,
                                    bif->tile_advance_x / downsample,
                                    bif->tile_advance_y / downsample,
-                                   read_subtile, NULL);
+                                   read_subtile_tilemap, NULL);
 
   for (int32_t i = 0; i < bif->num_areas; i++) {
     struct area *area = bif->areas[i];
@@ -745,6 +758,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
                          struct _openslide_hash *quickhash1, GError **err) {
   GPtrArray *level_array = g_ptr_array_new();
   struct bif *bif = NULL;
+  GError *tmp_err = NULL;
 
   // open TIFF
   struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
@@ -807,19 +821,26 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
       // if first level, parse tile info
       if (level == 0) {
-        // get tile size
-        struct _openslide_tiff_level tiffl;
-        if (!_openslide_tiff_level_init(tiff, dir, NULL, &tiffl, err)) {
-          goto FAIL;
-        }
         // get XML
-        xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET, err);
-        if (!xml) {
-          goto FAIL;
-        }
-        // parse
-        bif = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
-        if (!bif) {
+        xml = _openslide_tifflike_get_buffer(tl, dir, TIFFTAG_XMLPACKET,
+                                             &tmp_err);
+        if (xml) {
+          // get tile size
+          struct _openslide_tiff_level tiffl;
+          if (!_openslide_tiff_level_init(tiff, dir, NULL, &tiffl, err)) {
+            goto FAIL;
+          }
+          // parse
+          bif = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
+          if (!bif) {
+            goto FAIL;
+          }
+        } else if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                                   OPENSLIDE_ERROR_NO_VALUE)) {
+          // Ventana TIFF (no AOIs or overlaps)
+          g_clear_error(&tmp_err);
+        } else {
+          g_propagate_error(err, tmp_err);
           goto FAIL;
         }
       }
@@ -848,7 +869,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
       if (!_openslide_tiff_level_init(tiff, dir,
-                                      NULL, tiffl,
+                                      &l->base, tiffl,
                                       err)) {
         g_slice_free(struct level, l);
         goto FAIL;
@@ -858,15 +879,29 @@ static bool ventana_open(openslide_t *osr, const char *filename,
         level0 = level_array->pdata[0];
       }
       l->base.downsample = downsample;
-      l->grid = create_grid(osr, bif,
-                            downsample,
-                            tiffl->tile_w, tiffl->tile_h);
-      // the format doesn't seem to record the level size, so make it
-      // large enough for all the pixels
-      double x, y, w, h;
-      _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
-      l->base.w = ceil(x + w);
-      l->base.h = ceil(y + h);
+      if (bif) {
+        l->grid = create_bif_grid(osr, bif,
+                                  downsample,
+                                  tiffl->tile_w, tiffl->tile_h);
+        l->subtiles_per_tile = downsample;
+        // the format doesn't seem to record the level size, so make it
+        // large enough for all the pixels
+        double x, y, w, h;
+        _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
+        l->base.w = ceil(x + w);
+        l->base.h = ceil(y + h);
+        // clear tile size hints set by _openslide_tiff_level_init()
+        l->base.tile_w = 0;
+        l->base.tile_h = 0;
+      } else {
+        l->grid = _openslide_grid_create_simple(osr,
+                                                tiffl->tiles_across,
+                                                tiffl->tiles_down,
+                                                tiffl->tile_w,
+                                                tiffl->tile_h,
+                                                read_subtile);
+        l->subtiles_per_tile = 1;
+      }
       //g_debug("level %"PRId64": magnification %g, downsample %g, size %"PRId64" %"PRId64, level, magnification, downsample, l->base.w, l->base.h);
 
       // add to array
@@ -902,10 +937,14 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   // sort tiled levels
   g_ptr_array_sort(level_array, width_compare);
 
-  // set region properties
+  // get level 0
   g_assert(level_array->len > 0);
   struct level *level0 = level_array->pdata[0];
-  set_region_props(osr, bif, level0);
+
+  // set region properties
+  if (bif) {
+    set_region_props(osr, bif, level0);
+  }
 
   // free bif info
   bif_free(bif);
