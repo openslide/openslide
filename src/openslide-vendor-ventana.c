@@ -291,7 +291,7 @@ static xmlNode *get_initial_xml_iscan(xmlDoc *doc, GError **err) {
 
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unrecognized root tag in initial XML");
+                "Unrecognized root element in initial XML");
     return false;
   }
 }
@@ -470,6 +470,7 @@ static struct bif *parse_level0_xml(const char *xml,
   // parse
   xmlDoc *doc = _openslide_xml_parse(xml, err);
   if (!doc) {
+    g_prefix_error(err, "Parsing level 0 XML: ");
     goto FAIL;
   }
   ctx = _openslide_xml_xpath_create(doc);
@@ -938,7 +939,11 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   g_ptr_array_sort(level_array, width_compare);
 
   // get level 0
-  g_assert(level_array->len > 0);
+  if (level_array->len == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No pyramid levels in slide");
+    goto FAIL;
+  }
   struct level *level0 = level_array->pdata[0];
 
   // set region properties

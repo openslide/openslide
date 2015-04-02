@@ -1,7 +1,5 @@
 base: Ventana/OS-2.bif
-error: "ventana: Could not parse XML"
+error: "^Parsing level 0 XML: Could not parse XML$"
 slide: OS-2.bif
 success: false
-debug:
-  - detection
 vendor: ventana

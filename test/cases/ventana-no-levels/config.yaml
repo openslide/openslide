@@ -1,7 +1,5 @@
 base: Ventana/OS-2.bif
-error: "ventana: Not a Ventana file"
+error: ^No pyramid levels in slide$
 slide: OS-2.bif
 success: false
-debug:
-  - detection
-vendor: generic-tiff
+vendor: ventana

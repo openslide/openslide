@@ -1,7 +1,5 @@
 base: Ventana/OS-2.bif
-error: "ventana: Root tag not EncodeInfo"
+error: ^Missing or inconsistent region metadata$
 slide: OS-2.bif
 success: false
-debug:
-  - detection
 vendor: ventana
