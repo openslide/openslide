@@ -58,6 +58,8 @@ static const char ATTR_WIDTH[] = "Width";
 static const char ATTR_HEIGHT[] = "Height";
 static const char ATTR_NUM_ROWS[] = "NumRows";
 static const char ATTR_NUM_COLS[] = "NumCols";
+static const char ATTR_POS_X[] = "Pos-X";
+static const char ATTR_POS_Y[] = "Pos-Y";
 static const char ATTR_ORIGIN_X[] = "OriginX";
 static const char ATTR_ORIGIN_Y[] = "OriginY";
 static const char ATTR_CONFIDENCE[] = "Confidence";
@@ -110,6 +112,8 @@ struct bif {
 };
 
 struct area {
+  int64_t x;
+  int64_t y;
   int64_t start_col;
   int64_t start_row;
   int64_t tiles_across;
@@ -531,7 +535,16 @@ static struct bif *parse_level0_xml(const char *xml,
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_COLS, area->tiles_across);
     PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_ROWS, area->tiles_down);
 
-    //g_debug("area %d: start %"PRId64" %"PRId64", count %"PRId64" %"PRId64, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down);
+    // get position
+    // it seems these are always whole numbers, but they are sometimes
+    // encoded as floating-point values
+    double x, y;
+    PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(info, ATTR_POS_X, x);
+    PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(info, ATTR_POS_Y, y);
+    area->x = x;
+    area->y = y;
+
+    //g_debug("area %d: start %"PRId64" %"PRId64", count %"PRId64" %"PRId64", pos %"PRId64" %"PRId64, i, area->start_col, area->start_row, area->tiles_across, area->tiles_down, area->x, area->y);
 
     // create tile structs
     area->tile_count = area->tiles_across * area->tiles_down;
@@ -642,6 +655,26 @@ FAIL:
   bif->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
   //g_debug("advances: %g %g", bif->tile_advance_x, bif->tile_advance_y);
 
+  // Fix area Y coordinates.  The Pos-Y read from the file is the distance
+  // from the bottom of the area to a point below all areas.
+  int64_t *heights = g_new(int64_t, bif->num_areas);
+  // find position of top of slide in coordinate plane of file
+  int64_t top = 0;
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    struct area *area = bif->areas[i];
+    heights[i] =
+      (area->tiles_down - 1) * bif->tile_advance_y + tiff_tile_height;
+    top = MAX(top, area->y + heights[i]);
+    //g_debug("area %d height %"PRId64, i, heights[i]);
+  }
+  //g_debug("top %"PRId64, top);
+  // convert Y coordinate of each area
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    struct area *area = bif->areas[i];
+    area->y = top - area->y - heights[i];
+  }
+  g_free(heights);
+
   // free on failure
   if (!success) {
     bif_free(bif);
@@ -719,13 +752,18 @@ static struct _openslide_grid *create_bif_grid(openslide_t *osr,
 
   for (int32_t i = 0; i < bif->num_areas; i++) {
     struct area *area = bif->areas[i];
+    double offset_x =
+      (area->x - area->start_col * bif->tile_advance_x) / downsample;
+    double offset_y =
+      (area->y - area->start_row * bif->tile_advance_y) / downsample;
+    //g_debug("ds %g area %d pos %"PRId64" %"PRId64" offset %g %g", downsample, i, area->x, area->y, offset_x, offset_y);
     for (int64_t row = area->start_row;
          row < area->start_row + area->tiles_down; row++) {
       for (int64_t col = area->start_col;
            col < area->start_col + area->tiles_across; col++) {
         _openslide_grid_tilemap_add_tile(grid,
                                          col, row,
-                                         0, 0,
+                                         offset_x, offset_y,
                                          subtile_w, subtile_h,
                                          NULL);
       }
