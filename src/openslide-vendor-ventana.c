@@ -51,7 +51,6 @@ static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_XML_ISCAN[] = "iScan";
 static const char INITIAL_XML_ALT_ROOT[] = "Metadata";
-static const char ATTR_Z_LAYERS[] = "Z-layers";
 
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
 static const char ATTR_WIDTH[] = "Width";
@@ -380,15 +379,6 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   // get iScan element
   xmlNode *iscan = get_initial_xml_iscan(doc, err);
   if (!iscan) {
-    goto FAIL;
-  }
-
-  // we don't know how to handle multiple Z layers
-  int64_t z_layers;
-  PARSE_INT_ATTRIBUTE_OR_FAIL(iscan, ATTR_Z_LAYERS, z_layers);
-  if (z_layers != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Slides with multiple Z layers are not supported");
     goto FAIL;
   }
 
