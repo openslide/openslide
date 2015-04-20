@@ -1,6 +1,29 @@
 Notable Changes in OpenSlide
 ============================
 
+Version 3.4.1, 2015-04-20
+ * New formats: Philips TIFF, Ventana TIFF
+ * Support OpenJPEG 2.1.0
+ * Improve performance of JPEG and JP2K decoding
+ * Add openslide.region[i].* properties
+ * Improve MATLAB compatibility
+ * Enable function deprecation warnings with MSVC
+ * Many portability fixes
+ * aperio: Detect OpenJPEG chroma subsampling breakage during open
+ * aperio: Fill in missing tiles with downsampled data
+ * aperio: Report MPP for slides scanned in locales with decimal comma
+ * hamamatsu: Support NDPI files > 4 GB
+ * hamamatsu: Properly detect NDPI slides produced by NDP.toolkit
+ * hamamatsu: Support VMS/VMU slides without a NoLayers key
+ * hamamatsu: Report MPP for VMS/VMU
+ * leica: Support slides with 2010/03/10 XML namespace
+ * leica: Base64-decode leica.barcode property in 2010/10/01 namespace
+ * sakura: Support slides with multiple focal planes
+ * sakura: Support slides without tile table
+ * ventana: Support slides with multiple focal planes
+ * ventana: Improve positioning of AOIs within level
+ * ventana: Fix failure to recognize macro image on some slides
+
 Version 3.4.0, 2014-01-25
  * Major internal restructuring
  * New formats: Hamamatsu NDPI, Sakura SVSLIDE, Ventana BIF (preliminary)
