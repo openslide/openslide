@@ -811,11 +811,10 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
   }
 
   // try to parse key file
-  GKeyFile *key_file = g_key_file_new();
-  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, err)) {
+  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                                                G_KEY_FILE_NONE, err);
+  if (!key_file) {
     g_prefix_error(err, "Can't read key file: ");
-    g_key_file_free(key_file);
     return false;
   }
 
@@ -1815,9 +1814,9 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   bool success = false;
 
   // first, see if it's a VMS/VMU file
-  GKeyFile *key_file = g_key_file_new();
-  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, err)) {
+  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                                                G_KEY_FILE_NONE, err);
+  if (!key_file) {
     g_prefix_error(err, "Can't load key file: ");
     goto DONE;
   }
@@ -2086,7 +2085,9 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     }
     g_free(image_filenames);
   }
-  g_key_file_free(key_file);
+  if (key_file) {
+    g_key_file_free(key_file);
+  }
 
   return success;
 }

@@ -70,9 +70,8 @@ void _openslide_int64_free(gpointer data) {
   g_slice_free(int64_t, data);
 }
 
-bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                              int32_t max_size, GKeyFileFlags flags,
-                              GError **err) {
+GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
+                                   GKeyFileFlags flags, GError **err) {
   char *buf = NULL;
 
   /* We load the whole key file into memory and parse it with
@@ -95,7 +94,7 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
 
   FILE *f = _openslide_fopen(filename, "rb", err);
   if (f == NULL) {
-    return false;
+    return NULL;
   }
 
   // get file size and check against maximum
@@ -143,17 +142,22 @@ bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
     offset = 3;
   }
 
-  bool result = g_key_file_load_from_data(key_file,
-                                          buf + offset, size - offset,
-                                          flags, err);
+  // parse
+  GKeyFile *key_file = g_key_file_new();
+  if (!g_key_file_load_from_data(key_file,
+                                 buf + offset, size - offset,
+                                 flags, err)) {
+    g_key_file_free(key_file);
+    goto FAIL;
+  }
   g_free(buf);
   fclose(f);
-  return result;
+  return key_file;
 
 FAIL:
   g_free(buf);
   fclose(f);
-  return false;
+  return NULL;
 }
 
 #undef fopen
