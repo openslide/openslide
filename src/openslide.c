@@ -62,6 +62,9 @@ static void __attribute__((constructor)) _openslide_init(void) {
   }
   // initialize GObject
   g_type_init();
+  // work around thread-safety problems with first g_key_file_new() call
+  // https://bugzilla.gnome.org/show_bug.cgi?id=748474
+  g_get_language_names();
   // init libxml2
   xmlInitParser();
   // parse debug options
