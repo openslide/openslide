@@ -28,11 +28,14 @@
 #ifndef WIN32
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 #endif
 
 #include <glib.h>
 #include <openslide.h>
 #include "test-common.h"
+
+#define MAX_LEAK_FD 128
 
 static void fail(const char *str, ...) {
   va_list ap;
@@ -95,7 +98,7 @@ static gpointer cloexec_thread(const gpointer prog) {
 }
 
 static void child_check_open_fds(void) {
-  for (int i = 3; i < 128; i++) {
+  for (int i = 3; i < MAX_LEAK_FD; i++) {
     gchar *path = get_fd_path(i);
     if (path != NULL) {
       printf("%s\n", path);
@@ -106,6 +109,14 @@ static void child_check_open_fds(void) {
 
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
+  // ensure any inherited FDs are not leaked to the child
+  for (int i = 3; i < MAX_LEAK_FD; i++) {
+    int flags = fcntl(i, F_GETFD);
+    if (flags != -1) {
+      fcntl(i, F_SETFD, flags | FD_CLOEXEC);
+    }
+  }
+
   g_atomic_int_set(&leak_test_running, 1);
   GThread *thr = g_thread_create(cloexec_thread, prog, TRUE, NULL);
   g_assert(thr != NULL);
