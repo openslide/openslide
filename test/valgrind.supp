@@ -46,3 +46,9 @@
     fun:FcPatternObjectInsertElt
     fun:FcPatternObjectAddWithBinding
 }
+{
+    Apparent false positive in FcGetPrgname()
+    Memcheck:Leak
+    ...
+    fun:FcGetPrgname
+}
