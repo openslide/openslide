@@ -170,10 +170,12 @@ AS_CASE([$host_os],
       # unknown
       AC_MSG_RESULT([unknown])
       AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
+      AC_DEFINE([NONATOMIC_CLOEXEC], [1], [Define to 1 if fopen() cannot atomically set FD_CLOEXEC.])
     ], [
       # cross compile
       AC_MSG_RESULT([unknown (cross compile)])
       AC_DEFINE([FOPEN_CLOEXEC_FLAG], [""])
+      AC_DEFINE([NONATOMIC_CLOEXEC], [1])
     ])
   ]
 )
