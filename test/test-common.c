@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #ifdef WIN32
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
@@ -30,9 +32,10 @@
 #include <fcntl.h>
 #include <glib.h>
 
-#ifdef F_GETPATH
-// Mac OS X: MAXPATHLEN
-#include <sys/param.h>
+#ifdef HAVE_PROC_PIDFDINFO
+// Mac OS X
+#include <sys/param.h>  // MAXPATHLEN
+#include <libproc.h>
 #endif
 
 #include "test-common.h"
@@ -57,8 +60,14 @@ char *get_fd_path(int fd) {
       g_free(path);
     }
   }
-#elif defined F_GETPATH
+#elif defined HAVE_PROC_PIDFDINFO
   // Mac OS X
+  // Ignore kqueues, since they can be opened behind our back for
+  // Grand Central Dispatch
+  struct kqueue_fdinfo kqi;
+  if (proc_pidfdinfo(getpid(), fd, PROC_PIDFDKQUEUEINFO, &kqi, sizeof(kqi))) {
+    return NULL;
+  }
   char *path = g_malloc(MAXPATHLEN);
   if (!fcntl(fd, F_GETPATH, path)) {
     return path;
