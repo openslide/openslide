@@ -39,8 +39,6 @@
 
 char *get_fd_path(int fd) {
   struct stat st;
-  char *path = NULL;
-
   if (fstat(fd, &st)) {
     return NULL;
   }
@@ -51,30 +49,30 @@ char *get_fd_path(int fd) {
   if (hdl != INVALID_HANDLE_VALUE) {
     DWORD size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
     if (size) {
-      path = g_malloc(size);
+      char *path = g_malloc(size);
       DWORD ret = GetFinalPathNameByHandle(hdl, path, size - 1, 0);
-      if (!ret || ret > size) {
-        g_free(path);
-        path = NULL;
+      if (ret > 0 && ret <= size) {
+        return path;
       }
+      g_free(path);
     }
   }
 #elif defined F_GETPATH
   // Mac OS X
-  path = g_malloc(MAXPATHLEN);
-  if (fcntl(fd, F_GETPATH, path)) {
-    g_free(path);
-    path = NULL;
+  char *path = g_malloc(MAXPATHLEN);
+  if (!fcntl(fd, F_GETPATH, path)) {
+    return path;
   }
+  g_free(path);
 #else
   // Fallback; works only on Linux
   char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), fd);
-  path = g_file_read_link(link_path, NULL);
+  char *path = g_file_read_link(link_path, NULL);
   g_free(link_path);
+  if (path) {
+    return path;
+  }
 #endif
 
-  if (!path) {
-    path = g_strdup("<unknown>");
-  }
-  return path;
+  return g_strdup("<unknown>");
 }
