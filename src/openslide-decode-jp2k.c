@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2015 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -29,8 +30,9 @@
 #include <openjpeg.h>
 
 struct read_callback_params {
-  void *data;
-  int32_t datalen;
+  uint8_t *data;
+  int32_t offset;
+  int32_t length;
 };
 
 static inline void write_pixel_ycbcr(uint32_t *dest, uint8_t Y,
@@ -184,12 +186,12 @@ static void error_callback(const char *msg, void *data) {
 static OPJ_SIZE_T read_callback(void *buf, OPJ_SIZE_T count, void *data) {
   struct read_callback_params *params = data;
 
-  if (params->datalen != (int32_t) count) {
-    params->datalen = 0;
+  count = MIN(count, (OPJ_SIZE_T) (params->length - params->offset));
+  if (!count) {
     return (OPJ_SIZE_T) -1;
   }
-  memcpy(buf, params->data, count);
-  params->datalen = 0;
+  memcpy(buf, params->data + params->offset, count);
+  params->offset += count;
   return count;
 }
 
@@ -211,7 +213,7 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   opj_stream_t *stream = opj_stream_create(datalen, true);
   struct read_callback_params read_params = {
     .data = data,
-    .datalen = datalen,
+    .length = datalen,
   };
   opj_stream_set_user_data(stream, &read_params, NULL);
   opj_stream_set_user_data_length(stream, datalen);
