@@ -29,7 +29,7 @@
 
 #include <openjpeg.h>
 
-struct read_callback_params {
+struct buffer_state {
   uint8_t *data;
   int32_t offset;
   int32_t length;
@@ -184,15 +184,36 @@ static void error_callback(const char *msg, void *data) {
 #ifdef HAVE_OPENJPEG2
 
 static OPJ_SIZE_T read_callback(void *buf, OPJ_SIZE_T count, void *data) {
-  struct read_callback_params *params = data;
+  struct buffer_state *state = data;
 
-  count = MIN(count, (OPJ_SIZE_T) (params->length - params->offset));
+  count = MIN(count, (OPJ_SIZE_T) (state->length - state->offset));
   if (!count) {
     return (OPJ_SIZE_T) -1;
   }
-  memcpy(buf, params->data + params->offset, count);
-  params->offset += count;
+  memcpy(buf, state->data + state->offset, count);
+  state->offset += count;
   return count;
+}
+
+static OPJ_OFF_T skip_callback(OPJ_OFF_T count, void *data) {
+  struct buffer_state *state = data;
+
+  int32_t orig_offset = state->offset;
+  state->offset = CLAMP(state->offset + count, 0, state->length);
+  if (count && state->offset == orig_offset) {
+    return -1;
+  }
+  return state->offset - orig_offset;
+}
+
+static OPJ_BOOL seek_callback(OPJ_OFF_T offset, void *data) {
+  struct buffer_state *state = data;
+
+  if (offset < 0 || offset > state->length) {
+    return OPJ_FALSE;
+  }
+  state->offset = offset;
+  return OPJ_TRUE;
 }
 
 bool _openslide_jp2k_decode_buffer(uint32_t *dest,
@@ -211,13 +232,15 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   // avoid tracking stream offset (and implementing skip callback) by having
   // OpenJPEG read the whole buffer at once
   opj_stream_t *stream = opj_stream_create(datalen, true);
-  struct read_callback_params read_params = {
+  struct buffer_state state = {
     .data = data,
     .length = datalen,
   };
-  opj_stream_set_user_data(stream, &read_params, NULL);
+  opj_stream_set_user_data(stream, &state, NULL);
   opj_stream_set_user_data_length(stream, datalen);
   opj_stream_set_read_function(stream, read_callback);
+  opj_stream_set_skip_function(stream, skip_callback);
+  opj_stream_set_seek_function(stream, seek_callback);
 
   // init codec
   opj_codec_t *codec = opj_create_decompress(OPJ_CODEC_J2K);
