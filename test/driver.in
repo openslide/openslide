@@ -460,13 +460,15 @@ def _unpack_one(testname):
 
     conf = _load_test_config(testname)
     slide = conf['base']
+    renames = conf.get('rename', {})
     generators = conf.get('generate', {})
     printed = False
     _fetch_one(slide)
 
     for relpath in _list_slide_files(slide):
         origpath = os.path.join(PRISTINE, slide, relpath)
-        newpath = os.path.join(WORKROOT, testname, relpath)
+        newpath = os.path.join(WORKROOT, testname,
+                renames.get(os.path.basename(relpath), relpath))
         deltapath = os.path.join(CASEROOT, testname,
                 os.path.basename(relpath) + '.xdelta')
         whiteoutpath = os.path.join(CASEROOT, testname,
