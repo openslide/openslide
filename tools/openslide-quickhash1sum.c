@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
-#include "openslide-tools-common.h"
+#include "openslide-common.h"
 
 static gboolean process(const char *file) {
   openslide_t *osr = openslide_open(file);
@@ -58,15 +58,15 @@ static gboolean process(const char *file) {
 }
 
 
-static const struct openslide_tools_usage_info usage_info = {
+static const struct common_usage_info usage_info = {
   "FILE...",
   "Print OpenSlide quickhash-1 (256-bit) checksums.",
 };
 
 int main (int argc, char **argv) {
-  _openslide_tools_parse_commandline(&usage_info, &argc, &argv);
+  common_parse_commandline(&usage_info, &argc, &argv);
   if (argc < 2) {
-    _openslide_tools_usage(&usage_info);
+    common_usage(&usage_info);
   }
 
   int ret = 0;

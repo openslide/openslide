@@ -30,7 +30,7 @@
 #include <string.h>
 #include <glib.h>
 #include "openslide.h"
-#include "openslide-tools-common.h"
+#include "openslide-common.h"
 #include "config.h"
 
 static const char *version_format = "%s " SUFFIXED_VERSION ", "
@@ -53,7 +53,7 @@ static const GOptionEntry options[] = {
 };
 
 
-static GOptionContext *make_option_context(const struct openslide_tools_usage_info *info) {
+static GOptionContext *make_option_context(const struct common_usage_info *info) {
   GOptionContext *octx = g_option_context_new(info->parameter_string);
   g_option_context_set_summary(octx, info->summary);
   g_option_context_add_main_entries(octx, options, NULL);
@@ -67,7 +67,7 @@ static void free_argv(void) {
   g_strfreev(fixed_argv);
 }
 
-bool _openslide_tools_fix_argv(int *argc, char ***argv) {
+bool common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
 #ifdef G_OS_WIN32
     fixed_argv = g_win32_get_command_line();
@@ -81,21 +81,19 @@ bool _openslide_tools_fix_argv(int *argc, char ***argv) {
   return true;
 }
 #else
-bool _openslide_tools_fix_argv(int *argc G_GNUC_UNUSED,
-                               char ***argv G_GNUC_UNUSED) {
+bool common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {
   return false;
 }
 #endif
 
-void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info *info,
-                                        int *argc,
-                                        char ***argv) {
+void common_parse_commandline(const struct common_usage_info *info,
+                              int *argc, char ***argv) {
   GError *err = NULL;
 
   GOptionContext *octx = make_option_context(info);
   // use modern parsing functions if possible, so we can properly handle
   // Unicode arguments on Windows
-  bool free_args = _openslide_tools_fix_argv(argc, argv);
+  bool free_args = common_fix_argv(argc, argv);
   if (free_args) {
     g_option_context_parse_strv(octx, argv, &err);
     *argc = g_strv_length(*argv);
@@ -107,7 +105,7 @@ void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info 
   if (err) {
     fprintf(stderr, "%s: %s\n\n", g_get_prgname(), err->message);
     g_error_free(err);
-    _openslide_tools_usage(info);
+    common_usage(info);
 
   } else if (show_version) {
     fprintf(stderr, version_format, g_get_prgname(), openslide_get_version());
@@ -129,7 +127,7 @@ void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info 
   }
 }
 
-void _openslide_tools_usage(const struct openslide_tools_usage_info *info) {
+void common_usage(const struct common_usage_info *info) {
   GOptionContext *octx = make_option_context(info);
 
   gchar *help = g_option_context_get_help(octx, TRUE, NULL);

@@ -20,7 +20,7 @@
  */
 
 #include "openslide.h"
-#include "openslide-tools-common.h"
+#include "openslide-common.h"
 
 #include <png.h>
 #include <inttypes.h>
@@ -172,15 +172,15 @@ static void write_png(openslide_t *osr, FILE *f,
 }
 
 
-static const struct openslide_tools_usage_info usage_info = {
+static const struct common_usage_info usage_info = {
   "slide x y level width height output.png",
   "Write a region of a virtual slide to a PNG.",
 };
 
 int main (int argc, char **argv) {
-  _openslide_tools_parse_commandline(&usage_info, &argc, &argv);
+  common_parse_commandline(&usage_info, &argc, &argv);
   if (argc != 8) {
-    _openslide_tools_usage(&usage_info);
+    common_usage(&usage_info);
   }
 
   // get args

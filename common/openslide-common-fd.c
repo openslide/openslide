@@ -38,9 +38,9 @@
 #include <libproc.h>
 #endif
 
-#include "test-common.h"
+#include "openslide-common.h"
 
-char *get_fd_path(int fd) {
+char *common_get_fd_path(int fd) {
   struct stat st;
   if (fstat(fd, &st)) {
     return NULL;

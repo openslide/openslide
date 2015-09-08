@@ -33,7 +33,7 @@
 
 #include <glib.h>
 #include <openslide.h>
-#include "test-common.h"
+#include "openslide-common.h"
 #include "config.h"
 
 #define MAX_LEAK_FD 128
@@ -100,7 +100,7 @@ static gpointer cloexec_thread(const gpointer prog) {
 
 static void child_check_open_fds(void) {
   for (int i = 3; i < MAX_LEAK_FD; i++) {
-    gchar *path = get_fd_path(i);
+    gchar *path = common_get_fd_path(i);
     if (path != NULL) {
       printf("%s\n", path);
       g_free(path);
