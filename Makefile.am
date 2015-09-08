@@ -100,7 +100,7 @@ common_libopenslide_common_a_SOURCES = \
 	common/openslide-common-fd.c
 
 COMMON_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src -I$(top_srcdir)/common
-COMMON_LDADD = src/libopenslide.la common/libopenslide-common.a $(GLIB2_LIBS)
+COMMON_LDADD = common/libopenslide-common.a src/libopenslide.la $(GLIB2_LIBS)
 
 
 # test
