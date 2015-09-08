@@ -123,6 +123,8 @@ test_profile_LDADD = src/libopenslide.la $(GLIB2_LIBS)
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink
+test_symlink_CFLAGS = $(AM_CFLAGS) -municode
+test_symlink_LDFLAGS = $(AM_LDFLAGS) -municode
 test_symlink_LDADD = -lkernel32
 endif
 
