@@ -182,6 +182,9 @@ AS_CASE([$host_os],
 # Fallback: racily use fcntl()
 AC_CHECK_FUNCS([fcntl])
 
+# Windows _wfopen()
+AC_CHECK_FUNCS([_wfopen])
+
 # Mac OS X proc_pidfdinfo()
 AC_MSG_CHECKING([for proc_pidfdinfo])
 AC_LINK_IFELSE([

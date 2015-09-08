@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
+ *  Copyright (c) 2015 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -161,14 +162,46 @@ FAIL:
 }
 
 #undef fopen
+static FILE *do_fopen(const char *path, const char *mode, GError **err) {
+  FILE *f;
+
+#ifdef HAVE__WFOPEN
+  wchar_t *path16 = (wchar_t *) g_convert(path, -1, "UTF-16", "UTF-8",
+                                          NULL, NULL, err);
+  if (path16 == NULL) {
+    g_prefix_error(err, "Couldn't open %s: ", path);
+    return NULL;
+  }
+  wchar_t *mode16 = (wchar_t *) g_convert(mode, -1, "UTF-16", "UTF-8",
+                                          NULL, NULL, err);
+  if (mode16 == NULL) {
+    g_prefix_error(err, "Bad file mode %s: ", mode);
+    g_free(path16);
+    return NULL;
+  }
+  f = _wfopen(path16, mode16);
+  if (f == NULL) {
+    _openslide_io_error(err, "Couldn't open %s", path);
+  }
+  g_free(mode16);
+  g_free(path16);
+#else
+  f = fopen(path, mode);
+  if (f == NULL) {
+    _openslide_io_error(err, "Couldn't open %s", path);
+  }
+#endif
+
+  return f;
+}
+#define fopen _OPENSLIDE_POISON(_openslide_fopen)
+
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
 {
   char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
-  FILE *f = fopen(path, m);
+  FILE *f = do_fopen(path, m, err);
   g_free(m);
-
   if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
     return NULL;
   }
 
@@ -197,7 +230,6 @@ FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
 
   return f;
 }
-#define fopen _OPENSLIDE_POISON(_openslide_fopen)
 
 #undef g_ascii_strtod
 double _openslide_parse_double(const char *value) {
