@@ -21,7 +21,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
@@ -38,16 +37,6 @@
 
 #define MAX_LEAK_FD 128
 
-static void fail(const char *str, ...) {
-  va_list ap;
-
-  va_start(ap, str);
-  vfprintf(stderr, str, ap);
-  fprintf(stderr, "\n");
-  va_end(ap);
-  exit(1);
-}
-
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
 			     int64_t w, int64_t h) {
@@ -59,8 +48,8 @@ static void test_image_fetch(openslide_t *osr,
 
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
-         x, y, w, h, err);
+    common_fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
+                x, y, w, h, err);
   }
 }
 
@@ -148,7 +137,7 @@ int main(int argc, char **argv) {
   }
 
   if (argc != 2) {
-    fail("No file specified");
+    common_fail("No file specified");
   }
   const char *path = argv[1];
 
@@ -160,22 +149,22 @@ int main(int argc, char **argv) {
   openslide_get_version();
 
   if (!openslide_detect_vendor(path)) {
-    fail("No vendor for %s", path);
+    common_fail("No vendor for %s", path);
   }
 
   openslide_t *osr = openslide_open(path);
   if (!osr) {
-    fail("Couldn't open %s", path);
+    common_fail("Couldn't open %s", path);
   }
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Open failed: %s", err);
+    common_fail("Open failed: %s", err);
   }
   openslide_close(osr);
 
   osr = openslide_open(path);
   if (!osr || openslide_get_error(osr)) {
-    fail("Reopen failed");
+    common_fail("Reopen failed");
   }
 
   int64_t w, h;

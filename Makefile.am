@@ -96,6 +96,7 @@ noinst_LIBRARIES = common/libopenslide-common.a
 common_libopenslide_common_a_CPPFLAGS = $(COMMON_CPPFLAGS)
 common_libopenslide_common_a_SOURCES = \
 	common/openslide-common-cmdline.c \
+	common/openslide-common-fail.c \
 	common/openslide-common-fd.c
 
 COMMON_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src -I$(top_srcdir)/common

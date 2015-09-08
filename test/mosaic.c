@@ -19,13 +19,13 @@
  *
  */
 
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
 #include <cairo.h>
 #include "openslide.h"
+#include "openslide-common.h"
 
 #define TILE_WIDTH 256
 #define TILE_HEIGHT 256
@@ -44,15 +44,6 @@ static const char KEY_SLIDE[] = "slide";
 static const char KEY_LEVEL[] = "level";
 static const char KEY_X[] = "x";
 static const char KEY_Y[] = "y";
-
-static void G_GNUC_NORETURN fail(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  va_end(ap);
-  exit(1);
-}
 
 static void render_text(cairo_t *cr, const char *text) {
   // get top-left corner
@@ -147,7 +138,7 @@ int main(int argc, char **argv) {
   GError *tmp_err = NULL;
 
   if (argc != 4) {
-    fail("Usage: %s <base-dir> <index-file> <out-file>", argv[0]);
+    common_fail("Usage: %s <base-dir> <index-file> <out-file>", argv[0]);
   }
   const char *base_dir = argv[1];
   const char *index_file = argv[2];
@@ -156,7 +147,7 @@ int main(int argc, char **argv) {
   // read index file
   GKeyFile *kf = g_key_file_new();
   if (!g_key_file_load_from_file(kf, index_file, G_KEY_FILE_NONE, &tmp_err)) {
-    fail("Loading index file: %s", tmp_err->message);
+    common_fail("Loading index file: %s", tmp_err->message);
   }
   gsize num_tiles;
   char **tile_names = g_key_file_get_groups(kf, &num_tiles);
@@ -190,7 +181,7 @@ int main(int argc, char **argv) {
     char *name = tile_names[tile_num];
     char *base = g_key_file_get_string(kf, name, KEY_BASE, NULL);
     if (!base) {
-      fail("No base path specified for %s", name);
+      common_fail("No base path specified for %s", name);
     }
     char *slide = g_key_file_get_string(kf, name, KEY_SLIDE, NULL);
     if (!slide) {
@@ -211,13 +202,13 @@ int main(int argc, char **argv) {
   // check status
   cairo_status_t status = cairo_status(cr);
   if (status) {
-    fail("cairo error: %s", cairo_status_to_string(status));
+    common_fail("cairo error: %s", cairo_status_to_string(status));
   }
 
   // write png
   status = cairo_surface_write_to_png(surface, out_file);
   if (status) {
-    fail("writing PNG: %s", cairo_status_to_string(status));
+    common_fail("writing PNG: %s", cairo_status_to_string(status));
   }
 
   // clean up
