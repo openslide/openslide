@@ -36,4 +36,6 @@ void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info 
 void _openslide_tools_usage(const struct openslide_tools_usage_info *info)
      G_GNUC_NORETURN;
 
+bool _openslide_tools_fix_argv(int *argc, char ***argv);
+
 #endif

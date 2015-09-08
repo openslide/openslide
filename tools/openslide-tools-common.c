@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2015 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -18,6 +19,11 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
+
+// don't complain about g_option_context_parse_strv(), which is called
+// conditionally
+#undef GLIB_VERSION_MAX_ALLOWED
+#define GLIB_VERSION_MAX_ALLOWED G_ENCODE_VERSION(2,40)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,13 +60,48 @@ static GOptionContext *make_option_context(const struct openslide_tools_usage_in
   return octx;
 }
 
+#if GLIB_CHECK_VERSION(2,40,0)
+static char **fixed_argv;
+
+static void free_argv(void) {
+  g_strfreev(fixed_argv);
+}
+
+bool _openslide_tools_fix_argv(int *argc, char ***argv) {
+  if (fixed_argv == NULL) {
+#ifdef G_OS_WIN32
+    fixed_argv = g_win32_get_command_line();
+#else
+    fixed_argv = g_strdupv(*argv);
+#endif
+    *argc = g_strv_length(fixed_argv);
+    *argv = fixed_argv;
+    atexit(free_argv);
+  }
+  return true;
+}
+#else
+bool _openslide_tools_fix_argv(int *argc G_GNUC_UNUSED,
+                               char ***argv G_GNUC_UNUSED) {
+  return false;
+}
+#endif
+
 void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info *info,
                                         int *argc,
                                         char ***argv) {
   GError *err = NULL;
 
   GOptionContext *octx = make_option_context(info);
-  g_option_context_parse(octx, argc, argv, &err);
+  // use modern parsing functions if possible, so we can properly handle
+  // Unicode arguments on Windows
+  bool free_args = _openslide_tools_fix_argv(argc, argv);
+  if (free_args) {
+    g_option_context_parse_strv(octx, argv, &err);
+    *argc = g_strv_length(*argv);
+  } else {
+    g_option_context_parse(octx, argc, argv, &err);
+  }
   g_option_context_free(octx);
 
   if (err) {
@@ -76,6 +117,9 @@ void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info 
   // Remove "--" arguments; g_option_context_parse() doesn't
   for (int i = 0; i < *argc; i++) {
     if (!strcmp((*argv)[i], "--")) {
+      if (free_args) {
+        free((*argv)[i]);
+      }
       for (int j = i + 1; j <= *argc; j++) {
         (*argv)[j - 1] = (*argv)[j];
       }
