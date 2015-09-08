@@ -32,12 +32,16 @@ struct common_usage_info {
   const char *summary;
 };
 
+bool common_fix_argv(int *argc, char ***argv);
+
+bool common_parse_options(GOptionContext *ctx,
+                          int *argc, char ***argv,
+                          GError **err);
+
 void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv);
 
 void common_usage(const struct common_usage_info *info) G_GNUC_NORETURN;
-
-bool common_fix_argv(int *argc, char ***argv);
 
 // fail
 

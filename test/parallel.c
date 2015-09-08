@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <glib.h>
 #include <openslide.h>
+#include "openslide-common.h"
 
 #define TILE_SIZE 512
 
@@ -67,6 +68,7 @@ static void *thread_func(void *data) {
 int main(int argc, char **argv) {
   struct state state;
 
+  common_fix_argv(&argc, &argv);
   if (argc != 3) {
     printf("Usage: %s <file> <threads>\n", argv[0]);
     return 2;

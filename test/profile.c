@@ -37,6 +37,7 @@
 #define MAXHEIGHT  10000
 
 int main(int argc, char **argv) {
+  common_fix_argv(&argc, &argv);
   if (argc != 3) {
     common_fail("Usage: %s <slide> <level>", argv[0]);
   }

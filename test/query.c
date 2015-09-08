@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
+#include "openslide-common.h"
 
 static gboolean query_vendor = FALSE;
 
@@ -38,7 +39,7 @@ int main(int argc, char **argv) {
   GOptionContext *ctx =
     g_option_context_new("SLIDE - retrieve information about a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
-  if (!g_option_context_parse(ctx, &argc, &argv, &tmp_err)) {
+  if (!common_parse_options(ctx, &argc, &argv, &tmp_err)) {
     fprintf(stderr, "%s\n", tmp_err->message);
     g_clear_error(&tmp_err);
     g_option_context_free(ctx);

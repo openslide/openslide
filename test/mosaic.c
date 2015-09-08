@@ -137,6 +137,7 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
 int main(int argc, char **argv) {
   GError *tmp_err = NULL;
 
+  common_fix_argv(&argc, &argv);
   if (argc != 4) {
     common_fail("Usage: %s <base-dir> <index-file> <out-file>", argv[0]);
   }

@@ -86,20 +86,26 @@ bool common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {
 }
 #endif
 
+bool common_parse_options(GOptionContext *ctx,
+                          int *argc, char ***argv,
+                          GError **err) {
+  // use modern parsing functions if possible, so we can properly handle
+  // Unicode arguments on Windows
+  if (common_fix_argv(argc, argv)) {
+    bool ret = g_option_context_parse_strv(ctx, argv, err);
+    *argc = g_strv_length(*argv);
+    return ret;
+  } else {
+    return g_option_context_parse(ctx, argc, argv, err);
+  }
+}
+
 void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv) {
   GError *err = NULL;
 
   GOptionContext *octx = make_option_context(info);
-  // use modern parsing functions if possible, so we can properly handle
-  // Unicode arguments on Windows
-  bool free_args = common_fix_argv(argc, argv);
-  if (free_args) {
-    g_option_context_parse_strv(octx, argv, &err);
-    *argc = g_strv_length(*argv);
-  } else {
-    g_option_context_parse(octx, argc, argv, &err);
-  }
+  common_parse_options(octx, argc, argv, &err);
   g_option_context_free(octx);
 
   if (err) {
@@ -113,6 +119,7 @@ void common_parse_commandline(const struct common_usage_info *info,
   }
 
   // Remove "--" arguments; g_option_context_parse() doesn't
+  bool free_args = common_fix_argv(NULL, NULL);  // just get return value
   for (int i = 0; i < *argc; i++) {
     if (!strcmp((*argv)[i], "--")) {
       if (free_args) {

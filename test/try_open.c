@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
   GOptionContext *ctx =
     g_option_context_new("SLIDE - try opening a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
-  if (!g_option_context_parse(ctx, &argc, &argv, &tmp_err)) {
+  if (!common_parse_options(ctx, &argc, &argv, &tmp_err)) {
     fail("%s", tmp_err->message);
     g_clear_error(&tmp_err);
     g_option_context_free(ctx);

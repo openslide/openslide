@@ -136,6 +136,7 @@ int main(int argc, char **argv) {
     g_thread_init(NULL);
   }
 
+  common_fix_argv(&argc, &argv);
   if (argc != 2) {
     common_fail("No file specified");
   }
