@@ -62,13 +62,15 @@ static GOptionContext *make_option_context(const struct common_usage_info *info)
 
 #if GLIB_CHECK_VERSION(2,40,0)
 
+#define CMDLINE_FREE_ARGS
+
 static char **fixed_argv;
 
 static void free_argv(void) {
   g_strfreev(fixed_argv);
 }
 
-bool common_fix_argv(int *argc, char ***argv) {
+void common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
 #ifdef G_OS_WIN32
     fixed_argv = g_win32_get_command_line();
@@ -79,7 +81,6 @@ bool common_fix_argv(int *argc, char ***argv) {
     *argv = fixed_argv;
     atexit(free_argv);
   }
-  return true;
 }
 
 bool common_parse_options(GOptionContext *ctx,
@@ -94,9 +95,7 @@ bool common_parse_options(GOptionContext *ctx,
 
 #else
 
-bool common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {
-  return false;
-}
+void common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {}
 
 bool common_parse_options(GOptionContext *ctx,
                           int *argc, char ***argv,
@@ -125,12 +124,11 @@ void common_parse_commandline(const struct common_usage_info *info,
   }
 
   // Remove "--" arguments; g_option_context_parse() doesn't
-  bool free_args = common_fix_argv(NULL, NULL);  // just get return value
   for (int i = 0; i < *argc; i++) {
     if (!strcmp((*argv)[i], "--")) {
-      if (free_args) {
-        free((*argv)[i]);
-      }
+#ifdef CMDLINE_FREE_ARGS
+      free((*argv)[i]);
+#endif
       for (int j = i + 1; j <= *argc; j++) {
         (*argv)[j - 1] = (*argv)[j];
       }

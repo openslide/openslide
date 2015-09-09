@@ -32,7 +32,7 @@ struct common_usage_info {
   const char *summary;
 };
 
-bool common_fix_argv(int *argc, char ***argv);
+void common_fix_argv(int *argc, char ***argv);
 
 bool common_parse_options(GOptionContext *ctx,
                           int *argc, char ***argv,
