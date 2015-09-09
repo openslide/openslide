@@ -61,6 +61,7 @@ static GOptionContext *make_option_context(const struct common_usage_info *info)
 }
 
 #if GLIB_CHECK_VERSION(2,40,0)
+
 static char **fixed_argv;
 
 static void free_argv(void) {
@@ -80,25 +81,30 @@ bool common_fix_argv(int *argc, char ***argv) {
   }
   return true;
 }
-#else
-bool common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {
-  return false;
-}
-#endif
 
 bool common_parse_options(GOptionContext *ctx,
                           int *argc, char ***argv,
                           GError **err) {
-  // use modern parsing functions if possible, so we can properly handle
-  // Unicode arguments on Windows
-  if (common_fix_argv(argc, argv)) {
-    bool ret = g_option_context_parse_strv(ctx, argv, err);
-    *argc = g_strv_length(*argv);
-    return ret;
-  } else {
-    return g_option_context_parse(ctx, argc, argv, err);
-  }
+  // properly handle Unicode arguments on Windows
+  common_fix_argv(argc, argv);
+  bool ret = g_option_context_parse_strv(ctx, argv, err);
+  *argc = g_strv_length(*argv);
+  return ret;
 }
+
+#else
+
+bool common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {
+  return false;
+}
+
+bool common_parse_options(GOptionContext *ctx,
+                          int *argc, char ***argv,
+                          GError **err) {
+  return g_option_context_parse(ctx, argc, argv, err);
+}
+
+#endif
 
 void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv) {
