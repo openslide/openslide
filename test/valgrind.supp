@@ -52,3 +52,11 @@
     ...
     fun:FcGetPrgname
 }
+
+# zlib 1.2.3
+{
+    Harmless access to uninitialized data
+    Memcheck:Cond
+    fun:inflateReset2
+    fun:inflateInit2_
+}
