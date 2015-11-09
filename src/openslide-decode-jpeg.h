@@ -74,7 +74,7 @@ void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo, FILE *infile);
  * Some libjpegs don't provide mem_src, so we have our own copy.
  */
 void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              unsigned char *inbuffer, unsigned long insize);
+                              const void *inbuffer, size_t insize);
 
 
 /*

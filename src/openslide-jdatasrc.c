@@ -247,7 +247,7 @@ void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo, FILE * infile)
  */
 
 void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              unsigned char * inbuffer, unsigned long insize)
+                              const void * inbuffer, size_t insize)
 {
   struct jpeg_source_mgr * src;
 
@@ -270,6 +270,6 @@ void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
   src->skip_input_data = skip_input_data;
   src->resync_to_restart = jpeg_resync_to_restart; /* use default method */
   src->term_source = term_source;
-  src->bytes_in_buffer = (size_t) insize;
-  src->next_input_byte = (JOCTET *) inbuffer;
+  src->bytes_in_buffer = insize;
+  src->next_input_byte = inbuffer;
 }

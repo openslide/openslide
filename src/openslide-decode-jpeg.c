@@ -269,7 +269,7 @@ static bool jpeg_get_dimensions(FILE *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
+      _openslide_jpeg_mem_src(cinfo, buf, buflen);
     }
 
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
@@ -340,7 +340,7 @@ static bool jpeg_decode(FILE *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, (void *) buf, buflen);
+      _openslide_jpeg_mem_src(cinfo, buf, buflen);
     }
 
     // read header
