@@ -343,7 +343,7 @@ static void simple_destroy(struct _openslide_grid *_grid) {
   g_slice_free(struct simple_grid, grid);
 }
 
-const struct grid_ops simple_grid_ops = {
+static const struct grid_ops simple_grid_ops = {
   .get_bounds = simple_get_bounds,
   .paint_region = simple_paint_region,
   .destroy = simple_destroy,
@@ -498,7 +498,7 @@ static void tilemap_destroy(struct _openslide_grid *_grid) {
   g_slice_free(struct tilemap_grid, grid);
 }
 
-const struct grid_ops tilemap_grid_ops = {
+static const struct grid_ops tilemap_grid_ops = {
   .get_bounds = tilemap_get_bounds,
   .paint_region = tilemap_paint_region,
   .destroy = tilemap_destroy,
@@ -753,7 +753,7 @@ static void range_destroy(struct _openslide_grid *_grid) {
   g_slice_free(struct range_grid, grid);
 }
 
-const struct grid_ops range_grid_ops = {
+static const struct grid_ops range_grid_ops = {
   .get_bounds = range_get_bounds,
   .paint_region = range_paint_region,
   .destroy = range_destroy,
