@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2015 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -37,6 +38,22 @@
 #define JCS_EXT_BGRA 13
 #define JCS_EXT_ARGB 15
 #endif
+
+const uint8_t one_pixel_rgb_jpeg[] = {
+  0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06,
+  0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d,
+  0x0c, 0x0b, 0x0b, 0x0c, 0x19, 0x12, 0x13, 0x0f, 0x14, 0x1d, 0x1a, 0x1f,
+  0x1e, 0x1d, 0x1a, 0x1c, 0x1c, 0x20, 0x24, 0x2e, 0x27, 0x20, 0x22, 0x2c,
+  0x23, 0x1c, 0x1c, 0x28, 0x37, 0x29, 0x2c, 0x30, 0x31, 0x34, 0x34, 0x34,
+  0x1f, 0x27, 0x39, 0x3d, 0x38, 0x32, 0x3c, 0x2e, 0x33, 0x34, 0x32, 0xff,
+  0xc0, 0x00, 0x11, 0x08, 0x00, 0x01, 0x00, 0x01, 0x03, 0x52, 0x11, 0x00,
+  0x47, 0x11, 0x00, 0x42, 0x11, 0x00, 0xff, 0xc4, 0x00, 0x14, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x07, 0xff, 0xc4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0xff, 0xda, 0x00, 0x0c, 0x03, 0x52, 0x00, 0x47, 0x00, 0x42,
+  0x00, 0x00, 0x3f, 0x00, 0x7f, 0x3f, 0x9f, 0xdf, 0xff, 0xd9
+};
 
 static GOnce jcs_alpha_extensions_detector = G_ONCE_INIT;
 
@@ -102,31 +119,35 @@ static struct jpeg_error_mgr *error_handler_init(struct openslide_jpeg_error_mgr
 // Detect support for JCS_ALPHA_EXTENSIONS.  Even if the extensions were
 // available at compile time, they may not be available at runtime because
 // support for JCS_ALPHA_EXTENSIONS isn't reflected in the libjpeg soname.
-// Uses the detection method documented in jcstest.c.
+// Previously used the detection method documented in jcstest.c, but
+// libjpeg-turbo 1.2.0 doesn't support JCS_ALPHA_EXTENSIONS for RGB JPEGs
+// and we need that for Aperio slides.  Instead, try enabling the extensions
+// while decoding a tiny RGB JPEG.
 static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
   jmp_buf env;
   volatile bool alpha_extensions = false;
 
-  struct jpeg_compress_struct *cinfo =
-    g_slice_new0(struct jpeg_compress_struct);
+  struct jpeg_decompress_struct *cinfo =
+    g_slice_new0(struct jpeg_decompress_struct);
   struct openslide_jpeg_error_mgr *jerr =
     g_slice_new0(struct openslide_jpeg_error_mgr);
 
   if (!setjmp(env)) {
     cinfo->err = error_handler_init(jerr, &env);
-    jpeg_create_compress(cinfo);
-    cinfo->input_components = 3;
-    jpeg_set_defaults(cinfo);
-    cinfo->in_color_space = JCS_EXT_BGRA;
-    jpeg_default_colorspace(cinfo);
+    jpeg_create_decompress(cinfo);
+    _openslide_jpeg_mem_src(cinfo, one_pixel_rgb_jpeg,
+                            sizeof(one_pixel_rgb_jpeg));
+    jpeg_read_header(cinfo, true);
+    cinfo->out_color_space = JCS_EXT_BGRA;
+    jpeg_start_decompress(cinfo);
     alpha_extensions = true;
   } else {
     g_clear_error(&jerr->err);
     _openslide_performance_warn("Optimized libjpeg color space not available");
   }
 
-  jpeg_destroy_compress(cinfo);
-  g_slice_free(struct jpeg_compress_struct, cinfo);
+  jpeg_destroy_decompress(cinfo);
+  g_slice_free(struct jpeg_decompress_struct, cinfo);
   g_slice_free(struct openslide_jpeg_error_mgr, jerr);
   //g_debug("have JCS_ALPHA_EXTENSIONS: %d", alpha_extensions);
   return GINT_TO_POINTER(alpha_extensions);
