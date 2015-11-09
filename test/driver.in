@@ -558,7 +558,7 @@ def run(pattern='*'):
 
 
 @contextmanager
-def _rebuild(cflags):
+def _rebuild(configure_args):
     '''Context manager: rebuild the source with the specified CFLAGS and
     yield to the caller to do profiling.'''
     # To minimize collateral damage, unpack the dist tarball into a temp
@@ -581,7 +581,7 @@ def _rebuild(cflags):
     os.chdir('openslide-!!VERSION!!')
 
     # Build with specified CFLAGS
-    subprocess.check_call(['./configure', 'CFLAGS=' + cflags])
+    subprocess.check_call(['./configure'] + configure_args)
     subprocess.check_call(['make'])
 
     # Let the caller run, passing it the directory we came from.
@@ -596,7 +596,7 @@ def _rebuild(cflags):
 @_command
 def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
-    with _rebuild('-O0 -g -fprofile-arcs -ftest-coverage') as basedir:
+    with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
         # Run tests
         _run_all(testdir='test')
 
@@ -687,6 +687,50 @@ def profile(pattern='*', level=0):
             if subprocess.call(args, env=env) == 0:
                 subprocess.check_call(['callgrind_annotate',
                         '--threshold=80', fh.name])
+
+
+@_command
+def exports():
+    '''Report exported or hidden symbols with improper names.'''
+    def get_symbols(basedir):
+        proc = subprocess.Popen(['objdump', '-T',
+                os.path.join(basedir, 'src', '.libs', 'libopenslide.so')],
+                stdout=subprocess.PIPE)
+        out, _ = proc.communicate()
+        if proc.returncode:
+            raise IOError('objdump returned exit status %d' % proc.returncode)
+        for line in out.splitlines():
+            words = line.split()
+            if len(words) < 3:
+                continue
+            if words[1] != 'g':
+                # Not a global symbol
+                continue
+            yield words[-1]
+
+    # Magic ELF symbols
+    ignore_symbols = set(['__bss_start', '_edata', '_end', '_fini', '_init'])
+
+    # Check exported symbols
+    exported_symbols = set(get_symbols('..')) - ignore_symbols
+    bad_exported = set(symbol for symbol in exported_symbols
+            if not symbol.startswith('openslide_'))
+
+    # Check hidden symbols
+    with _rebuild(['gl_cv_cc_visibility=no']):
+        hidden_symbols = (set(get_symbols('.')) - exported_symbols -
+                ignore_symbols)
+        bad_hidden = set(symbol for symbol in hidden_symbols
+                if not symbol.startswith('_openslide_')
+                and symbol != 'openslide_cairo_read_region')  # legacy
+
+    # Report
+    for symbol in sorted(bad_exported):
+        print >>sys.stderr, 'Badly-named exported symbol:', symbol
+    for symbol in sorted(bad_hidden):
+        print >>sys.stderr, 'Badly-named hidden symbol:', symbol
+    if bad_exported or bad_hidden:
+        sys.exit(1)
 
 
 @_command
