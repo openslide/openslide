@@ -1487,11 +1487,21 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // file is done now
     fclose(f);
 
-    // because map file is last, ensure that all tile_{width,height} are the
-    // same, and that all tiles_{across,down} are the same except in the last
-    // column/row, for 0 through num_jpegs-2
-    if (i > 0 && i != (num_jpegs - 1)) {
-      // not map file (still within level 0)
+    // init MCU starts
+    jp->mcu_starts = g_new(int64_t, jp->tile_count);
+    // init all to -1
+    for (int32_t j = 0; j < jp->tile_count; j++) {
+      (jp->mcu_starts)[j] = -1;
+    }
+  }
+
+  // walk image files, ignoring the map file (which is last)
+  for (int i = 0; i < num_jpegs - 1; i++) {
+    struct jpeg *jp = jpegs[i];
+
+    // ensure that all tile_{width,height} match image 0, and that all
+    // tiles_{across,down} match image 0 except in the last column/row
+    if (i > 0) {
       g_assert(jpegs[0]->tile_width != 0 && jpegs[0]->tile_height != 0 &&
                jpegs[0]->tiles_across != 0 && jpegs[0]->tiles_down != 0);
       if (jpegs[0]->tile_width != jp->tile_width ||
@@ -1521,13 +1531,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       }
     }
 
-    jp->mcu_starts = g_new(int64_t, jp->tile_count);
-    // init all to -1
-    for (int32_t j = 0; j < jp->tile_count; j++) {
-      (jp->mcu_starts)[j] = -1;
-    }
-    // use the optimisation file, if present, except with the map file
-    if (optimisation_file && i != num_jpegs - 1) {
+    // use the optimisation file, if present
+    // there appear to be no optimisations for the map file
+    if (optimisation_file) {
       jp->unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
                                                            jp->tiles_down,
                                                            jp->tiles_across);
@@ -1535,10 +1541,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (jp->unreliable_mcu_starts == NULL && optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
       optimisation_file = NULL;
-      // complain if this happens before we reach the map file
-      if (i < num_jpegs - 1) {
-        _openslide_performance_warn("Bad optimisation file");
-      }
+      _openslide_performance_warn("Bad optimisation file");
     }
   }
 
