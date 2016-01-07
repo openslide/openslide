@@ -1523,8 +1523,8 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
     jp->mcu_starts = g_new(int64_t, jp->tile_count);
     // init all to -1
-    for (int32_t i = 0; i < jp->tile_count; i++) {
-      (jp->mcu_starts)[i] = -1;
+    for (int32_t j = 0; j < jp->tile_count; j++) {
+      (jp->mcu_starts)[j] = -1;
     }
     // use the optimisation file, if present
     int64_t *unreliable_mcu_starts = NULL;
