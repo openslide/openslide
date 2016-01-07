@@ -1527,15 +1527,12 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       (jp->mcu_starts)[j] = -1;
     }
     // use the optimisation file, if present, except with the map file
-    int64_t *unreliable_mcu_starts = NULL;
     if (optimisation_file && i != num_jpegs - 1) {
-      unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
-                                                       jp->tiles_down,
-                                                       jp->tiles_across);
+      jp->unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
+                                                           jp->tiles_down,
+                                                           jp->tiles_across);
     }
-    if (unreliable_mcu_starts) {
-      jp->unreliable_mcu_starts = unreliable_mcu_starts;
-    } else if (optimisation_file != NULL) {
+    if (jp->unreliable_mcu_starts == NULL && optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
       optimisation_file = NULL;
       // complain if this happens before we reach the map file
