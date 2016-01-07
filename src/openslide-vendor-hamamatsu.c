@@ -1434,11 +1434,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   }
 
   // process jpegs
-  int32_t jpeg0_tw = 0;
-  int32_t jpeg0_th = 0;
-  int32_t jpeg0_ta = 0;
-  int32_t jpeg0_td = 0;
-
   for (int i = 0; i < num_jpegs; i++) {
     struct jpeg *jp = jpegs[i];
 
@@ -1495,34 +1490,33 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // because map file is last, ensure that all tile_{width,height} are the
     // same, and that all tiles_{across,down} are the same except in the last
     // column/row, for 0 through num_jpegs-2
-    if (i == 0) {
-      jpeg0_tw = jp->tile_width;
-      jpeg0_th = jp->tile_height;
-      jpeg0_ta = jp->tiles_across;
-      jpeg0_td = jp->tiles_down;
-    } else if (i != (num_jpegs - 1)) {
+    if (i > 0 && i != (num_jpegs - 1)) {
       // not map file (still within level 0)
-      g_assert(jpeg0_tw != 0 && jpeg0_th != 0 &&
-               jpeg0_ta != 0 && jpeg0_td != 0);
-      if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
+      g_assert(jpegs[0]->tile_width != 0 && jpegs[0]->tile_height != 0 &&
+               jpegs[0]->tiles_across != 0 && jpegs[0]->tiles_down != 0);
+      if (jpegs[0]->tile_width != jp->tile_width ||
+          jpegs[0]->tile_height != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tile size not consistent for JPEG %d: "
-                    "expected %dx%d, found %dx%d", i, jpeg0_tw, jpeg0_th,
+                    "expected %dx%d, found %dx%d",
+                    i, jpegs[0]->tile_width, jpegs[0]->tile_height,
                     jp->tile_width, jp->tile_height);
         goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
-          jp->tiles_across != jpeg0_ta) {
+          jp->tiles_across != jpegs[0]->tiles_across) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles across not consistent for JPEG %d: "
-                    "expected %d, found %d", i, jpeg0_ta, jp->tiles_across);
+                    "expected %d, found %d",
+                    i, jpegs[0]->tiles_across, jp->tiles_across);
         goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
-          jp->tiles_down != jpeg0_td) {
+          jp->tiles_down != jpegs[0]->tiles_down) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles down not consistent for JPEG %d: "
-                    "expected %d, found %d", i, jpeg0_td, jp->tiles_down);
+                    "expected %d, found %d",
+                    i, jpegs[0]->tiles_down, jp->tiles_down);
         goto FAIL;
       }
     }
