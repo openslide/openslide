@@ -1496,37 +1496,38 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   }
 
   // walk image files, ignoring the map file (which is last)
+  const struct jpeg *jp0 = jpegs[0];
   for (int i = 0; i < num_jpegs - 1; i++) {
     struct jpeg *jp = jpegs[i];
 
     // ensure that all tile_{width,height} match image 0, and that all
     // tiles_{across,down} match image 0 except in the last column/row
     if (i > 0) {
-      g_assert(jpegs[0]->tile_width != 0 && jpegs[0]->tile_height != 0 &&
-               jpegs[0]->tiles_across != 0 && jpegs[0]->tiles_down != 0);
-      if (jpegs[0]->tile_width != jp->tile_width ||
-          jpegs[0]->tile_height != jp->tile_height) {
+      g_assert(jp0->tile_width != 0 && jp0->tile_height != 0 &&
+               jp0->tiles_across != 0 && jp0->tiles_down != 0);
+      if (jp0->tile_width != jp->tile_width ||
+          jp0->tile_height != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tile size not consistent for JPEG %d: "
                     "expected %dx%d, found %dx%d",
-                    i, jpegs[0]->tile_width, jpegs[0]->tile_height,
+                    i, jp0->tile_width, jp0->tile_height,
                     jp->tile_width, jp->tile_height);
         goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
-          jp->tiles_across != jpegs[0]->tiles_across) {
+          jp->tiles_across != jp0->tiles_across) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles across not consistent for JPEG %d: "
                     "expected %d, found %d",
-                    i, jpegs[0]->tiles_across, jp->tiles_across);
+                    i, jp0->tiles_across, jp->tiles_across);
         goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
-          jp->tiles_down != jpegs[0]->tiles_down) {
+          jp->tiles_down != jp0->tiles_down) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles down not consistent for JPEG %d: "
                     "expected %d, found %d",
-                    i, jpegs[0]->tiles_down, jp->tiles_down);
+                    i, jp0->tiles_down, jp->tiles_down);
         goto FAIL;
       }
     }
