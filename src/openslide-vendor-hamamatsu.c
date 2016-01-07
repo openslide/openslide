@@ -495,7 +495,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
   while (first_good < target) {
     uint8_t marker_byte;
     int64_t after_marker_pos;
-    if (!find_next_ff_marker(f, buf_start, &buf, 4096,
+    if (!find_next_ff_marker(f, buf_start, &buf, sizeof(buf_start),
                              jpeg->end_in_file,
                              &marker_byte,
                              &after_marker_pos,
@@ -1138,7 +1138,7 @@ static int64_t *extract_optimisations_for_one_jpeg(FILE *opt_f,
       int64_t i64;
     } u;
 
-    if (fread(u.buf, 40, 1, opt_f) != 1) {
+    if (fread(u.buf, sizeof(u.buf), 1, opt_f) != 1) {
       // EOF or error, we've done all we can
 
       if (row == 0) {
