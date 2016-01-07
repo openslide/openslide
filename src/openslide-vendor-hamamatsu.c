@@ -1109,9 +1109,9 @@ DONE:
   return success;
 }
 
-static int64_t *extract_one_optimisation(FILE *opt_f,
-                                         int32_t tiles_down,
-                                         int32_t tiles_across) {
+static int64_t *extract_optimisations_for_one_jpeg(FILE *opt_f,
+                                                   int32_t tiles_down,
+                                                   int32_t tiles_across) {
   int32_t tile_count = tiles_across * tiles_down;
   int64_t *mcu_starts = g_new(int64_t, tile_count);
   for (int32_t i = 0; i < tile_count; i++) {
@@ -1535,9 +1535,10 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // use the optimisation file, if present
     // there appear to be no optimisations for the map file
     if (optimisation_file) {
-      jp->unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
-                                                           jp->tiles_down,
-                                                           jp->tiles_across);
+      jp->unreliable_mcu_starts =
+          extract_optimisations_for_one_jpeg(optimisation_file,
+                                             jp->tiles_down,
+                                             jp->tiles_across);
     }
     if (jp->unreliable_mcu_starts == NULL && optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
