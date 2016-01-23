@@ -1851,7 +1851,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   // init the image filenames
   // this format has cols*rows image files, plus the map
   uint64_t num_images_tmp = ((uint64_t) num_cols * (uint64_t) num_rows) + 1;
-  if (num_images_tmp > INT_MAX) {
+  if (num_images_tmp > INT32_MAX) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Too many columns or rows");
     goto DONE;
