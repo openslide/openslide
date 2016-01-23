@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
- *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2011, 2016 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
