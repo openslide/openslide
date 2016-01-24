@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
- *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2011, 2016 Google, Inc.
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -1850,7 +1850,13 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   // init the image filenames
   // this format has cols*rows image files, plus the map
-  num_images = (num_cols * num_rows) + 1;
+  uint64_t num_images_tmp = ((uint64_t) num_cols * (uint64_t) num_rows) + 1;
+  if (num_images_tmp > INT32_MAX) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Too many columns or rows");
+    goto DONE;
+  }
+  num_images = num_images_tmp;
   image_filenames = g_new0(char *, num_images);
 
   // hash in the key file
