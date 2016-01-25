@@ -408,7 +408,8 @@ def pack(testname):
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
                 subprocess.check_call(['xdelta3', 'encode', '-9', '-W',
-                        '16777216', '-s', origpath, newpath, deltapath])
+                        '16777216', '-S', 'none', '-s', origpath, newpath,
+                        deltapath])
                 total_size += os.stat(deltapath).st_size
         else:
             open(whiteoutpath, 'w').close()
