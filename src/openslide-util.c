@@ -166,14 +166,12 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   FILE *f;
 
 #ifdef HAVE__WFOPEN
-  wchar_t *path16 = (wchar_t *) g_convert(path, -1, "UTF-16", "UTF-8",
-                                          NULL, NULL, err);
+  wchar_t *path16 = (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
   if (path16 == NULL) {
     g_prefix_error(err, "Couldn't open %s: ", path);
     return NULL;
   }
-  wchar_t *mode16 = (wchar_t *) g_convert(mode, -1, "UTF-16", "UTF-8",
-                                          NULL, NULL, err);
+  wchar_t *mode16 = (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
   if (mode16 == NULL) {
     g_prefix_error(err, "Bad file mode %s: ", mode);
     g_free(path16);
