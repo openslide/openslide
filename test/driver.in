@@ -3,6 +3,7 @@
 # OpenSlide, a library for reading whole slide image files
 #
 # Copyright (c) 2012-2015 Carnegie Mellon University
+# Copyright (c) 2016 Benjamin Gilbert
 # All rights reserved.
 #
 # OpenSlide is free software: you can redistribute it and/or modify
@@ -502,10 +503,11 @@ def unpack(pattern='*'):
         _unpack_one(testname)
 
 
-def _run_one(testname, valgrind=False, testdir=None):
+def _run_one(testname, valgrind=False, xfail=False, testdir=None):
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
-    to succeed, and 3) do in fact succeed.'''
+    to succeed, and 3) do in fact succeed.  If xfail is specified, invert
+    the sense of the result.'''
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
@@ -518,34 +520,46 @@ def _run_one(testname, valgrind=False, testdir=None):
             regions=conf.get('regions', []),
             debug=conf.get('debug', []))
 
+    msg = _color(GREEN, '%s: OK' % testname)
+    ok = True
     if result is None and not conf['success']:
-        print _color(RED, '%s: unexpected success' % testname)
-        return False
+        msg = _color(RED, '%s: unexpected success' % testname)
+        ok = False
     elif result is not None and conf['success']:
-        print _color(RED, '%s: unexpected failure: %s' % (testname, result))
-        return False
+        msg = _color(RED, '%s: unexpected failure: %s' % (testname, result))
+        ok = False
     elif result is not None and not re.search(conf['error'], result):
-        print _color(RED, '%s: incorrect error: %s' % (testname, result))
-        return False
+        msg = _color(RED, '%s: incorrect error: %s' % (testname, result))
+        ok = False
     elif conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
-            print _color(RED, '%s: extended test failed: %s' % (testname,
+            msg = _color(RED, '%s: extended test failed: %s' % (testname,
                     result))
-            return False
-    print _color(GREEN, '%s: OK' % testname)
-    return True
+            ok = False
+
+    if xfail:
+        ok = not ok
+        if ok:
+            msg = _color(BLUE, '%s: failed as expected' % testname)
+        else:
+            msg = _color(RED, '%s: expected to fail, but passed' % testname)
+
+    print msg
+    return ok
 
 
-def _run_all(pattern='*', valgrind=False, testdir=None):
+def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     '''Run all tests matching the specified pattern, under Valgrind if
-    specified.  Return the number of failed tests.'''
+    specified.  xfail specifies a list of tests which are expected to fail.
+    Return the number of tests producing unexpected results.'''
     tests = _list_tests(pattern)
     for testname in tests:
         _unpack_one(testname)
     failed = 0
+    xfail = set(xfail or [])
     for testname in tests:
-        if not _run_one(testname, valgrind, testdir):
+        if not _run_one(testname, valgrind, testname in xfail, testdir):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
     return failed
@@ -553,8 +567,12 @@ def _run_all(pattern='*', valgrind=False, testdir=None):
 
 @_command
 def run(pattern='*'):
-    '''Unpack and run all tests matching the specified pattern.'''
-    if _run_all(pattern):
+    '''Unpack and run all tests matching the specified pattern.  Ignore
+    failures of test cases listed in the comma-separated
+    OPENSLIDE_TEST_XFAIL environment variable.'''
+    xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
+    xfail = xfail.split(',') if xfail else []
+    if _run_all(pattern, xfail=xfail):
         sys.exit(1)
 
 
@@ -623,8 +641,12 @@ def coverage(outfile):
 
 @_command
 def valgrind(pattern='*'):
-    '''Unpack and Valgrind all tests matching the specified pattern.'''
-    if _run_all(pattern, valgrind=True):
+    '''Unpack and Valgrind all tests matching the specified pattern.
+    Ignore failures of test cases listed in the OPENSLIDE_VALGRIND_XFAIL
+    environment variable.'''
+    xfail = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
+    xfail = xfail.split(',') if xfail else []
+    if _run_all(pattern, valgrind=True, xfail=xfail):
         sys.exit(1)
 
 
