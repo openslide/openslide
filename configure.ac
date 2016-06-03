@@ -211,18 +211,12 @@ fi
 AC_SUBST([CYGWIN_CROSS_TEST])
 AM_CONDITIONAL([CYGWIN_CROSS_TEST], [test -n "$CYGWIN_CROSS_TEST"])
 
-# Only enable this on MinGW, since otherwise gcc will complain about an
-# unknown option whenever it produces any *other* warnings
-if test "$host_os" = "mingw32"; then
-  CFLAG_MS_FORMAT=-Wno-pedantic-ms-format
-else
-  CFLAG_MS_FORMAT=""
-fi
-AC_SUBST([CFLAG_MS_FORMAT])
+# MinGW only
+gl_WARN_ADD([-Wno-pedantic-ms-format])
 
 # The min/max glib version is actually 2.16, but glib doesn't have special
 # handling for API changes that old
-AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs $(CFLAG_MS_FORMAT) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_26 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
+AC_SUBST(AM_CFLAGS, ['-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs $(WARN_CFLAGS) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_26 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
 
 AC_SUBST(FEATURE_FLAGS)
 
