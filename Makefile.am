@@ -112,25 +112,32 @@ CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
 
 test_test_CPPFLAGS = $(COMMON_CPPFLAGS) $(CAIRO_CFLAGS) $(VALGRIND_CFLAGS)
+test_test_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 # VALGRIND_LIBS not needed
 test_test_LDADD = $(COMMON_LDADD) $(CAIRO_LIBS)
 
 test_try_open_CPPFLAGS = $(COMMON_CPPFLAGS)
+test_try_open_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_try_open_LDADD = $(COMMON_LDADD)
 
 test_parallel_CPPFLAGS = $(COMMON_CPPFLAGS)
+test_parallel_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_parallel_LDADD = $(COMMON_LDADD)
 
 test_query_CPPFLAGS = $(COMMON_CPPFLAGS)
+test_query_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_query_LDADD = $(COMMON_LDADD)
 
 test_extended_CPPFLAGS = $(COMMON_CPPFLAGS)
+test_extended_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_extended_LDADD = $(COMMON_LDADD)
 
 test_mosaic_CPPFLAGS = $(COMMON_CPPFLAGS) $(CAIRO_CFLAGS)
+test_mosaic_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_mosaic_LDADD = $(COMMON_LDADD) $(CAIRO_LIBS)
 
 test_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
+test_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_profile_LDADD = $(COMMON_LDADD)
 
 if CYGWIN_CROSS_TEST
