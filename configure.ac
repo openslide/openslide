@@ -53,7 +53,7 @@ AC_SUBST([SUFFIXED_VERSION])
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
 
 PKG_CHECK_MODULES(ZLIB, [zlib], [], [
-  dnl for Ubuntu Lucid, BSD
+  dnl for BSD
   AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
 ])
 
