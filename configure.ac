@@ -51,12 +51,16 @@ AC_SUBST([SUFFIXED_VERSION])
 
 # libraries
 AC_SEARCH_LIBS([floor], [m],, AC_MSG_FAILURE([cannot find math library]))
-AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
-					 AC_MSG_FAILURE([cannot find libjpeg]))
 
 PKG_CHECK_MODULES(ZLIB, [zlib], [], [
   dnl for Ubuntu Lucid, BSD
   AC_SEARCH_LIBS([inflate], [z],, AC_MSG_FAILURE([cannot find zlib]))
+])
+
+PKG_CHECK_MODULES(LIBJPEG, [libjpeg], [], [
+  dnl IJG libjpeg, or libjpeg-turbo < 1.5.0
+  AC_SEARCH_LIBS([jpeg_CreateDecompress], [jpeg],,
+                 AC_MSG_FAILURE([cannot find libjpeg]))
 ])
 
 PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
