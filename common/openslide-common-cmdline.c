@@ -35,7 +35,7 @@
 
 static const char *version_format = "%s " SUFFIXED_VERSION ", "
 "using OpenSlide %s\n"
-"Copyright (C) 2007-2015 Carnegie Mellon University and others\n"
+"Copyright (C) 2007-2016 Carnegie Mellon University and others\n"
 "\n"
 "OpenSlide is free software: you can redistribute it and/or modify it under\n"
 "the terms of the GNU Lesser General Public License, version 2.1.\n"
