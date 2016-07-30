@@ -27,9 +27,9 @@ AC_TYPE_UINTPTR_T
 LT_PREREQ([2.2.5])
 LT_INIT([win32-dll disable-static])
 LT_LANG([Windows Resource])
-AM_CONDITIONAL([WINDOWS_RESOURCES], [test x$RC != x])
 
-# for windows manifest
+# Windows resources and manifest
+AM_CONDITIONAL([WINDOWS_RESOURCES], [test $host_os = mingw32])
 WINDOWS_VERSIONINFO=$(echo "${VERSION}.0.0.0" | cut -f1-4 -d. | tr . ,)
 AC_SUBST([WINDOWS_VERSIONINFO])
 
