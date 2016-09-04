@@ -67,7 +67,7 @@ SKIP = object()
 if '!!CYGWIN_CROSS_TEST!!':
     import ctypes
 
-    _cygwin = ctypes.CDLL('cygwin1', use_errno=True)
+    _cygwin = ctypes.CDLL('cygwin1.dll', use_errno=True)
     _cygwin_conv_path = _cygwin.cygwin_conv_path
     _cygwin_conv_path.argtypes = [ctypes.c_uint, ctypes.c_void_p,
             ctypes.c_void_p, ctypes.c_size_t]
