@@ -29,35 +29,28 @@
 
 enum image_format {
   IMAGE_FORMAT_UNKNOWN=0,
-  IMAGE_FORMAT_JPEG,
+  IMAGE_FORMAT_JPG,
   IMAGE_FORMAT_PNG,
-  IMAGE_FORMAT_BMP,
-  IMAGE_FORMAT_JP2K
-};
-
-// wrapper for zip handle with thread-safety
-struct _openslide_ziphandle {
-  zip_t *handle;
-  GMutex lock;
+  IMAGE_FORMAT_BMP
 };
 
 // opens zip archive by file name
-bool _openslide_zip_open_archive(const char *filename, struct _openslide_ziphandle *zh, GError **err);
+zip_t* _openslide_zip_open_archive(const char *filename, GError **err);
 
 // opens zip archive from "zip source"
-bool _openslide_zip_open_archive_from_source(zip_source_t *zs, struct _openslide_ziphandle *zh, GError **err);
+zip_t* _openslide_zip_open_archive_from_source(zip_source_t *zs, GError **err);
 
 // closes zip archive and sets handle to NULL
-bool _openslide_zip_close_archive(struct _openslide_ziphandle *zh);
+bool _openslide_zip_close_archive(zip_t *z);
 
 // searches file by name in archive, checking both backslashes and forward slashes
-zip_int64_t _openslide_zip_name_locate(struct _openslide_ziphandle *zh, const char *filename, zip_flags_t flags);
+zip_int64_t _openslide_zip_name_locate(zip_t *z, const char *filename, zip_flags_t flags);
 
 // reads file from zip archive and stores unpacked data in a buffer
-bool _openslide_zip_read_file_data(struct _openslide_ziphandle *zh, zip_uint64_t index, gpointer *file_buf, gsize *file_len, GError **err);
+bool _openslide_zip_read_file_data(zip_t *z, zip_uint64_t index, gpointer *file_buf, gsize *file_len, GError **err);
 
 // reads file from zip archive, unpacks and decodes image data
-bool _openslide_zip_read_image(struct _openslide_ziphandle *zh, zip_uint64_t file_id, enum image_format dzif, uint32_t **pdestbuf, int32_t *pw, int32_t *ph, GError **err);
+bool _openslide_zip_read_image(zip_t *z, zip_uint64_t file_id, enum image_format dzif, uint32_t **pdestbuf, int32_t *pw, int32_t *ph, GError **err);
 
 #define zip_open _OPENSLIDE_POISON(_openslide_zip_open_archive)
 #define zip_fopen _OPENSLIDE_POISON(_openslide_zip_read_file_data)
