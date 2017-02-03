@@ -31,11 +31,6 @@
 
 //#define g_debug(...) fprintf(stderr, __VA_ARGS__)
 
-// remove _OPENSLIDE_POISON(xxx) warnings for this file
-#undef zip_open 
-#undef zip_fopen
-
-
 // open archive from zip source
 zip_t* _openslide_zip_open_archive_from_source(zip_source_t *zs, GError **err) {
 
@@ -52,17 +47,21 @@ zip_t* _openslide_zip_open_archive_from_source(zip_source_t *zs, GError **err) {
     return NULL;
   }
 
+  if (ze.zip_err || ze.sys_err) {
+    g_debug("zip_open_from_source was successful but returned zip_err=%i and sys_err=%i\n", ze.zip_err, ze.sys_err);
+  }
   return z;
 }
 
 // open archive by file name
 zip_t* _openslide_zip_open_archive(const char *filename, GError **err) {
-    
+
   int zerr_i = 0;
+
   zip_t* z = zip_open(filename, ZIP_RDONLY, &zerr_i);
   g_debug("zip_open(\"%s\") returns %p. errcode=%i\n", filename, (void*)z, zerr_i);
 
-  if (z==NULL || zerr_i != 0 ) {
+  if (z == NULL || zerr_i != 0 ) {
       _openslide_io_error(err, "_openslide_zip_open_archive: returning libzip error code %i while trying to open zip archive.", zerr_i);
       return NULL;
   }
@@ -121,9 +120,6 @@ bool _openslide_zip_read_file_data(zip_t *z,
                                    gpointer *file_buf, 
                                    gsize *file_len, 
                                    GError **err) {
-  // note: zip_fopen is NOT thread-safe because 
-  // each zip archive has got only a single stream position pointer
-
   zip_stat_t zstat;
   zip_int64_t bytes_read;
 
@@ -179,7 +175,7 @@ bool _openslide_zip_read_file_data(zip_t *z,
   zip_file_t *file = zip_fopen_index(z, index, 0);
 
   if (!file) {
-    g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+    _openslide_io_error( err, 
                  "_openslide_zip_read_file_data: cannot open file %s at index %i - zip error = %s",
                  fname, (int)index, zip_error_strerror(zip_get_error(z)));
     goto FAIL_AND_UNALLOCATE;
@@ -192,20 +188,20 @@ bool _openslide_zip_read_file_data(zip_t *z,
   int close_err = zip_fclose(file);
 
   if (close_err) { 
-    g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                 "_openslide_zip_read_file_data: zip_fclose returned "
-    		     " zip error %i. \"%s\" on file=\"%s\"",
-                 close_err, zip_error_strerror(zip_get_error(z)), fname);
+    _openslide_io_error( err, 
+                        "_openslide_zip_read_file_data: zip_fclose returned "
+                        " zip error %i. \"%s\" on file=\"%s\"",                         
+                        close_err, zip_error_strerror(zip_get_error(z)), fname);
     goto FAIL_AND_UNALLOCATE;
   }
 
   if ((gsize)bytes_read != (gsize)zstat.size) {
-	g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+    g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                  "_openslide_zip_read_file_data: While accessing file \"%s\" "
-    		     "in zip archive, the number of bytes retrieved (%li) didn't "
-    		     "match the file size in zip header (%li). Zip error=%s",
+                 "in zip archive, the number of bytes retrieved (%li) didn't "
+                 "match the file size in zip header (%li). Zip error=%s",
                  fname, (long int)bytes_read,
-				 (long int)zstat.size, zip_error_strerror(zip_get_error(z)));
+                 (long int)zstat.size, zip_error_strerror(zip_get_error(z)));
     goto FAIL_AND_UNALLOCATE;
   }
 
@@ -221,69 +217,3 @@ FAIL_AND_UNALLOCATE:
 }
 
 
-// Helper function: unpacks a file from zip archive at index position and decodes it into an RGBA buffer
-// The dimensions of the image are returned by reference and the buffer with the image data is allocated with g_slice_alloc
-// Buffer must be freed after use with g_slice_free w*h*4
-
-bool _openslide_zip_read_image(zip_t *z, 
-                               zip_uint64_t file_id, 
-                               enum image_format dzif, 
-                               uint32_t **pdestbuf, 
-                               int32_t *pw, 
-                               int32_t *ph, 
-                               GError **err) {
-
-  gpointer cbuf;  // coded image data
-  gsize cbufsize;
-
-  bool success;
-  int32_t dw,dh;
-  uint32_t *destbuf = NULL; // decoded image data
-
-  *pdestbuf = NULL; // defaults
-  *pw = -1; *ph = -1;
-
-  success = _openslide_zip_read_file_data(z, file_id, &cbuf, &cbufsize, err);
-  if (!success) return false;
-
-  if (dzif==IMAGE_FORMAT_JPG) {
-    
-    success = _openslide_jpeg_decode_buffer_dimensions(cbuf, cbufsize, &dw, &dh, err);
-        
-    if (success) {
-      //g_debug("jpeg size %i,%i\n", (int)dw, (int)dh);
-      destbuf = g_slice_alloc((gsize)dw * dh * 4);
-          
-      if (destbuf) {
-        success = _openslide_jpeg_decode_buffer( cbuf, cbufsize,
-                                                 destbuf,
-                                                 dw, dh,
-                                                 err);
-        if (success) {
-          *pdestbuf = destbuf;
-          *pw = dw; *ph = dh;
-        }
-      }
-      else {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "_openslide_zip_read_tile: can't allocate buffer for decoded image");
-      }
-    }
-  }
-  else if (dzif==IMAGE_FORMAT_PNG) {
-    // to add PNG support, we would require _openslide_png_decode_buffer(buf, buflen, dest, dw, dh, err)
-    // until now, PNG is not used by VMIC
-    success = false;
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "_openslide_zip_read_tile: no PNG support");
-  }
-  else {
-    // BMP is not used. So far only JPG based VMICs exist
-    // there's some chance we may need to add JP2K support for future VMICs
-    success = false;
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "_openslide_zip_read_tile: unknown image format %i", (int)dzif);
-  }
-  g_slice_free1(cbufsize, cbuf); // delete buffer with file data
-  return success;
-}
