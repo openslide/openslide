@@ -27,13 +27,6 @@
 #include <glib.h>
 #include <zip.h>
 
-enum image_format {
-  IMAGE_FORMAT_UNKNOWN=0,
-  IMAGE_FORMAT_JPG,
-  IMAGE_FORMAT_PNG,
-  IMAGE_FORMAT_BMP
-};
-
 // opens zip archive by file name
 zip_t* _openslide_zip_open_archive(const char *filename, GError **err);
 
@@ -48,11 +41,5 @@ zip_int64_t _openslide_zip_name_locate(zip_t *z, const char *filename, zip_flags
 
 // reads file from zip archive and stores unpacked data in a buffer
 bool _openslide_zip_read_file_data(zip_t *z, zip_uint64_t index, gpointer *file_buf, gsize *file_len, GError **err);
-
-// reads file from zip archive, unpacks and decodes image data
-bool _openslide_zip_read_image(zip_t *z, zip_uint64_t file_id, enum image_format dzif, uint32_t **pdestbuf, int32_t *pw, int32_t *ph, GError **err);
-
-#define zip_open _OPENSLIDE_POISON(_openslide_zip_open_archive)
-#define zip_fopen _OPENSLIDE_POISON(_openslide_zip_read_file_data)
 
 #endif //OPENSLIDE_OPENSLIDE_DECODE_ZIP_H_
