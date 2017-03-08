@@ -1,0 +1,10 @@
+language: c
+
+sudo: required
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libz-dev libjpeg-dev libopenjpeg-dev libtiff-dev libglib2.0-dev libcairo-dev libpng-dev libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev valgrind
+
+before_script:
+  - autoreconf -i
