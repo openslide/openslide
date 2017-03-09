@@ -51,7 +51,8 @@
 const char _PRECIPOINT_VENDOR[] = "PreciPoint";
 const char _PRECIPOINT_VMICTYPE[] = "M8-VMIC";
 
-const char _PRECIPOINT_INNER_CONTAINER_NAME[] = "Image.vmici"; // either one of these is the name of the inner archive
+// either one of the following two is the name of the inner
+const char _PRECIPOINT_INNER_CONTAINER_NAME[] = "Image.vmici";
 const char _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME[] = "Image";
 
 const char _PRECIPOINT_MACRO_IMAGE[] = "VMCF/overview.jpg";
@@ -64,14 +65,12 @@ const char _PRECIPOINT_PROPPATH_NAME[] = "PreciPoint.ScanData.Name";
 // max number of open zip handles
 #define VMIC_HC_MAX_QUEUE_COUNT 32
 
-// max accumulated direcory size per queue
-#define VMIC_HC_MAX_PARALLEL_SIZE 40000000
+// max accumulated direcory size per queue in MB
+#define VMIC_HC_MAX_PARALLEL_SIZE 45
 // note: this limits the number of parallel slides opened
 // it's an estimation of zip directory memory estimated from the (known) slide size
 // the directory size is roughly 0.5% of slide size,
 // e.g. 60 MB for a 13 GB slide, plus the malloc overhead
-
-//#define VMIC_HC_MAX_PARALLEL_SIZE 1LL
 
 /* deepzoom constants */
 //const char _DEEPZOOM_XML_FILE[] = "dzc_output.xml";
@@ -151,7 +150,6 @@ static struct vmic_handle* vmic_handle_new(struct vmic_handlecache *vc, GError *
       goto FAIL;
     }
     zip_source_t *zs = zip_source_zip(zo, zo, vc->inner_index, 0, 0, 0);
-    g_debug("vmic_handle_new: zip_source_zip returns %p\n", (void*)zs);
 
     if (!zs) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -162,8 +160,7 @@ static struct vmic_handle* vmic_handle_new(struct vmic_handlecache *vc, GError *
     }
 
     vh->inner = _openslide_zip_open_archive_from_source(zs, err);
-    g_debug("vmic_handle_new: _openslide_zip_open_archive_from_source returns %p\n",
-            (void*)vh->inner);
+
     if (!vh->inner) {
       g_prefix_error( err, 
                       "vmic_handle_new: cannot open inner archive, reason: ");
@@ -193,10 +190,10 @@ static struct vmic_handlecache* vmic_handlecache_create(const char *filename, zi
     vc->inner_index = inner_index;
     vc->cache = g_queue_new();
     vc->instance_count = 0;
-    vc->instance_max = 1 + ((uint64_t) VMIC_HC_MAX_PARALLEL_SIZE * 175 / inner_size );
+    vc->instance_max = 1 + ((uint64_t) VMIC_HC_MAX_PARALLEL_SIZE * 175 * 1000000 / inner_size );
     vc->outstanding = 0;
-    g_debug("creating vmic_handlecache file=%s, index=%i, inner_size=%li, instance_max=%i\n",
-            filename, (int)inner_index, (long int)inner_size, (int)vc->instance_max);
+    //g_debug("creating vmic_handlecache file=%s, inner index=%i, inner_size=%li, instance_max=%i\n",
+    //        filename, (int)inner_index, (long int)inner_size, (int)vc->instance_max);
     
     vc->lock = g_mutex_new();
     vc->cond = g_cond_new();
@@ -218,9 +215,9 @@ static struct vmic_handle* vmic_handle_get(struct vmic_handlecache *vc, GError *
   while ( (vh = g_queue_pop_head(vc->cache)) == NULL
        && vc->instance_count >= vc->instance_max ) {
       
-      g_debug("waiting for g_queue_push signal instance_count=%i, outstanding=%i...", (int) vc->instance_count, (int) vc->outstanding);
+      //g_debug("waiting for g_queue_push signal instance_count=%i, outstanding=%i...", (int) vc->instance_count, (int) vc->outstanding);
       g_cond_wait(vc->cond, vc->lock);
-      g_debug("..wait ended\n");
+      //g_debug("..wait ended\n");
   }
   vc->outstanding++;
   g_mutex_unlock(vc->lock);
@@ -230,15 +227,8 @@ static struct vmic_handle* vmic_handle_get(struct vmic_handlecache *vc, GError *
     vc->instance_count++;
     g_mutex_unlock(vc->lock);
 
-    g_debug("call to vmic_handle_new, instance_count=%i\n", vc->instance_count);
+    //g_debug("call to vmic_handle_new, instance_count=%i\n", vc->instance_count);
     vh = vmic_handle_new(vc, err);
-    if (vh != NULL) {
-      g_debug("call to vmic_handle_new succeeded\n");
-    }
-    else
-    {
-      g_debug("call to vmic_handle_new failed\n");
-    }
   }
   if (vh == NULL) { // fail case
     g_mutex_lock(vc->lock);
@@ -266,7 +256,7 @@ static void vmic_handle_put(struct vmic_handlecache *vc, struct vmic_handle *vh)
   g_mutex_unlock(vc->lock);
 
   if (vh) {
-    g_debug("too many vmic handles in queue, deleting one\n");
+    //g_debug("too many vmic handles in queue, deleting one\n");
     g_mutex_lock(vc->lock);
     vc->instance_count--;
     g_mutex_unlock(vc->lock);
@@ -282,19 +272,16 @@ static void vmic_handlecache_destroy(struct vmic_handlecache *vc) {
   g_mutex_lock(vc->lock);
   struct vmic_handle *vh;
   while ((vh = g_queue_pop_head(vc->cache)) != NULL) {
-    g_debug("delete vmic handle\n");
+    //g_debug("delete vmic handle\n");
     vc->instance_count--;
     vmic_handle_delete(vh);
   }
-  g_debug("g_mutex_unlock\n");
   g_mutex_unlock(vc->lock);
   g_assert(vc->instance_count == 0);
-  g_debug("g_queue_free\n");
   g_queue_free(vc->cache);
   g_mutex_free(vc->lock);
   g_cond_free(vc->cond);
   g_free(vc->filename);
-  g_debug("g_slice_free(struct vmic_handlecache, vc)\n");
   g_slice_free(struct vmic_handlecache, vc);
 }
 
@@ -415,8 +402,8 @@ static bool vmic_read_tile(openslide_t *osr,
   int32_t tw = calc_expected_tile_dim(lev->base.w, vmic->dz.tilesize, vmic->dz.overlap, tile_col);
   int32_t th = calc_expected_tile_dim(lev->base.h, vmic->dz.tilesize, vmic->dz.overlap, tile_row);
 
-  //g_debug("requested tile: col=%i, row=%i, w=%i, h=%i\n", 
-  //        (int)tile_col, (int)tile_row,(int)tw, (int)th );
+  //g_debug("requested tile: col=%i, row=%i, w=%i, h=%i\n",
+  //        (int)tile_col, (int)tile_row, (int)tw, (int)th );
 
   /* try to fetch from cache */
   struct _openslide_cache_entry *cache_entry;
@@ -454,7 +441,7 @@ static bool vmic_read_tile(openslide_t *osr,
         } 
       }
 
-      // return handle to queue ASAP, because of possible locks
+      // return handle to queue ASAP, so other threads can access
       vmic_handle_put(vmic->archive, vh);
         
       // note: &tiledata returns a buffer allocated with g_slice_alloc
@@ -471,7 +458,7 @@ static bool vmic_read_tile(openslide_t *osr,
         if (!success) {
           g_prefix_error(err, "Error in vmic_read_tile: ");
         }
-        
+
         // check if the tile has expected dimensions
         if (success && (tw != w || th != h)) {
           g_slice_free1((gsize) w * h * 4, tiledata);
@@ -590,8 +577,6 @@ static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi, GHas
                  "DZC/XML: Cannot retrieve MPP property");
     goto FAIL;
   }
-
-  //g_debug("ppm=%lf\n", ppm);
 
   success = g_hash_table_insert( properties,
                                  g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
@@ -765,7 +750,7 @@ static bool vmic_try_init(const char *vmic_filename, zip_int64_t *inner_index, u
     vmici_index = _openslide_zip_name_locate(zo, _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME, ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
   }
   
-  g_debug("found inner container file, name=%s, index=%i\n", zip_get_name(zo, vmici_index, ZIP_FL_ENC_RAW), (int)vmici_index);
+  //g_debug("found inner container file, name=%s, index=%i\n", zip_get_name(zo, vmici_index, ZIP_FL_ENC_RAW), (int)vmici_index);
 
   if (vmici_index >= 0) {
     //check "magic number" of the file in question by reading first 4 bytes
@@ -775,11 +760,11 @@ static bool vmic_try_init(const char *vmic_filename, zip_int64_t *inner_index, u
       zip_fread(file, &file_magic, 4);
       zip_fclose(file);
       
-      g_debug("checking magic of inner container=%x\n", (int)file_magic);
+      //g_debug("checking magic of inner container=%x\n", (int)file_magic);
 
       if (file_magic == 0x04034B50) { // "PK34" (The rare "PK00PK" signature does not occur)
         zip_stat_index(zo, vmici_index, 0, &zstat);        
-        g_debug("magic ok, inner_size=%li\n", (long int)zstat.size);
+        //g_debug("magic ok, inner_size=%li\n", (long int)zstat.size);
       }
       else {
         g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -1006,7 +991,7 @@ static bool vmic_create_levels(openslide_t *osr, G_GNUC_UNUSED zip_t *z, GError 
   int w = dzi->width;
   int h = dzi->height;
   int tilesize = dzi->tilesize;
-  int overlap = dzi->overlap;
+  //int overlap = dzi->overlap;
   double downsample = 1;
 
   os_level_id = 0;
@@ -1062,11 +1047,10 @@ FAIL:
 static void vmic_destroy(openslide_t *osr) {
   struct vmicinfo *vmic = (struct vmicinfo *)osr->data;
 
-  g_debug("call to vmic_destroy\n");
+  //g_debug("call to vmic_destroy\n");
   vmic_handlecache_destroy(vmic->archive);
   vmic->archive = NULL;
   vmic_destroy_levels(osr);
-  g_debug("call to g_free(vmic)\n");
   g_free(vmic);
 }
 
@@ -1091,7 +1075,7 @@ static bool vmic_get_associated_image_data(struct _openslide_associated_image *_
     return false;
   }
 
-  g_debug("requesting assoc image: w=%i, h=%i\n", (int)assoc_img->base.w, (int)assoc_img->base.h);
+  //g_debug("requesting assoc image: w=%i, h=%i\n", (int)assoc_img->base.w, (int)assoc_img->base.h);
 
   gpointer cbuf;  // coded image data
   gsize cbufsize;
@@ -1164,7 +1148,7 @@ static void vmic_collect_associated_images(openslide_t *osr, zip_t *z, GError **
       img->base.h = h;
       img->ref_vmic = vmic;
       img->zipindex = file_id;
-      g_debug("adding assoc image: w=%i, h=%i\n", (int)img->base.w, (int)img->base.h);
+      //g_debug("adding assoc image: w=%i, h=%i\n", (int)img->base.w, (int)img->base.h);
       g_hash_table_insert(osr->associated_images, g_strdup(qualifier), img);
 
 //      g_slice_free1(w*h*4, buf);
@@ -1203,7 +1187,7 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
 
-  g_debug("call to vmic_try_init\n");
+  //g_debug("call to vmic_try_init\n");
   success = vmic_try_init(filename, &inner_index, &inner_size, err);
   if (success < 0) {
     return false;
@@ -1216,7 +1200,7 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
     return false;
   }
 
-  g_debug("call to vmic_handlecache_create\n");
+  //g_debug("call to vmic_handlecache_create\n");
   vmic->archive = vmic_handlecache_create(filename, inner_index, inner_size);
   if (vmic->archive == NULL) {
     g_prefix_error( err,
@@ -1225,7 +1209,7 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   }
   osr->data = vmic;
 
-  g_debug("call to vmic_handle_get\n");
+  //g_debug("call to vmic_handle_get\n");
   struct vmic_handle *vh = vmic_handle_get(vmic->archive, err);
   if (!vh) {
     g_prefix_error( err,
@@ -1234,15 +1218,15 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   }
   zip_t *zi = vh->inner;
 
-  g_debug("call to vmic_get_properties\n");
+  //g_debug("call to vmic_get_properties\n");
   success = vmic_get_properties(osr, zi, quickhash1, err);
   if (!success) goto FAIL;
 
-  g_debug("call to vmic_create_levels\n");
+  //g_debug("call to vmic_create_levels\n");
   success = vmic_create_levels(osr, zi, err);
   if (!success) goto FAIL;
 
-  g_debug("call to vmic_collect_associated_images\n");
+  //g_debug("call to vmic_collect_associated_images\n");
   vmic_collect_associated_images(osr, zi, err);
   if (*err) goto FAIL;
 
@@ -1250,7 +1234,7 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
                                          vmic->dz.folder_name,
                                          vmic->dz.dz_one_tile_level,
                                          vmic->dz.tile_imgformat_str);
-  g_debug("quickhash tile=%s\n", hashfilename);
+  //g_debug("quickhash tile=%s\n", hashfilename);
   
   int64_t hash_tile_x = _openslide_zip_name_locate( zi, hashfilename,
                                                    ZIP_FL_ENC_RAW|ZIP_FL_NOCASE );
