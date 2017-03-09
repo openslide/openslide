@@ -38,7 +38,7 @@ zip_t* _openslide_zip_open_archive_from_source(zip_source_t *zs, GError **err) {
   zip_error_init(&ze);
 
   zip_t *z = zip_open_from_source(zs, ZIP_RDONLY, &ze);
-  g_debug("zip_open_from_source(%p) returns %p. err=%s\n", (void*)zs, (void*)z, zip_error_strerror(&ze));
+  //g_debug("zip_open_from_source(%p) returns %p. err=%s\n", (void*)zs, (void*)z, zip_error_strerror(&ze));
   
   if ( z == NULL || ze.zip_err || ze.sys_err ) {
     _openslide_io_error( err,
@@ -48,7 +48,7 @@ zip_t* _openslide_zip_open_archive_from_source(zip_source_t *zs, GError **err) {
   }
 
   if (ze.zip_err || ze.sys_err) {
-    g_debug("zip_open_from_source was successful but returned zip_err=%i and sys_err=%i\n", ze.zip_err, ze.sys_err);
+    //g_debug("zip_open_from_source was successful but returned zip_err=%i and sys_err=%i\n", ze.zip_err, ze.sys_err);
   }
   return z;
 }
@@ -59,7 +59,7 @@ zip_t* _openslide_zip_open_archive(const char *filename, GError **err) {
   int zerr_i = 0;
 
   zip_t* z = zip_open(filename, ZIP_RDONLY, &zerr_i);
-  g_debug("zip_open(\"%s\") returns %p. errcode=%i\n", filename, (void*)z, zerr_i);
+  //g_debug("zip_open(\"%s\") returns %p. errcode=%i\n", filename, (void*)z, zerr_i);
 
   if (z == NULL || zerr_i != 0 ) {
       _openslide_io_error(err, "_openslide_zip_open_archive: returning libzip error code %i while trying to open zip archive.", zerr_i);
@@ -74,7 +74,7 @@ bool _openslide_zip_close_archive(zip_t *z) {
   int ret = 0;
   if (z) {
     ret = zip_close(z);
-    g_debug("zip_close errcode=%i\n", ret);
+    //g_debug("zip_close errcode=%i\n", ret);
   }
   return ret==0;
 }
