@@ -247,6 +247,7 @@ static uint32_t *read_image(openslide_t *osr,
                                        dest, w, h,
                                        err);
     break;
+  case FORMAT_UNKNOWN:
   default:
     g_assert_not_reached();
   }
