@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2015 Mathieu Malaterre
+ *  Copyright (c) 2015-2017 Mathieu Malaterre
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -93,11 +93,11 @@ typedef union { char str[2]; vr_t vr; } uvr_t;
 typedef union { char bytes[4]; vl_t vl; } uvl_t;
 typedef union { char bytes[2]; uint16_t vl16; } uvl16_t;
 
-static inline uint16_t get_group( tag_t tag )
+static inline uint_fast16_t get_group( tag_t tag )
 {
   return (uint16_t)(tag >> 16);
 }
-static inline uint16_t get_element( tag_t tag )
+static inline uint_fast16_t get_element( tag_t tag )
 {
   return (uint16_t)(tag & (uint16_t)0xffff);
 }
