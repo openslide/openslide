@@ -124,7 +124,7 @@ static inline uint_fast16_t get_element( tag_t tag )
 #define SWAP_VL16(vl) vl = bswap_16(vl)
 #endif
 
-// Full list of VRs as of DICOM 2015a
+// Full list of VRs as of DICOM 2017a
 enum {
   E_INVALID = 0, /* Item, Item Delimitation Item & Sequence Delimitation Item */
   E_AE = MAKE_VR('A','E'),
@@ -142,6 +142,7 @@ enum {
   E_OB = MAKE_VR('O','B'),
   E_OD = MAKE_VR('O','D'),
   E_OF = MAKE_VR('O','F'),
+  E_OL = MAKE_VR('O','L'),
   E_OW = MAKE_VR('O','W'),
   E_PN = MAKE_VR('P','N'),
   E_SH = MAKE_VR('S','H'),
@@ -150,9 +151,11 @@ enum {
   E_SS = MAKE_VR('S','S'),
   E_ST = MAKE_VR('S','T'),
   E_TM = MAKE_VR('T','M'),
+  E_UC = MAKE_VR('U','C'),
   E_UI = MAKE_VR('U','I'),
   E_UL = MAKE_VR('U','L'),
   E_UN = MAKE_VR('U','N'),
+  E_UR = MAKE_VR('U','R'),
   E_US = MAKE_VR('U','S'),
   E_UT = MAKE_VR('U','T'),
 };
@@ -194,9 +197,12 @@ static inline bool isvr32( const vr_t vr )
   case E_OB:
   case E_OD:
   case E_OF:
+  case E_OL:
   case E_OW:
   case E_SQ:
+  case E_UC:
   case E_UN:
+  case E_UR:
   case E_UT:
     /* 32bits: */
     return true;
