@@ -853,17 +853,6 @@ struct dicom_info {
   int current_tile_num;
 };
 
-static const char *trimwhitespace(char *str)
-{
-  char *end;
-  while(*str == ' ') str++;
-  if(*str == 0) return str;
-  end = str + strlen(str) - 1;
-  while(end > str && *end == ' ') end--;
-  *(end+1) = 0;
-  return str;
-}
-
 static void handle_attribute1( dataset * ds, FILE * stream, const uint32_t len )
 {
   if( find_tag_path( ds->tps, ds->cur_tp ) )
@@ -879,7 +868,7 @@ static void handle_attribute1( dataset * ds, FILE * stream, const uint32_t len )
       if( *p == '\\' ) *p = '/';
       ++p;
       }
-    list = g_slist_append (list, strdup(trimwhitespace(buf)));
+    list = g_slist_append (list, strdup(g_strstrip(buf)));
     ds->data = list;
     }
   else
