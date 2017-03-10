@@ -26,10 +26,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #include <byteswap.h>
+#endif
+
+#if 0
+#define WUR __attribute__((warn_unused_result))
+#else
+#define WUR
 #endif
 
 /*
@@ -251,21 +256,25 @@ static inline bool is_encapsulated_pixel_data( const dataelement * de )
   const bool is_pixel_data = tag_equal_to(de, pixel_data);
   if( is_pixel_data )
     {
-    assert( de->vl == (uint32_t)-1 );
-    assert( de->vr == E_OB || de->vr == E_OW );
-    return true;
+    // Make sure Pixel Data is Encapsulated (Sequence of Fragments):
+    if( de->vl == (uint32_t)-1 && (de->vr == E_OB || de->vr == E_OW) )
+      {
+      return true;
+      }
     }
   return false;
 }
 static inline bool is_undef_len( const dataelement * de )
 {
   const bool b = de->vl == (uint32_t)-1;
-  if( b ) assert( de->vr == E_SQ || is_encapsulated_pixel_data( de ) || is_start(de) );
+  if( b ) {
+    return de->vr == E_SQ || is_encapsulated_pixel_data( de ) || is_start(de);
+  }
   return b;
 }
 static inline uint32_t compute_len( const dataelement * de )
 {
-  assert( !is_undef_len( de ) );
+  g_assert( !is_undef_len( de ) );
   if( isvr32( de->vr ) )
     {
     return 4 /* tag */ + 4 /* VR */ + 4 /* VL */ + de->vl /* VL */;
@@ -274,8 +283,8 @@ static inline uint32_t compute_len( const dataelement * de )
 }
 static inline uint32_t compute_undef_len( const dataelement * de, uint32_t len )
 {
-  assert( is_undef_len( de ) );
-  assert( len != (uint32_t)-1 );
+  g_assert( is_undef_len( de ) );
+  g_assert( len != (uint32_t)-1 );
   return 4 /* tag */ + 4 /* VR */ + 4 /* VL */ + len;
 }
 typedef struct {
@@ -316,7 +325,8 @@ static tag_path * push_tag( tag_path * tp, tag_t t )
     }
   else
     {
-    assert(0);
+    // programmer error, stack exhausted
+    g_assert(0);
     }
   return tp;
 }
@@ -373,6 +383,7 @@ static void destroy_path_set( tag_path_set * tps )
   free( tps );
 }
 
+static bool find_tag_path( tag_path_set *tps, tag_path *tp ) WUR;
 static bool find_tag_path( tag_path_set *tps, tag_path *tp )
 {
   int s;
@@ -399,7 +410,7 @@ static void add_tag_path( tag_path_set *tps, tag_path *tp )
     {
     total += tps->ntags[s];
     }
-  assert( total <= tps->size );
+  g_assert( total <= tps->size );
   tag_t * ptr = tps->tags + total;
   for( s = 0; s < tp->ntags; ++s )
     {
@@ -407,7 +418,7 @@ static void add_tag_path( tag_path_set *tps, tag_path *tp )
     }
   tps->ntags[ tps->nsets ] = tp->ntags;
   tps->nsets++;
-  assert( find_tag_path( tps, tp ) );
+  g_assert( find_tag_path( tps, tp ) );
 }
 
 typedef struct dataset dataset;
@@ -420,6 +431,7 @@ struct dataset {
 };
 
 // explicit
+static bool read_explicit( dataelement * de, FILE * stream ) WUR;
 static bool read_explicit( dataelement * de, FILE * stream )
 {
   utag_t t;
@@ -430,7 +442,7 @@ static bool read_explicit( dataelement * de, FILE * stream )
   size_t n = fread( t.tags, sizeof *t.tags, 2, stream );
   if( n != 2 ) return false;
   SWAP_TAG(t);
-  assert( tag_is_lower( de, t.tag ) );
+  if( !tag_is_lower( de, t.tag ) ) return false;
 
   // Value Representation
   n = fread( vr.str, sizeof *vr.str, 2, stream );
@@ -464,6 +476,7 @@ static bool read_explicit( dataelement * de, FILE * stream )
   return true;
 }
 
+static bool read_explicit_undef( dataelement * de, FILE * stream ) WUR;
 static bool read_explicit_undef( dataelement * de, FILE * stream )
 {
   utag_t t;
@@ -474,7 +487,7 @@ static bool read_explicit_undef( dataelement * de, FILE * stream )
   size_t n = fread( t.tags, sizeof *t.tags, 2, stream );
   if( n != 2 ) return false;
   SWAP_TAG(t);
-  assert( tag_is_lower( de, t.tag ) );
+  if( !tag_is_lower( de, t.tag ) ) return false;
 
   static const tag_t item_end = MAKE_TAG( 0xfffe,0xe00d );
   if( t.tag == item_end )
@@ -487,7 +500,7 @@ static bool read_explicit_undef( dataelement * de, FILE * stream )
   else
     {
     // Value Representation
-    assert( get_group(t.tag) != 0xfffe );
+    if( get_group(t.tag) == 0xfffe ) return false;
     n = fread( vr.str, sizeof *vr.str, 2, stream );
     if( n != 2 || !isvr_valid(vr) ) return false;
 
@@ -519,6 +532,7 @@ static bool read_explicit_undef( dataelement * de, FILE * stream )
 }
 
 // implicit
+static bool read_implicit( dataelement * de, FILE * stream ) WUR;
 static bool read_implicit( dataelement * de, FILE * stream )
 {
   utag_t t;
@@ -527,7 +541,7 @@ static bool read_implicit( dataelement * de, FILE * stream )
   size_t n = fread( t.tags, sizeof *t.tags, 2, stream );
   if( n != 2 ) return false;
   SWAP_TAG(t);
-  assert( tag_is_lower( de, t.tag ) );
+  if( !tag_is_lower( de, t.tag ) ) return false;
 
   // Value Length (always 32bits)
   n = fread( vl.bytes, 1, 4, stream );
@@ -540,6 +554,7 @@ static bool read_implicit( dataelement * de, FILE * stream )
   return true;
 }
 
+static inline bool read_ul( FILE * stream, uint32_t * value ) WUR;
 static inline bool read_ul( FILE * stream, uint32_t * value )
 {
   if( fread( (char*)value, sizeof *value, 1, stream ) != 1 )
@@ -549,6 +564,7 @@ static inline bool read_ul( FILE * stream, uint32_t * value )
 }
 
 // read header
+static bool read_meta( FILE * stream ) WUR;
 static bool read_meta( FILE * stream )
 {
   dataelement de = { 0 /* tag */ };
@@ -566,7 +582,7 @@ static bool read_meta( FILE * stream )
 
 static void process_attribute( dataset *ds, dataelement *de, FILE * stream )
 {
-  assert( !is_start(de) && !is_end_item(de) && !is_end_sq(de) );
+  g_assert( !is_start(de) && !is_end_item(de) && !is_end_sq(de) );
   if( is_undef_len(de) )
     {
     if( ds->handle_attribute ) (ds->handle_attribute)(ds, NULL, de->vl);
@@ -577,10 +593,12 @@ static void process_attribute( dataset *ds, dataelement *de, FILE * stream )
     }
 }
 
-static uint32_t read_sq_undef( dataset * ds, FILE * stream );
-static uint32_t read_encapsulated_pixel_data( dataset * ds, FILE * stream );
+static uint32_t read_sq_undef( dataset * ds, FILE * stream ) WUR;
+static uint32_t read_encapsulated_pixel_data( dataset * ds, FILE * stream ) WUR;
 
 /* read a single undefined length Item */
+/* return 0 upon failure, which is an invalid length for Undefined Length Item */
+static uint32_t read_item_undef( dataset * ds, FILE * stream ) WUR;
 static uint32_t read_item_undef( dataset * ds, FILE * stream )
 {
   dataelement de = { 0 /* tag */ };
@@ -588,8 +606,7 @@ static uint32_t read_item_undef( dataset * ds, FILE * stream )
   do
     {
     // carefully read an Item End or an Explicit Data Element:
-    const bool b = read_explicit_undef(&de, stream);
-    assert( b );
+    if( !read_explicit_undef(&de, stream) ) return 0;
     if( is_end_item(&de) )
       {
       // end of Item
@@ -606,12 +623,14 @@ static uint32_t read_item_undef( dataset * ds, FILE * stream )
       if( is_encapsulated )
         {
         const uint32_t epdlen = read_encapsulated_pixel_data( ds, stream );
+        if( epdlen == 0 ) return 0;
         itemlen += compute_undef_len( &de, epdlen );
         }
       else
         {
-        assert( de.vr == E_SQ ); // IVRLE
+        if( de.vr != E_SQ ) return 0; // IVRLE
         const uint32_t seqlen = read_sq_undef( ds, stream );
+        if( seqlen == 0 ) return 0;
         itemlen += compute_undef_len( &de, seqlen );
         }
       }
@@ -622,20 +641,21 @@ static uint32_t read_item_undef( dataset * ds, FILE * stream )
     pop_tag( ds->cur_tp );
     } while( 1 );
 
+  g_assert( itemlen > 0 );
   return itemlen;
 }
 
 /* read a single defined length Item of length: itemlen */
-static void read_item_def( dataset * ds, FILE * stream, const uint32_t itemlen )
+static bool read_item_def( dataset * ds, FILE * stream, const uint32_t itemlen ) WUR;
+static bool read_item_def( dataset * ds, FILE * stream, const uint32_t itemlen )
 {
   uint32_t curlen = 0;
   dataelement de = { 0 /* tag */ };
   while( curlen != itemlen )
     {
-    assert( curlen <= itemlen );
+    if( curlen > itemlen ) return false;
     // read attribute
-    const bool b = read_explicit(&de, stream);
-    assert( b );
+    if( !read_explicit(&de, stream) ) return false;
     push_tag( ds->cur_tp, de.tag );
     process_attribute( ds, &de, stream );
     if( is_undef_len(&de) )
@@ -645,11 +665,13 @@ static void read_item_def( dataset * ds, FILE * stream, const uint32_t itemlen )
       if( is_encapsulated )
         {
         const uint32_t epdlen = read_encapsulated_pixel_data( ds, stream );
+        if( epdlen == 0 ) return false;
         curlen += compute_undef_len( &de, epdlen );
         }
       else
         {
         const uint32_t seqlen = read_sq_undef( ds, stream );
+        if( seqlen == 0 ) return false;
         curlen += compute_undef_len( &de, seqlen );
         }
       }
@@ -659,10 +681,12 @@ static void read_item_def( dataset * ds, FILE * stream, const uint32_t itemlen )
       }
     pop_tag( ds->cur_tp );
     }
+  return true;
 }
 
 /* read a single undefined length SQ */
 /* return the actual length of the sequence */
+/* return 0 upon error, which is an impossible length for an undefined length Sequence */
 static uint32_t read_sq_undef( dataset * ds, FILE * stream )
 {
   dataelement de;
@@ -672,36 +696,38 @@ static uint32_t read_sq_undef( dataset * ds, FILE * stream )
     // restart tag for each new Item:
     de.tag = 0;
     // Item start
-    const bool b = read_implicit( &de, stream );
-    assert( b );
+    if( !read_implicit( &de, stream ) ) return 0;
     if( is_end_sq(&de) )
       {
       /* end of SQ */
-      assert( de.vl == 0 );
+      if( de.vl != 0 ) return 0;
       seqlen += 4 /* tag */ + 4 /* vl */;
       break;
       }
-    assert( is_start(&de) );
+    if( !is_start(&de) ) return 0;
 
     if( is_undef_len(&de) )
       {
       const uint32_t itemlen = read_item_undef( ds, stream );
+      if( itemlen == 0 ) return 0;
       seqlen += 4 /* tag */ + 4 /* vl */ + itemlen;
       }
     else
       {
-      read_item_def( ds, stream, de.vl );
+      if( !read_item_def( ds, stream, de.vl ) ) return 0;
       seqlen += 4 /* tag */ + 4 /* vl */ + de.vl;
       }
     } while( 1 );
 
   // post-condition
-  assert( is_end_sq(&de) );
+  if( !is_end_sq(&de) ) return 0;
 
+  g_assert( seqlen > 0 );
   return seqlen;
 }
 
 /* Encapsulated Pixel Data (one JPEG stream per Item) */
+/* return 0 upon error */
 static uint32_t read_encapsulated_pixel_data( dataset * ds, FILE * stream )
 {
   dataelement de;
@@ -711,85 +737,91 @@ static uint32_t read_encapsulated_pixel_data( dataset * ds, FILE * stream )
     /* restart for each Item */
     de.tag = 0;
     /* Item start */
-    const bool b = read_implicit(&de, stream);
-    assert( b );
+    if( !read_implicit(&de, stream) ) return 0;
     /* end of SQ */
     epdlen += 4 /* tag */ + 4 /* vl */;
     if( is_end_sq(&de) ) break;
-    assert( is_start(&de) );
+    if( !is_start(&de) ) return 0;
 
     if( ds->handle_pixel_data_item )  (ds->handle_pixel_data_item)( ds, stream, de.vl );
     epdlen += de.vl;
     } while( 1 );
 
   // post-condition
-  assert( is_end_sq(&de) );
+  if( !is_end_sq(&de) ) return 0;
 
+  g_assert( epdlen > 0 );
   return epdlen;
 }
 
 /* read a single defined length SQ */
-static void read_sq_def( dataset * ds, FILE * stream, const uint32_t seqlen )
+/* return true on success */
+static bool read_sq_def( dataset * ds, FILE * stream, const uint32_t seqlen ) WUR;
+static bool read_sq_def( dataset * ds, FILE * stream, const uint32_t seqlen )
 {
   uint32_t curlen = 0;
   dataelement de;
   while( curlen != seqlen )
     {
     // illegal:
-    assert( curlen <= seqlen );
+    if( curlen > seqlen ) return false;
     // restart for each Item:
     de.tag = 0;
     // start
-    const bool b = read_implicit( &de, stream );
-    assert( b && is_start(&de) );
+    if( !read_implicit( &de, stream ) || !is_start(&de) ) return false;
 
     if( is_undef_len(&de) )
       {
       const size_t itemlen = read_item_undef( ds, stream );
+      if( itemlen == 0 ) return false;
       curlen += 4 /* tag */ + 4 /* VL */ + itemlen;
       }
     else
       {
       curlen += 4 /* tag */ + 4 /* VL */ + de.vl;
-      read_item_def( ds, stream, de.vl );
+      if( !read_item_def( ds, stream, de.vl ) ) return false;
       }
     }
+  return true;
 }
 
 // Main loop
+static bool read_dataset( dataset * ds, FILE * stream ) WUR;
 static bool read_dataset( dataset * ds, FILE * stream )
 {
   dataelement de = { 0 /* tag */ };
   while( read_explicit( &de, stream ) )
     {
-    assert( get_group( de.tag ) != 0xfffe );
-    assert( get_group( de.tag ) <= 0x7fe0 );
+    if( get_group( de.tag ) == 0xfffe ) return false;
+    if( get_group( de.tag )  > 0x7fe0 ) return false;
     push_tag( ds->cur_tp, de.tag );
     if( is_undef_len(&de) )
       {
       process_attribute( ds, &de, stream );
       if( de.vr != E_SQ )
         {
-        assert( is_encapsulated_pixel_data( &de ) );
+        if( !is_encapsulated_pixel_data( &de ) ) return false;
         if( de.vr == E_UN ) // IVRLE !
           {
           // Technically a Sequence could be stored with VR:UN, this does
           // not make sense in the WSMIS world, thus it is not handled.
-          assert(0);
+          return false;
           }
-        read_encapsulated_pixel_data( ds, stream );
+        const uint32_t pdlen = read_encapsulated_pixel_data( ds, stream );
+        if( pdlen == 0 ) return false;
         }
       else
         {
-        assert( de.vr == E_SQ );
-        read_sq_undef(ds, stream);
+        if( de.vr != E_SQ ) return false;
+        const uint32_t seqlen = read_sq_undef(ds, stream);
+        if( seqlen == 0 ) return false;
         }
       }
     else
       {
       if( de.vr == E_SQ )
         {
-        read_sq_def( ds, stream, de.vl );
+        if( !read_sq_def( ds, stream, de.vl ) ) return false;
         }
       else
         {
@@ -798,7 +830,9 @@ static bool read_dataset( dataset * ds, FILE * stream )
       }
     pop_tag( ds->cur_tp );
     }
-  assert( feof( stream ) );
+
+  // let's be forgiving with extra tailing garbage:
+  // g_assert( feof( stream ) );
   return true;
 }
 
@@ -861,7 +895,7 @@ static void handle_attribute2( dataset * ds, FILE * stream, const uint32_t len )
     {
     tag_t last = last_tag( ds->cur_tp );
     char buf[512];
-    assert( len < 512 );
+    g_assert( len < 512 );
     fread(buf, 1, len, stream);
     buf[len] = 0;
     uint16_t us;
@@ -871,11 +905,11 @@ static void handle_attribute2( dataset * ds, FILE * stream, const uint32_t len )
     switch( last )
       {
       case MAKE_TAG(0x0008,0x0100):
-        assert( len < 16 );
+        g_assert( len < 16 );
         strncpy( di->code_value, buf, len + 1 );
         break;
       case MAKE_TAG(0x0020,0x000d):
-        assert( len <= 64 );
+        g_assert( len <= 64 );
         strncpy( di->study_instance_uid, buf, len );
         di->study_instance_uid_len = len;
         break;
@@ -896,7 +930,7 @@ static void handle_attribute2( dataset * ds, FILE * stream, const uint32_t len )
         break;
       default:
         // programmer error, need to handle attribute
-        assert(0);
+        g_assert(0);
       }
     }
   else
@@ -911,7 +945,7 @@ static void handle_pdi( dataset * ds, FILE * stream, const uint32_t len )
   struct tile * tiles = NULL;
   if( di->tiles == NULL )
     {
-    assert( di->number_of_frames > 0 );
+    g_assert( di->number_of_frames > 0 );
     di->tiles = malloc( di->number_of_frames * sizeof( struct tile ) );
     di->current_tile_num = 0;
     // discard Basic Offset Table for now
@@ -919,8 +953,8 @@ static void handle_pdi( dataset * ds, FILE * stream, const uint32_t len )
     return;
     }
   tiles = di->tiles;
-  assert( tiles );
-  assert( di->current_tile_num < di->number_of_frames );
+  g_assert( tiles ); // would need to report malloc failure nicely
+  g_assert( di->current_tile_num < di->number_of_frames );
   tiles[ di->current_tile_num ].start_in_file = ftello(stream);
   tiles[ di->current_tile_num ].length = len;
   di->current_tile_num++;
@@ -936,7 +970,7 @@ struct _openslide_dicom *_openslide_dicom_create(const char *filename,
                                                        GError **err) {
   struct _openslide_dicom *instance = NULL;
   FILE *stream = _openslide_fopen(filename, "rb", err);
-  assert( stream );
+  if( !stream ) return NULL;
 
   // allocate struct
   instance = g_slice_new0(struct _openslide_dicom);
@@ -951,7 +985,7 @@ struct _openslide_dicom *_openslide_dicom_create(const char *filename,
 bool _openslide_dicom_readindex(struct _openslide_dicom *instance, const char * dirname, char ***datafile_paths_out)
 {
   // Setup reader to parse DICOMDIR instances
-  assert( instance->ds.tps->nsets == 0 );
+  g_assert( instance->ds.tps->nsets == 0 );
     {
     tag_path *tp = create_tag_path();
     const tag_t t0 = MAKE_TAG(0x0004,0x1220);
@@ -1097,7 +1131,7 @@ bool _openslide_dicom_level_init(struct _openslide_dicom *instance,
     // num tiles in each dimension
     dicoml->tiles_across = (iw / tw) + !!(iw % tw);   // integer ceiling
     dicoml->tiles_down = (ih / th) + !!(ih % th);
-    assert( dicoml->tiles_across * dicoml->tiles_down == di.number_of_frames );
+    g_assert( dicoml->tiles_across * dicoml->tiles_down == di.number_of_frames );
 
     dicoml->is_icon = false;
     if( strcmp( di.code_value, "A-00118 " ) == 0 )
