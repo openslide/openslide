@@ -19,9 +19,36 @@
  *
  */
 
-#ifndef OPENSLIDE_TEST_TEST_COMMON_H
-#define OPENSLIDE_TEST_TEST_COMMON_H
+#ifndef OPENSLIDE_COMMON_H
+#define OPENSLIDE_COMMON_H
 
-char *get_fd_path(int fd);
+#include <stdbool.h>
+#include <glib.h>
+
+// cmdline
+
+struct common_usage_info {
+  const char *parameter_string;
+  const char *summary;
+};
+
+void common_fix_argv(int *argc, char ***argv);
+
+bool common_parse_options(GOptionContext *ctx,
+                          int *argc, char ***argv,
+                          GError **err);
+
+void common_parse_commandline(const struct common_usage_info *info,
+                              int *argc, char ***argv);
+
+void common_usage(const struct common_usage_info *info) G_GNUC_NORETURN;
+
+// fail
+
+void common_fail(const char *fmt, ...) G_GNUC_NORETURN;
+
+// fd
+
+char *common_get_fd_path(int fd);
 
 #endif

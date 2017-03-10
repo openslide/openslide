@@ -140,10 +140,9 @@ guint _openslide_int64_hash(gconstpointer v);
 gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
 void _openslide_int64_free(gpointer data);
 
-/* g_key_file_load_from_file wrapper */
-bool _openslide_read_key_file(GKeyFile *key_file, const char *filename,
-                              int32_t max_size, GKeyFileFlags flags,
-                              GError **err);
+/* g_key_file_new() + g_key_file_load_from_file() wrapper */
+GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
+                                   GKeyFileFlags flags, GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
@@ -359,6 +358,7 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 #define _OPENSLIDE_POISON(replacement) error__use_ ## replacement ## _instead
 #define fopen _OPENSLIDE_POISON(_openslide_fopen)
 #define fseek _OPENSLIDE_POISON(fseeko)
+#define ftell _OPENSLIDE_POISON(ftello)
 #define strtod _OPENSLIDE_POISON(_openslide_parse_double)
 #define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double_)
 #define sqlite3_open _OPENSLIDE_POISON(_openslide_sqlite_open)

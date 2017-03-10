@@ -21,10 +21,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <inttypes.h>
 #include <glib.h>
 #include <openslide.h>
+#include "openslide-common.h"
 
 #include "config.h"
 #ifdef HAVE_VALGRIND
@@ -36,33 +36,24 @@
 #define MAXWIDTH   10000
 #define MAXHEIGHT  10000
 
-static void fail(const char *str, ...) {
-  va_list ap;
-
-  va_start(ap, str);
-  vfprintf(stderr, str, ap);
-  fprintf(stderr, "\n");
-  va_end(ap);
-  exit(1);
-}
-
 int main(int argc, char **argv) {
+  common_fix_argv(&argc, &argv);
   if (argc != 3) {
-    fail("Usage: %s <slide> <level>", argv[0]);
+    common_fail("Usage: %s <slide> <level>", argv[0]);
   }
   const char *path = argv[1];
   int level = atoi(argv[2]);
 
   openslide_t *osr = openslide_open(path);
   if (!osr) {
-    fail("Couldn't open %s", path);
+    common_fail("Couldn't open %s", path);
   }
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Open failed: %s", err);
+    common_fail("Open failed: %s", err);
   }
   if (level >= openslide_get_level_count(osr)) {
-    fail("No such level: %d", level);
+    common_fail("No such level: %d", level);
   }
 
   // Get dimensions
@@ -110,7 +101,7 @@ int main(int argc, char **argv) {
 
   err = openslide_get_error(osr);
   if (err) {
-    fail("Read failed: %s", err);
+    common_fail("Read failed: %s", err);
   }
 
   g_free(buf);

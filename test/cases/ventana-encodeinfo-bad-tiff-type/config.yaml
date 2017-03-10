@@ -1,0 +1,8 @@
+# EncodeInfo XMP field with type 4
+base: Ventana/OS-2.bif
+# Unanchored at start because libtiff also complains
+error: "Unexpected value type: directory 2, tag 700, type 4$"
+slide: OS-2.bif
+success: false
+vendor: ventana
+requires: [libtiff-4]

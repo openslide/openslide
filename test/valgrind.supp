@@ -46,3 +46,22 @@
     fun:FcPatternObjectInsertElt
     fun:FcPatternObjectAddWithBinding
 }
+{
+    Apparent false positive in FcGetPrgname()
+    Memcheck:Leak
+    ...
+    fun:FcGetPrgname
+}
+{
+    Invalid read in fontconfig 2.8.0
+    Memcheck:Addr4
+    fun:FcConfigFileExists
+}
+
+# zlib 1.2.3
+{
+    Harmless access to uninitialized data
+    Memcheck:Cond
+    fun:inflateReset2
+    fun:inflateInit2_
+}

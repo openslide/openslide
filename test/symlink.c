@@ -24,14 +24,17 @@
 #include <stdio.h>
 #include <windows.h>
 
-int main(int argc, char **argv) {
+// avoid warning about missing prototype
+int wmain(int argc, wchar_t **argv);
+
+int wmain(int argc, wchar_t **argv) {
   if (argc != 3) {
-    fprintf(stderr, "Usage: %s <src> <dst>\n", argv[0]);
+    fwprintf(stderr, L"Usage: %s <src> <dst>\n", argv[0]);
     return 1;
   }
 
-  const char *src = argv[1];
-  const char *dst = argv[2];
+  const wchar_t *src = argv[1];
+  const wchar_t *dst = argv[2];
   if (!CreateSymbolicLink(dst, src, 0)) {
     fprintf(stderr, "Failed with error %lu\n", GetLastError());
     return 1;

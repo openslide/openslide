@@ -1,6 +1,6 @@
+# Initial XML with /Metadata/iScan schema
 base: Ventana/OS-2.bif
-error: ^Slides with multiple Z layers are not supported$
 slide: OS-2.bif
-success: false
+success: true
 vendor: ventana
 requires: [libtiff-4]

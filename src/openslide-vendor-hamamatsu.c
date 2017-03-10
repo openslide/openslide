@@ -2,7 +2,8 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
- *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2011, 2016 Google, Inc.
+ *  Copyright (c) 2016 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -495,7 +496,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
   while (first_good < target) {
     uint8_t marker_byte;
     int64_t after_marker_pos;
-    if (!find_next_ff_marker(f, buf_start, &buf, 4096,
+    if (!find_next_ff_marker(f, buf_start, &buf, sizeof(buf_start),
                              jpeg->end_in_file,
                              &marker_byte,
                              &after_marker_pos,
@@ -811,11 +812,10 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
   }
 
   // try to parse key file
-  GKeyFile *key_file = g_key_file_new();
-  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, err)) {
+  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                                                G_KEY_FILE_NONE, err);
+  if (!key_file) {
     g_prefix_error(err, "Can't read key file: ");
-    g_key_file_free(key_file);
     return false;
   }
 
@@ -1110,9 +1110,9 @@ DONE:
   return success;
 }
 
-static int64_t *extract_one_optimisation(FILE *opt_f,
-                                         int32_t tiles_down,
-                                         int32_t tiles_across) {
+static int64_t *extract_optimisations_for_one_jpeg(FILE *opt_f,
+                                                   int32_t tiles_down,
+                                                   int32_t tiles_across) {
   int32_t tile_count = tiles_across * tiles_down;
   int64_t *mcu_starts = g_new(int64_t, tile_count);
   for (int32_t i = 0; i < tile_count; i++) {
@@ -1139,7 +1139,7 @@ static int64_t *extract_one_optimisation(FILE *opt_f,
       int64_t i64;
     } u;
 
-    if (fread(u.buf, 40, 1, opt_f) != 1) {
+    if (fread(u.buf, sizeof(u.buf), 1, opt_f) != 1) {
       // EOF or error, we've done all we can
 
       if (row == 0) {
@@ -1435,11 +1435,6 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   }
 
   // process jpegs
-  int32_t jpeg0_tw = 0;
-  int32_t jpeg0_th = 0;
-  int32_t jpeg0_ta = 0;
-  int32_t jpeg0_td = 0;
-
   for (int i = 0; i < num_jpegs; i++) {
     struct jpeg *jp = jpegs[i];
 
@@ -1493,62 +1488,63 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     // file is done now
     fclose(f);
 
-    // because map file is last, ensure that all tile_{width,height} are the
-    // same, and that all tiles_{across,down} are the same except in the last
-    // column/row, for 0 through num_jpegs-2
-    if (i == 0) {
-      jpeg0_tw = jp->tile_width;
-      jpeg0_th = jp->tile_height;
-      jpeg0_ta = jp->tiles_across;
-      jpeg0_td = jp->tiles_down;
-    } else if (i != (num_jpegs - 1)) {
-      // not map file (still within level 0)
-      g_assert(jpeg0_tw != 0 && jpeg0_th != 0 &&
-               jpeg0_ta != 0 && jpeg0_td != 0);
-      if (jpeg0_tw != jp->tile_width || jpeg0_th != jp->tile_height) {
+    // init MCU starts
+    jp->mcu_starts = g_new(int64_t, jp->tile_count);
+    // init all to -1
+    for (int32_t j = 0; j < jp->tile_count; j++) {
+      (jp->mcu_starts)[j] = -1;
+    }
+  }
+
+  // walk image files, ignoring the map file (which is last)
+  const struct jpeg *jp0 = jpegs[0];
+  for (int i = 0; i < num_jpegs - 1; i++) {
+    struct jpeg *jp = jpegs[i];
+
+    // ensure that all tile_{width,height} match image 0, and that all
+    // tiles_{across,down} match image 0 except in the last column/row
+    if (i > 0) {
+      g_assert(jp0->tile_width != 0 && jp0->tile_height != 0 &&
+               jp0->tiles_across != 0 && jp0->tiles_down != 0);
+      if (jp0->tile_width != jp->tile_width ||
+          jp0->tile_height != jp->tile_height) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tile size not consistent for JPEG %d: "
-                    "expected %dx%d, found %dx%d", i, jpeg0_tw, jpeg0_th,
+                    "expected %dx%d, found %dx%d",
+                    i, jp0->tile_width, jp0->tile_height,
                     jp->tile_width, jp->tile_height);
         goto FAIL;
       }
       if (i % num_jpeg_cols != num_jpeg_cols - 1 &&
-          jp->tiles_across != jpeg0_ta) {
+          jp->tiles_across != jp0->tiles_across) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles across not consistent for JPEG %d: "
-                    "expected %d, found %d", i, jpeg0_ta, jp->tiles_across);
+                    "expected %d, found %d",
+                    i, jp0->tiles_across, jp->tiles_across);
         goto FAIL;
       }
       if (i / num_jpeg_cols != num_jpeg_rows - 1 &&
-          jp->tiles_down != jpeg0_td) {
+          jp->tiles_down != jp0->tiles_down) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Tiles down not consistent for JPEG %d: "
-                    "expected %d, found %d", i, jpeg0_td, jp->tiles_down);
+                    "expected %d, found %d",
+                    i, jp0->tiles_down, jp->tiles_down);
         goto FAIL;
       }
     }
 
-    jp->mcu_starts = g_new(int64_t, jp->tile_count);
-    // init all to -1
-    for (int32_t i = 0; i < jp->tile_count; i++) {
-      (jp->mcu_starts)[i] = -1;
-    }
     // use the optimisation file, if present
-    int64_t *unreliable_mcu_starts = NULL;
+    // there appear to be no optimisations for the map file
     if (optimisation_file) {
-      unreliable_mcu_starts = extract_one_optimisation(optimisation_file,
-                                                       jp->tiles_down,
-                                                       jp->tiles_across);
+      jp->unreliable_mcu_starts =
+          extract_optimisations_for_one_jpeg(optimisation_file,
+                                             jp->tiles_down,
+                                             jp->tiles_across);
     }
-    if (unreliable_mcu_starts) {
-      jp->unreliable_mcu_starts = unreliable_mcu_starts;
-    } else if (optimisation_file != NULL) {
+    if (jp->unreliable_mcu_starts == NULL && optimisation_file != NULL) {
       // the optimisation file is useless, ignore it
       optimisation_file = NULL;
-      // complain if this happens before we reach the map file
-      if (i < num_jpegs - 1) {
-        _openslide_performance_warn("Bad optimisation file");
-      }
+      _openslide_performance_warn("Bad optimisation file");
     }
   }
 
@@ -1815,9 +1811,9 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   bool success = false;
 
   // first, see if it's a VMS/VMU file
-  GKeyFile *key_file = g_key_file_new();
-  if (!_openslide_read_key_file(key_file, filename, KEY_FILE_MAX_SIZE,
-                                G_KEY_FILE_NONE, err)) {
+  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                                                G_KEY_FILE_NONE, err);
+  if (!key_file) {
     g_prefix_error(err, "Can't load key file: ");
     goto DONE;
   }
@@ -1855,7 +1851,13 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 
   // init the image filenames
   // this format has cols*rows image files, plus the map
-  num_images = (num_cols * num_rows) + 1;
+  uint64_t num_images_tmp = ((uint64_t) num_cols * (uint64_t) num_rows) + 1;
+  if (num_images_tmp > INT32_MAX) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Too many columns or rows");
+    goto DONE;
+  }
+  num_images = num_images_tmp;
   image_filenames = g_new0(char *, num_images);
 
   // hash in the key file
@@ -2086,7 +2088,9 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     }
     g_free(image_filenames);
   }
-  g_key_file_free(key_file);
+  if (key_file) {
+    g_key_file_free(key_file);
+  }
 
   return success;
 }

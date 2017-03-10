@@ -1,0 +1,7 @@
+# Inconsistent resolutions in corresponding dimensions of different images
+base: Leica/Leica-2.scn
+error: ^Inconsistent main image resolutions$
+slide: Leica-2.scn
+success: false
+vendor: leica
+requires: [libtiff-4]

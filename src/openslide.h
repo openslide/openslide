@@ -62,7 +62,7 @@ typedef struct _openslide openslide_t;
  * Otherwise, return NULL.  Calling openslide_open() on this file will also
  * return NULL.
  *
- * @param filename The filename to check.
+ * @param filename The filename to check.  On Windows, this must be in UTF-8.
  * @return An identification of the format vendor for this file, or NULL.
  * @since 3.4.0
  */
@@ -78,7 +78,7 @@ const char *openslide_detect_vendor(const char *filename);
  * request.  Instead, it should maintain a cache of OpenSlide objects and
  * reuse them when possible.
  *
- * @param filename The filename to open.
+ * @param filename The filename to open.  On Windows, this must be in UTF-8.
  * @return
  *         On success, a new OpenSlide object.
  *         If the file is not recognized by OpenSlide, NULL.
@@ -463,7 +463,7 @@ const char *openslide_get_version(void);
  * openslide_open(), but it could also erroneously return @p true in some
  * cases where openslide_open() would fail.
  *
- * @param filename The filename to check.
+ * @param filename The filename to check.  On Windows, this must be in UTF-8.
  * @return If openslide_open() will succeed.
  * @deprecated Use openslide_detect_vendor() to efficiently check whether
  *             a slide file is recognized by OpenSlide, or just call

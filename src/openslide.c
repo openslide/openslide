@@ -34,7 +34,7 @@
 #include "openslide-cairo.h"
 #include "openslide-error.h"
 
-const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2015 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
+const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2016 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
@@ -63,6 +63,10 @@ static void __attribute__((constructor)) _openslide_init(void) {
   }
   // initialize GObject
   g_type_init();
+  // work around thread-safety problems in glib < 2.48.1 with first
+  // g_key_file_new() call
+  // https://bugzilla.gnome.org/show_bug.cgi?id=748474
+  g_get_language_names();
   // init libxml2
   xmlInitParser();
   // parse debug options

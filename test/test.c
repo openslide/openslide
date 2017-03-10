@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "openslide.h"
+#include "openslide-common.h"
 
 #ifdef HAVE_VALGRIND
 #include <callgrind.h>
@@ -237,6 +238,7 @@ static void test_pdf(openslide_t *osr, const char *filename) {
 */
 
 int main(int argc, char **argv) {
+  common_fix_argv(&argc, &argv);
   if (argc != 2) {
     printf("give file!\n");
     return 1;

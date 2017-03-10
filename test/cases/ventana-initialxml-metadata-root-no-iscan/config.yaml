@@ -1,0 +1,8 @@
+# Metadata root element with no iScan subelement
+base: Ventana/OS-2.bif
+error: "ventana: Couldn't find iScan element in initial XML"
+slide: OS-2.bif
+success: false
+debug:
+  - detection
+vendor: generic-tiff

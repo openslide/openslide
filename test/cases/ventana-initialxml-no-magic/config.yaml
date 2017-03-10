@@ -1,7 +1,8 @@
+# No "iScan" string in initial XML
 base: Ventana/OS-2.bif
 error: "ventana: iScan not in XMLPacket"
 slide: OS-2.bif
 success: false
 debug:
   - detection
-vendor: ventana
+vendor: generic-tiff

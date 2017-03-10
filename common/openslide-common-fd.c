@@ -19,6 +19,8 @@
  *
  */
 
+#include <config.h>
+
 #ifdef WIN32
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
@@ -30,17 +32,16 @@
 #include <fcntl.h>
 #include <glib.h>
 
-#ifdef F_GETPATH
-// Mac OS X: MAXPATHLEN
-#include <sys/param.h>
+#ifdef HAVE_PROC_PIDFDINFO
+// Mac OS X
+#include <sys/param.h>  // MAXPATHLEN
+#include <libproc.h>
 #endif
 
-#include "test-common.h"
+#include "openslide-common.h"
 
-char *get_fd_path(int fd) {
+char *common_get_fd_path(int fd) {
   struct stat st;
-  char *path = NULL;
-
   if (fstat(fd, &st)) {
     return NULL;
   }
@@ -51,30 +52,36 @@ char *get_fd_path(int fd) {
   if (hdl != INVALID_HANDLE_VALUE) {
     DWORD size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
     if (size) {
-      path = g_malloc(size);
+      char *path = g_malloc(size);
       DWORD ret = GetFinalPathNameByHandle(hdl, path, size - 1, 0);
-      if (!ret || ret > size) {
-        g_free(path);
-        path = NULL;
+      if (ret > 0 && ret <= size) {
+        return path;
       }
+      g_free(path);
     }
   }
-#elif defined F_GETPATH
+#elif defined HAVE_PROC_PIDFDINFO
   // Mac OS X
-  path = g_malloc(MAXPATHLEN);
-  if (fcntl(fd, F_GETPATH, path)) {
-    g_free(path);
-    path = NULL;
+  // Ignore kqueues, since they can be opened behind our back for
+  // Grand Central Dispatch
+  struct kqueue_fdinfo kqi;
+  if (proc_pidfdinfo(getpid(), fd, PROC_PIDFDKQUEUEINFO, &kqi, sizeof(kqi))) {
+    return NULL;
   }
+  char *path = g_malloc(MAXPATHLEN);
+  if (!fcntl(fd, F_GETPATH, path)) {
+    return path;
+  }
+  g_free(path);
 #else
   // Fallback; works only on Linux
   char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), fd);
-  path = g_file_read_link(link_path, NULL);
+  char *path = g_file_read_link(link_path, NULL);
   g_free(link_path);
+  if (path) {
+    return path;
+  }
 #endif
 
-  if (!path) {
-    path = g_strdup("<unknown>");
-  }
-  return path;
+  return g_strdup("<unknown>");
 }

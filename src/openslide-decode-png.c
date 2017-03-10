@@ -63,7 +63,7 @@ bool _openslide_png_read(const char *filename,
                          GError **err) {
   png_struct *png = NULL;
   png_info *info = NULL;
-  bool success = false;
+  volatile bool success = false;
 
   // allocate error context
   struct png_error_ctx *ectx = g_slice_new0(struct png_error_ctx);

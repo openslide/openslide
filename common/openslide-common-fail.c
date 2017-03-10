@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -19,21 +19,17 @@
  *
  */
 
-#ifndef _OPENSLIDE_TOOLS_COMMON_H
-#define _OPENSLIDE_TOOLS_COMMON_H
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "openslide-common.h"
 
-#include <glib.h>
+void common_fail(const char *fmt, ...) {
+  va_list ap;
 
-struct openslide_tools_usage_info {
-  const char *parameter_string;
-  const char *summary;
-};
-
-void _openslide_tools_parse_commandline(const struct openslide_tools_usage_info *info,
-                                        int *argc,
-                                        char ***argv);
-
-void _openslide_tools_usage(const struct openslide_tools_usage_info *info)
-     G_GNUC_NORETURN;
-
-#endif
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
+  va_end(ap);
+  exit(1);
+}

@@ -21,28 +21,21 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
 #ifndef WIN32
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 #endif
 
 #include <glib.h>
 #include <openslide.h>
-#include "test-common.h"
+#include "openslide-common.h"
+#include "config.h"
 
-static void fail(const char *str, ...) {
-  va_list ap;
-
-  va_start(ap, str);
-  vfprintf(stderr, str, ap);
-  fprintf(stderr, "\n");
-  va_end(ap);
-  exit(1);
-}
+#define MAX_LEAK_FD 128
 
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
@@ -55,12 +48,12 @@ static void test_image_fetch(openslide_t *osr,
 
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
-         x, y, w, h, err);
+    common_fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
+                x, y, w, h, err);
   }
 }
 
-#ifndef WIN32
+#if !defined(NONATOMIC_CLOEXEC) && !defined(WIN32)
 static gint leak_test_running;  /* atomic ops only */
 
 static gpointer cloexec_thread(const gpointer prog) {
@@ -95,8 +88,8 @@ static gpointer cloexec_thread(const gpointer prog) {
 }
 
 static void child_check_open_fds(void) {
-  for (int i = 3; i < 128; i++) {
-    gchar *path = get_fd_path(i);
+  for (int i = 3; i < MAX_LEAK_FD; i++) {
+    gchar *path = common_get_fd_path(i);
     if (path != NULL) {
       printf("%s\n", path);
       g_free(path);
@@ -106,6 +99,14 @@ static void child_check_open_fds(void) {
 
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
+  // ensure any inherited FDs are not leaked to the child
+  for (int i = 3; i < MAX_LEAK_FD; i++) {
+    int flags = fcntl(i, F_GETFD);
+    if (flags != -1) {
+      fcntl(i, F_SETFD, flags | FD_CLOEXEC);
+    }
+  }
+
   g_atomic_int_set(&leak_test_running, 1);
   GThread *thr = g_thread_create(cloexec_thread, prog, TRUE, NULL);
   g_assert(thr != NULL);
@@ -120,14 +121,14 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   g_atomic_int_set(&leak_test_running, 0);
   g_thread_join(thr);
 }
-#else /* WIN32 */
+#else /* !NONATOMIC_CLOEXEC && !WIN32 */
 static void child_check_open_fds(void) {}
 
 static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
                                 void *prog G_GNUC_UNUSED,
                                 int64_t x G_GNUC_UNUSED,
                                 int64_t y G_GNUC_UNUSED) {}
-#endif /* WIN32 */
+#endif /* !NONATOMIC_CLOEXEC && !WIN32 */
 
 
 int main(int argc, char **argv) {
@@ -135,8 +136,9 @@ int main(int argc, char **argv) {
     g_thread_init(NULL);
   }
 
+  common_fix_argv(&argc, &argv);
   if (argc != 2) {
-    fail("No file specified");
+    common_fail("No file specified");
   }
   const char *path = argv[1];
 
@@ -148,22 +150,22 @@ int main(int argc, char **argv) {
   openslide_get_version();
 
   if (!openslide_detect_vendor(path)) {
-    fail("No vendor for %s", path);
+    common_fail("No vendor for %s", path);
   }
 
   openslide_t *osr = openslide_open(path);
   if (!osr) {
-    fail("Couldn't open %s", path);
+    common_fail("Couldn't open %s", path);
   }
   const char *err = openslide_get_error(osr);
   if (err) {
-    fail("Open failed: %s", err);
+    common_fail("Open failed: %s", err);
   }
   openslide_close(osr);
 
   osr = openslide_open(path);
   if (!osr || openslide_get_error(osr)) {
-    fail("Reopen failed");
+    common_fail("Reopen failed");
   }
 
   int64_t w, h;

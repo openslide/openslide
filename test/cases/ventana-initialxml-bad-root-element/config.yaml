@@ -1,5 +1,5 @@
 base: Ventana/OS-2.bif
-error: "ventana: No such value: directory 2, tag 700"
+error: "ventana: Unrecognized root element in initial XML"
 slide: OS-2.bif
 success: false
 debug:

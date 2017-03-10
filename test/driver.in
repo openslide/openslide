@@ -3,6 +3,7 @@
 # OpenSlide, a library for reading whole slide image files
 #
 # Copyright (c) 2012-2015 Carnegie Mellon University
+# Copyright (c) 2015-2016 Benjamin Gilbert
 # All rights reserved.
 #
 # OpenSlide is free software: you can redistribute it and/or modify
@@ -66,7 +67,7 @@ SKIP = object()
 if '!!CYGWIN_CROSS_TEST!!':
     import ctypes
 
-    _cygwin = ctypes.CDLL('cygwin1', use_errno=True)
+    _cygwin = ctypes.CDLL('cygwin1.dll', use_errno=True)
     _cygwin_conv_path = _cygwin.cygwin_conv_path
     _cygwin_conv_path.argtypes = [ctypes.c_uint, ctypes.c_void_p,
             ctypes.c_void_p, ctypes.c_size_t]
@@ -408,7 +409,8 @@ def pack(testname):
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
                 subprocess.check_call(['xdelta3', 'encode', '-9', '-W',
-                        '16777216', '-s', origpath, newpath, deltapath])
+                        '16777216', '-S', 'none', '-s', origpath, newpath,
+                        deltapath])
                 total_size += os.stat(deltapath).st_size
         else:
             open(whiteoutpath, 'w').close()
@@ -460,13 +462,15 @@ def _unpack_one(testname):
 
     conf = _load_test_config(testname)
     slide = conf['base']
+    renames = conf.get('rename', {})
     generators = conf.get('generate', {})
     printed = False
     _fetch_one(slide)
 
     for relpath in _list_slide_files(slide):
         origpath = os.path.join(PRISTINE, slide, relpath)
-        newpath = os.path.join(WORKROOT, testname, relpath)
+        newpath = os.path.join(WORKROOT, testname,
+                renames.get(os.path.basename(relpath), relpath))
         deltapath = os.path.join(CASEROOT, testname,
                 os.path.basename(relpath) + '.xdelta')
         whiteoutpath = os.path.join(CASEROOT, testname,
@@ -499,10 +503,11 @@ def unpack(pattern='*'):
         _unpack_one(testname)
 
 
-def _run_one(testname, valgrind=False, testdir=None):
+def _run_one(testname, valgrind=False, xfail=False, testdir=None):
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
-    to succeed, and 3) do in fact succeed.'''
+    to succeed, and 3) do in fact succeed.  If xfail is specified, invert
+    the sense of the result.'''
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
@@ -515,34 +520,46 @@ def _run_one(testname, valgrind=False, testdir=None):
             regions=conf.get('regions', []),
             debug=conf.get('debug', []))
 
+    msg = _color(GREEN, '%s: OK' % testname)
+    ok = True
     if result is None and not conf['success']:
-        print _color(RED, '%s: unexpected success' % testname)
-        return False
+        msg = _color(RED, '%s: unexpected success' % testname)
+        ok = False
     elif result is not None and conf['success']:
-        print _color(RED, '%s: unexpected failure: %s' % (testname, result))
-        return False
+        msg = _color(RED, '%s: unexpected failure: %s' % (testname, result))
+        ok = False
     elif result is not None and not re.search(conf['error'], result):
-        print _color(RED, '%s: incorrect error: %s' % (testname, result))
-        return False
+        msg = _color(RED, '%s: incorrect error: %s' % (testname, result))
+        ok = False
     elif conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
-            print _color(RED, '%s: extended test failed: %s' % (testname,
+            msg = _color(RED, '%s: extended test failed: %s' % (testname,
                     result))
-            return False
-    print _color(GREEN, '%s: OK' % testname)
-    return True
+            ok = False
+
+    if xfail:
+        ok = not ok
+        if ok:
+            msg = _color(BLUE, '%s: failed as expected' % testname)
+        else:
+            msg = _color(RED, '%s: expected to fail, but passed' % testname)
+
+    print msg
+    return ok
 
 
-def _run_all(pattern='*', valgrind=False, testdir=None):
+def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     '''Run all tests matching the specified pattern, under Valgrind if
-    specified.  Return the number of failed tests.'''
+    specified.  xfail specifies a list of tests which are expected to fail.
+    Return the number of tests producing unexpected results.'''
     tests = _list_tests(pattern)
     for testname in tests:
         _unpack_one(testname)
     failed = 0
+    xfail = set(xfail or [])
     for testname in tests:
-        if not _run_one(testname, valgrind, testdir):
+        if not _run_one(testname, valgrind, testname in xfail, testdir):
             failed += 1
     print '\nFailed: %d/%d' % (failed, len(tests))
     return failed
@@ -550,13 +567,17 @@ def _run_all(pattern='*', valgrind=False, testdir=None):
 
 @_command
 def run(pattern='*'):
-    '''Unpack and run all tests matching the specified pattern.'''
-    if _run_all(pattern):
+    '''Unpack and run all tests matching the specified pattern.  Ignore
+    failures of test cases listed in the comma-separated
+    OPENSLIDE_TEST_XFAIL environment variable.'''
+    xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
+    xfail = xfail.split(',') if xfail else []
+    if _run_all(pattern, xfail=xfail):
         sys.exit(1)
 
 
 @contextmanager
-def _rebuild(cflags):
+def _rebuild(configure_args):
     '''Context manager: rebuild the source with the specified CFLAGS and
     yield to the caller to do profiling.'''
     # To minimize collateral damage, unpack the dist tarball into a temp
@@ -579,7 +600,7 @@ def _rebuild(cflags):
     os.chdir('openslide-!!VERSION!!')
 
     # Build with specified CFLAGS
-    subprocess.check_call(['./configure', 'CFLAGS=' + cflags])
+    subprocess.check_call(['./configure'] + configure_args)
     subprocess.check_call(['make'])
 
     # Let the caller run, passing it the directory we came from.
@@ -594,7 +615,7 @@ def _rebuild(cflags):
 @_command
 def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
-    with _rebuild('-O0 -g -fprofile-arcs -ftest-coverage') as basedir:
+    with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
         # Run tests
         _run_all(testdir='test')
 
@@ -620,8 +641,12 @@ def coverage(outfile):
 
 @_command
 def valgrind(pattern='*'):
-    '''Unpack and Valgrind all tests matching the specified pattern.'''
-    if _run_all(pattern, valgrind=True):
+    '''Unpack and Valgrind all tests matching the specified pattern.
+    Ignore failures of test cases listed in the OPENSLIDE_VALGRIND_XFAIL
+    environment variable.'''
+    xfail = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
+    xfail = xfail.split(',') if xfail else []
+    if _run_all(pattern, valgrind=True, xfail=xfail):
         sys.exit(1)
 
 
@@ -685,6 +710,50 @@ def profile(pattern='*', level=0):
             if subprocess.call(args, env=env) == 0:
                 subprocess.check_call(['callgrind_annotate',
                         '--threshold=80', fh.name])
+
+
+@_command
+def exports():
+    '''Report exported or hidden symbols with improper names.'''
+    def get_symbols(basedir):
+        proc = subprocess.Popen(['objdump', '-T',
+                os.path.join(basedir, 'src', '.libs', 'libopenslide.so')],
+                stdout=subprocess.PIPE)
+        out, _ = proc.communicate()
+        if proc.returncode:
+            raise IOError('objdump returned exit status %d' % proc.returncode)
+        for line in out.splitlines():
+            words = line.split()
+            if len(words) < 3:
+                continue
+            if words[1] != 'g':
+                # Not a global symbol
+                continue
+            yield words[-1]
+
+    # Magic ELF symbols
+    ignore_symbols = set(['__bss_start', '_edata', '_end', '_fini', '_init'])
+
+    # Check exported symbols
+    exported_symbols = set(get_symbols('..')) - ignore_symbols
+    bad_exported = set(symbol for symbol in exported_symbols
+            if not symbol.startswith('openslide_'))
+
+    # Check hidden symbols
+    with _rebuild(['gl_cv_cc_visibility=no']):
+        hidden_symbols = (set(get_symbols('.')) - exported_symbols -
+                ignore_symbols)
+        bad_hidden = set(symbol for symbol in hidden_symbols
+                if not symbol.startswith('_openslide_')
+                and symbol != 'openslide_cairo_read_region')  # legacy
+
+    # Report
+    for symbol in sorted(bad_exported):
+        print >>sys.stderr, 'Badly-named exported symbol:', symbol
+    for symbol in sorted(bad_hidden):
+        print >>sys.stderr, 'Badly-named hidden symbol:', symbol
+    if bad_exported or bad_hidden:
+        sys.exit(1)
 
 
 @_command
