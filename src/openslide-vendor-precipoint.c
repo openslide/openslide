@@ -91,7 +91,7 @@ enum image_format {
   IMAGE_FORMAT_JPG,
   IMAGE_FORMAT_PNG,
   IMAGE_FORMAT_BMP,
-  IMAGE_FORMAT_J2K
+  IMAGE_FORMAT_JP2
 };
 
 /* deep zoom parameters */
@@ -139,28 +139,25 @@ struct vmicinfo {
   struct vmic_handlecache *archive;
 };
 
-static struct vmic_handle* vmic_handle_new(struct vmic_handlecache *vc, GError **err) {
-  
+static struct vmic_handle* vmic_handle_new( struct vmic_handlecache *vc,
+                                            GError **err) {
   struct vmic_handle* vh = g_slice_new0(struct vmic_handle);
   if (vh) {
     vh->ref_vhc = vc;
-
     zip_t *zo = _openslide_zip_open_archive(vc->filename, err);
     if (!zo) {
       goto FAIL;
     }
     zip_source_t *zs = zip_source_zip(zo, zo, vc->inner_index, 0, 0, 0);
-
     if (!zs) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "vmic_handle_new: cannot create zip source, filename=%s, index=%i",
-                  vc->filename, (int)vc->inner_index);
+            "vmic_handle_new: cannot create zip source, filename=%s, index=%i",
+            vc->filename, (int)vc->inner_index);
       zip_close(zo);
       goto FAIL;
     }
 
     vh->inner = _openslide_zip_open_archive_from_source(zs, err);
-
     if (!vh->inner) {
       g_prefix_error( err, 
                       "vmic_handle_new: cannot open inner archive, reason: ");
@@ -183,30 +180,30 @@ static void vmic_handle_delete(struct vmic_handle *vh) {
   g_slice_free(struct vmic_handle, vh);
 }
 
-static struct vmic_handlecache* vmic_handlecache_create(const char *filename, zip_int64_t inner_index, uint64_t inner_size) {
+static struct vmic_handlecache* vmic_handlecache_create(const char *filename,
+                                                   zip_int64_t inner_index,
+                                                   uint64_t inner_size) {
   struct vmic_handlecache *vc = g_slice_new0(struct vmic_handlecache);
   if (vc) {
     vc->filename = g_strdup(filename);
     vc->inner_index = inner_index;
     vc->cache = g_queue_new();
     vc->instance_count = 0;
-    vc->instance_max = 1 + ((uint64_t) VMIC_HC_MAX_PARALLEL_SIZE * 175 * 1000000 / inner_size );
+    vc->instance_max = 1 + ((uint64_t) VMIC_HC_MAX_PARALLEL_SIZE
+                                       * 175 * 1000000 / inner_size );
     vc->outstanding = 0;
     //g_debug("creating vmic_handlecache file=%s, inner index=%i, inner_size=%li, instance_max=%i\n",
     //        filename, (int)inner_index, (long int)inner_size, (int)vc->instance_max);
-    
     vc->lock = g_mutex_new();
     vc->cond = g_cond_new();
   }
   return vc;
 }
 
-static struct vmic_handle* vmic_handle_get(struct vmic_handlecache *vc, GError **err) {
-  //g_debug("get vmic zip");
+static struct vmic_handle* vmic_handle_get(struct vmic_handlecache *vc,
+                                           GError **err) {
+  //g_debug("get vmici zip");
   struct vmic_handle *vh;
-
-  //g_debug("get vmic-");
-  
   g_mutex_lock(vc->lock);
   // get handle from cache - if none is free, 
   // create new ones till vc->size_meter > VMIC_HC_MAX_ENTRY_COUNT
@@ -239,7 +236,8 @@ static struct vmic_handle* vmic_handle_get(struct vmic_handlecache *vc, GError *
   return vh;
 }
 
-static void vmic_handle_put(struct vmic_handlecache *vc, struct vmic_handle *vh) {
+static void vmic_handle_put(struct vmic_handlecache *vc,
+                            struct vmic_handle *vh) {
   if (vh == NULL || vc == NULL) {
     return;
   }
@@ -293,12 +291,11 @@ struct dz_level {
   int dz_level_id;
   int cols;
   int rows;
-//  struct dz_tileinfo *matrix; // matrix with additional info for tiles
 };
 
-
 // calculate expected with or height of a tile
-static inline int calc_expected_tile_dim(int full_length, int tile_size, int overlap, int tile_pos) {
+static inline int calc_expected_tile_dim(int full_length, int tile_size,
+                                         int overlap, int tile_pos) {
   int count = (full_length + tile_size - 1) / tile_size;
 
   if (tile_pos >= count) {
@@ -320,20 +317,18 @@ static inline int calc_expected_tile_dim(int full_length, int tile_size, int ove
   return a;
 }
 
-
-
 // Helper function: decodes an image from memory into an RGBA buffer
 // The dimensions of the image are returned by reference and the buffer with the image data 
 // is newly allocated with g_slice_alloc
 // Buffer must be freed after use with g_slice_free w*h*4
 
 static bool _openslide_decode_image( gpointer compressed_data,
-                              gsize compressed_size,
-                              enum image_format dzif, 
-                              uint32_t **pdestbuf, 
-                              int32_t *pw, 
-                              int32_t *ph, 
-                              GError **err) {
+                                     gsize compressed_size,
+                                     enum image_format dzif,
+                                     uint32_t **pdestbuf,
+                                     int32_t *pw,
+                                     int32_t *ph,
+                                     GError **err) {
 
   bool success;
   int32_t dw,dh;
@@ -344,20 +339,23 @@ static bool _openslide_decode_image( gpointer compressed_data,
 
   if (dzif==IMAGE_FORMAT_JPG) {
     
-    success = _openslide_jpeg_decode_buffer_dimensions(compressed_data, compressed_size, &dw, &dh, err);
+    success = _openslide_jpeg_decode_buffer_dimensions(compressed_data,
+                                                       compressed_size,
+                                                       &dw, &dh, err);
         
     if (success) {
       //g_debug("jpeg size %i,%i\n", (int)dw, (int)dh);
 
       // note: this must be the g_slice_alloc
       //       for compatibility with _openslide_cache
-      rgba_buf = g_slice_alloc((gsize)dw * dh * 4);
+      rgba_buf = g_slice_alloc((gsize) dw * dh * 4);
           
       if (rgba_buf) {
-        success = _openslide_jpeg_decode_buffer( compressed_data, compressed_size,
-                                                 rgba_buf,
-                                                 dw, dh,
-                                                 err);
+        success = _openslide_jpeg_decode_buffer(compressed_data,
+                                                compressed_size,
+                                                rgba_buf,
+                                                dw, dh,
+                                                err);
         if (success) {
           *pdestbuf = rgba_buf;
           *pw = dw; *ph = dh;
@@ -365,7 +363,7 @@ static bool _openslide_decode_image( gpointer compressed_data,
       }
       else {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "_openslide_decode_image: can't allocate buffer for decoded image");
+           "_openslide_decode_image: can't allocate buffer for decoded image");
       }
     }
   }
@@ -373,15 +371,15 @@ static bool _openslide_decode_image( gpointer compressed_data,
     // to add PNG support, we would require _openslide_png_decode_buffer(buf, buflen, dest, dw, dh, err)
     // until now, PNG is not used by VMIC
     success = false;
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "_openslide_decode_image: no PNG support");
+    g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                 "_openslide_decode_image: no PNG support yet");
   }
   else {
     // BMP is not used. So far only JPG based VMICs exist
     // there's some chance we may need to add JP2K support for future VMICs
     success = false;
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "_openslide_decode_image: unknown image format %i", (int)dzif);
+                "_openslide_decode_image: unknown image format %i", (int)dzif);
   }
   return success;
 }
@@ -389,18 +387,20 @@ static bool _openslide_decode_image( gpointer compressed_data,
 
 /* read deepzoom tile and paint it to cairo context */
 static bool vmic_read_tile(openslide_t *osr,
-                      cairo_t *cr,
-                      struct _openslide_level *level,
-                      int64_t tile_col, int64_t tile_row,
-                      void *arg G_GNUC_UNUSED,
-                      GError **err) {
+                           cairo_t *cr,
+                           struct _openslide_level *level,
+                           int64_t tile_col, int64_t tile_row,
+                           void *arg G_GNUC_UNUSED,
+                           GError **err) {
 
   struct dz_level *lev = (struct dz_level *) level;
   struct vmicinfo *vmic = (struct vmicinfo*) osr->data;
 
   //get tile size
-  int32_t tw = calc_expected_tile_dim(lev->base.w, vmic->dz.tilesize, vmic->dz.overlap, tile_col);
-  int32_t th = calc_expected_tile_dim(lev->base.h, vmic->dz.tilesize, vmic->dz.overlap, tile_row);
+  int32_t tw = calc_expected_tile_dim(lev->base.w, vmic->dz.tilesize,
+                                      vmic->dz.overlap, tile_col);
+  int32_t th = calc_expected_tile_dim(lev->base.h, vmic->dz.tilesize,
+                                      vmic->dz.overlap, tile_row);
 
   //g_debug("requested tile: col=%i, row=%i, w=%i, h=%i\n",
   //        (int)tile_col, (int)tile_row, (int)tw, (int)th );
@@ -425,7 +425,9 @@ static bool vmic_read_tile(openslide_t *osr,
                             vmic->dz.tile_imgformat_str );
 
       // caution: don't use ZIP_FL_NOCASE when searching by name, because it is slow
-      zip_int64_t zipx = _openslide_zip_name_locate(vh->inner, tilefilename, ZIP_FL_ENC_RAW);
+      zip_int64_t zipx = _openslide_zip_name_locate(vh->inner,
+                                                    tilefilename,
+                                                    ZIP_FL_ENC_RAW);
 
       gpointer cbuf;  // coded image data
       gsize cbufsize;
@@ -451,7 +453,7 @@ static bool vmic_read_tile(openslide_t *osr,
       if (zipx != -1 && success) {
         int32_t w,h;
         success = _openslide_decode_image( cbuf, cbufsize, IMAGE_FORMAT_JPG,
-                                        &tiledata, &w, &h, err );
+                                           &tiledata, &w, &h, err );
 
         g_slice_free1(cbufsize, cbuf);
 
@@ -463,8 +465,9 @@ static bool vmic_read_tile(openslide_t *osr,
         if (success && (tw != w || th != h)) {
           g_slice_free1((gsize) w * h * 4, tiledata);
           g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-              "vmic_read_tile: size mismatch of tile %s. expected size=(%i,%i), stored tile=(%i,%i).",
-              tilefilename, (int)tw, (int)th, (int)w, (int)h);
+             "vmic_read_tile: size mismatch of tile %s. expected size=(%i,%i),"
+             " stored tile=(%i,%i).",
+             tilefilename, (int)tw, (int)th, (int)w, (int)h);
           success = false;
         }
       }
@@ -492,7 +495,7 @@ static bool vmic_read_tile(openslide_t *osr,
 
   if (tiledata)  {
     // use pixel data as image source
-    cairo_surface_t *surface = cairo_image_surface_create_for_data ( 
+    cairo_surface_t *surface = cairo_image_surface_create_for_data (
                                     (unsigned char *) tiledata,
                                     CAIRO_FORMAT_ARGB32,
                                     tw, th, tw * 4 );
@@ -532,9 +535,9 @@ static bool vmic_paint_region( G_GNUC_UNUSED openslide_t *osr, cairo_t *cr,
                                        err);
 }
 
-/* Helper function: find node by name in a node chain, returns NULL if not found. This does not recurse branches */
-static xmlNode* _openslide_xml_find_node(xmlNode *node, const xmlChar* name)  {
-    
+/* Helper function: find node by name in a node chain, returns NULL
+ * if not found. This does not recurse branches */
+static xmlNode* _openslide_xml_find_node(xmlNode *node, const xmlChar* name) {
   xmlNode* cur = node;
   while (cur != NULL) {
     if(xmlStrcmp(cur->name, name) == 0) {
@@ -558,18 +561,20 @@ static xmlNode* _openslide_xml_find_node(xmlNode *node, const xmlChar* name)  {
             Height (int)
         Format (string), contains "jpg"|"png"|"bmp"
 */
-static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi, GHashTable *properties, GError **err)
-{    
+static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi,
+                                        GHashTable *properties, GError **err) {
   bool success = false;
 
-  xmlNode *xmlnodeImage = _openslide_xml_find_node(xmldoc->children, (xmlChar*) _DEEPZOOM_PROP_IMAGE_NODE);
+  xmlNode *xmlnodeImage = _openslide_xml_find_node( xmldoc->children,
+                                         (xmlChar*) _DEEPZOOM_PROP_IMAGE_NODE);
   if (xmlnodeImage == NULL) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                  "DZC/XML: cannot find XML %s Element",_DEEPZOOM_PROP_IMAGE_NODE);
     goto FAIL;
   }
 
-  double ppm = _openslide_xml_parse_double_attr(xmlnodeImage,_DEEPZOOM_PROP_PPM, err);
+  double ppm = _openslide_xml_parse_double_attr( xmlnodeImage,
+                                                 _DEEPZOOM_PROP_PPM, err);
   if (*err) goto FAIL;
 
   if (ppm == 0) {
@@ -589,13 +594,11 @@ static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi, GHas
   if (!success) goto FAIL;
 
   dzi->tilesize = _openslide_xml_parse_int_attr( xmlnodeImage,
-                                                 g_strdup(_DEEPZOOM_PROP_TILESIZE),
-                                                 err);
+                                        g_strdup(_DEEPZOOM_PROP_TILESIZE),
+                                        err);
   dzi->overlap = _openslide_xml_parse_int_attr( xmlnodeImage,
-                                                g_strdup(_DEEPZOOM_PROP_OVERLAP),
-                                                err);
-  //g_debug("tilesize=%i\n", dzi->tilesize);
-  //g_debug("overlap=%i\n", dzi->overlap);
+                                        g_strdup(_DEEPZOOM_PROP_OVERLAP),
+                                        err);
 
   if (dzi->tilesize <= 0 || dzi->overlap < 0 || dzi->overlap >= dzi->tilesize/2) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -620,52 +623,51 @@ static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi, GHas
                  (int)dzi->width, (int)dzi->height);
     goto FAIL;
   }
+  if (*err) {
+    goto FAIL;
+  }
 
-  //g_debug("overlap=%i\n", dzi->overlap);
-  //g_debug("w=%i, h=%i, tsize=%i, ovl=%i\n", (int)dzi->width, (int)dzi->height, (int)dzi->tilesize, (int)dzi->overlap);
+  xmlChar *str_pictype = xmlGetProp(xmlnodeImage,
+                                    (const xmlChar*) _DEEPZOOM_PROP_IMAGE_FORMAT);
+  if (!str_pictype) {
+    goto FAIL;
+  }
+  //g_debug("w=%i, h=%i, tsize=%i, ovl=%i, format=%s\n", (int)dzi->width, (int)dzi->height, (int)dzi->tilesize, (int)dzi->overlap, str_pictype);
 
-  if (*err) goto FAIL;
-
-  xmlChar *str_pictype = xmlGetProp(xmlnodeImage, (const xmlChar*) _DEEPZOOM_PROP_IMAGE_FORMAT);
-  if (!str_pictype) goto FAIL;
-  //g_debug("format=%s\n", str_pictype);
-  
   g_strlcpy(dzi->tile_imgformat_str, (const gchar*) str_pictype, MAX_IFSTR);
-  
   dzi->tile_format_id = IMAGE_FORMAT_UNKNOWN;
   if (str_pictype != NULL) {
-    if ( g_ascii_strcasecmp((const gchar*)str_pictype,"jpg") == 0
-         || g_ascii_strcasecmp((const gchar*)str_pictype,"jpeg") == 0 )
-    { dzi->tile_format_id = IMAGE_FORMAT_JPG; }
-    else if (g_ascii_strcasecmp((const gchar*)str_pictype,"png") == 0)
-    { dzi->tile_format_id = IMAGE_FORMAT_PNG; }
-    //else if (g_ascii_strcasecmp((const gchar*)str_pictype,"bmp") == 0)
-    //{ dzi->tile_format_id = IMAGE_FORMAT_BMP; }
+    if ( g_ascii_strcasecmp((const gchar*) str_pictype,"jpg") == 0
+         || g_ascii_strcasecmp((const gchar*) str_pictype,"jpeg") == 0 ) {
+      dzi->tile_format_id = IMAGE_FORMAT_JPG;
+    }
+    else if (g_ascii_strcasecmp((const gchar*) str_pictype,"png") == 0) {
+      dzi->tile_format_id = IMAGE_FORMAT_PNG;
+    }
+    else if (g_ascii_strcasecmp((const gchar*)str_pictype,"jp2") == 0) {
+      dzi->tile_format_id = IMAGE_FORMAT_JP2;
+    }
   }
 
   if (dzi->tile_format_id == IMAGE_FORMAT_UNKNOWN) {
-    g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                 "DZC/XML: Cannot recognize Image format \"%s\".", str_pictype);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "DZC/XML: Cannot recognize Image format \"%s\".", str_pictype);
     xmlFree(str_pictype);
     goto FAIL;
   }
-  
   xmlFree(str_pictype);
-
+  
   if (dzi->tile_format_id != IMAGE_FORMAT_JPG) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                  "DZC/XML: at this stage, only tiles with JPG image format can be processed.");
     goto FAIL;
   }
-
   /* calculate number of levels of deep zoom pyramid */
   int longside = MAX(dzi->width, dzi->height);
   int cnt_level = 1;
   dzi->os_level_count = 0;
-
-  /* calc by bit shifting (avoiding formula "ceil(log(longside)/log(2))") */
+  /* calc by bit shifting (result is similar to formula "ceil(log(longside)/log(2))") */
   g_assert(longside>0);  
-  
   while (longside > 1) {
     if (dzi->os_level_count == 0 && longside <= dzi->tilesize) {
       // also search for largest one-tiled level
@@ -676,9 +678,7 @@ static bool dzz_get_deepzoom_properties(xmlDoc *xmldoc, struct dzinfo *dzi, GHas
   }
   dzi->dz_level_count = cnt_level;
   dzi->dz_one_tile_level = cnt_level - dzi->os_level_count;
-
   //g_debug("DZ: dz level count=%i, os level count=%i, tilesize=%i\n", dzi->dz_level_count, dzi->os_level_count, dzi->tilesize);
-
   return true;
 
 FAIL:
@@ -699,8 +699,7 @@ static bool dzz_find_key_file(zip_t *z, struct dzinfo *dzi)
 
   for (zip_int64_t i=0; i<count; i++) {
     name = zip_get_name(z, i, ZIP_FL_ENC_RAW);
-
-    // search for a file with xml or dzi suffix which is not inside a folder
+    // search for a file with xml or dzi suffix
     if ( !strchr(name,'\\') && !strchr(name,'/')) {
       if ( g_str_has_suffix(name, ".dzi") || g_str_has_suffix(name, ".xml")
            || g_str_has_suffix(name, ".DZI") || g_str_has_suffix(name, ".XML"))
@@ -728,30 +727,34 @@ static bool dzz_find_key_file(zip_t *z, struct dzinfo *dzi)
 /* check if this is a vmic file */
 /* returns index of inner container */
 /* -1 means no vmic */
-static bool vmic_try_init(const char *vmic_filename, zip_int64_t *inner_index, uint64_t *inner_size, GError **err) {
-
+static bool vmic_try_init( const char *vmic_filename, zip_int64_t *inner_index,
+                           uint64_t *inner_size, GError **err) {
   zip_error_t ze;
+  zip_error_init(&ze);
+  zip_int64_t vmici_index;
+  zip_stat_t zstat;
+  zip_stat_init(&zstat);
 
   // open outer archive
-  zip_error_init(&ze);
-
+  // we can afford to use zip_open right away, because it checks the
+  // magic bytes "PK34" before proceeding
+  // if it's a zip we have no choice but try open it anyway.
   zip_t *zo = _openslide_zip_open_archive(vmic_filename, err);
   if (!zo) {
     return false;
   }
 
-  zip_int64_t vmici_index;
-  zip_stat_t zstat;
-  zip_stat_init(&zstat);
-
   // checks if one of the two possible names exists
-  vmici_index = _openslide_zip_name_locate(zo, _PRECIPOINT_INNER_CONTAINER_NAME, ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
+  vmici_index = _openslide_zip_name_locate( zo,
+                                            _PRECIPOINT_INNER_CONTAINER_NAME,
+                                            ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
   if (vmici_index < 0) {
-    vmici_index = _openslide_zip_name_locate(zo, _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME, ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
+    vmici_index = _openslide_zip_name_locate( zo,
+                                              _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME,
+                                              ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
   }
-  
   //g_debug("found inner container file, name=%s, index=%i\n", zip_get_name(zo, vmici_index, ZIP_FL_ENC_RAW), (int)vmici_index);
-
+  
   if (vmici_index >= 0) {
     //check "magic number" of the file in question by reading first 4 bytes
     zip_file_t *file = zip_fopen_index(zo, vmici_index, 0);
@@ -762,20 +765,21 @@ static bool vmic_try_init(const char *vmic_filename, zip_int64_t *inner_index, u
       
       //g_debug("checking magic of inner container=%x\n", (int)file_magic);
 
-      if (file_magic == 0x04034B50) { // "PK34" (The rare "PK00PK" signature does not occur)
+      if (file_magic == 0x04034B50) { // "PK34" (The rare "PK00PK" signature cannot occur)
         zip_stat_index(zo, vmici_index, 0, &zstat);        
         //g_debug("magic ok, inner_size=%li\n", (long int)zstat.size);
       }
       else {
         g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-              "A file with the correct name was found but the magic number %x didn't match expectations.", file_magic);
+            "A file with the correct name was found but the magic number %x didn't match expectations.", file_magic);
         vmici_index = -1;
         //g_debug("magic not ok, proceeding anyway\n");
       }
     } else {
       g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "Inner image container not found. Name should be \"%s\" or \"%s\".",
-              _PRECIPOINT_INNER_CONTAINER_NAME, _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME );
+              _PRECIPOINT_INNER_CONTAINER_NAME,
+              _PRECIPOINT_INNER_CONTAINER_LEGACY_NAME );
       vmici_index = -1;
     }
   }
@@ -791,10 +795,8 @@ static bool vmic_try_init(const char *vmic_filename, zip_int64_t *inner_index, u
   return (vmici_index >= 0);
 }
 
-
 // Helper function: Loads an XML file from ZIP archive and calls libxml for parsing.
 // optionally, the raw data can be mangled into the quickhash.
-
 static xmlDoc *_openslide_zip_parse_xml_file(zip_t *z,
                                       const char *filename,
                                       zip_flags_t flags,
@@ -809,32 +811,26 @@ static xmlDoc *_openslide_zip_parse_xml_file(zip_t *z,
 
   // fetch & parse XML
   xml_file_id = _openslide_zip_name_locate(z, filename, flags);
-
   if (xml_file_id == -1) {
-
     zip_error_t *ze = zip_get_error(z);
-
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot locate XML description file \"%s\" in container."
                 " libzip message:\"%s\"", filename, zip_error_strerror(ze) );
     goto FINISH;
   }
 
-  success = _openslide_zip_read_file_data(z, xml_file_id, &xmlbuf, &xmlsize, err);
-
   //g_debug("ready to parse xml_file_id=%i, xmlbuf=%p, xmlsize=%i\n", (int)xml_file_id, (void*)xmlbuf, (int)xmlsize);
-
+  success = _openslide_zip_read_file_data(z, xml_file_id,
+                                          &xmlbuf, &xmlsize, err);
   if (!success) {
     g_prefix_error( err, 
-                    "Cannot access VMIC XML description file at zip index %li - reason:", 
-                    (long int)xml_file_id);
+                    "Cannot access VMIC XML description file \"%s\" - reason:",
+                    filename);
     goto FINISH;
   }
-
   if (hash) {
     _openslide_hash_data(hash, xmlbuf, xmlsize);
   }
-
   xmldoc = xmlReadMemory( xmlbuf, xmlsize, NULL, NULL,
                           XML_PARSE_NOERROR | XML_PARSE_NOWARNING | XML_PARSE_NONET);
   if (!xmldoc) {
@@ -845,23 +841,21 @@ static xmlDoc *_openslide_zip_parse_xml_file(zip_t *z,
 
 FINISH_AND_FREE:
   g_slice_free1(xmlsize, xmlbuf);
-
 FINISH:
   return xmldoc;
 }
 
 // Helper function: recursively iterate over xml branch & leaves and dump stuff into properties
 // output properties are formatted as "SpecialTag.NodeA.NodeB.Attrib = [Value]"
-static void vmic_convert_xml_tree_to_properties(xmlNode *node, GHashTable *os_properties, const char *propname_prefix)
-{
-  while (node != NULL)
-  {
+static void vmic_convert_xml_tree_to_properties(xmlNode *node,
+                                                GHashTable *os_properties,
+                                                const char *propname_prefix) {
+  while (node != NULL) {
     if (node->type == XML_ELEMENT_NODE) {
       gchar *elementname = g_strconcat(propname_prefix, ".", node->name, NULL);
       for (xmlAttr* attribute = node->properties;
-              attribute != NULL;
-                  attribute = attribute->next)
-      {
+             attribute != NULL;
+               attribute = attribute->next) {
         xmlChar* value = xmlGetProp(node, attribute->name);
         gchar *propname = g_strconcat(elementname, ".", attribute->name, NULL);
         //g_debug("adding property=%s value=%s\n", propname, value);
@@ -869,97 +863,95 @@ static void vmic_convert_xml_tree_to_properties(xmlNode *node, GHashTable *os_pr
         xmlFree(value);
       }
       if (node->children) {
-          vmic_convert_xml_tree_to_properties(node->children, os_properties, elementname);
+        vmic_convert_xml_tree_to_properties(node->children,
+                                            os_properties, elementname);
       }
       g_free (elementname);
     }
     else if (node->type == XML_TEXT_NODE) {
       xmlChar *content = xmlNodeGetContent(node);
       //g_debug("adding property=%s value=%s\n", propname_prefix, content);
-      g_hash_table_insert(os_properties, g_strdup((gchar*)propname_prefix), g_strdup((gchar*)content));
+      g_hash_table_insert(os_properties,
+                          g_strdup((gchar*) propname_prefix),
+                          g_strdup((gchar*) content));
       xmlFree(content);
     }
     node = node->next;
   }
 }
 
-
 /* parses all properties specific to VMIC file */
-static bool vmic_get_properties(openslide_t *osr, zip_t *z, struct _openslide_hash *quickhash, GError **err) {
+static bool vmic_get_properties(openslide_t *osr, zip_t *z,
+                                struct _openslide_hash *quickhash,
+                                GError **err) {
   bool success;
   xmlDoc *xmldoc;
-
-//  struct vmicinfo *vmic = (struct vmicinfo *)osr->data;
-  struct dzinfo *dzi = (struct dzinfo *)osr->data;
-
-  dzz_find_key_file(z, dzi );
+  struct dzinfo *dzi = (struct dzinfo *) osr->data;
+  
+  // Parse DEEPZOOM properties
+  dzz_find_key_file(z, dzi);
   //g_debug("deepzoom key file=%s, folder=%s\n", dzz->key_filename, dzz->folder_name);
-  
-  // Parsing DEEPZOOM properties
-  xmldoc = _openslide_zip_parse_xml_file(z, dzi->key_filename, ZIP_FL_ENC_RAW, err, quickhash);
-  if (!xmldoc) goto FAIL;
-  
+  xmldoc = _openslide_zip_parse_xml_file(z, dzi->key_filename,
+                                         ZIP_FL_ENC_RAW, err, quickhash);
+  if (!xmldoc) {
+    return false;
+  }
   success = dzz_get_deepzoom_properties(xmldoc, dzi, osr->properties, err);
   //g_debug("deepzoom levels=%i, one_tile_level=%i\n", dzz->dz_level_count, dzz->dz_one_tile_level);
   xmlFreeDoc(xmldoc);
-  if (!success) goto FAIL;
-
+  if (!success) {
+    return false;
+  }
   if (dzi->overlap != 0) { 
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                 "DZC/XML: DZ Overlap parameter is %i, but as of now (Jan 2017), VMIC tiles are not expected to overlap !",
+                 "DZC/XML: DZ Overlap parameter is %i, but as of now (3/2017), "
+    		     "VMIC tiles are not expected to overlap !",
                  dzi->overlap);
-    goto FAIL;
+    return false;
   }
 
-  // Parsing VMIC properties from VMCF/config.osc
+  // Parse VMIC properties from VMCF/config.osc
   xmldoc = _openslide_zip_parse_xml_file( z, _PRECIPOINT_PROPS_FILENAME, 
                                           ZIP_FL_ENC_RAW, err,
                                           quickhash );
-  if (!xmldoc) goto FAIL;
-
-  xmlNode *oscconfig = _openslide_xml_find_node( xmldoc->children, 
-                                                 (xmlChar*) _PRECIPOINT_PROPS_OSC_NODE);
+  if (!xmldoc) {
+    return false;
+  }
+  xmlNode *oscconfig = _openslide_xml_find_node(
+                                       xmldoc->children,
+                                       (xmlChar*) _PRECIPOINT_PROPS_OSC_NODE);
   if (!oscconfig) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                 "OSC/XML: Can't find osc node (%s) for VMIC parameters in config file \"%s\".",
-                 _PRECIPOINT_PROPS_OSC_NODE, _PRECIPOINT_PROPS_FILENAME);
+                 "OSC/XML: Can't find OSC node (%s) for params in conf file.",
+                 _PRECIPOINT_PROPS_OSC_NODE);
     xmlFreeDoc(xmldoc);
-    goto FAIL;
+    return false;
   }
-
   vmic_convert_xml_tree_to_properties( oscconfig->children,
                                        osr->properties,
                                        _PRECIPOINT_PROPS_PREFIX);
-
   xmlFreeDoc(xmldoc);
 
-  // gather and expose important props from config.osc
+  // copy magnification to "openslide.objective-power"
   _openslide_duplicate_double_prop( osr, _PRECIPOINT_PROPPATH_MAGNIFICATION, 
                                     OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER );
-  
-  // copy title/name to "COMMENT" tag
-  const char *value = g_hash_table_lookup(osr->properties, _PRECIPOINT_PROPPATH_NAME);
+  // copy title/name to "openslide.comment"
+  const char *value = g_hash_table_lookup( osr->properties,
+                                           _PRECIPOINT_PROPPATH_NAME);
   if (value) {
     g_hash_table_insert( osr->properties,
                          g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
                          g_strdup(value) );
   }
-
   return true;
-
-FAIL:
-  return false;
 }
 
 
-// cleanup function to vmic_create_levels
-
+// cleanup function complementary to vmic_create_levels
 static void vmic_destroy_levels(openslide_t *osr) {
-
   for (int32_t i = 0; i < osr->level_count; ++i) {
     struct dz_level *l = (struct dz_level*) osr->levels[i];
     if (l) {    
-//      g_slice_free1(l->rows * l->cols * sizeof(struct dz_tileinfo), l->matrix);
       _openslide_grid_destroy(l->grid);   
       g_slice_free1(sizeof(struct dz_level), l);
     }
@@ -969,52 +961,39 @@ static void vmic_destroy_levels(openslide_t *osr) {
 
 
 // generate slide level data from deep zoom parameters
-
-static bool vmic_create_levels(openslide_t *osr, G_GNUC_UNUSED zip_t *z, GError **err) {
-
+static bool vmic_create_levels(openslide_t *osr, GError **err) {
   int dz_level_id;
   int os_level_id;
 
-  //struct vmicinfo *vmii = (struct vmicinfo *)osr->data;
-  struct dzinfo *dzi = (struct dzinfo *)osr->data;
-
+  struct dzinfo *dzi = (struct dzinfo *) osr->data;
   g_assert(osr->levels == NULL);
-
   osr->level_count = dzi->os_level_count; //capped levelcount
-
-  //g_debug("allocating array of %i pointers\n",osr->level_count);
   osr->levels = g_new0(struct _openslide_level *, osr->level_count);
   if (!osr->levels) {
     goto FAIL;
   }
-
   int w = dzi->width;
   int h = dzi->height;
   int tilesize = dzi->tilesize;
-  //int overlap = dzi->overlap;
   double downsample = 1;
 
   os_level_id = 0;
-
-  // usage of indices: openslide full image is os_level_id=0, deepzoom full image is dz_level_id = highest dz level 
+  // openslide full image is at os_level_id 0
+  // deepzoom full image is dz_level_id = highest dz level
   for (dz_level_id = dzi->dz_level_count-1; 
          dz_level_id >= dzi->dz_one_tile_level; 
            dz_level_id--) {
-    //g_debug("deepzoom level=%i, w=%i, h=%i\n", dz_level_id, (int)w, (int)h);
+    //g_debug("creating deepzoom level=%i, w=%i, h=%i\n", dz_level_id, (int)w, (int)h);
 
-    // we cut off deepzoom pyramid after largest one-tiled level, because
-    // - they don't clutter up the properties
-    // - some older tiny VMIC tiles have black borders
-    // - some openslide clients might have trouble with unexpectedly small levels
-    // - we don't really need tiny levels
+    // we cut off deepzoom pyramid after first largest one-tiled level
 
     struct dz_level *l = g_slice_new0(struct dz_level);
-    if (!l) goto FAIL_AND_DESTROY;
-
+    if (!l) {
+      goto FAIL_AND_DESTROY;
+    }
     int tiles_down = (h + tilesize - 1) / tilesize;
     int tiles_across = (w + tilesize - 1) / tilesize;
     //g_debug("tiles down=%i, tiles across=%i\n", (int)tiles_down, (int)tiles_across);
-
     l->base.tile_h = tilesize; 
     l->base.tile_w = tilesize;
     l->base.w = w;  // total pixel size of level
@@ -1054,7 +1033,6 @@ static void vmic_destroy(openslide_t *osr) {
   g_free(vmic);
 }
 
-
 struct vmic_associated_image {
   struct _openslide_associated_image base;
   struct vmicinfo *ref_vmic;
@@ -1064,32 +1042,27 @@ struct vmic_associated_image {
 static bool vmic_get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *const dest_buf,
                                       GError **err) {
-
   struct vmic_associated_image *assoc_img = (struct vmic_associated_image*)_img;
 
   bool success;
+  gpointer cbuf;
+  gsize cbufsize;
   
   struct vmic_handlecache *hc = assoc_img->ref_vmic->archive;
   struct vmic_handle *vh = vmic_handle_get(hc, err);
   if (vh==NULL) {
     return false;
   }
-
-  //g_debug("requesting assoc image: w=%i, h=%i\n", (int)assoc_img->base.w, (int)assoc_img->base.h);
-
-  gpointer cbuf;  // coded image data
-  gsize cbufsize;
+  //g_debug("requesting associated image: w=%i, h=%i\n", (int)assoc_img->base.w, (int)assoc_img->base.h);
   
   success = _openslide_zip_read_file_data( vh->inner, assoc_img->zipindex,
                                            &cbuf, &cbufsize, err );
   if (success) {
     int32_t w,h;
     uint32_t *img_buf;
-    
     success = _openslide_decode_image( cbuf, cbufsize, IMAGE_FORMAT_JPG,
                                      &img_buf, &w, &h, err );
     g_slice_free1(cbufsize, cbuf);
-
     if (success) {
       if (assoc_img->base.w == w && assoc_img->base.h == h) {
         memcpy(dest_buf, img_buf, w * h * 4);
@@ -1101,9 +1074,7 @@ static bool vmic_get_associated_image_data(struct _openslide_associated_image *_
     }
     g_slice_free1((gsize)w * (gsize)h * 4, img_buf);
   }
-
   vmic_handle_put(hc, vh);
-
   return success;
 }
 
@@ -1118,21 +1089,15 @@ static const struct _openslide_associated_image_ops precipoint_associated_ops = 
 };
 
 static void vmic_collect_associated_images(openslide_t *osr, zip_t *z, GError **err) {
-
+  struct vmicinfo *vmic = (struct vmicinfo *)osr->data;
   bool success;
-
-  // so far (as of January 2017) we have only a "macro"
-
+  // so far (as of January 2017) we have only got a "macro"
   const char *filename = _PRECIPOINT_MACRO_IMAGE;
   const char *qualifier = "macro";
 
-  struct vmicinfo *vmic = (struct vmicinfo *)osr->data;
-
-  zip_int64_t file_id = _openslide_zip_name_locate(z, filename, ZIP_FL_ENC_RAW|ZIP_FL_NOCASE);
-
+  zip_int64_t file_id = _openslide_zip_name_locate(z, filename,
+                                                   ZIP_FL_ENC_RAW|ZIP_FL_NOCASE);
   if (file_id>0) {
-    
-//    uint32_t *buf;
     int32_t w,h;
     gpointer cbuf;
     gsize cbufsize;
@@ -1150,10 +1115,7 @@ static void vmic_collect_associated_images(openslide_t *osr, zip_t *z, GError **
       img->zipindex = file_id;
       //g_debug("adding assoc image: w=%i, h=%i\n", (int)img->base.w, (int)img->base.h);
       g_hash_table_insert(osr->associated_images, g_strdup(qualifier), img);
-
-//      g_slice_free1(w*h*4, buf);
     }
-
   }
 }
 
@@ -1165,7 +1127,6 @@ static bool precipoint_detect(const char *filename,
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Is a TIFF file");
     return false;
   }
-  
   // try to open
   return vmic_try_init(filename, NULL, NULL, err);
 }
@@ -1183,7 +1144,6 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   bool success;
   zip_int64_t inner_index;
   uint64_t inner_size;
-
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
 
@@ -1192,20 +1152,18 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   if (success < 0) {
     return false;
   }
-
   struct vmicinfo *vmic = g_new0(struct vmicinfo, 1);
   if (!vmic) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                  "precipoint_open: cannot allocate vmicinfo\n");
     return false;
   }
-
   //g_debug("call to vmic_handlecache_create\n");
   vmic->archive = vmic_handlecache_create(filename, inner_index, inner_size);
   if (vmic->archive == NULL) {
     g_prefix_error( err,
                     "precipoint_open: creating handle cache failed, reason: ");
-    return false;
+    goto FAIL2;
   }
   osr->data = vmic;
 
@@ -1213,31 +1171,26 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
   struct vmic_handle *vh = vmic_handle_get(vmic->archive, err);
   if (!vh) {
     g_prefix_error( err,
-                    "precipoint_open: creating new handle for zip archive failed, reason: ");
+          "precipoint_open: fetching handle for zip archive failed, reason: ");
     goto FAIL;
   }
   zip_t *zi = vh->inner;
-
-  //g_debug("call to vmic_get_properties\n");
+  g_debug("call to vmic_get_properties\n");
   success = vmic_get_properties(osr, zi, quickhash1, err);
   if (!success) goto FAIL;
-
-  //g_debug("call to vmic_create_levels\n");
-  success = vmic_create_levels(osr, zi, err);
+  g_debug("call to vmic_create_levels\n");
+  success = vmic_create_levels(osr, err);
   if (!success) goto FAIL;
-
-  //g_debug("call to vmic_collect_associated_images\n");
+  g_debug("call to vmic_collect_associated_images\n");
   vmic_collect_associated_images(osr, zi, err);
   if (*err) goto FAIL;
-
   gchar *hashfilename = g_strdup_printf( "%s/%i/0_0.%s",
                                          vmic->dz.folder_name,
                                          vmic->dz.dz_one_tile_level,
                                          vmic->dz.tile_imgformat_str);
   //g_debug("quickhash tile=%s\n", hashfilename);
-  
   int64_t hash_tile_x = _openslide_zip_name_locate( zi, hashfilename,
-                                                   ZIP_FL_ENC_RAW|ZIP_FL_NOCASE );
+                                                ZIP_FL_ENC_RAW|ZIP_FL_NOCASE );
   if (hash_tile_x == -1) {
     g_set_error( err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                  "precipoint_open: cannot find image for quickhash, name=%s\n",
@@ -1245,12 +1198,10 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
     g_free(hashfilename);
     goto FAIL;
   }
-
   gpointer hashbuf;
   gsize bufsize;
-
-  success = _openslide_zip_read_file_data(zi, hash_tile_x, &hashbuf, &bufsize, err);
- 
+  success = _openslide_zip_read_file_data(zi, hash_tile_x,
+                                          &hashbuf, &bufsize, err);
   if (!success) {
     g_prefix_error( err, 
                     "precipoint_open: can't file=%s from zip, reason: ",
@@ -1258,17 +1209,11 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
     g_free(hashfilename);
     goto FAIL;
   }
-
   vmic_handle_put(vmic->archive, vh);
-  
   g_free(hashfilename);
-
   _openslide_hash_data(quickhash1, hashbuf, bufsize);
-
   g_slice_free1(bufsize, hashbuf);
-
   osr->ops = &precipoint_ops;
-
   return true;
 
 FAIL:
@@ -1278,6 +1223,7 @@ FAIL:
     vmic_handlecache_destroy(vmic->archive);
     vmic->archive = NULL;
   }
+FAIL2:
   g_free(vmic);
   osr->data=NULL;
   return false;
