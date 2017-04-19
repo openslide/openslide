@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file does not have key 'HIER_0_COUNT'( in group 'HIERARCHICAL')?$
+error: ^Key file does not have key ('|“)HIER_0_COUNT('|”)( in group ('|“)HIERARCHICAL('|”))?$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

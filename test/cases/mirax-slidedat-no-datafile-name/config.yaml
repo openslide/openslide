@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file does not have key 'FILE_3'( in group 'DATAFILE')?$
+error: ^Key file does not have key ('|“)FILE_3('|”)( in group ('|“)DATAFILE('|”))?$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file contains key 'DIGITIZER_WIDTH' in group 'LAYER_0_LEVEL_1_SECTION' which has (a )?value that cannot be interpreted.$
+error: ^Key file contains key ('|“)DIGITIZER_WIDTH('|”) in group ('|“)LAYER_0_LEVEL_1_SECTION('|”) which has (a )?value that cannot be interpreted.$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

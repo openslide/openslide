@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file does not have key 'NONHIER_0_VAL_2'( in group 'HIERARCHICAL')?$
+error: ^Key file does not have key ('|“)NONHIER_0_VAL_2('|”)( in group ('|“)HIERARCHICAL('|”))?$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax
