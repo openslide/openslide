@@ -68,9 +68,12 @@ PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
    OPENJPEG_CFLAGS="$OPENJPEG2_CFLAGS"
    OPENJPEG_LIBS="$OPENJPEG2_LIBS"
    FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-2"
+   OPENJPEG2_DEP="libopenjp2"
  ], [
   dnl Fall back to OpenJPEG 1.x
-  PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
+  PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [
+    OPENJPEG2_DEP="libopenjpeg1"
+  ], [
     dnl OpenJPEG < 1.4 has no pkg-config file
 
     AC_MSG_CHECKING([for OpenJPEG (fallback)])
@@ -104,6 +107,7 @@ PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
   ])
   FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-1"
 ])
+AC_SUBST([OPENJPEG2_DEP])
 
 PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
   dnl libtiff < 4 has no pkg-config file
