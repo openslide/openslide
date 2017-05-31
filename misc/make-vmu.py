@@ -37,9 +37,9 @@ class VmuLevel(object):
     def __init__(self, osr, level):
         self._osr = osr
         self.level = level
-        self.width, self.height = osr.level_dimensions[level]
+        self.width, self.height = osr.layer_dimensions[level]
         self.column_width = gcd(self.width, 400)
-        self.downsample = osr.level_downsamples[level]
+        self.downsample = osr.layer_downsamples[level]
 
     def save(self, path):
         with open(path, 'w') as fh:
@@ -71,7 +71,7 @@ def make_vmu(in_path, out_base):
 
     with OpenSlide(in_path) as osr:
         l0 = VmuLevel(osr, 0)
-        l1 = VmuLevel(osr, osr.get_best_level_for_downsample(32))
+        l1 = VmuLevel(osr, osr.get_best_layer_for_downsample(32))
         for i, l in enumerate([l0, l1]):
             print 'Level %d: %d pixels/column' % (i, l.column_width)
         l0.save(path_0)
