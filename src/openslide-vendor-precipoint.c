@@ -735,16 +735,22 @@ static bool vmic_try_init( const char *vmic_filename, zip_int64_t *inner_index,
   zip_stat_t zstat;
   zip_stat_init(&zstat);
 
+  // check file ending
+  gchar* fn_nocase = g_utf8_casefold(vmic_filename, -1);
+  bool has_vmic_suffix = g_str_has_suffix(fn_nocase, ".vmic");
+  g_free(fn_nocase);
+  if ( !has_vmic_suffix ) {
+    return false;
+  }
+  
   // open outer archive
-  // we can afford to use zip_open right away, because it checks the
-  // magic bytes "PK34" before proceeding
-  // if it's a zip we have no choice but try open it anyway.
+  // note: zip_open checks the magic bytes "PK34" before doing anything else
   zip_t *zo = _openslide_zip_open_archive(vmic_filename, err);
   if (!zo) {
     return false;
   }
 
-  // checks if one of the two possible names exists
+  // look for inner container by filename
   vmici_index = _openslide_zip_name_locate( zo,
                                             _PRECIPOINT_INNER_CONTAINER_NAME,
                                             ZIP_FL_ENC_RAW | ZIP_FL_NOCASE);
