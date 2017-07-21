@@ -299,6 +299,17 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
       return false;
     }
 
+    // In some Aperio images, one tile (typically 0, 0), in one or more levels,
+    // is partly overwritten with some unknown data. This seems to happen
+    // from byte 0 or byte 1 of the tile data. Such garbled tiles are
+    // impossible to read, so just return false!
+    // The other half of this fix/hack consists of calling render_missing_tile
+    // from decode_tile (in openslide-vendor-aperio) if _openslide_tiff_read_tile
+    // returns false.
+    const unsigned char *bytes = buf;
+    if (bytes[0] == 0x11 || (bytes[0] == 0xff && bytes[1] == 0x11))
+      return false; // Garbled tile
+
     // decompress
     bool ret = decode_jpeg(buf, buflen, tables, tables_len,
                            tiffl->photometric == PHOTOMETRIC_YCBCR ? JCS_YCbCr : JCS_RGB,
