@@ -159,12 +159,11 @@ static bool decode_tile(struct level *l,
     break;
   default:
     // not for us? fallback
-    bool ok = _openslide_tiff_read_tile(tiffl, tiff, dest,
-                                     tile_col, tile_row,
-                                     err);
     // If the tile could not be read/rendered, (maybe because of garbled tile data)
     // try to render it using data at other levels using render_missing_tile()
-    return ok || render_missing_tile(l, tiff, dest, tile_col, tile_row, err);
+    return
+      _openslide_tiff_read_tile(tiffl, tiff, dest, tile_col, tile_row, err) ||
+      render_missing_tile(l, tiff, dest, tile_col, tile_row, err);
   }
 
   // read raw tile

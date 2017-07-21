@@ -33,6 +33,7 @@ Makefile.in
 /stamp-h1
 /*.pc
 
+.vscode
 /mingw32-config.cache
 
 /src/make-tables
