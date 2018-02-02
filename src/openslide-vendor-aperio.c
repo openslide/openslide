@@ -159,9 +159,32 @@ static bool decode_tile(struct level *l,
     break;
   default:
     // not for us? fallback
-    return _openslide_tiff_read_tile(tiffl, tiff, dest,
+    
+    if (!_openslide_tiff_read_tile(tiffl, tiff, dest,
                                      tile_col, tile_row,
-                                     err);
+                                     err)) {
+      
+      // In some Aperio images, one tile (typically 0, 0), in one or more levels,
+      // is partly overwritten with some unknown data. This seems to happen
+      // from byte 0 or byte 1 of the tile data. Such garbled tiles are
+      // impossible to read, so just return false!
+      // The other half of this fix/hack consists of calling render_missing_tile
+      // if _openslide_tiff_read_tile_data returns false.
+      void *buf;
+      int32_t buflen;
+      if (_openslide_tiff_read_tile_data(tiffl, tiff,
+      	                      &buf, &buflen,
+       	                      tile_col, tile_row,
+       	                      err)) {
+        const unsigned char *bytes = buf;
+        if (bytes[0] == 0x11 || (bytes[0] == 0xff && bytes[1] == 0x11)) {
+          return render_missing_tile(l, tiff, dest, tile_col, tile_row, err);
+        } else {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   // read raw tile
