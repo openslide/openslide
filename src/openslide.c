@@ -60,8 +60,10 @@ static void __attribute__((constructor)) _openslide_init(void) {
   if (!g_thread_supported()) {
     g_thread_init(NULL);
   }
-  // initialize GObject
+  // not needed since glib 2.36, and causes problems with musl on 2.50+
+#if !GLIB_CHECK_VERSION(2, 36, 0)
   g_type_init();
+#endif
   // work around thread-safety problems in glib < 2.48.1 with first
   // g_key_file_new() call
   // https://bugzilla.gnome.org/show_bug.cgi?id=748474
