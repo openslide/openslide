@@ -99,6 +99,15 @@ openslide_t *openslide_open(const char *filename);
 OPENSLIDE_PUBLIC()
 int32_t openslide_get_level_count(openslide_t *osr);
 
+/**
+ * Set the cache size of the whole slide image.
+ *
+ * @param osr The OpenSlide object.
+ * @param level The cache size in bytes
+ * @since 3.3.0
+ */
+OPENSLIDE_PUBLIC()
+void openslide_set_cache_size(openslide_t *osr, int32_t cache_size);
 
 /**
  * Get the dimensions of level 0 (the largest level). Exactly

@@ -408,6 +408,17 @@ int32_t openslide_get_level_count(openslide_t *osr) {
   return osr->level_count;
 }
 
+void openslide_set_cache_size(openslide_t *osr, int32_t cache_size) {
+  if (openslide_get_error(osr)) {
+    return;
+  }
+  if (osr->cache) {
+    _openslide_cache_destroy(osr->cache);
+  }  
+  osr->cache = _openslide_cache_create(cache_size);
+}
+
+
 int32_t openslide_get_layer_count(openslide_t *osr) {
   return openslide_get_level_count(osr);
 }
