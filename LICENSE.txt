@@ -2,7 +2,7 @@ OpenSlide
 
 Carnegie Mellon University and others
 
-http://openslide.org/
+https://openslide.org/
 
 ====================
 

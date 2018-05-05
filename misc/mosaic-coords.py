@@ -65,7 +65,7 @@ div#view {
 <script type="text/javascript"
         src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
 <script type="text/javascript"
-        src="http://openslide.org/demo/openseadragon.min.js"></script>
+        src="https://openslide.org/demo/openseadragon.min.js"></script>
 <script type="text/javascript">
 $(document).ready(function() {
     var width = {{ width }};
@@ -74,7 +74,7 @@ $(document).ready(function() {
     var viewer = new OpenSeadragon({
         id: "view",
         tileSources: "{{ url_for('dzi') }}",
-        prefixUrl: "http://openslide.org/demo/images/",
+        prefixUrl: "https://openslide.org/demo/images/",
         showNavigationControl: false,
         animationTime: 0.5,
         blendTime: 0.1,

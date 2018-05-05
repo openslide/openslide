@@ -2,7 +2,7 @@ OpenSlide
 
 Carnegie Mellon University and others
 
-http://openslide.org/
+https://openslide.org/
 
 
 ==========================
@@ -46,7 +46,7 @@ and Ventana formats, as well as TIFF files that conform to a simple
 convention. (InterScope files tend to be readable as this generic TIFF.)
 
 More information about formats is here:
-http://openslide.org/formats/
+https://openslide.org/formats/
 
 An openslide_t object can be used concurrently from multiple threads
 without locking. (But you must lock or otherwise use memory barriers
@@ -63,7 +63,7 @@ a given virtual slide. (These are accessed by way of the
 These properties are generally uninterpreted data gathered from the
 on-disk files. New properties can be added over time in subsequent releases
 of OpenSlide. A list of some properties can be found at:
-http://openslide.org/properties/
+https://openslide.org/properties/
 
 OpenSlide itself creates these properties (for now):
 
@@ -117,7 +117,7 @@ The definitive API reference is in openslide.h. For an HTML version, see
 doc/html/openslide_8h.html in this distribution.
 
 Additional documentation is available from the OpenSlide website:
-http://openslide.org/
+https://openslide.org/
 
 The design and implementation of the library are described in a published
 technical note:
