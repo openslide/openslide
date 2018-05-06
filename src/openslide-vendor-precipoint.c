@@ -838,7 +838,8 @@ static xmlDoc *_openslide_zip_parse_xml_file(zip_t *z,
     _openslide_hash_data(hash, xmlbuf, xmlsize);
   }
   xmldoc = xmlReadMemory( xmlbuf, xmlsize, NULL, NULL,
-                          XML_PARSE_NOERROR | XML_PARSE_NOWARNING | XML_PARSE_NONET);
+                          XML_PARSE_NOERROR | XML_PARSE_NOWARNING | XML_PARSE_NONET
+                          | XML_PARSE_NOBLANKS);
   if (!xmldoc) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot parse XML description file \"%s\"", filename);
