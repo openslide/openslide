@@ -344,8 +344,8 @@ openslide_t *openslide_open(const char *filename) {
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
   // start cache
-  osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
-  //osr->cache = _openslide_cache_create(0);
+  //osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
+  osr->cache = _openslide_cache_create(0);
 
   return osr;
 }
