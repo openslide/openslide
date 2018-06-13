@@ -33,7 +33,7 @@
 #include <setjmp.h>
 
 static const char SOFTWARE[] = "Software";
-static const char OPENSLIDE[] = "OpenSlide <http://openslide.org/>";
+static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
 
 #define ENSURE_NONNEG(i) \
   if (i < 0) {					\
