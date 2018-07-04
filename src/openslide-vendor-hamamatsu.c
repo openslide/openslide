@@ -2255,8 +2255,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
-    start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
-                                                             start_in_file);
+    
+    // do not fix offset for first dir
+    // fix for ndpi files > 4gb
+    if(dir>0) {
+      start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
+                                                               start_in_file);
+    }
 
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
