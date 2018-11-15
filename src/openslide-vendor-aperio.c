@@ -150,6 +150,8 @@ static bool decode_tile(struct level *l,
 
   // select color space
   enum _openslide_jp2k_colorspace space;
+  bool ok;
+
   switch (l->compression) {
   case APERIO_COMPRESSION_JP2K_YCBCR:
     space = OPENSLIDE_JP2K_YCBCR;
@@ -159,9 +161,12 @@ static bool decode_tile(struct level *l,
     break;
   default:
     // not for us? fallback
-    return _openslide_tiff_read_tile(tiffl, tiff, dest,
+    ok = _openslide_tiff_read_tile(tiffl, tiff, dest,
                                      tile_col, tile_row,
                                      err);
+    // If the tile could not be read/rendered, (maybe because of garbled tile data)
+    // try to render it using data at other levels using render_missing_tile()
+    return ok || render_missing_tile(l, tiff, dest, tile_col, tile_row, err);
   }
 
   // read raw tile
