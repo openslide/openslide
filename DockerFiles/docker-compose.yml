@@ -1,0 +1,13 @@
+version: '3'
+services:
+  openslide:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sderaedt/openslide:3.4.3-1
+    working_dir: /build
+    stdin_open: true
+    tty: true
+    shm_size: 2g
+    volumes:
+      - ../release:/build/release
