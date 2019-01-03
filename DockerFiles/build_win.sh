@@ -26,3 +26,4 @@ bash build.sh -m64 -j16 bdist
 
 # Copy compiled file to release folder mapped in docker image
 cp openslide-win64-*.zip ../release/
+cp openslide-win64-*.zip ../release/openslide-win64-latest.zip
