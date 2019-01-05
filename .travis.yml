@@ -1,11 +1,15 @@
 language: c
-
+dist: xenial
 sudo: required
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y libz-dev libjpeg-dev libopenjpeg-dev libtiff-dev libglib2.0-dev libcairo-dev libpng-dev libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev valgrind cmake
-  - wget https://libzip.org/download/libzip-1.5.1.tar.gz && tar xzf libzip-1.5.1.tar.gz && cd libzip-1.5.1 && mkdir build && cd build && cmake .. && make && make install
+  - sudo apt-get install -y libz-dev libjpeg-dev libopenjpeg-dev libtiff-dev libglib2.0-dev libcairo-dev libpng-dev libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev libzip-dev valgrind autoconf automake libtool pkg-config cmake
+  - wget https://libzip.org/download/libzip-1.5.1.tar.gz && tar xzf libzip-1.5.1.tar.gz && cd libzip-1.5.1 && mkdir build && cd build && cmake .. && make && sudo make install
 
 before_script:
   - autoreconf -i
+  - ./configure
+  - make
+  - sudo make install
+  - sudo ldconfig
