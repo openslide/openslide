@@ -1,12 +1,12 @@
-OpenSlide
+# OpenSlide
 
 Carnegie Mellon University and others
 
-https://openslide.org/
+http://openslide.org/
 
-
-==========================
-
+Forks by 
+- Cytomine: for ventana-tif support (which is now included in the master branch of openslide/openslide (as of v3.4.1)) 
+- PreciPoint: for VMIC support
 
 What is this?
 =============
@@ -30,6 +30,10 @@ This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x or >= 2.1,
 GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
 Leica and Ventana support require libtiff >= 4.
 
+In this repo, we include the yet unmerged pull request of PreciPoint (https://github.com/Markus-PP/openslide-vmic) 
+to support VMIC images.
+Requires "libzip >= 1.1"
+
 If you want to run the test suite, you will need PyYAML, python-requests,
 xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
 at least one installed font, and > 120 GB of disk space.  Valgrind mode
@@ -46,7 +50,7 @@ and Ventana formats, as well as TIFF files that conform to a simple
 convention. (InterScope files tend to be readable as this generic TIFF.)
 
 More information about formats is here:
-https://openslide.org/formats/
+http://openslide.org/formats/
 
 An openslide_t object can be used concurrently from multiple threads
 without locking. (But you must lock or otherwise use memory barriers
@@ -63,7 +67,7 @@ a given virtual slide. (These are accessed by way of the
 These properties are generally uninterpreted data gathered from the
 on-disk files. New properties can be added over time in subsequent releases
 of OpenSlide. A list of some properties can be found at:
-https://openslide.org/properties/
+http://openslide.org/properties/
 
 OpenSlide itself creates these properties (for now):
 
@@ -117,7 +121,7 @@ The definitive API reference is in openslide.h. For an HTML version, see
 doc/html/openslide_8h.html in this distribution.
 
 Additional documentation is available from the OpenSlide website:
-https://openslide.org/
+http://openslide.org/
 
 The design and implementation of the library are described in a published
 technical note:
@@ -149,11 +153,13 @@ Pittsburgh.
 How to build?
 =============
 
+(If building from the Git repository, you will first need to install
+autoconf, automake, libtool and pkg-config and run "autoreconf -i".)
+
+# clone this repository
 ./configure
 make
 make install
 
-(If building from the Git repository, you will first need to install
-autoconf, automake, libtool, and pkg-config and run "autoreconf -i".)
 
 Good luck!
