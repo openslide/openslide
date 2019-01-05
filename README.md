@@ -5,7 +5,6 @@ Carnegie Mellon University and others
 http://openslide.org/
 
 Forks by 
-- Cytomine: for ventana-tif support (which is now included in the master branch of openslide/openslide (as of v3.4.1)) 
 - PreciPoint: for VMIC support
 
 What is this?
