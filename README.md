@@ -1,4 +1,5 @@
 # OpenSlide
+[![Build Status](https://travis-ci.org/kmlvision/openslide.svg?branch=master)](https://travis-ci.org/kmlvision/openslide)
 
 Carnegie Mellon University and others
 
