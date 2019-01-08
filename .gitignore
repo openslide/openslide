@@ -56,3 +56,4 @@ Makefile.in
 cmake-build-debug/
 CMakeLists.txt
 .idea/
+/src/make-tables.dSYM/
