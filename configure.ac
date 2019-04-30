@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([OpenSlide], [3.4.1], [openslide-users@lists.andrew.cmu.edu], [openslide], [https://openslide.org])
+AC_INIT([OpenSlide], [3.5.0-alpha.1+gtif], [openslide-users@lists.andrew.cmu.edu], [openslide], [https://openslide.org])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
