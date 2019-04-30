@@ -6,7 +6,7 @@ Carnegie Mellon University and others
 http://openslide.org/
 
 Forks by 
-- PreciPoint: for VMIC support
+- PreciPoint: for VMIC and GTIF support
 
 What is this?
 =============
@@ -30,9 +30,8 @@ This library requires zlib, libpng, libjpeg, libtiff, OpenJPEG 1.x or >= 2.1,
 GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
 Leica and Ventana support require libtiff >= 4.
 
-In this repo, we include the yet unmerged pull request of PreciPoint (https://github.com/Markus-PP/openslide-vmic) 
-to support VMIC images.
-Requires "libzip >= 1.1"
+In this repo, we include the yet unmerged pull request in the upstream repository of PreciPoint (https://github.com/Markus-PP/openslide-vmic) 
+to support VMIC images. Requires "libzip >= 1.1"
 
 If you want to run the test suite, you will need PyYAML, python-requests,
 xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
@@ -154,12 +153,14 @@ How to build?
 =============
 
 (If building from the Git repository, you will first need to install
-autoconf, automake, libtool and pkg-config and run "autoreconf -i".)
+autoconf, automake, libtool and pkg-config and run `autoreconf -i`.)
 
 # clone this repository
+```
 ./configure
 make
 make install
+```
 
 
 Good luck!
