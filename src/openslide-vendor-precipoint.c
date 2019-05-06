@@ -1156,7 +1156,7 @@ static bool precipoint_open( openslide_t *osr, const char *filename,
 
   //g_debug("call to vmic_try_init\n");
   success = vmic_try_init(filename, &inner_index, &inner_size, err);
-  if (success < 0) {
+  if (!success) {
     return false;
   }
   struct vmicinfo *vmic = g_new0(struct vmicinfo, 1);
