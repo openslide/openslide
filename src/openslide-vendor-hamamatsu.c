@@ -2255,8 +2255,8 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
-    start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
-                                                             start_in_file);
+    //start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
+    //                                                         start_in_file);
 
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
@@ -2308,35 +2308,37 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       int32_t jp_h = height; // overwritten if dimensions_valid
       int32_t jp_tw, jp_th;
       int64_t sof_position, header_stop_position;
-      if (fseeko(f, start_in_file, SEEK_SET)) {
-        _openslide_io_error(err, "Couldn't seek to JPEG start");
-        goto FAIL;
-      }
-      if (!validate_jpeg_header(f, dimensions_valid,
+      
+      bool true_start_position_found = false;
+      
+      while(!true_start_position_found) {
+        if (fseeko(f, start_in_file, SEEK_SET)) {
+            _openslide_io_error(err, "Couldn't seek to JPEG start");
+            goto FAIL;
+        }
+        
+        if (!validate_jpeg_header(f, dimensions_valid,
                                 &jp_w, &jp_h,
                                 &jp_tw, &jp_th,
                                 &sof_position, &header_stop_position,
                                 NULL, &tmp_err)) {
-        if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
+            if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
                             OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
-          // non-tiled image
-          //g_debug("non-tiled image %"PRId64, dir);
-          g_clear_error(&tmp_err);
-          jp_w = jp_tw = width;
-          jp_h = jp_th = height;
+                // non-tiled image
+                //g_debug("non-tiled image %"PRId64, dir);
+                jp_w = jp_tw = width;
+                jp_h = jp_th = height;
+                true_start_position_found = true;
+            } else {
+                start_in_file = start_in_file + 0x100000000L;
+            }
+        } else if (width == jp_w && height == jp_h) {
+                true_start_position_found = true;
         } else {
-          g_propagate_prefixed_error(err, tmp_err,
-                                     "Can't validate JPEG for directory "
-                                     "%"PRId64": ", dir);
-          goto FAIL;
+                start_in_file = start_in_file + 0x100000000L;
         }
-      }
-      if (width != jp_w || height != jp_h) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "JPEG dimension mismatch for directory %"PRId64": "
-                    "expected %"PRId64"x%"PRId64", found %dx%d",
-                    dir, width, height, jp_w, jp_h);
-        goto FAIL;
+        
+        g_clear_error(&tmp_err);
       }
 
       // init jpeg
@@ -2397,10 +2399,21 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
     } else if (lens == -1) {
       // macro image
-      if (!_openslide_jpeg_add_associated_image(osr, "macro",
+      bool true_start_position_found = false;
+      
+      while(!true_start_position_found) {
+        if (fseeko(f, start_in_file, SEEK_SET)) {
+            _openslide_io_error(err, "Couldn't seek to JPEG macro start");
+            goto FAIL;
+        }
+        if (!_openslide_jpeg_add_associated_image(osr, "macro",
                                                 filename, start_in_file,
                                                 err)) {
-        goto FAIL;
+            g_clear_error(err);
+            start_in_file = start_in_file + 0x100000000L;
+        } else {
+            true_start_position_found = true;
+        }
       }
     }
   }
