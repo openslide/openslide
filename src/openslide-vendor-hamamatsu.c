@@ -458,9 +458,17 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
     if (offset != -1) {
       bool true_mcu_start_found = false;
       
-      offset = offset | ((jpeg->start_in_file>>8)<<8);
+      int64_t previous_mcu;
       
-      if (offset < jpeg->start_in_file) {
+      if (first_good == 0 || jpeg->mcu_starts[first_good-1]==-1) {
+        previous_mcu = jpeg->start_in_file;
+      } else {
+        previous_mcu = jpeg->mcu_starts[first_good-1];
+      }
+      
+      offset = offset | (previous_mcu & ~(uint64_t) UINT32_MAX);
+      
+      if (offset < previous_mcu) {
         offset = offset + 0x100000000L;
       }
       
@@ -2351,6 +2359,27 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         
         g_clear_error(&tmp_err);
       }
+      
+      bool true_end_position_found = false;
+      
+      while(!true_end_position_found) {
+        if (fseeko(f, start_in_file+num_bytes-2, SEEK_SET)) {
+            _openslide_io_error(err, "Couldn't find JPEG end for directory %"PRId64, dir);
+            goto FAIL;
+        }
+        
+        uint8_t buf[2];
+        size_t result = fread(buf, 2, 1, f);
+        
+        if (result == 0 ||
+            buf[0] != 0xFF || buf[1] != 0xD9) {
+                num_bytes = num_bytes + 0x100000000L;
+        } else {
+                true_end_position_found = true;
+        }
+      }
+
+      fseeko(f, start_in_file, SEEK_SET);
 
       // init jpeg
       struct jpeg *jp = g_slice_new0(struct jpeg);
