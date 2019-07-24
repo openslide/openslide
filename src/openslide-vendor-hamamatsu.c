@@ -464,7 +464,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
         offset = offset + 0x100000000L;
       }
       
-      while(offset < jp->end_in_file && !true_mcu_start_found) {
+      while(offset < jpeg->end_in_file && !true_mcu_start_found) {
           uint8_t buf[2];
           if (fseeko(f, offset - 2, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't seek to recorded restart "
@@ -475,7 +475,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
         size_t result = fread(buf, 2, 1, f);
         if (result == 0 ||
             buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-                offset = offset + 0x100000000L
+                offset = offset + 0x100000000L;
             } else {
                 true_mcu_start_found = true;
             }
