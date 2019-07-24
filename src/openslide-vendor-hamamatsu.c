@@ -456,22 +456,36 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
       offset = jpeg->unreliable_mcu_starts[first_good];
     }
     if (offset != -1) {
-      uint8_t buf[2];
-      if (fseeko(f, offset - 2, SEEK_SET)) {
-        _openslide_io_error(err, "Couldn't seek to recorded restart "
-                            "marker at %"PRId64, offset - 2);
-        return false;
+      bool true_mcu_start_found = false;
+      
+      offset = offset | ((jpeg->start_in_file>>8)<<8);
+      
+      if (offset < jpeg->start_in_file) {
+        offset = offset + 0x100000000L;
       }
+      
+      while(offset < jp->end_in_file && !true_mcu_start_found) {
+          uint8_t buf[2];
+          if (fseeko(f, offset - 2, SEEK_SET)) {
+            _openslide_io_error(err, "Couldn't seek to recorded restart "
+                                "marker at %"PRId64, offset - 2);
+            return false;
+          }
 
-      size_t result = fread(buf, 2, 1, f);
-      if (result == 0 ||
-          buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Restart marker not found at recorded position %"PRId64,
-                    offset - 2);
-        return false;
+        size_t result = fread(buf, 2, 1, f);
+        if (result == 0 ||
+            buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
+                offset = offset + 0x100000000L
+            } else {
+                true_mcu_start_found = true;
+            }
       }
-
+      
+      if (!true_mcu_start_found) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "Restart marker could not be found");
+            return false;
+      }
       //  g_debug("accepted unreliable marker %"PRId64, first_good);
       jpeg->mcu_starts[first_good] = offset;
       break;
@@ -2255,9 +2269,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
-    //start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
-    //                                                         start_in_file);
-
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
     if (tmp_err) {
@@ -2313,7 +2324,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       
       while(!true_start_position_found) {
         if (fseeko(f, start_in_file, SEEK_SET)) {
-            _openslide_io_error(err, "Couldn't seek to JPEG start");
+            _openslide_io_error(err, "Couldn't find JPEG start for directory %"PRId64, dir);
             goto FAIL;
         }
         
