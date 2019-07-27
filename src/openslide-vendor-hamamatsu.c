@@ -199,7 +199,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 	       start_position, stop_position);
     return false;
   }
-
+  
   // compute size of buffer and allocate
   int header_length = header_stop_position - header_start_position;
   int data_length = 0;
@@ -456,47 +456,24 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
       offset = jpeg->unreliable_mcu_starts[first_good];
     }
     if (offset != -1) {
-      bool true_mcu_start_found = false;
-      
-      int64_t previous_mcu;
-      
-      if (first_good == 0 || jpeg->mcu_starts[first_good-1]==-1) {
-        previous_mcu = jpeg->start_in_file;
-      } else {
-        previous_mcu = jpeg->mcu_starts[first_good-1];
-      }
-      
-      offset = offset | (previous_mcu & ~(uint64_t) UINT32_MAX);
-      
-      if (offset < previous_mcu) {
-        offset = offset + 0x100000000L;
-      }
-      
-      while(offset < jpeg->end_in_file && !true_mcu_start_found) {
-          uint8_t buf[2];
-          if (fseeko(f, offset - 2, SEEK_SET)) {
+        uint8_t buf[2];
+        if (fseeko(f, offset - 2, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't seek to recorded restart "
                                 "marker at %"PRId64, offset - 2);
             return false;
-          }
+        }
 
         size_t result = fread(buf, 2, 1, f);
         if (result == 0 ||
             buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
-                offset = offset + 0x100000000L;
-            } else {
-                true_mcu_start_found = true;
-            }
-      }
-      
-      if (!true_mcu_start_found) {
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                      "Restart marker could not be found");
-            return false;
-      }
-      //  g_debug("accepted unreliable marker %"PRId64, first_good);
-      jpeg->mcu_starts[first_good] = offset;
-      break;
+                    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Restart marker not found at recorded position %"PRId64,
+                    offset - 2);
+        }
+        
+        //  g_debug("accepted unreliable marker %"PRId64, first_good);
+        jpeg->mcu_starts[first_good] = offset;
+        break;
     }
   }
 
@@ -578,7 +555,6 @@ static bool compute_mcu_start(openslide_t *osr,
     }
     g_assert(*stop_position != -1);
   }
-
   success = true;
 
 OUT:
@@ -2269,6 +2245,8 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   int64_t directories = _openslide_tifflike_get_directory_count(tl);
   int64_t min_width = INT64_MAX;
   int64_t min_width_dir = 0;
+  int64_t end_in_file = 0;
+  
   for (int64_t dir = 0; dir < directories; dir++) {
     // read tags
     int64_t width, height, rows_per_strip, start_in_file, num_bytes;
@@ -2277,6 +2255,16 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
+    
+    // calculate the bits of image position that are beyond the 32 bit range
+    // uses the the end position of the previous image as a starting point 
+    int64_t offset64 = end_in_file & ~(uint64_t) UINT32_MAX;
+    if (end_in_file > start_in_file+offset64) {
+      offset64 = offset64 + 0x100000000;
+    }
+    end_in_file = start_in_file+num_bytes;
+    
+    
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
     if (tmp_err) {
@@ -2330,8 +2318,10 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       
       bool true_start_position_found = false;
       
+      // check that a valid JPEG header exists at the given start position
+      // if not, shift the position by 2^32 and try again
       while(!true_start_position_found) {
-        if (fseeko(f, start_in_file, SEEK_SET)) {
+        if (fseeko(f, start_in_file+offset64, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't find JPEG start for directory %"PRId64, dir);
             goto FAIL;
         }
@@ -2349,21 +2339,25 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                 jp_h = jp_th = height;
                 true_start_position_found = true;
             } else {
-                start_in_file = start_in_file + 0x100000000L;
+                offset64 = offset64 + 0x100000000L;
             }
         } else if (width == jp_w && height == jp_h) {
                 true_start_position_found = true;
         } else {
-                start_in_file = start_in_file + 0x100000000L;
+                offset64 = offset64 + 0x100000000L;
         }
         
         g_clear_error(&tmp_err);
       }
       
+      start_in_file = start_in_file+offset64;
+      
+      // check that a valid JPEG end of file signature is at the given end position
+      // if not, shift the position by 2^32 and try again
       bool true_end_position_found = false;
       
       while(!true_end_position_found) {
-        if (fseeko(f, start_in_file+num_bytes-2, SEEK_SET)) {
+        if (fseeko(f, end_in_file+offset64-2, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't find JPEG end for directory %"PRId64, dir);
             goto FAIL;
         }
@@ -2373,11 +2367,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         
         if (result == 0 ||
             buf[0] != 0xFF || buf[1] != 0xD9) {
-                num_bytes = num_bytes + 0x100000000L;
+                offset64 = offset64 + 0x100000000L;
         } else {
                 true_end_position_found = true;
         }
       }
+
+      end_in_file = end_in_file+offset64;
 
       fseeko(f, start_in_file, SEEK_SET);
 
@@ -2385,7 +2381,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       struct jpeg *jp = g_slice_new0(struct jpeg);
       jp->filename = g_strdup(filename);
       jp->start_in_file = start_in_file;
-      jp->end_in_file = start_in_file + num_bytes;
+      jp->end_in_file = end_in_file;
       jp->width = width;
       jp->height = height;
       jp->tiles_across = width / jp_tw;
@@ -2405,6 +2401,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       if (jp->tile_count > 1) {
         int64_t mcu_start_count =
           _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
+        int64_t offset64 = 0;
 
         if (mcu_start_count == jp->tile_count) {
           //g_debug("loading MCU starts for directory %"PRId64, dir);
@@ -2412,9 +2409,17 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
             _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS, NULL);
           if (unreliable_mcu_starts) {
             jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
+            
             for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+              // offset markers should be listed in order, if a marker's given position is less 
+              // than the previous marker then it has probably overflowed the 32 bit range
+              // this means all subsequent marker positions need to be incremented by 2^32 to 
+              // give their true value
+              if (tile > 0 && unreliable_mcu_starts[tile] < unreliable_mcu_starts[tile-1]) {
+                offset64 = offset64 + 0x100000000L;
+              }
               jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file + unreliable_mcu_starts[tile];
+                jp->start_in_file + unreliable_mcu_starts[tile] + offset64;
               //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
             }
           } else {
@@ -2447,10 +2452,10 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
             goto FAIL;
         }
         if (!_openslide_jpeg_add_associated_image(osr, "macro",
-                                                filename, start_in_file,
+                                                filename, start_in_file+offset64,
                                                 err)) {
             g_clear_error(err);
-            start_in_file = start_in_file + 0x100000000L;
+            offset64 = offset64 + 0x100000000L;
         } else {
             true_start_position_found = true;
         }
