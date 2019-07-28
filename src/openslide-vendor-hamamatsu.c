@@ -2256,14 +2256,12 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
     
-    // calculate the bits of image position that are beyond the 32 bit range
+    // calculate the bits of image start position that are beyond the 32 bit range
     // uses the the end position of the previous image as a starting point 
-    int64_t offset64 = end_in_file & ~(uint64_t) UINT32_MAX;
-    if (end_in_file > start_in_file+offset64) {
-      offset64 = offset64 + 0x100000000;
-    }
-    end_in_file = start_in_file+num_bytes;
-    
+    start_in_file = (end_in_file & ~(uint64_t) UINT32_MAX) | start_in_file;
+    if (end_in_file > start_in_file) {
+      start_in_file = start_in_file + 0x100000000;
+    }    
     
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
@@ -2321,7 +2319,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       // check that a valid JPEG header exists at the given start position
       // if not, shift the position by 2^32 and try again
       while(!true_start_position_found) {
-        if (fseeko(f, start_in_file+offset64, SEEK_SET)) {
+        if (fseeko(f, start_in_file, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't find JPEG start for directory %"PRId64, dir);
             goto FAIL;
         }
@@ -2339,25 +2337,25 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                 jp_h = jp_th = height;
                 true_start_position_found = true;
             } else {
-                offset64 = offset64 + 0x100000000L;
+                start_in_file = start_in_file + 0x100000000L;
             }
         } else if (width == jp_w && height == jp_h) {
                 true_start_position_found = true;
         } else {
-                offset64 = offset64 + 0x100000000L;
+                start_in_file = start_in_file + 0x100000000L;
         }
         
         g_clear_error(&tmp_err);
       }
       
-      start_in_file = start_in_file+offset64;
+      end_in_file = start_in_file + num_bytes;
       
       // check that a valid JPEG end of file signature is at the given end position
       // if not, shift the position by 2^32 and try again
       bool true_end_position_found = false;
       
       while(!true_end_position_found) {
-        if (fseeko(f, end_in_file+offset64-2, SEEK_SET)) {
+        if (fseeko(f, end_in_file-2, SEEK_SET)) {
             _openslide_io_error(err, "Couldn't find JPEG end for directory %"PRId64, dir);
             goto FAIL;
         }
@@ -2367,13 +2365,11 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         
         if (result == 0 ||
             buf[0] != 0xFF || buf[1] != 0xD9) {
-                offset64 = offset64 + 0x100000000L;
+                end_in_file = end_in_file + 0x100000000L;
         } else {
                 true_end_position_found = true;
         }
       }
-
-      end_in_file = end_in_file+offset64;
 
       fseeko(f, start_in_file, SEEK_SET);
 
@@ -2452,10 +2448,10 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
             goto FAIL;
         }
         if (!_openslide_jpeg_add_associated_image(osr, "macro",
-                                                filename, start_in_file+offset64,
+                                                filename, start_in_file,
                                                 err)) {
             g_clear_error(err);
-            offset64 = offset64 + 0x100000000L;
+            start_in_file = start_in_file + 0x100000000L;
         } else {
             true_start_position_found = true;
         }
