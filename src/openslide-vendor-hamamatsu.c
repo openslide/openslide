@@ -81,7 +81,8 @@ static const int KEY_FILE_MAX_SIZE = 64 << 10;
 #define NDPI_XOFFSET 65422
 #define NDPI_YOFFSET 65423
 #define NDPI_FOCAL_PLANE 65424
-#define NDPI_MCU_STARTS 65426
+#define NDPI_MCU_STARTS_LOW_BYTES 65426
+#define NDPI_MCU_STARTS_HIGH_BYTES 65432
 #define NDPI_REFERENCE 65427
 #define NDPI_PROPERTY_MAP 65449
 #define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
@@ -2255,8 +2256,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file);
     TIFF_GET_UINT_OR_FAIL(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes);
-    start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
-                                                             start_in_file);
 
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
@@ -2362,18 +2361,20 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       // read MCU starts, if this directory is tiled
       if (jp->tile_count > 1) {
         int64_t mcu_start_count =
-          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
+          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_LOW_BYTES);
 
         if (mcu_start_count == jp->tile_count) {
           //g_debug("loading MCU starts for directory %"PRId64, dir);
-          const uint64_t *unreliable_mcu_starts =
-            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS, NULL);
-          if (unreliable_mcu_starts) {
+          const uint64_t *unreliable_mcu_starts_low_bytes =
+            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW_BYTES, NULL);
+          const uint64_t *unreliable_mcu_starts_high_bytes =
+            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH_BYTES, NULL);
+          if (unreliable_mcu_starts_low_bytes && unreliable_mcu_starts_high_bytes) {
             jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
             for (int64_t tile = 0; tile < mcu_start_count; tile++) {
               jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file + unreliable_mcu_starts[tile];
-              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
+                jp->start_in_file + unreliable_mcu_starts_low_bytes[tile] + (unreliable_mcu_starts_high_bytes[tile] << 32);
+              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile] + (unreliable_mcu_starts_high_bytes[tile] << 32));
             }
           } else {
             //g_debug("failed to load MCU starts for directory %"PRId64, dir);
