@@ -70,7 +70,7 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
   if (space == OPENSLIDE_JP2K_YCBCR &&
       c0_sub_x == 1 && c1_sub_x == 2 && c2_sub_x == 2 &&
       c0_sub_y == 1 && c1_sub_y == 1 && c2_sub_y == 1) {
-    // Aperio 33003
+    // Aperio & Huron 33003
     for (int32_t y = 0; y < h; y++) {
       int32_t c0_row_base = y * comps[0].w;
       int32_t c1_row_base = y * comps[1].w;
@@ -126,7 +126,7 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
   } else if (space == OPENSLIDE_JP2K_RGB &&
              c0_sub_x == 1 && c1_sub_x == 1 && c2_sub_x == 1 &&
              c0_sub_y == 1 && c1_sub_y == 1 && c2_sub_y == 1) {
-    // Aperio 33005
+    // Aperio & Huron 33005
     for (int32_t y = 0; y < h; y++) {
       int32_t c0_row_base = y * comps[0].w;
       int32_t c1_row_base = y * comps[1].w;

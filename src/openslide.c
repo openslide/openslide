@@ -48,8 +48,9 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_leica,
   &_openslide_format_philips,
   &_openslide_format_ventana,
+  &_openslide_format_huron,
   &_openslide_format_generic_tiff,
-  NULL,
+NULL,
 };
 
 static bool openslide_was_dynamically_loaded;

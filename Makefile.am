@@ -34,6 +34,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-tables.c \
 	src/openslide-util.c \
 	src/openslide-vendor-aperio.c \
+	src/openslide-vendor-huron.c \
 	src/openslide-vendor-generic-tiff.c \
 	src/openslide-vendor-hamamatsu.c \
 	src/openslide-vendor-leica.c \
