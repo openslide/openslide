@@ -133,6 +133,7 @@ extern const struct _openslide_format _openslide_format_philips;
 extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
+extern const struct _openslide_format _openslide_format_huron;
 
 /* GHashTable utils */
 guint _openslide_int64_hash(gconstpointer v);
