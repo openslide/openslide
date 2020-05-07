@@ -523,6 +523,7 @@ static bool read_nonhier_record(FILE *f,
   // read 3 zeroes
   // the first zero is sometimes 1253, for reasons that are not clear
   // http://lists.andrew.cmu.edu/pipermail/openslide-users/2013-August/000634.html
+  read_le_int32_from_file(f);
   if (read_le_int32_from_file(f) != 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected second 0 value");
