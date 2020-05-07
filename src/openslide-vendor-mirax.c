@@ -511,16 +511,18 @@ static bool read_nonhier_record(FILE *f,
   }
 
   // read pagesize == 1
-  if (read_le_int32_from_file(f) != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Expected 1 value");
-    return false;
-  }
+  // lets try disabling this check to see what happens then
+  //printf("pagesize actually is %i\n", read_le_int32_from_file(f));
+  //if (read_le_int32_from_file(f) != 1) {
+  //  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+  //              "Expected 1 value");
+  //  return false;
+  //}
+  read_le_int32_from_file(f); //just read the pagesize without any checks for now
 
   // read 3 zeroes
   // the first zero is sometimes 1253, for reasons that are not clear
   // http://lists.andrew.cmu.edu/pipermail/openslide-users/2013-August/000634.html
-  read_le_int32_from_file(f);
   if (read_le_int32_from_file(f) != 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected second 0 value");
