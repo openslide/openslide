@@ -510,15 +510,13 @@ static bool read_nonhier_record(FILE *f,
     return false;
   }
 
-  // read pagesize == 1
-  // lets try disabling this check to see what happens then
-  //printf("pagesize actually is %i\n", read_le_int32_from_file(f));
-  //if (read_le_int32_from_file(f) != 1) {
-  //  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-  //              "Expected 1 value");
-  //  return false;
-  //}
-  read_le_int32_from_file(f); //just read the pagesize without any checks for now
+  // read pagesize should not be zero
+  // is normally just one, but some 3dhistech scans seem to have 2 sometimes
+  if (read_le_int32_from_file(f) < 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Expected 1 value");
+    return false;
+  }
 
   // read 3 zeroes
   // the first zero is sometimes 1253, for reasons that are not clear
