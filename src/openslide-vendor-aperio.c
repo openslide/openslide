@@ -348,6 +348,7 @@ static bool add_associated_image(openslide_t *osr,
 
     // get name
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &val)) {
+        printf("could not get name\n");
       return true;
     }
 
@@ -442,6 +443,17 @@ static bool aperio_open(openslide_t *osr,
   if (!tiff) {
     goto FAIL;
   }
+
+  char *image_desc_pre;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc_pre)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read ImageDescription field");
+    goto FAIL;
+  }
+
+  char gt450_workaround = 0;
+  if (strncmp(image_desc_pre, "Aperio Leica Biosystems GT450", strlen("Aperio Leica Biosystems GT450")) == 0)
+      gt450_workaround = 1;
 
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
@@ -558,6 +570,12 @@ static bool aperio_open(openslide_t *osr,
     } else {
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
+      if (gt450_workaround) {
+          if(dir == 5)
+              name = "label";
+          if (dir == 6)
+              name = "macro";
+      }
       if (!add_associated_image(osr, name, tc, tiff, err)) {
 	goto FAIL;
       }
