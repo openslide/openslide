@@ -510,8 +510,9 @@ static bool read_nonhier_record(FILE *f,
     return false;
   }
 
-  // read pagesize == 1
-  if (read_le_int32_from_file(f) != 1) {
+  // read pagesize should not be zero
+  // is normally just one, but some 3dhistech scans seem to have 2 sometimes
+  if (read_le_int32_from_file(f) < 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected 1 value");
     return false;
