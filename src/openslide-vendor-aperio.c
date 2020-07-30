@@ -476,7 +476,9 @@ static bool aperio_open(openslide_t *osr,
    * always stripped.
    */
 
+  int tiff_dir_count = 0;
   do {
+    tiff_dir_count += 1;
     // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(tiff)) {
       level_count++;
@@ -571,9 +573,9 @@ static bool aperio_open(openslide_t *osr,
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
       if (gt450_workaround) {
-          if(dir == 5)
+          if(dir == tiff_dir_count-2)
               name = "label";
-          if (dir == 6)
+          if (dir == tiff_dir_count-1)
               name = "macro";
       }
       if (!add_associated_image(osr, name, tc, tiff, err)) {
