@@ -110,7 +110,7 @@ OpenSlide itself creates these properties (for now):
    The name of the vendor backend.
 
 
-Other Documentation
+Other Documentation for user references :-
 ===================
 
 The definitive API reference is in openslide.h. For an HTML version, see
@@ -147,6 +147,8 @@ Pittsburgh.
 
 
 How to build?
+WORRIED ?
+
 =============
 
 ./configure
@@ -156,4 +158,5 @@ make install
 (If building from the Git repository, you will first need to install
 autoconf, automake, libtool, and pkg-config and run "autoreconf -i".)
 
-Good luck!
+Wish good luck,
+Thanks.
