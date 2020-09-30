@@ -11,7 +11,7 @@ https://openslide.org/
 What is this?
 =============
 
-This library reads whole slide image files (also known as virtual slides).
+This library read all the slide image files (also known as virtual slides).
 It provides a consistent and simple API for reading files from multiple
 vendors.
 
@@ -113,7 +113,8 @@ OpenSlide itself creates these properties (for now):
 Other Documentation
 ===================
 
-The definitive API reference is in openslide.h. For an HTML version, see
+The definitive API reference is in openslide.h. 
+For an HTML version, see
 doc/html/openslide_8h.html in this distribution.
 
 Additional documentation is available from the OpenSlide website:
