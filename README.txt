@@ -1,4 +1,4 @@
-OpenSlide
+OpenSlide - Amazing Project
 
 Carnegie Mellon University and others
 
