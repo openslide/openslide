@@ -9,5 +9,5 @@
 - [ ] Update website: `_data/releases.yaml`, `_includes/news.md`, `api/`
 - [ ] Start a CI build of the demo site
 - [ ] Send mail to -announce and -users
-- [ ] Update Fedora package
+- [ ] Update Fedora and EPEL packages
 - [ ] Update MacPorts package
