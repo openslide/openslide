@@ -10,24 +10,45 @@ on:
 jobs:
   tests:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
     - name: Install dependencies
       run: |
-        sudo apt-get install \
-           gcc make autoconf automake libtool pkg-config \
-           zlib1g-dev \
-           libpng-dev \
-           libjpeg-turbo8-dev \
-           libtiff5-dev \
-           libopenjp2-7-dev \
-           libgdk-pixbuf2.0-dev \
-           libxml2-dev \
-           libsqlite3-dev \
-           libcairo2-dev \
-           libglib2.0-dev
+        case "${{ matrix.os }}" in
+        ubuntu-latest)
+          sudo apt-get install \
+            gcc make autoconf automake libtool pkg-config \
+            zlib1g-dev \
+            libpng-dev \
+            libjpeg-turbo8-dev \
+            libtiff5-dev \
+            libopenjp2-7-dev \
+            libgdk-pixbuf2.0-dev \
+            libxml2-dev \
+            libsqlite3-dev \
+            libcairo2-dev \
+            libglib2.0-dev
+          ;;
+        macos-latest)
+          brew install \
+            gcc make autoconf automake libtool pkg-config \
+            zlib \
+            libpng \
+            jpeg-turbo \
+            libtiff \
+            openjpeg \
+            gdk-pixbuf \
+            libxml2 \
+            sqlite \
+            cairo \
+            glib
+          ;;
+        esac
     - name: Build
       run: |
         autoreconf -i
