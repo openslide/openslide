@@ -252,7 +252,7 @@ def _download(url, name, fh):
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
     or short read.'''
 
-    print('Fetching %s...\r' % name, end=' ')
+    print('Fetching %s...\r' % name, end='')
     sys.stdout.flush()
     r = requests.get(url, stream=True, timeout=120)
     r.raise_for_status()
@@ -271,7 +271,7 @@ def _download(url, name, fh):
             now = curtime()
             if now - last_update >= 1:
                 print('Fetching %s (%d/%d MB)...\r' % (name, cur >> 20,
-                        size >> 20), end=' ')
+                        size >> 20), end='')
                 sys.stdout.flush()
                 last_update = now
         if cur != size:
