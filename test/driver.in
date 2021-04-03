@@ -20,7 +20,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
-from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 from contextlib import closing, contextmanager
 import filecmp
 import fnmatch
@@ -39,7 +39,7 @@ import tarfile
 from tempfile import mkdtemp, TemporaryFile, NamedTemporaryFile
 import textwrap
 from time import time as curtime
-from urlparse import urljoin
+from urllib.parse import urljoin
 import yaml
 from zipfile import ZipFile
 
@@ -99,8 +99,8 @@ class ConnectionInterrupted(Exception):
 
 def _command(f):
     '''Decorator to mark the function as a user command.'''
-    _commands.append(f.func_name)
-    _command_funcs[f.func_name] = f
+    _commands.append(f.__name__)
+    _command_funcs[f.__name__] = f
     return f
 
 
@@ -215,7 +215,7 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
     args = []
     if vendor is not SKIP:
         args.extend(['-n', 'none' if vendor is None else vendor])
-    for k, v in properties.iteritems():
+    for k, v in properties.items():
         args.extend(['-p', '='.join([k, (v or '')])])
     for region in regions:
         args.extend(['-r', ' '.join(str(d) for d in region)])
@@ -252,7 +252,7 @@ def _download(url, name, fh):
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
     or short read.'''
 
-    print 'Fetching %s...\r' % name,
+    print('Fetching %s...\r' % name, end=' ')
     sys.stdout.flush()
     r = requests.get(url, stream=True, timeout=120)
     r.raise_for_status()
@@ -270,8 +270,8 @@ def _download(url, name, fh):
             cur += len(chunk)
             now = curtime()
             if now - last_update >= 1:
-                print 'Fetching %s (%d/%d MB)...\r' % (name, cur >> 20,
-                        size >> 20),
+                print('Fetching %s (%d/%d MB)...\r' % (name, cur >> 20,
+                        size >> 20), end=' ')
                 sys.stdout.flush()
                 last_update = now
         if cur != size:
@@ -279,11 +279,11 @@ def _download(url, name, fh):
     except (ConnectionInterrupted,
             requests.exceptions.Timeout,
             socket.timeout):
-        print '%-79s' % ('Failure fetching %s (%d/%d MB)' % (name,
-                cur >> 20, size >> 20))
+        print('%-79s' % ('Failure fetching %s (%d/%d MB)' % (name,
+                cur >> 20, size >> 20)))
         raise ConnectionInterrupted
     else:
-        print '%-79s' % ('Fetched %s (%d MB)' % (name, size >> 20))
+        print('%-79s' % ('Fetched %s (%d MB)' % (name, size >> 20)))
         return hash.hexdigest()
 
 
@@ -318,7 +318,7 @@ def _fetch_one(slide):
                     if retries_remaining == 0:
                         raise
                     else:
-                        print 'Retrying...'
+                        print('Retrying...')
                         dest.seek(0)
                         dest.truncate()
                 else:
@@ -328,7 +328,7 @@ def _fetch_one(slide):
                 raise ValueError('Hash mismatch: %s' % slide)
 
             if is_zip:
-                print 'Unpacking %s...' % slide
+                print('Unpacking %s...' % slide)
                 with closing(ZipFile(dest)) as zf:
                     zf.extractall(path=destpath)
     except:
@@ -349,7 +349,7 @@ def create(slide, testname):
         raise ValueError('A test with that name already exists')
     _fetch_one(slide)
 
-    print 'Creating test %s for %s' % (testname, slide)
+    print('Creating test %s for %s' % (testname, slide))
 
     for relpath in _list_slide_files(slide):
         curpath = os.path.join(srcpath, relpath)
@@ -389,7 +389,7 @@ def pack(testname):
     if not os.path.exists(os.path.join(CASEROOT, testname, TESTCONF)):
         raise ValueError('Test does not exist')
 
-    print 'Packing %s...' % testname
+    print('Packing %s...' % testname)
     conf = _load_test_config(testname)
     slide = conf['base']
 
@@ -419,9 +419,9 @@ def pack(testname):
 
     total_size_kb = total_size >> 10
     if total_size_kb:
-        print 'Delta: %d KB' % total_size_kb
+        print('Delta: %d KB' % total_size_kb)
     else:
-        print 'Delta: %d bytes' % total_size
+        print('Delta: %d bytes' % total_size)
 
 
 def _run_generator(command_str, inpath, outpath):
@@ -478,7 +478,7 @@ def _unpack_one(testname):
 
         if not os.path.exists(newpath) and not os.path.exists(whiteoutpath):
             if not printed:
-                print 'Unpacking %s...' % testname
+                print('Unpacking %s...' % testname)
                 printed = True
 
             newdir = os.path.dirname(newpath)
@@ -511,7 +511,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None):
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
-        print _color(BLUE, '%s: skipped' % testname)
+        print(_color(BLUE, '%s: skipped' % testname))
         return True
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
@@ -545,7 +545,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None):
         else:
             msg = _color(RED, '%s: expected to fail, but passed' % testname)
 
-    print msg
+    print(msg)
     return ok
 
 
@@ -561,7 +561,7 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     for testname in tests:
         if not _run_one(testname, valgrind, testname in xfail, testdir):
             failed += 1
-    print '\nFailed: %d/%d' % (failed, len(tests))
+    print('\nFailed: %d/%d' % (failed, len(tests)))
     return failed
 
 
@@ -686,7 +686,7 @@ def time(pattern='*'):
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
-        print '%-40s %10s' % (testname, out.strip())
+        print('%-40s %10s' % (testname, out.strip()))
 
 
 @_command
@@ -700,7 +700,7 @@ def profile(pattern='*', level=0):
     )
     line = '#' * 79
     for testname, slidefile in _successful_primary_tests(pattern):
-        print '%s\n# %s\n%s\n' % (line, testname, line)
+        print('%s\n# %s\n%s\n' % (line, testname, line))
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
             args = ['!!BUILDDIR!!/../libtool', '--mode=execute',
                     'valgrind', '--quiet', '--error-exitcode=3',
@@ -732,7 +732,7 @@ def exports():
             yield words[-1]
 
     # Magic ELF symbols
-    ignore_symbols = set(['__bss_start', '_edata', '_end', '_fini', '_init'])
+    ignore_symbols = {'__bss_start', '_edata', '_end', '_fini', '_init'}
 
     # Check exported symbols
     exported_symbols = set(get_symbols('..')) - ignore_symbols
@@ -749,9 +749,9 @@ def exports():
 
     # Report
     for symbol in sorted(bad_exported):
-        print >>sys.stderr, 'Badly-named exported symbol:', symbol
+        print('Badly-named exported symbol:', symbol, file=sys.stderr)
     for symbol in sorted(bad_hidden):
-        print >>sys.stderr, 'Badly-named hidden symbol:', symbol
+        print('Badly-named hidden symbol:', symbol, file=sys.stderr)
     if bad_exported or bad_hidden:
         sys.exit(1)
 
@@ -780,14 +780,14 @@ def _usage():
     '''Print usage message and exit.'''
     wrapper = textwrap.TextWrapper(width=76, initial_indent=' ' * 8,
             subsequent_indent=' ' * 8)
-    print 'Usage:'
+    print('Usage:')
     for name in _commands:
         f = _command_funcs[name]
         args, optargs = _get_arglist(f)
         argspecs = ['<%s>' % a for a in args] + ['[%s]' % a for a in optargs]
-        print '    %s %s' % (name, ' '.join(argspecs))
-        print wrapper.fill(f.__doc__ or 'Undocumented.')
-        print
+        print('    %s %s' % (name, ' '.join(argspecs)))
+        print(wrapper.fill(f.__doc__ or 'Undocumented.'))
+        print()
     sys.exit(2)
 
 
