@@ -768,12 +768,12 @@ def clean(pattern='*'):
 def _get_arglist(f):
     '''Return two lists of argument names for the specified function: the
     mandatory arguments and the optional ones.'''
-    args, _va, _kw, defs = inspect.getargspec(f)
-    if defs:
-        optcount = len(defs)
-        return args[:-optcount], args[-optcount:]
+    info = inspect.getfullargspec(f)
+    if info.defaults:
+        optcount = len(info.defaults)
+        return info.args[:-optcount], info.args[-optcount:]
     else:
-        return args, []
+        return info.args, []
 
 
 def _usage():
