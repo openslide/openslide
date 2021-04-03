@@ -32,7 +32,8 @@ jobs:
             libxml2-dev \
             libsqlite3-dev \
             libcairo2-dev \
-            libglib2.0-dev
+            libglib2.0-dev \
+            doxygen
           ;;
         macos-latest)
           brew install \
@@ -54,6 +55,9 @@ jobs:
         autoreconf -i
         ./configure
         make -j4
+    - name: Check exports
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: cd test && ./driver exports
   docs:
     name: Docs
     runs-on: ubuntu-latest
