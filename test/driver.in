@@ -226,7 +226,7 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
     if out or err or proc.returncode > 0:
         return (out + err).strip()
     elif proc.returncode:
-        return 'Exited with status %d' % proc.returncode
+        return f'Exited with status {proc.returncode}'
     else:
         return None
 
@@ -242,7 +242,7 @@ def _try_extended(slidefile, valgrind=False, testdir=None):
     if out or err:
         return (out + err).strip()
     elif proc.returncode:
-        return 'Exited with status %d' % proc.returncode
+        return f'Exited with status {proc.returncode}'
     else:
         return None
 
@@ -252,7 +252,7 @@ def _download(url, name, fh):
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
     or short read.'''
 
-    print('Fetching %s...\r' % name, end='')
+    print(f'Fetching {name}...\r', end='')
     sys.stdout.flush()
     r = requests.get(url, stream=True, timeout=120)
     r.raise_for_status()
@@ -270,8 +270,8 @@ def _download(url, name, fh):
             cur += len(chunk)
             now = curtime()
             if now - last_update >= 1:
-                print('Fetching %s (%d/%d MB)...\r' % (name, cur >> 20,
-                        size >> 20), end='')
+                print(f'Fetching {name} ({cur >> 20}/{size >> 20} MB)...\r',
+                        end='')
                 sys.stdout.flush()
                 last_update = now
         if cur != size:
@@ -279,11 +279,10 @@ def _download(url, name, fh):
     except (ConnectionInterrupted,
             requests.exceptions.Timeout,
             socket.timeout):
-        print('%-79s' % ('Failure fetching %s (%d/%d MB)' % (name,
-                cur >> 20, size >> 20)))
+        print('{:<79}'.format(f'Failure fetching {name} ({cur >> 20}/{size >> 20} MB)'))
         raise ConnectionInterrupted
     else:
-        print('%-79s' % ('Fetched %s (%d MB)' % (name, size >> 20)))
+        print('{:<79}'.format(f'Fetched {name} ({size >> 20} MB)'))
         return hash.hexdigest()
 
 
@@ -297,7 +296,7 @@ def _fetch_one(slide):
     with open(SLIDELIST) as fh:
         slides = yaml.safe_load(fh)
     if slide not in slides:
-        raise ValueError('%s not in %s' % (slide, SLIDELIST))
+        raise ValueError(f'{slide} not in {SLIDELIST}')
 
     filename = os.path.basename(slide)
     url = urljoin(TESTDATA_URL, slide)
@@ -325,10 +324,10 @@ def _fetch_one(slide):
                     break
 
             if digest != slides[slide]:
-                raise ValueError('Hash mismatch: %s' % slide)
+                raise ValueError(f'Hash mismatch: {slide}')
 
             if is_zip:
-                print('Unpacking %s...' % slide)
+                print(f'Unpacking {slide}...')
                 with closing(ZipFile(dest)) as zf:
                     zf.extractall(path=destpath)
     except:
@@ -349,7 +348,7 @@ def create(slide, testname):
         raise ValueError('A test with that name already exists')
     _fetch_one(slide)
 
-    print('Creating test %s for %s' % (testname, slide))
+    print(f'Creating test {testname} for {slide}')
 
     for relpath in _list_slide_files(slide):
         curpath = os.path.join(srcpath, relpath)
@@ -389,7 +388,7 @@ def pack(testname):
     if not os.path.exists(os.path.join(CASEROOT, testname, TESTCONF)):
         raise ValueError('Test does not exist')
 
-    print('Packing %s...' % testname)
+    print(f'Packing {testname}...')
     conf = _load_test_config(testname)
     slide = conf['base']
 
@@ -404,7 +403,7 @@ def pack(testname):
 
         for path in deltapath, whiteoutpath:
             if os.path.exists(path):
-                raise IOError('%s already exists' % path)
+                raise IOError(f'{path} already exists')
 
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
@@ -419,9 +418,9 @@ def pack(testname):
 
     total_size_kb = total_size >> 10
     if total_size_kb:
-        print('Delta: %d KB' % total_size_kb)
+        print(f'Delta: {total_size_kb} KB')
     else:
-        print('Delta: %d bytes' % total_size)
+        print(f'Delta: {total_size} bytes')
 
 
 def _run_generator(command_str, inpath, outpath):
@@ -454,7 +453,7 @@ def _run_generator(command_str, inpath, outpath):
         proc.wait()
         returncode = returncode or proc.returncode
     if returncode:
-        raise IOError('Generator returned exit status %d' % returncode)
+        raise IOError(f'Generator returned exit status {returncode}')
 
 
 def _unpack_one(testname):
@@ -478,7 +477,7 @@ def _unpack_one(testname):
 
         if not os.path.exists(newpath) and not os.path.exists(whiteoutpath):
             if not printed:
-                print('Unpacking %s...' % testname)
+                print(f'Unpacking {testname}...')
                 printed = True
 
             newdir = os.path.dirname(newpath)
@@ -511,7 +510,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None):
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
-        print(_color(BLUE, '%s: skipped' % testname))
+        print(_color(BLUE, f'{testname}: skipped'))
         return True
     slidefile = os.path.join(WORKROOT, testname, conf['slide'])
     result = _try_open_slide(slidefile, valgrind, testdir,
@@ -520,30 +519,29 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None):
             regions=conf.get('regions', []),
             debug=conf.get('debug', []))
 
-    msg = _color(GREEN, '%s: OK' % testname)
+    msg = _color(GREEN, f'{testname}: OK')
     ok = True
     if result is None and not conf['success']:
-        msg = _color(RED, '%s: unexpected success' % testname)
+        msg = _color(RED, f'{testname}: unexpected success')
         ok = False
     elif result is not None and conf['success']:
-        msg = _color(RED, '%s: unexpected failure: %s' % (testname, result))
+        msg = _color(RED, f'{testname}: unexpected failure: {result}')
         ok = False
     elif result is not None and not re.search(conf['error'], result):
-        msg = _color(RED, '%s: incorrect error: %s' % (testname, result))
+        msg = _color(RED, f'{testname}: incorrect error: {result}')
         ok = False
     elif conf.get('primary', False) and conf['success']:
         result = _try_extended(slidefile, valgrind, testdir)
         if result:
-            msg = _color(RED, '%s: extended test failed: %s' % (testname,
-                    result))
+            msg = _color(RED, f'{testname}: extended test failed: {result}')
             ok = False
 
     if xfail:
         ok = not ok
         if ok:
-            msg = _color(BLUE, '%s: failed as expected' % testname)
+            msg = _color(BLUE, f'{testname}: failed as expected')
         else:
-            msg = _color(RED, '%s: expected to fail, but passed' % testname)
+            msg = _color(RED, f'{testname}: expected to fail, but passed')
 
     print(msg)
     return ok
@@ -561,7 +559,7 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     for testname in tests:
         if not _run_one(testname, valgrind, testname in xfail, testdir):
             failed += 1
-    print('\nFailed: %d/%d' % (failed, len(tests)))
+    print(f'\nFailed: {failed}/{len(tests)}')
     return failed
 
 
@@ -632,7 +630,7 @@ def coverage(outfile):
                 stdout=subprocess.PIPE)
         report, _ = proc.communicate()
         if proc.returncode:
-            raise IOError('Process returned exit status %d' % proc.returncode)
+            raise IOError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(l.replace('.c.gcov', '.c', 1)
                 for l in report.split('\n'))
         with open(os.path.join(basedir, outfile), 'w') as fh:
@@ -686,7 +684,7 @@ def time(pattern='*'):
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
-        print('%-40s %10s' % (testname, out.strip()))
+        print(f'{testname:<40} {out.strip():<10}')
 
 
 @_command
@@ -700,7 +698,7 @@ def profile(pattern='*', level=0):
     )
     line = '#' * 79
     for testname, slidefile in _successful_primary_tests(pattern):
-        print('%s\n# %s\n%s\n' % (line, testname, line))
+        print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
             args = ['!!BUILDDIR!!/../libtool', '--mode=execute',
                     'valgrind', '--quiet', '--error-exitcode=3',
@@ -721,7 +719,7 @@ def exports():
                 stdout=subprocess.PIPE)
         out, _ = proc.communicate()
         if proc.returncode:
-            raise IOError('objdump returned exit status %d' % proc.returncode)
+            raise IOError(f'objdump returned exit status {proc.returncode}')
         for line in out.splitlines():
             words = line.split()
             if len(words) < 3:
@@ -784,8 +782,8 @@ def _usage():
     for name in _commands:
         f = _command_funcs[name]
         args, optargs = _get_arglist(f)
-        argspecs = ['<%s>' % a for a in args] + ['[%s]' % a for a in optargs]
-        print('    %s %s' % (name, ' '.join(argspecs)))
+        argspecs = [f'<{a}>' for a in args] + [f'[{a}]' for a in optargs]
+        print(f'    {name} {" ".join(argspecs)}')
         print(wrapper.fill(f.__doc__ or 'Undocumented.'))
         print()
     sys.exit(2)
