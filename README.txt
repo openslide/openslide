@@ -27,7 +27,7 @@ Requirements
 ============
 
 This library requires zlib, libpng, libjpeg, libtiff >= 4.0, OpenJPEG >= 2.1,
-GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.16.
+GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.56.
 
 If you want to run the test suite, you will need PyYAML, python-requests,
 xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,

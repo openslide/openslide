@@ -132,10 +132,6 @@ static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
 
 
 int main(int argc, char **argv) {
-  if (!g_thread_supported()) {
-    g_thread_init(NULL);
-  }
-
   common_fix_argv(&argc, &argv);
   if (argc != 2) {
     common_fail("No file specified");
