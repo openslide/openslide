@@ -1327,10 +1327,9 @@ static bool init_jpeg_ops(openslide_t *osr,
   data->restart_marker_thread_throttle =
     !_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS);
   if (background_thread) {
-    data->restart_marker_thread = g_thread_create(restart_marker_thread_func,
-                                                  osr,
-                                                  TRUE,
-                                                  NULL);
+    data->restart_marker_thread = g_thread_new("hamamatsu-marker",
+                                               restart_marker_thread_func,
+                                               osr);
   }
 
   // for debugging
