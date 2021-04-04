@@ -138,11 +138,11 @@ struct hamamatsu_jpeg_ops_data {
 
   // thread stuff, for background search of restart markers
   GTimer *restart_marker_timer;
-  GMutex *restart_marker_mutex;
+  GMutex restart_marker_mutex;
   GThread *restart_marker_thread;
 
   GCond *restart_marker_cond;
-  GMutex *restart_marker_cond_mutex;
+  GMutex restart_marker_cond_mutex;
   uint32_t restart_marker_users;
   bool restart_marker_thread_throttle;
   bool restart_marker_thread_stop;
@@ -531,7 +531,7 @@ static bool compute_mcu_start(openslide_t *osr,
     return false;
   }
 
-  g_mutex_lock(data->restart_marker_mutex);
+  g_mutex_lock(&data->restart_marker_mutex);
 
   if (!_compute_mcu_start(jpeg, f, tileno, err)) {
     goto OUT;
@@ -560,7 +560,7 @@ static bool compute_mcu_start(openslide_t *osr,
   success = true;
 
 OUT:
-  g_mutex_unlock(data->restart_marker_mutex);
+  g_mutex_unlock(&data->restart_marker_mutex);
   return success;
 }
 
@@ -731,19 +731,19 @@ static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
   struct hamamatsu_jpeg_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
 
-  g_mutex_lock(data->restart_marker_cond_mutex);
+  g_mutex_lock(&data->restart_marker_cond_mutex);
   // check for background errors
   if (data->restart_marker_thread_error) {
     // propagate error
     g_propagate_error(err, data->restart_marker_thread_error);
     data->restart_marker_thread_error = NULL;
-    g_mutex_unlock(data->restart_marker_cond_mutex);
+    g_mutex_unlock(&data->restart_marker_cond_mutex);
     return false;
   }
   // tell the background thread to pause
   data->restart_marker_users++;
   //  g_debug("telling thread to pause");
-  g_mutex_unlock(data->restart_marker_cond_mutex);
+  g_mutex_unlock(&data->restart_marker_cond_mutex);
 
   // paint
   bool success = _openslide_grid_paint_region(l->grid, cr, NULL,
@@ -753,13 +753,13 @@ static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
                                               err);
 
   // maybe tell the background thread to resume
-  g_mutex_lock(data->restart_marker_cond_mutex);
+  g_mutex_lock(&data->restart_marker_cond_mutex);
   if (!--data->restart_marker_users) {
     g_timer_start(data->restart_marker_timer);
     //  g_debug("telling thread to awaken");
     g_cond_signal(data->restart_marker_cond);
   }
-  g_mutex_unlock(data->restart_marker_cond_mutex);
+  g_mutex_unlock(&data->restart_marker_cond_mutex);
 
   return success;
 }
@@ -768,11 +768,11 @@ static void jpeg_do_destroy(openslide_t *osr) {
   struct hamamatsu_jpeg_ops_data *data = osr->data;
 
   // tell the thread to finish and wait
-  g_mutex_lock(data->restart_marker_cond_mutex);
+  g_mutex_lock(&data->restart_marker_cond_mutex);
   g_warn_if_fail(data->restart_marker_users == 0);
   data->restart_marker_thread_stop = true;
   g_cond_signal(data->restart_marker_cond);
-  g_mutex_unlock(data->restart_marker_cond_mutex);
+  g_mutex_unlock(&data->restart_marker_cond_mutex);
   if (data->restart_marker_thread) {
     g_thread_join(data->restart_marker_thread);
   }
@@ -782,15 +782,15 @@ static void jpeg_do_destroy(openslide_t *osr) {
                     osr->level_count, (struct jpeg_level **) osr->levels);
 
   // the background stuff
-  g_mutex_lock(data->restart_marker_cond_mutex);
+  g_mutex_lock(&data->restart_marker_cond_mutex);
   if (data->restart_marker_thread_error) {
     g_error_free(data->restart_marker_thread_error);
   }
-  g_mutex_unlock(data->restart_marker_cond_mutex);
-  g_mutex_free(data->restart_marker_mutex);
+  g_mutex_unlock(&data->restart_marker_cond_mutex);
+  g_mutex_clear(&data->restart_marker_mutex);
   g_timer_destroy(data->restart_marker_timer);
   g_cond_free(data->restart_marker_cond);
-  g_mutex_free(data->restart_marker_cond_mutex);
+  g_mutex_clear(&data->restart_marker_cond_mutex);
 
   // the structure
   g_slice_free(struct hamamatsu_jpeg_ops_data, data);
@@ -912,20 +912,20 @@ static gpointer restart_marker_thread_func(gpointer d) {
   GError *tmp_err = NULL;
 
   while(current_jpeg < data->jpeg_count) {
-    g_mutex_lock(data->restart_marker_cond_mutex);
+    g_mutex_lock(&data->restart_marker_cond_mutex);
 
     // should we pause?
     while (data->restart_marker_users && !data->restart_marker_thread_stop) {
       //      g_debug("thread paused");
       g_cond_wait(data->restart_marker_cond,
-		  data->restart_marker_cond_mutex); // zzz
+		  &data->restart_marker_cond_mutex); // zzz
       //      g_debug("thread awoken");
     }
 
     // should we stop?
     if (data->restart_marker_thread_stop) {
       //      g_debug("thread stopping");
-      g_mutex_unlock(data->restart_marker_cond_mutex);
+      g_mutex_unlock(&data->restart_marker_cond_mutex);
       break;
     }
 
@@ -942,15 +942,15 @@ static gpointer restart_marker_thread_func(gpointer d) {
 
       //      g_debug("zz: %lu", sleep_time);
       g_cond_timed_wait(data->restart_marker_cond,
-			data->restart_marker_cond_mutex,
+			&data->restart_marker_cond_mutex,
 			&abstime);
       //      g_debug("running again");
-      g_mutex_unlock(data->restart_marker_cond_mutex);
+      g_mutex_unlock(&data->restart_marker_cond_mutex);
       continue;
     }
 
     // we are finally able to run
-    g_mutex_unlock(data->restart_marker_cond_mutex);
+    g_mutex_unlock(&data->restart_marker_cond_mutex);
 
     //g_debug("current_jpeg: %d, current_mcu_start: %d",
     //        current_jpeg, current_mcu_start);
@@ -987,9 +987,9 @@ static gpointer restart_marker_thread_func(gpointer d) {
   // store error, if any
   if (tmp_err) {
     //g_debug("restart_marker_thread_func failed: %s", tmp_err->message);
-    g_mutex_lock(data->restart_marker_cond_mutex);
+    g_mutex_lock(&data->restart_marker_cond_mutex);
     data->restart_marker_thread_error = tmp_err;
-    g_mutex_unlock(data->restart_marker_cond_mutex);
+    g_mutex_unlock(&data->restart_marker_cond_mutex);
   }
 
   //  g_debug("restart_marker_thread_func done!");
@@ -1329,9 +1329,9 @@ static bool init_jpeg_ops(openslide_t *osr,
 
   // init background thread for finding restart markers
   data->restart_marker_timer = g_timer_new();
-  data->restart_marker_mutex = g_mutex_new();
+  g_mutex_init(&data->restart_marker_mutex);
   data->restart_marker_cond = g_cond_new();
-  data->restart_marker_cond_mutex = g_mutex_new();
+  g_mutex_init(&data->restart_marker_cond_mutex);
   data->restart_marker_thread_throttle =
     !_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS);
   if (background_thread) {
@@ -1352,15 +1352,15 @@ static bool init_jpeg_ops(openslide_t *osr,
     }
 
     // check for errors
-    g_mutex_lock(data->restart_marker_cond_mutex);
+    g_mutex_lock(&data->restart_marker_cond_mutex);
     if (data->restart_marker_thread_error) {
       g_propagate_error(err, data->restart_marker_thread_error);
       data->restart_marker_thread_error = NULL;
-      g_mutex_unlock(data->restart_marker_cond_mutex);
+      g_mutex_unlock(&data->restart_marker_cond_mutex);
       jpeg_do_destroy(osr);
       return false;
     }
-    g_mutex_unlock(data->restart_marker_cond_mutex);
+    g_mutex_unlock(&data->restart_marker_cond_mutex);
 
     // verify results
     if (!verify_mcu_starts(num_jpegs, jpegs, err)) {

@@ -41,7 +41,7 @@
 struct _openslide_tiffcache {
   char *filename;
   GQueue *cache;
-  GMutex *lock;
+  GMutex lock;
   int outstanding;
 };
 
@@ -636,16 +636,16 @@ struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
   tc->filename = g_strdup(filename);
   tc->cache = g_queue_new();
-  tc->lock = g_mutex_new();
+  g_mutex_init(&tc->lock);
   return tc;
 }
 
 TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err) {
   //g_debug("get TIFF");
-  g_mutex_lock(tc->lock);
+  g_mutex_lock(&tc->lock);
   tc->outstanding++;
   TIFF *tiff = g_queue_pop_head(tc->cache);
-  g_mutex_unlock(tc->lock);
+  g_mutex_unlock(&tc->lock);
 
   if (tiff == NULL) {
     //g_debug("create TIFF");
@@ -654,9 +654,9 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err) {
     tiff = tiff_open(tc, err);
   }
   if (tiff == NULL) {
-    g_mutex_lock(tc->lock);
+    g_mutex_lock(&tc->lock);
     tc->outstanding--;
-    g_mutex_unlock(tc->lock);
+    g_mutex_unlock(&tc->lock);
   }
   return tiff;
 }
@@ -667,14 +667,14 @@ void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff) {
   }
 
   //g_debug("put TIFF");
-  g_mutex_lock(tc->lock);
+  g_mutex_lock(&tc->lock);
   g_assert(tc->outstanding);
   tc->outstanding--;
   if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
     g_queue_push_head(tc->cache, tiff);
     tiff = NULL;
   }
-  g_mutex_unlock(tc->lock);
+  g_mutex_unlock(&tc->lock);
 
   if (tiff) {
     //g_debug("too many TIFFs");
@@ -686,15 +686,15 @@ void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
   if (tc == NULL) {
     return;
   }
-  g_mutex_lock(tc->lock);
+  g_mutex_lock(&tc->lock);
   TIFF *tiff;
   while ((tiff = g_queue_pop_head(tc->cache)) != NULL) {
     TIFFClose(tiff);
   }
   g_assert(tc->outstanding == 0);
-  g_mutex_unlock(tc->lock);
+  g_mutex_unlock(&tc->lock);
   g_queue_free(tc->cache);
-  g_mutex_free(tc->lock);
+  g_mutex_clear(&tc->lock);
   g_free(tc->filename);
   g_slice_free(struct _openslide_tiffcache, tc);
 }
