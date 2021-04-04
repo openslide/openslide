@@ -607,11 +607,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   if (version != 42 && version != 43) {
     goto NOT_TIFF;
   }
-  if (version == 43 && sizeof(toff_t) == 4) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "BigTIFF support requires libtiff >= 4");
-    return NULL;
-  }
 
   // allocate
   struct tiff_file_handle *hdl = g_slice_new0(struct tiff_file_handle);

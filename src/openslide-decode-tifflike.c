@@ -32,15 +32,6 @@
 
 #include <tiff.h>
 
-#ifndef TIFF_VERSION_BIG
-// tiff.h is from libtiff < 4
-#define TIFF_VERSION_CLASSIC TIFF_VERSION
-#define TIFF_VERSION_BIG 43
-#define TIFF_LONG8 16
-#define TIFF_SLONG8 17
-#define TIFF_IFD8 18
-#endif
-
 #define NO_OFFSET UINT64_MAX
 
 #define NDPI_TAG 65420

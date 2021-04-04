@@ -3,4 +3,3 @@ error: "^Invalid integer attribute \"sizeX\"$"
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

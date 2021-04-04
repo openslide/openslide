@@ -3,4 +3,3 @@ error: "^Parsing level 0 XML: Could not parse XML$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

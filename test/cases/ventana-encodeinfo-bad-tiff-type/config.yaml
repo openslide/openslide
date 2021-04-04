@@ -5,4 +5,3 @@ error: "Unexpected value type: directory 2, tag 700, type 4$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

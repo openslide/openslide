@@ -105,25 +105,7 @@ PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
   FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-1"
 ])
 
-PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
-  dnl libtiff < 4 has no pkg-config file
-  old_LIBS="$LIBS"
-  AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
-  LIBS="$old_LIBS"
-  LIBTIFF_LIBS="-ltiff"
-])
-old_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $LIBTIFF_CFLAGS"
-AC_COMPILE_IFELSE([AC_LANG_SOURCE([
-  #include <tiff.h>
-  int ver = TIFF_VERSION_BIG;
-])], [
-  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-4"
-], [
-  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-3"
-])
-CFLAGS="$old_CFLAGS"
-
+PKG_CHECK_MODULES(LIBTIFF, [libtiff-4])
 PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0, gio-2.0, gobject-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])

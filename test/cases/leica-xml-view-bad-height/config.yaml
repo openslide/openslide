@@ -3,4 +3,3 @@ error: "^No integer attribute \"sizeY\"$"
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]
