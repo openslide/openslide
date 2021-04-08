@@ -137,7 +137,7 @@ struct hamamatsu_jpeg_ops_data {
   struct jpeg **all_jpegs;
 
   // thread stuff, for background search of restart markers
-  GTimer *restart_marker_timer;
+  int64_t restart_marker_last_used_time;
   GMutex restart_marker_mutex;
   GThread *restart_marker_thread;
 
@@ -755,7 +755,7 @@ static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
   // maybe tell the background thread to resume
   g_mutex_lock(&data->restart_marker_cond_mutex);
   if (!--data->restart_marker_users) {
-    g_timer_start(data->restart_marker_timer);
+    data->restart_marker_last_used_time = g_get_monotonic_time();
     //  g_debug("telling thread to awaken");
     g_cond_signal(&data->restart_marker_cond);
   }
@@ -788,7 +788,6 @@ static void jpeg_do_destroy(openslide_t *osr) {
   }
   g_mutex_unlock(&data->restart_marker_cond_mutex);
   g_mutex_clear(&data->restart_marker_mutex);
-  g_timer_destroy(data->restart_marker_timer);
   g_cond_clear(&data->restart_marker_cond);
   g_mutex_clear(&data->restart_marker_cond_mutex);
 
@@ -930,20 +929,13 @@ static gpointer restart_marker_thread_func(gpointer d) {
     }
 
     // should we sleep?
-    double time_to_sleep = 1.0 - g_timer_elapsed(data->restart_marker_timer,
-						 NULL);
+    int64_t end_time = data->restart_marker_last_used_time + G_TIME_SPAN_SECOND;
     if (data->restart_marker_thread_throttle &&
-        time_to_sleep > 0) {
-      GTimeVal abstime;
-      gulong sleep_time = G_USEC_PER_SEC * time_to_sleep;
-
-      g_get_current_time(&abstime);
-      g_time_val_add(&abstime, sleep_time);
-
-      //      g_debug("zz: %lu", sleep_time);
-      g_cond_timed_wait(&data->restart_marker_cond,
+        end_time > g_get_monotonic_time()) {
+      //g_debug("zz: %lu", end_time - g_get_monotonic_time());
+      g_cond_wait_until(&data->restart_marker_cond,
 			&data->restart_marker_cond_mutex,
-			&abstime);
+			end_time);
       //      g_debug("running again");
       g_mutex_unlock(&data->restart_marker_cond_mutex);
       continue;
@@ -1328,7 +1320,7 @@ static bool init_jpeg_ops(openslide_t *osr,
   osr->levels = (struct _openslide_level **) levels;
 
   // init background thread for finding restart markers
-  data->restart_marker_timer = g_timer_new();
+  data->restart_marker_last_used_time = g_get_monotonic_time();
   g_mutex_init(&data->restart_marker_mutex);
   g_cond_init(&data->restart_marker_cond);
   g_mutex_init(&data->restart_marker_cond_mutex);
