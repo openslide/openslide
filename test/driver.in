@@ -459,8 +459,7 @@ def _unpack_one(testname):
                 printed = True
 
             newdir = os.path.dirname(newpath)
-            if not os.path.exists(newdir):
-                os.makedirs(newdir)
+            os.makedirs(newdir, exist_ok=True)
 
             generator = generators.get(os.path.basename(relpath))
             if generator:
