@@ -1,8 +1,6 @@
 # Slide with 2010/10/01 namespace, with the xmlns changed to 2010/03/10
 # but with no other changes to the XML.
 base: Leica/Leica-1.scn
-requires:
-- libtiff-4
 slide: Leica-1.scn
 success: true
 vendor: leica

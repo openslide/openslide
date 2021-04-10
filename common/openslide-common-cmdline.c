@@ -20,11 +20,6 @@
  *
  */
 
-// don't complain about g_option_context_parse_strv(), which is called
-// conditionally
-#undef GLIB_VERSION_MAX_ALLOWED
-#define GLIB_VERSION_MAX_ALLOWED G_ENCODE_VERSION(2,40)
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,10 +55,6 @@ static GOptionContext *make_option_context(const struct common_usage_info *info)
   return octx;
 }
 
-#if GLIB_CHECK_VERSION(2,40,0)
-
-#define CMDLINE_FREE_ARGS
-
 static char **fixed_argv;
 
 static void free_argv(void) {
@@ -93,18 +84,6 @@ bool common_parse_options(GOptionContext *ctx,
   return ret;
 }
 
-#else
-
-void common_fix_argv(int *argc G_GNUC_UNUSED, char ***argv G_GNUC_UNUSED) {}
-
-bool common_parse_options(GOptionContext *ctx,
-                          int *argc, char ***argv,
-                          GError **err) {
-  return g_option_context_parse(ctx, argc, argv, err);
-}
-
-#endif
-
 void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv) {
   GError *err = NULL;
@@ -126,9 +105,7 @@ void common_parse_commandline(const struct common_usage_info *info,
   // Remove "--" arguments; g_option_context_parse() doesn't
   for (int i = 0; i < *argc; i++) {
     if (!strcmp((*argv)[i], "--")) {
-#ifdef CMDLINE_FREE_ARGS
       free((*argv)[i]);
-#endif
       for (int j = i + 1; j <= *argc; j++) {
         (*argv)[j - 1] = (*argv)[j];
       }

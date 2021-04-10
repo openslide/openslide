@@ -3,4 +3,3 @@ error: ^Slides with dissimilar main images are not supported$
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

@@ -56,16 +56,6 @@ static bool openslide_was_dynamically_loaded;
 
 // called from shared-library constructor!
 static void __attribute__((constructor)) _openslide_init(void) {
-  // activate threads
-  if (!g_thread_supported()) {
-    g_thread_init(NULL);
-  }
-  // initialize GObject
-  g_type_init();
-  // work around thread-safety problems in glib < 2.48.1 with first
-  // g_key_file_new() call
-  // https://bugzilla.gnome.org/show_bug.cgi?id=748474
-  g_get_language_names();
   // init libxml2
   xmlInitParser();
   // parse debug options

@@ -1,6 +1,0 @@
-# Truncated ImageDescription, not null-terminated
-base: Aperio/CMU-1.svs
-slide: CMU-1.svs
-success: true
-vendor: generic-tiff
-requires: [libtiff-3]
