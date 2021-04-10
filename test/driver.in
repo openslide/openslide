@@ -47,8 +47,8 @@ VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
 CASEROOT = '!!SRCDIR!!/cases'
 SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
 MOSAICLIST = '!!SRCDIR!!/cases/mosaic.ini'
-WORKROOT = '!!BUILDDIR!!/_slidedata'
-PRISTINE = '!!BUILDDIR!!/_slidedata/_pristine'
+WORKROOT = '!!BUILDDIR!!/_slidedata/unpacked'
+PRISTINE = '!!BUILDDIR!!/_slidedata/pristine'
 FEATURES = set('!!FEATURES!!'.split())
 TESTCONF = 'config.yaml'
 
