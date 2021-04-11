@@ -1118,11 +1118,19 @@ def exports():
 
 @_command
 def clean(pattern='*'):
-    '''Delete temporary slide data for tests matching the specified pattern.'''
+    '''Delete temporary slide data for tests matching the specified
+    pattern.  If pattern is `frozen` or omitted, also delete unfrozen
+    test data.'''
     for testname in _list_tests(pattern):
         path = os.path.join(WORKROOT, testname)
         if os.path.exists(path):
             rmtree(path)
+    if pattern == '*' or pattern == 'frozen':
+        if os.path.lexists(FROZEN):
+            basedir = os.path.join(FROZENBASE, os.readlink(FROZEN))
+            os.unlink(FROZEN)
+            if os.path.exists(basedir):
+                rmtree(basedir)
 
 
 @_command
