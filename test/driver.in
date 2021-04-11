@@ -58,6 +58,7 @@ WORKROOT = '!!BUILDDIR!!/_slidedata/unpacked'
 PRISTINE = '!!BUILDDIR!!/_slidedata/pristine'
 FUSEMOUNT = '!!BUILDDIR!!/_slidedata/fuse'
 FROZENBASE = '!!BUILDDIR!!/_slidedata'
+FROZEN = '!!BUILDDIR!!/_slidedata/frozen'
 FEATURES = set('!!FEATURES!!'.split())
 TESTCONF = 'config.yaml'
 
@@ -812,6 +813,49 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
     }
     with open(FROZENLIST, 'w') as fh:
         yaml.safe_dump(manifest, fh, default_flow_style=False)
+
+
+@_command
+def unfreeze():
+    '''Download and unpack the current frozen archive.'''
+    with open(FROZENLIST) as fh:
+        manifest = yaml.safe_load(fh)
+        sha256 = manifest['sha256']
+        link_target = 'frozen-' + sha256
+    if os.path.lexists(FROZEN):
+        current = os.readlink(FROZEN)
+        if current == link_target:
+            return
+        else:
+            os.unlink(FROZEN)
+            basedir = os.path.join(FROZENBASE, current)
+            if os.path.exists(basedir):
+                rmtree(basedir)
+    basedir = os.path.join(FROZENBASE, link_target)
+    os.makedirs(basedir)
+    with TemporaryFile(dir=FROZENBASE, prefix='frozen-') as fh:
+        found_sha256 = _download(manifest['url'], 'frozen archive', fh)
+        if found_sha256 != sha256:
+            raise IOError(f'Hash mismatch: expected {sha256}, found {found_sha256}')
+        fh.seek(0)
+        print('Unpacking...')
+        tf = tarfile.open(fileobj=fh)
+        while True:
+            info = tf.next()
+            if info is None:
+                break
+            # directory traversal shouldn't happen because we check the
+            # tarball hash, but check anyway
+            normalized = os.path.normpath(info.name)
+            if normalized.startswith('/') or normalized.startswith('../'):
+                raise IOError(f'Directory traversal: {info.name}')
+            if info.isfile() or info.isdir():
+                tf.extract(info, path=basedir, set_attrs=False)
+            elif info.issym():
+                symlink(info.linkname, os.path.join(basedir, info.name))
+            else:
+                raise IOError(f'Unexpected type: {info.name}')
+    symlink(link_target, FROZEN)
 
 
 def _run_one(testname, valgrind=False, xfail=False, testdir=None,
