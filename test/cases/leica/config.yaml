@@ -2,7 +2,6 @@ base: Leica/Leica-1.scn
 slide: Leica-1.scn
 success: true
 vendor: leica
-requires: [libtiff-4]
 primary: true
 properties:
   leica.barcode: 04050629C

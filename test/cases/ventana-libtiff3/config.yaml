@@ -1,6 +1,0 @@
-base: Ventana/OS-2.bif
-slide: OS-2.bif
-error: BigTIFF support requires libtiff >= 4
-success: false
-vendor: ventana
-requires: [libtiff-3]

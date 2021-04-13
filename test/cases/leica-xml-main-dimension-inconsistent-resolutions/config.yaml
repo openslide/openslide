@@ -4,4 +4,3 @@ error: ^Inconsistent main image resolutions$
 slide: Leica-2.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

@@ -3,4 +3,3 @@ error: "^Tile size mismatch: expected 1024x1360, found 1024x1350$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

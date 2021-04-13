@@ -63,68 +63,9 @@ PKG_CHECK_MODULES(LIBJPEG, [libjpeg], [], [
                  AC_MSG_FAILURE([cannot find libjpeg]))
 ])
 
-PKG_CHECK_MODULES(OPENJPEG2, [libopenjp2 >= 2.1.0], [
-   AC_DEFINE([HAVE_OPENJPEG2], [1], [Define to 1 if you have OpenJPEG >= 2.1.0.])
-   OPENJPEG_CFLAGS="$OPENJPEG2_CFLAGS"
-   OPENJPEG_LIBS="$OPENJPEG2_LIBS"
-   FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-2"
- ], [
-  dnl Fall back to OpenJPEG 1.x
-  PKG_CHECK_MODULES(OPENJPEG, [libopenjpeg1], [], [
-    dnl OpenJPEG < 1.4 has no pkg-config file
-
-    AC_MSG_CHECKING([for OpenJPEG (fallback)])
-    dnl AC_CHECK_LIB won't work with the Win32 version of openjpeg
-    dnl because of the stdcall calling convention which requires
-    dnl configure to read openjpeg.h.
-
-    old_LIBS="$LIBS"
-    LIBS="-lopenjpeg $LIBS"
-    AC_LINK_IFELSE(
-      [AC_LANG_SOURCE(
-  [[
-  #include <openjpeg.h>
-  int
-  main ()
-  {
-    const char *ver = opj_version();
-    return 0;
-  }
-  ]])],
-      openjpeg_ok=yes,
-      openjpeg_ok=no)
-    LIBS="$old_LIBS"
-
-    if test "$openjpeg_ok" = yes; then
-      OPENJPEG_LIBS="-lopenjpeg"
-      AC_MSG_RESULT($openjpeg_ok)
-    else
-      AC_MSG_FAILURE([cannot find OpenJPEG])
-    fi
-  ])
-  FEATURE_FLAGS="$FEATURE_FLAGS openjpeg-1"
-])
-
-PKG_CHECK_MODULES(LIBTIFF, [libtiff-4], [], [
-  dnl libtiff < 4 has no pkg-config file
-  old_LIBS="$LIBS"
-  AC_SEARCH_LIBS([TIFFOpen], [tiff],, AC_MSG_FAILURE([cannot find libtiff]))
-  LIBS="$old_LIBS"
-  LIBTIFF_LIBS="-ltiff"
-])
-old_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $LIBTIFF_CFLAGS"
-AC_COMPILE_IFELSE([AC_LANG_SOURCE([
-  #include <tiff.h>
-  int ver = TIFF_VERSION_BIG;
-])], [
-  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-4"
-], [
-  FEATURE_FLAGS="$FEATURE_FLAGS libtiff-3"
-])
-CFLAGS="$old_CFLAGS"
-
-PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.16, gthread-2.0, gio-2.0, gobject-2.0])
+PKG_CHECK_MODULES(OPENJPEG, [libopenjp2 >= 2.1.0])
+PKG_CHECK_MODULES(LIBTIFF, [libtiff-4])
+PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.56, gthread-2.0, gio-2.0, gobject-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 PKG_CHECK_MODULES(GDKPIXBUF, [gdk-pixbuf-2.0 >= 2.14])
@@ -248,9 +189,7 @@ AC_SUBST([WARN_CFLAGS])
 # MinGW only
 gl_WARN_ADD([-Wno-pedantic-ms-format])
 
-# The min/max glib version is actually 2.16, but glib doesn't have special
-# handling for API changes that old
-AC_SUBST(AM_CFLAGS, ['$(WARN_CFLAGS) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_26 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
+AC_SUBST(AM_CFLAGS, ['$(WARN_CFLAGS) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
 
 AC_SUBST(FEATURE_FLAGS)
 

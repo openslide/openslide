@@ -2,8 +2,6 @@
 # collection attribute (as in the 2010/03/10 namespace) rather than as a
 # separate element.  This combination shouldn't actually occur in nature.
 base: Leica/Leica-1.scn
-requires:
-- libtiff-4
 slide: Leica-1.scn
 success: true
 vendor: leica

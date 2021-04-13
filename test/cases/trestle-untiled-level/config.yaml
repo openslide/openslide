@@ -2,4 +2,3 @@ base: Trestle/CMU-1.zip
 slide: CMU-1.tif
 success: true
 vendor: generic-tiff
-requires: [libtiff-4]

@@ -3,4 +3,3 @@ base: Ventana/OS-2.bif
 slide: OS-2.bif
 success: true
 vendor: ventana
-requires: [libtiff-4]

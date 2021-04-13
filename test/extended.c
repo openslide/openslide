@@ -108,8 +108,7 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   }
 
   g_atomic_int_set(&leak_test_running, 1);
-  GThread *thr = g_thread_create(cloexec_thread, prog, TRUE, NULL);
-  g_assert(thr != NULL);
+  GThread *thr = g_thread_new("cloexec", cloexec_thread, prog);
   guint32 buf[512 * 512];
   GTimer *timer = g_timer_new();
   while (g_timer_elapsed(timer, NULL) < 2) {
@@ -132,10 +131,6 @@ static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
 
 
 int main(int argc, char **argv) {
-  if (!g_thread_supported()) {
-    g_thread_init(NULL);
-  }
-
   common_fix_argv(&argc, &argv);
   if (argc != 2) {
     common_fail("No file specified");

@@ -3,4 +3,3 @@ error: ^Unexpected magnification in level 2$
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

@@ -3,4 +3,3 @@ error: ^No pyramid levels in slide$
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

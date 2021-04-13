@@ -32,15 +32,6 @@
 
 #include <tiff.h>
 
-#ifndef TIFF_VERSION_BIG
-// tiff.h is from libtiff < 4
-#define TIFF_VERSION_CLASSIC TIFF_VERSION
-#define TIFF_VERSION_BIG 43
-#define TIFF_LONG8 16
-#define TIFF_SLONG8 17
-#define TIFF_IFD8 18
-#endif
-
 #define NO_OFFSET UINT64_MAX
 
 #define NDPI_TAG 65420
@@ -51,7 +42,7 @@ struct _openslide_tifflike {
   bool big_endian;
   bool ndpi;
   GPtrArray *directories;
-  GMutex *value_lock;
+  GMutex value_lock;
 };
 
 struct tiff_directory {
@@ -334,9 +325,9 @@ static bool populate_item(struct _openslide_tifflike *tl,
   void *buf = NULL;
   bool success = false;
 
-  g_mutex_lock(tl->value_lock);
+  g_mutex_lock(&tl->value_lock);
   if (item->offset == NO_OFFSET) {
-    g_mutex_unlock(tl->value_lock);
+    g_mutex_unlock(&tl->value_lock);
     return true;
   }
 
@@ -376,7 +367,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
   success = true;
 
 FAIL:
-  g_mutex_unlock(tl->value_lock);
+  g_mutex_unlock(&tl->value_lock);
   g_free(buf);
   if (f) {
     fclose(f);
@@ -619,7 +610,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   tl->filename = g_strdup(filename);
   tl->big_endian = big_endian;
   tl->directories = g_ptr_array_new();
-  tl->value_lock = g_mutex_new();
+  g_mutex_init(&tl->value_lock);
 
   // initialize directory reading
   loop_detector = g_hash_table_new_full(_openslide_int64_hash,
@@ -713,14 +704,14 @@ void _openslide_tifflike_destroy(struct _openslide_tifflike *tl) {
   if (tl == NULL) {
     return;
   }
-  g_mutex_lock(tl->value_lock);
+  g_mutex_lock(&tl->value_lock);
   for (uint32_t n = 0; n < tl->directories->len; n++) {
     tiff_directory_destroy(tl->directories->pdata[n]);
   }
-  g_mutex_unlock(tl->value_lock);
+  g_mutex_unlock(&tl->value_lock);
   g_ptr_array_free(tl->directories, true);
   g_free(tl->filename);
-  g_mutex_free(tl->value_lock);
+  g_mutex_clear(&tl->value_lock);
   g_slice_free(struct _openslide_tifflike, tl);
 }
 

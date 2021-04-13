@@ -3,4 +3,3 @@ error: "^Can't read macro associated image: Cannot set TIFF directory 42$"
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

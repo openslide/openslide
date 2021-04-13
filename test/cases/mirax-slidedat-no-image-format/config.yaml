@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file does not have key ('|\xe2\x80\x9c)IMAGE_FORMAT('|\xe2\x80\x9d)( in group ('|\xe2\x80\x9c)LAYER_0_LEVEL_3_SECTION('|\xe2\x80\x9d))?$
+error: ^Key file does not have key “IMAGE_FORMAT” in group “LAYER_0_LEVEL_3_SECTION”$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax
