@@ -484,9 +484,15 @@ def _unpack_one(testname):
 
 @_command
 def unpack(pattern='*'):
-    '''Unpack all tests matching the specified pattern.'''
+    '''Unpack all tests matching the specified pattern.  If pattern is
+    `nonfrozen`, unpack tests for which we don't have a frozen counterpart.'''
+    conditional = False
+    if pattern == 'nonfrozen':
+        pattern = '*'
+        conditional = True
     for testname in _list_tests(pattern):
-        _unpack_one(testname)
+        if not conditional or not os.path.exists(os.path.join(FROZEN, testname)):
+            _unpack_one(testname)
 
 
 # Read-only FUSE filesystem that proxies a backing directory tree and builds
