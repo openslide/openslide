@@ -49,6 +49,7 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_philips,
   &_openslide_format_ventana,
   &_openslide_format_generic_tiff,
+  &_openslide_format_precipoint_vmic,
   NULL,
 };
 
