@@ -67,6 +67,7 @@ static const char ATTR_TILE1[] = "Tile1";
 static const char ATTR_TILE2[] = "Tile2";
 static const char ATTR_OVERLAP_X[] = "OverlapX";
 static const char ATTR_OVERLAP_Y[] = "OverlapY";
+static const char DIRECTION_LEFT[] = "LEFT";
 static const char DIRECTION_RIGHT[] = "RIGHT";
 static const char DIRECTION_UP[] = "UP";
 
@@ -572,7 +573,7 @@ static struct bif *parse_level0_xml(const char *xml,
       bool ok;
       bool direction_y = false;
       //g_debug("%s, tile1 %"PRId64" %"PRId64", tile2 %"PRId64" %"PRId64, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
-      if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
+      if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT) || !xmlStrcmp(direction, BAD_CAST DIRECTION_LEFT)) {
         // get left joint of right tile
         struct tile *tile =
           area->tiles[tile2_row * area->tiles_across + tile2_col];
