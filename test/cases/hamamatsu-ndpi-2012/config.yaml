@@ -3,6 +3,9 @@ slide: OS-2.ndpi
 success: true
 vendor: hamamatsu
 primary: true
+# The JPEG marker scan touches the whole file and bloats the freeze file.
+# Just fetch the original testdata file instead.
+freezable: false
 debug:
   - jpeg-markers
 properties:
