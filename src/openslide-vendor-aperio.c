@@ -324,8 +324,8 @@ static void add_properties(openslide_t *osr, char **props) {
     g_strfreev(pair);
   }
 
-  _openslide_duplicate_int_prop(osr, "aperio.AppMag",
-                                OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  _openslide_duplicate_double_prop(osr, "aperio.AppMag",
+                             	   OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
   _openslide_duplicate_double_prop(osr, "aperio.MPP",
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
   _openslide_duplicate_double_prop(osr, "aperio.MPP",
