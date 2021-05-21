@@ -394,7 +394,7 @@ static void tiff_item_destroy(gpointer data) {
   g_slice_free(struct tiff_item, item);
 }
 
-static struct tiff_directory *read_directory(FILE *f, int64_t *diroff,
+static struct tiff_directory *read_directory(VSILFILE *f, int64_t *diroff,
                                              struct tiff_directory *first_dir,
                                              GHashTable *loop_detector,
                                              bool bigtiff,
@@ -551,7 +551,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   GHashTable *loop_detector = NULL;
 
   // open file
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  VSILFILE *f = VSIFOpenL(filename, "rb");
   if (!f) {
     goto FAIL;
   }
