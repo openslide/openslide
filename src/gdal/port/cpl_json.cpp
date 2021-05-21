@@ -510,7 +510,7 @@ void CPLJSONObject::Add(const std::string &osName, const char *pszValue)
  * Note: this does not check the available space!  The caller
  *  is responsible for performing those calculations.
  */
-static int printbuf_extend(struct printbuf *p, int min_size)
+int printbuf_extend(struct printbuf *p, int min_size)
 {
 	char *t;
 	int new_size;
