@@ -524,7 +524,7 @@ static int printbuf_extend(struct printbuf *p, int min_size)
 	  "bpos=%d min_size=%d old_size=%d new_size=%d\n",
 	  p->bpos, min_size, p->size, new_size);
 #endif /* PRINTBUF_DEBUG */
-	if(!(t = (char*)realloc(p->buf, new_size)))
+	if(!(t = reinterpret_cast<char*>(realloc(p->buf, new_size))))
 		return -1;
 	p->size = new_size;
 	p->buf = t;
