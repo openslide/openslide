@@ -510,7 +510,7 @@ void CPLJSONObject::Add(const std::string &osName, const char *pszValue)
  * Note: this does not check the available space!  The caller
  *  is responsible for performing those calculations.
  */
-int printbuf_extend(struct printbuf *p, int min_size)
+static int printbuf_extend(struct printbuf *p, int min_size)
 {
 	char *t;
 	int new_size;
@@ -531,7 +531,7 @@ int printbuf_extend(struct printbuf *p, int min_size)
 	return 0;
 }
 
-int printbuf_memappend(struct printbuf *p, const char *buf, int size)
+static int printbuf_memappend(struct printbuf *p, const char *buf, int size)
 {
   if (p->size <= p->bpos + size + 1) {
     if (printbuf_extend(p, p->bpos + size + 1) < 0)
@@ -634,7 +634,7 @@ OGR_json_double_with_significant_figures_to_string( struct json_object *jso,
 /*              json_object_new_double_with_significant_figures()       */
 /************************************************************************/
 
-json_object *
+static json_object *
 json_object_new_double_with_significant_figures( double dfVal,
                                                  int nSignificantFigures )
 {
