@@ -501,42 +501,37 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
 
 static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size)
 {
-  VSILFILE *fp = th;
-  return VSIFReadL( buf, 1, size, fp );
+  return VSIFReadL( buf, 1, size, (VSILFILE *) th );
 }
 
 static tsize_t tiff_do_write(thandle_t th, tdata_t buf, tsize_t size)
 {
-  VSILFILE *fp = th;
-  return VSIFWriteL( buf, 1, size, fp );
+  return VSIFWriteL( buf, 1, size, (VSILFILE *) th );
 }
 
 static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence)
 {
-  VSILFILE *fp = th;
-  if( VSIFSeekL( fp, offset, whence ) == 0 )
-    return (toff_t) VSIFTellL( fp );
+  if( VSIFSeekL( (VSILFILE *) th, offset, whence ) == 0 )
+    return (toff_t) VSIFTellL( (VSILFILE *) th );
   else
     return (toff_t) -1;
 }
 
 static int tiff_do_close(thandle_t th)
 {
-  VSILFILE *fp = th;
-  return VSIFCloseL( fp );
+  return VSIFCloseL( (VSILFILE *) th );
 }
 
 static toff_t tiff_do_size(thandle_t th)
 {
   vsi_l_offset  old_off;
-  VSILFILE *fp = th;
   toff_t        file_size;
 
-  old_off = VSIFTellL( fp );
-  CPL_IGNORE_RET_VAL_INT(VSIFSeekL( fp, 0, SEEK_END ));
+  old_off = VSIFTellL( (VSILFILE *) th );
+  CPL_IGNORE_RET_VAL_INT(VSIFSeekL( (VSILFILE *) th, 0, SEEK_END ));
 
-  file_size = (toff_t) VSIFTellL( fp );
-  CPL_IGNORE_RET_VAL_INT(VSIFSeekL( fp, old_off, SEEK_SET ));
+  file_size = (toff_t) VSIFTellL( (VSILFILE *) th );
+  CPL_IGNORE_RET_VAL_INT(VSIFSeekL( (VSILFILE *) th, old_off, SEEK_SET ));
 
   return file_size;
 }
