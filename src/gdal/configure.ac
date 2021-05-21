@@ -1457,7 +1457,7 @@ AC_ARG_WITH(proj-extra-lib-for-test,
 PROJ_INCLUDE=""
 if test "x$with_proj" = "xno" ; then
 
-  AC_MSG_ERROR([PROJ >= 6 is a required dependency.])
+dnl  AC_MSG_ERROR([PROJ >= 6 is a required dependency.])
 
 else
 

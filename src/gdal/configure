@@ -25092,8 +25092,8 @@ fi
 PROJ_INCLUDE=""
 if test "x$with_proj" = "xno" ; then
 
-  as_fn_error $? "PROJ >= 6 is a required dependency." "$LINENO" 5
-
+#  as_fn_error $? "PROJ >= 6 is a required dependency." "$LINENO" 5
+PROJ_INCLUDE=""
 else
 
   if test "x$with_proj" = "xyes" -o "x$with_proj" = "x"; then
