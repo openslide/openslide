@@ -560,12 +560,12 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   }
 
   // get size
-  if (fseeko(fp, 0, SEEK_END) == -1) {
+  if (VSIFSeekL(fp, 0, SEEK_END) == -1) {
     _openslide_io_error(err, "Couldn't seek to end of %s", tc->filename);
     VSIFCloseL(fp);
     return NULL;
   }
-  int64_t size = ftello(fp);
+  int64_t size = VSIFTellL(fp);
   if (size == -1) {
     _openslide_io_error(err, "Couldn't ftello() for %s", tc->filename);
     VSIFCloseL(fp);
