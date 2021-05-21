@@ -1,0 +1,664 @@
+# -*- Makefile -*- for emacs.
+GDAL_ROOT	=	/Users/rob.montroy/git/openslide/src/gdal
+top_builddir	=	$(GDAL_ROOT)
+
+#
+# the library can be built by the native build or with the help of libtool
+#
+
+SHELL    =   /bin/sh
+HAVE_LIBTOOL	=	yes
+LIBTOOL	=	$(SHELL) $(top_builddir)/libtool
+ifeq ($(HAVE_LIBTOOL),yes)
+LIBTOOL_COMPILE_CC =	$(LIBTOOL) --mode=compile --silent --tag=CC
+LIBTOOL_COMPILE_CXX =	$(LIBTOOL) --mode=compile --silent --tag=CXX
+LIBTOOL_LINK	=	$(LIBTOOL) --mode=link --silent -v
+LIBTOOL_INSTALL	=	$(LIBTOOL) --mode=install --silent
+LIBTOOL_FINISH	=	$(LIBTOOL) --mode=finish --silent
+LIBTOOL_CLEAN	=	$(LIBTOOL) --mode=clean --silent
+OBJ_EXT = lo
+else
+LIBTOOL_FINISH	=	/usr/bin/true
+OBJ_EXT = o
+endif
+
+CC	=	$(LIBTOOL_COMPILE_CC) gcc
+CXX	=	$(LIBTOOL_COMPILE_CXX) g++ -std=c++11
+LD	=	$(LIBTOOL_LINK) g++ -std=c++11 -v
+RM	=	$(LIBTOOL_CLEAN) /bin/rm -f *.lo
+INSTALL = 	$(LIBTOOL_INSTALL) $(GDAL_ROOT)/install-sh -c
+INSTALL_LIB 	=	$(LIBTOOL_INSTALL) $(GDAL_ROOT)/install-sh -c
+INSTALL_DATA	= 	$(GDAL_ROOT)/install-sh -c -m 0644
+INSTALL_DIR	= 	$(GDAL_ROOT)/install-sh -d
+
+LIBS	=	 -ljson-c -lfreexl -L/usr/local/Cellar/geos/3.9.1/lib -lgeos_c -lwebp -lodbc -lodbcinst -L/usr/local/lib -lxerces-c -lpthread -L/usr/local/Cellar/openjpeg/2.4.0/lib -lopenjp2 -L/usr/local/Cellar/netcdf/4.8.0_1/lib -lnetcdf -lhdf5 -lgif -lgeotiff -lpng -lcfitsio -lzstd  -ltiff -ljpeg -lz -lpthread -ldl  -lpcre $(KAK_LIBS) $(DWG_LIBS) $(CURL_LIB) \
+		$(MRSID_LIBS) $(MRSID_LIDAR_LIBS) $(ECW_LIBS) $(INGRES_LIB) \
+		$(PCIDSK_LIB) $(RASDAMAN_LIB) $(SOSI_LIB) \
+		$(OPENCL_LIB) $(JVM_LIB) $(LIBICONV) $(FGDB_LIB) $(LIBXML2_LIB) $(MONGODB_LIB) \
+		$(MONGOCXXV3_LIBS) $(JNI_LIB) $(HDFS_LIB)
+
+SSEFLAGS = 
+SSSE3FLAGS = 
+AVXFLAGS = -mavx
+
+PYTHON = 
+PY_HAVE_SETUPTOOLS=
+
+# Next Generation SWIG bindings
+BINDINGS	=	
+
+HAVE_OGDI = no
+OGR_ENABLED = yes
+GNM_ENABLED = yes
+
+OSX_FRAMEWORK_PREFIX = /Library/Frameworks/GDAL.framework
+OSX_VERSION_FRAMEWORK_PREFIX = ${OSX_FRAMEWORK_PREFIX}/Versions/.
+
+PACKAGE = gdal
+
+prefix		=	/usr/local
+exec_prefix	=	${prefix}
+datarootdir	=	${prefix}/share
+docdir	=	${datarootdir}/doc/${PACKAGE}
+htmldir	=	${docdir}
+sysconfdir      =       ${prefix}/etc
+INST_PREFIX	=	${prefix}
+INST_INCLUDE	=	${prefix}/include
+INST_DATA 	=	${datarootdir}/gdal
+INST_LIB	=	${exec_prefix}/lib
+INST_BIN	=	${exec_prefix}/bin
+INST_BASH_COMPLETION	=	
+INST_PYMOD      =       @pymoddir@
+INST_DOCS	=	${docdir}
+INST_MAN	=	${datarootdir}/man
+INST_WEB	=	$(HOME)/www/gdal
+
+CPPFLAGS	:=  -I$(GDAL_ROOT)/port -I/usr/local/Cellar/openjpeg/2.4.0/include/openjpeg-2.4 -I/usr/local/Cellar/netcdf/4.8.0_1/include  -DGDAL_COMPILATION
+CFLAGS		=  -DHAVE_AVX_AT_COMPILE_TIME -DHAVE_SSSE3_AT_COMPILE_TIME -DHAVE_SSE_AT_COMPILE_TIME -g -O2  -Wall  -Wextra -Winit-self -Wunused-parameter -Wmissing-prototypes -Wmissing-declarations -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync $(USER_DEFS)
+CXXFLAGS	=  -DHAVE_AVX_AT_COMPILE_TIME -DHAVE_SSSE3_AT_COMPILE_TIME -DHAVE_SSE_AT_COMPILE_TIME -g -O2  -Wall -Wextra -Winit-self -Wunused-parameter -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wextra-semi -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync -Wunused-private-field -Wmissing-declarations -Wnon-virtual-dtor -Woverloaded-virtual -fno-operator-names -Wzero-as-null-pointer-constant -Wsuggest-override -Wimplicit-fallthrough $(USER_DEFS)
+CFLAGS_NOFTRAPV          = -g -O2  -Wall  -Wextra -Winit-self -Wunused-parameter -Wmissing-prototypes -Wmissing-declarations -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync $(USER_DEFS)
+CXXFLAGS_NOFTRAPV        = -g -O2  -Wall -Wextra -Winit-self -Wunused-parameter -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wextra-semi -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync -Wunused-private-field -Wmissing-declarations -Wnon-virtual-dtor -Woverloaded-virtual -fno-operator-names -Wzero-as-null-pointer-constant -Wsuggest-override -Wimplicit-fallthrough $(USER_DEFS)
+CXXFLAGS_NO_LTO_IF_SSSE3_NONDEFAULT           = -DHAVE_AVX_AT_COMPILE_TIME -DHAVE_SSSE3_AT_COMPILE_TIME -DHAVE_SSE_AT_COMPILE_TIME -g -O2  -Wall -Wextra -Winit-self -Wunused-parameter -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wextra-semi -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync -Wunused-private-field -Wmissing-declarations -Wnon-virtual-dtor -Woverloaded-virtual -fno-operator-names -Wzero-as-null-pointer-constant -Wsuggest-override -Wimplicit-fallthrough $(USER_DEFS)
+CXXFLAGS_NO_LTO_IF_AVX_NONDEFAULT           = -DHAVE_AVX_AT_COMPILE_TIME -DHAVE_SSSE3_AT_COMPILE_TIME -DHAVE_SSE_AT_COMPILE_TIME -g -O2  -Wall -Wextra -Winit-self -Wunused-parameter -Wformat -Werror=format-security -Wno-format-nonliteral -Wshorten-64-to-32 -Wshadow -Wmissing-include-dirs -Werror=vla -Wdate-time -Wnull-dereference -Wextra-semi -Wcomma -Wfloat-conversion -Wdocumentation -Wno-documentation-deprecated-sync -Wunused-private-field -Wmissing-declarations -Wnon-virtual-dtor -Woverloaded-virtual -fno-operator-names -Wzero-as-null-pointer-constant -Wsuggest-override -Wimplicit-fallthrough $(USER_DEFS)
+
+NO_UNUSED_PARAMETER_FLAG = -Wno-unused-parameter
+NO_SIGN_COMPARE = -Wno-sign-compare
+NO_NON_VIRTUAL_DTOR_FLAG = -Wno-non-virtual-dtor
+NO_LOGICAL_OP_FLAG = 
+WARN_OLD_STYLE_CAST = -Wold-style-cast
+WARN_EFFCPLUSPLUS = -Weffc++
+
+# Also available -DAFL_FRIENDLY for strcmp(), etc.. variants that will
+# work better with American Fuzzy Lop branch examination logic
+
+# TODO(schwehr): Make these be configure flags.
+# CFLAGS += -Werror
+# CFLAGS += -std=c11
+# CFLAGS += -fsanitize=address
+# CFLAGS += -D_FORTIFY_SOURCE=2
+# CFLAGS += -fPIE -pie
+# CFLAGS += -fstack-protector-all
+
+# CXXFLAGS += -Werror
+# CXXFLAGS += -std=c++11
+# CXXFLAGS += -fsanitize=address
+# CXXFLAGS += -D_FORTIFY_SOURCE=2
+# CXXFLAGS += -fPIE -pie
+# CXXFLAGS += -fstack-protector-all
+
+LDFLAGS     = 
+# LDFLAGS += -fsanitize=address
+
+RANLIB		=	ranlib
+SO_EXT		=	
+LD_SHARED	=	
+EXE		=       
+
+ifeq ($(notdir $(LD_SHARED)),true)
+HAVE_LD_SHARED  =	no
+else
+HAVE_LD_SHARED  =	yes
+endif
+
+GDAL_INCLUDE	=	-I$(GDAL_ROOT)/port -I$(GDAL_ROOT)/gcore \
+			-I$(GDAL_ROOT)/alg \
+                        -I$(GDAL_ROOT)/ogr -I$(GDAL_ROOT)/ogr/ogrsf_frmts \
+                        -I$(GDAL_ROOT)/gnm -I$(GDAL_ROOT)/apps
+
+# libtool targets and help variables
+LIBGDAL	:=		libgdal.la
+LIBGDAL_CURRENT	:=	29
+LIBGDAL_REVISION	:=	0
+LIBGDAL_AGE	:=	0
+
+# native build targets and variables
+GDAL_VER	=	..
+
+# version info
+GDAL_VERSION_MAJOR =    
+GDAL_VERSION_MINOR =    
+GDAL_VERSION_REV   =    
+
+GDAL_LIB	= 	$(GDAL_ROOT)/libgdal.a
+GDAL_SLIB	=	$(GDAL_ROOT)/libgdal.$(SO_EXT)
+GDAL_SLIB_LINK	=	-L$(GDAL_ROOT) -lgdal
+#GDAL_SLIB_SONAME = -Wl,-soname,libgdal.$(SO_EXT).
+
+# Mac OS X Framework definition
+MACOSX_FRAMEWORK = no
+
+#
+# GDAL/OGR PostgreSQL support.
+#
+HAVE_OGR_PG     = no
+HAVE_POSTGISRASTER  = no
+PG_INC	=	
+
+#
+# INGRES
+#
+II_SYSTEM = 
+HAVE_INGRES = no
+INGRES_LIB = 
+INGRES_INC = 
+
+#
+# MySQL support.
+#
+HAVE_MYSQL =	no
+MYSQL_LIB  =	
+MYSQL_INC  =	
+LIBS	   +=	$(MYSQL_LIB)
+
+#
+# HDF4 Support.
+#
+HAVE_HDF4     = no
+HDF4_INCLUDE  =  -I$(GDAL_ROOT)/ogr
+HDF4_HAS_MAXOPENFILES = 
+ifeq ($(HDF4_HAS_MAXOPENFILES),yes)
+HDF4_FLAGS=-DHDF4_HAS_MAXOPENFILES
+endif
+
+#
+# HDF5 Support.
+#
+HAVE_HDF5     = yes
+HDF5_INCLUDE  = 
+
+#
+# KEA Support.
+#
+HAVE_KEA     = no
+KEA_INC      = 
+KEA_LIB      = 
+LIBS       +=   $(KEA_LIB)
+
+#
+# NetCDF Support.
+#
+NETCDF_MEM = yes
+NETCDF_ROOT = /usr/local/Cellar/netcdf/4.8.0_1
+NETCDF_HAS_NC4 = yes
+NETCDF_HAS_HDF4 = no
+
+#
+# DODS Include file location
+#
+DODS_INC = 
+ifeq ($(DODS_INC),)
+HAVE_DODS = no
+else
+HAVE_DODS = yes
+endif
+
+#
+# SQLite
+#
+SQLITE_INC = 
+SQLITE_HAS_COLUMN_METADATA = 
+HAVE_SQLITE = no
+HAVE_SPATIALITE = no
+SPATIALITE_SONAME = 
+SPATIALITE_INC = 
+SPATIALITE_412_OR_LATER = 
+HAVE_PCRE = yes
+HAVE_RASTERLITE2 = no
+RASTERLITE2_CFLAGS = 
+
+#
+# JPEG2000 via Kakadu Support.
+#
+KAKDIR = 
+
+ifneq ($(KAKDIR),)
+ifeq ($(HAVE_LIBTOOL),yes)
+include $(GDAL_ROOT)/frmts/jp2kak/jp2kak.lst
+KAK_LIBS = $(KAK_OBJ)
+endif
+endif
+
+#
+# JPEG-2000 Support via JasPer library.
+#
+HAVE_JASPER     = no
+JASPER_FLAGS	= 
+
+#
+# MrSID support via LizardTech's DSDK
+#
+MRSID_FLAGS	= 
+MRSID_INCLUDE	= 
+MRSID_LIBS	= 
+
+#
+#
+# MrSID/MG4 support via LizardTech LiDAR SDK
+#
+MRSID_LIDAR_INCLUDE	= 
+MRSID_LIDAR_LIBS	= 
+
+#
+# ECW Related
+#
+ECW_FLAGS	= 
+ECW_INCLUDE 	= 
+ECW_LIBS	= 
+
+#
+# JP2Lura Related
+#
+JP2LURA_INCLUDE 	= 
+
+# Xerces C++ XML Parser for GML and ILI
+#
+HAVE_XERCES	= yes
+XERCES_INCLUDE	= -I/usr/local/include -I/usr/local/include/xercesc
+ifeq ($(HAVE_XERCES),yes)
+CPPFLAGS	+= -DHAVE_XERCES $(XERCES_INCLUDE) $(CPPFLAGS)
+endif
+
+#
+# Expat XML Parser for KML, GPX, GeoRSS (and GML if no Xerces C++)
+#
+HAVE_EXPAT = no
+EXPAT_INCLUDE = 
+
+#
+# Google libkml for the new OGR KML driver written by Brian Case
+#
+HAVE_LIBKML = no
+LIBKML_INCLUDE = 
+
+#
+# Oracle Spatial Support
+#
+HAVE_OCI	= no
+OCI_INCLUDE	= 
+
+# GEOS Support
+
+HAVE_GEOS       =       yes
+GEOS_CFLAGS     =       -I/usr/local/Cellar/geos/3.9.1/include
+
+# SFCGAL Support
+
+HAVE_SFCGAL       =       
+SFCGAL_CFLAGS     =       
+
+# QHull Support
+
+QHULL_SETTING   =       internal
+QHULL_INCLUDE_SUBDIR_IS_LIBQHULL   =       1
+
+# GRASS Support
+
+GRASS_SETTING	=	no
+GRASS_INCLUDE	=	
+GRASS_GISBASE	=	
+HAVE_GRASS	=	no
+
+#
+# FileGDB
+#
+HAVE_FGDB = no
+FGDB_LIB = 
+FGDB_INC = 
+
+#
+# MongoDB
+#
+HAVE_MONGODB = no
+MONGODB_LIB = 
+MONGODB_INC = 
+
+#
+# MongoCXX v3
+#
+HAVE_MONGOCXXV3 = no
+MONGOCXXV3_LIBS = 
+MONGOCXXV3_CFLAGS = 
+
+#
+# ArcObjects
+#
+HAVE_ARCOBJECTS = @ARCOBJECTS_ENABLED@
+ARCOBJECTS_LIB	= @ARCOBJECTS_LIB@
+ARCOBJECTS_INC = @ARCOBJECTS_INC@
+
+#
+# Curl
+#
+CURL_SETTING 	=	yes
+CURL_LIB	=	-lcurl
+CURL_INC	=	
+
+#
+# libjson-c
+#
+LIBJSONC_SETTING = external
+JSON_INCLUDE = -I/usr/local/include/json-c
+
+#
+# OpenCL support
+#
+OPENCL_LIB	=	
+OPENCL_FLAGS	=	
+
+#
+# SOSI support
+#
+SOSI_INC = 
+SOSI_LIB = 
+HAVE_SOSI = no
+
+#
+# PCIDSK SDK
+#
+PCIDSK_SETTING  =       internal
+PCIDSK_LIB	=	
+PCIDSK_INCLUDE	=	
+
+#
+# Iconv
+#
+LIBICONV	=	-liconv
+
+#
+# LIBXML2
+#
+
+HAVE_LIBXML2 = yes
+LIBXML2_INC = -I/usr/local/Cellar/libxml2/2.9.10_2/include/libxml2
+LIBXML2_LIB = -L/usr/local/Cellar/libxml2/2.9.10_2/lib -lxml2
+
+#
+# Informix DataBlade support
+#
+HAVE_IDB	= no
+IDB_INC		= 
+IDB_LIB		= 
+ifeq ($(HAVE_IDB),yes)
+LIBS	   	+= $(IDB_LIB)
+endif
+
+#
+# FMEObjects
+#
+ifeq (,)
+HAVE_FME        =       no
+FME_INCLUDE	=
+else
+HAVE_FME        =       yes
+FME_INCLUDE	=	-I/fmeobjects/cpp
+endif
+
+# PCRaster support
+PCRASTER_SETTING	=	internal
+
+#
+# LERC support.
+#
+HAVE_LERC =	internal
+LERC_INCLUDE = 
+
+OGDI_INCLUDE	=	
+
+PNG_SETTING     =	external
+JPEG_SETTING	=	external
+JPEG12_ENABLED =	no
+TIFF_JPEG12_ENABLED =    no
+TIFF_SETTING	=	external
+RENAME_INTERNAL_LIBTIFF_SYMBOLS = no
+GEOTIFF_SETTING	=	external
+GEOTIFF_INCLUDE =	
+RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS = no
+RENAME_INTERNAL_SHAPELIB_SYMBOLS = no
+GIF_SETTING	=	external
+FITS_SETTING    =       external
+OGDI_SETTING	=	no
+ODBC_SETTING    =       yes
+NETCDF_SETTING  =       yes
+LIBZ_SETTING	=	external
+LIBDEFLATE_SETTING =    no
+LIBLZMA_SETTING	=	no
+WEBP_SETTING	=	yes
+ZSTD_SETTING	=	yes
+TILEDB_SETTING  =   no
+RDB_SETTING     =       no
+
+#
+# DDS via Crunch Support.
+#
+CRUNCHDIR = 
+
+#
+# Rasdaman stuff
+#
+RASDAMAN_ENABLED  =       no
+RASDAMAN_INC  =   
+RASDAMAN_LIB  =   
+
+#
+# PDF stuff
+#
+PDF_PLUGIN = no
+
+#
+# Poppler stuff
+#
+
+HAVE_POPPLER = no
+POPPLER_MAJOR_VERSION = 
+POPPLER_MINOR_VERSION = 
+POPPLER_INC = 
+POPPLER_PLUGIN_LIB = 
+
+#
+# Podofo stuff
+#
+
+HAVE_PODOFO = no
+PODOFO_INC = 
+PODOFO_PLUGIN_LIB = 
+
+#
+# Pdfium stuff
+#
+
+HAVE_PDFIUM = no
+PDFIUM_INC = 
+PDFIUM_PLUGIN_LIB = 
+
+#
+# CharLs stuff
+#
+HAVE_CHARLS = no
+CHARLS_INC = 
+
+#
+# Teigha stuff
+#
+HAVE_TEIGHA = no
+TEIGHA_DIR = 
+TEIGHA_CPPFLAGS = 
+
+#
+# PROJ stuff
+#
+PROJ_INCLUDE	=	
+
+PAM_SETTING     =       -DPAM_ENABLED
+
+GDAL_LIBS	:= $(GDAL_LIB) $(OCI_LIB) $(GDAL_LIBS)
+
+ifeq ($(GNM_ENABLED),yes)
+CPPFLAGS	:= -DGNM_ENABLED $(CPPFLAGS)
+endif
+
+#
+# Java stuff
+#
+JAVA_HOME = 
+JAVA_INC  = 
+JVM_LIB   = 
+
+MDB_ENABLED =   no
+
+HAVE_ARMADILLO = no
+
+#
+# userfaultfd
+#
+ENABLE_UFFD = no
+
+#
+# HDFS
+#
+HDFS_LIB = 
+HDFS_INC = 
+HDFS_ENABLED = no
+JNI_LIB = 
+
+#
+# freexl stuff
+#
+
+HAVE_FREEXL = yes
+FREEXL_INCLUDE = 
+
+#
+# EXR stuff
+#
+
+EXR_CFLAGS = 
+
+#
+# HEIF stuff
+#
+
+HEIF_CFLAGS = 
+
+#
+# cryptopp stuff
+#
+HAVE_CRYPTOPP    =       no
+USE_ONLY_CRYPTODLL_ALG        =       yes
+
+#
+# crypto/openssl stuff
+#
+HAVE_OPENSSL_CRYPTO    =       no
+
+#
+#	Note these codes have to exactly match the format directory names,
+#	and their uppercase form should be the format portion of the
+#	format registration entry point.  eg. gdb -> GDALRegister_GTiff().
+#
+GDAL_FORMATS := derived gtiff hfa mem vrt  aaigrid adrg aigrid airsar arg blx bmp bsb cals ceos ceos2 coasp cosar ctg dimap dted elas envisat ers esric fit gff gsg gxf hf2 idrisi ilwis ingr iris iso8211 jaxapalsar jdem kmlsuperoverlay l1b leveller map mrf msgn ngsgeoid nitf northwood pds prf r raw rmf rs2 safe saga sdts sentinel2 sgi sigdem srtmhgt stacta terragen tga til tsx usgsdem xpm xyz zmap rik ozi eeda plmosaic rda wcs wms wmts daas ogcapi grib pdf webp openjpeg netcdf hdf5 gif png pcraster fits jpeg 
+OGR_FORMATS :=  arcgen avc cad csv dgn dxf edigeo flatgeobuf geoconcept georss gml gmt gpsbabel gpx gtm jml mapml mvt ntf openfilegdb pgdump rec s57 selafin shape svg sxf tiger vdv wasp idrisi pds sdts amigocloud carto cloudant couchdb csw elastic ngw plscenes wfs nas ili gmlas odbc pgeo mssqlspatial geomedia walk
+OGR_FORMATS_ENABLED_CFLAGS :=  -DARCGEN_ENABLED -DAVC_ENABLED -DCAD_ENABLED -DCSV_ENABLED -DDGN_ENABLED -DDXF_ENABLED -DEDIGEO_ENABLED -DFLATGEOBUF_ENABLED -DGEOCONCEPT_ENABLED -DGEORSS_ENABLED -DGML_ENABLED -DGMT_ENABLED -DGPSBABEL_ENABLED -DGPX_ENABLED -DGTM_ENABLED -DJML_ENABLED -DMAPML_ENABLED -DMVT_ENABLED -DNTF_ENABLED -DOPENFILEGDB_ENABLED -DPGDUMP_ENABLED -DREC_ENABLED -DS57_ENABLED -DSELAFIN_ENABLED -DSHAPE_ENABLED -DSVG_ENABLED -DSXF_ENABLED -DTIGER_ENABLED -DVDV_ENABLED -DWASP_ENABLED -DIDRISI_ENABLED -DPDS_ENABLED -DSDTS_ENABLED -DAMIGOCLOUD_ENABLED -DCARTO_ENABLED -DCLOUDANT_ENABLED -DCOUCHDB_ENABLED -DCSW_ENABLED -DELASTIC_ENABLED -DNGW_ENABLED -DPLSCENES_ENABLED -DWFS_ENABLED -DNAS_ENABLED -DILI_ENABLED -DGMLAS_ENABLED -DODBC_ENABLED -DPGEO_ENABLED -DMSSQLSPATIAL_ENABLED -DGEOMEDIA_ENABLED -DWALK_ENABLED
+
+ifneq ($(PCIDSK_SETTING),no)
+GDAL_FORMATS += pcidsk
+endif
+
+ifeq ($(HAVE_POSTGISRASTER),yes)
+GDAL_FORMATS := $(GDAL_FORMATS) postgisraster
+endif
+
+ifeq ($(HAVE_CHARLS),yes)
+GDAL_FORMATS := $(GDAL_FORMATS) jpegls
+endif
+
+
+#
+# CONFIG_LIBS is what local program should link against, and CONFIG_LIBS_INS
+# is what will be emitted into the gdal-config script that is installed
+# globally.
+#
+
+ifeq ($(HAVE_LIBTOOL), yes)
+
+CONFIG_LIBS	=	$(GDAL_ROOT)/$(LIBGDAL)
+ifeq ($(MACOSX_FRAMEWORK),yes)
+CONFIG_LIBS_INS	=	-L$(INST_LIB)/unix/lib -lgdal
+else
+CONFIG_LIBS_INS	=	-L$(INST_LIB) -lgdal
+endif # MACOSX_FRAMEWORK
+
+EXE_DEP_LIBS	=	$(GDAL_ROOT)/$(LIBGDAL)
+SO_EXT		=	la
+
+else # HAVE_LIBTOOL
+
+ifeq ($(HAVE_LD_SHARED),yes)
+CONFIG_LIBS	=	$(GDAL_SLIB_LINK)
+ifeq ($(MACOSX_FRAMEWORK),yes)
+CONFIG_LIBS_INS	=	-L$(INST_LIB)/unix/lib -lgdal
+else
+CONFIG_LIBS_INS	=	-L$(INST_LIB) -lgdal
+endif
+EXE_DEP_LIBS	=	$(GDAL_SLIB)
+else
+CONFIG_LIBS	=	$(GDAL_LIBS) $(LIBS)
+CONFIG_LIBS_INS	=	$(foreach LF,$(GDAL_LIBS),$(INST_LIB)/$(notdir $(LF)))\
+			 $(LIBS)
+EXE_DEP_LIBS	=	$(GDAL_LIB)
+endif
+
+endif # HAVE_LIBTOOL
+
+
+#
+# generic library rules
+#
+
+#
+# gdal and ogr low level drivers use the following default rules in order to
+# populate the ../o/ directory with all object and library object files
+#
+
+O_OBJ =	$(foreach file,$(OBJ),../o/$(file))
+
+../o/%.$(OBJ_EXT):	%.c
+	$(CC) $(GDAL_INCLUDE) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+../o/%.$(OBJ_EXT):	%.cpp
+	$(CXX) $(GDAL_INCLUDE) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+%.$(OBJ_EXT):	%.c
+	$(CC) $(GDAL_INCLUDE) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+%.$(OBJ_EXT):	%.cpp
+	$(CXX) $(GDAL_INCLUDE) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+#
+# default rules for handling subdirectories
+#
+
+%-target:
+	$(MAKE) -C $*
+
+%-clean:
+	$(MAKE) -C $* clean
