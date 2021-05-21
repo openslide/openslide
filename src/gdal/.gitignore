@@ -34,4 +34,4 @@ CMakeLists.txt
 gdal/packages*
 gdal/share
 
-
+*.log
