@@ -595,11 +595,10 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   TIFF *tiff = TIFFClientOpen(tc->filename, "rm", (thandle_t) fp,
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
-  if( tiff != NULL ) {
+  if( tiff == NULL ) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid TIFF: %s", tc->filename);
-  } else {
-      CPL_IGNORE_RET_VAL_INT(VSIFCloseL( fp ));
+    CPL_IGNORE_RET_VAL_INT(VSIFCloseL( fp ));
   }
       
 	return tiff;
