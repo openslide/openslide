@@ -502,46 +502,6 @@ void CPLJSONObject::Add(const std::string &osName, const char *pszValue)
     }
 }
 
-/**
- * Extend the buffer p so it has a size of at least min_size.
- *
- * If the current size is large enough, nothing is changed.
- *
- * Note: this does not check the available space!  The caller
- *  is responsible for performing those calculations.
- */
-static int printbuf_extend(struct printbuf *p, int min_size)
-{
-	char *t;
-	int new_size;
-
-	if (p->size >= min_size)
-		return 0;
-
-	new_size = json_max(p->size * 2, min_size + 8);
-#ifdef PRINTBUF_DEBUG
-	MC_DEBUG("printbuf_memappend: realloc "
-	  "bpos=%d min_size=%d old_size=%d new_size=%d\n",
-	  p->bpos, min_size, p->size, new_size);
-#endif /* PRINTBUF_DEBUG */
-	if(!(t = reinterpret_cast<char*>(realloc(p->buf, new_size))))
-		return -1;
-	p->size = new_size;
-	p->buf = t;
-	return 0;
-}
-
-static int printbuf_memappend(struct printbuf *p, const char *buf, int size)
-{
-  if (p->size <= p->bpos + size + 1) {
-    if (printbuf_extend(p, p->bpos + size + 1) < 0)
-      return -1;
-  }
-  memcpy(p->buf + p->bpos, buf, size);
-  p->bpos += size;
-  p->buf[p->bpos]= '\0';
-  return size;
-}
 
 /************************************************************************/
 /*             OGR_json_double_with_significant_figures_to_string()     */
