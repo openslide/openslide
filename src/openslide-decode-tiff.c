@@ -39,12 +39,6 @@
 #include "gdal/port/cpl_vsi.h"
 
 #include "tiffiop.h"
-
-static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size)
-{
-  return VSIFReadL( buf, 1, size, (VSILFILE *) th );
-}
-
 /*
  * Dummy functions to fill the omitted client procedures.
  */
@@ -283,7 +277,7 @@ _TIFFClientOpen(
   thandle_t tif_clientdata = tif->tif_clientdata;
   void* tif_header = &tif->tif_header;
   tmsize_t headerSize = sizeof (TIFFHeaderClassic);
-  tmsize_t size = tiff_do_read(tif_clientdata, tif_header, headerSize);
+  tmsize_t size = VSIFReadL(tif_header, 1, headerSize, (VSILFILE *) tif_clientdata);
   char buffer [5];
   sprintf(buffer, "%lld", size);
   printf("size = %s", buffer);
@@ -965,6 +959,11 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
   // safe even if successful
   g_prefix_error(err, "Can't read %s associated image: ", name);
   return ret;
+}
+
+static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size)
+{
+  return VSIFReadL( buf, 1, size, (VSILFILE *) th );
 }
 
 static tsize_t tiff_do_write(thandle_t th, tdata_t buf, tsize_t size)
