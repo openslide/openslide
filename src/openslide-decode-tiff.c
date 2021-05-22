@@ -277,10 +277,10 @@ _TIFFClientOpen(
   thandle_t tif_clientdata = tif->tif_clientdata;
   void* tif_header = &tif->tif_header;
   tmsize_t headerSize = sizeof (TIFFHeaderClassic);
-  tmsize_t size = VSIFReadL(tif_header, 1, headerSize, (VSILFILE *) tif_clientdata);
-  char buffer [5];
-  sprintf(buffer, "%lld", size);
+  char buffer [4];
+  sprintf(buffer, "%ld", headerSize);
   printf("size = %s", buffer);
+  tmsize_t size = VSIFReadL(tif_header, 1, headerSize, (VSILFILE *) clientdata);
 	if ((m & O_TRUNC) ||
 	    !size) {
 		if (tif->tif_mode == O_RDONLY) {
