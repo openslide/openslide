@@ -113,7 +113,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   success = true;
 
 DONE:
-  fclose(f);
+  VSIFCloseL(f);
   return success;
 }
 
