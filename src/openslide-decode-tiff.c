@@ -30,6 +30,7 @@
 #include <tiffio.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <cairo.h>
@@ -272,8 +273,12 @@ _TIFFClientOpen(
 	/*
 	 * Read in TIFF header.
 	 */
+  tmsize_t size = (*tif->tif_readproc)(tif->tif_clientdata, &tif->tif_header, sizeof (TIFFHeaderClassic));
+  char buffer [5];
+  sprintf(buffer, "%lld", size);
+  printf("size = %s", buffer);
 	if ((m & O_TRUNC) ||
-	    !ReadOK(tif, &tif->tif_header, sizeof (TIFFHeaderClassic))) {
+	    !size) {
 		if (tif->tif_mode == O_RDONLY) {
 			TIFFErrorExt(tif->tif_clientdata, name,
 			    "Cannot read TIFF header");
