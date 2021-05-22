@@ -1028,7 +1028,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     VSIFCloseL(fp);
     return NULL;
   }
-  VSIFCloseL(fp);
+  //VSIFCloseL(fp);
 
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks
