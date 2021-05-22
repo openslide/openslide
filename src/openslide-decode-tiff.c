@@ -273,7 +273,11 @@ _TIFFClientOpen(
 	/*
 	 * Read in TIFF header.
 	 */
-  tmsize_t size = (*tif->tif_readproc)(tif->tif_clientdata, &tif->tif_header, sizeof (TIFFHeaderClassic));
+  TIFFReadWriteProc tif_readproc = tif->tif_readproc;
+  thandle_t tif_clientdata = tif->tif_clientdata;
+  void* tif_header = &tif->tif_header;
+  tmsize_t headerSize = sizeof (TIFFHeaderClassic);
+  tmsize_t size = tif_readproc(tif_clientdata, tif_header, headerSize);
   char buffer [5];
   sprintf(buffer, "%lld", size);
   printf("size = %s", buffer);
