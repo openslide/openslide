@@ -81,7 +81,7 @@
 #include "cpl_vsil_curl_priv.h"
 
 #ifdef DEBUG
-#define OGRAPISPY_ENABLED
+//#define OGRAPISPY_ENABLED
 #endif
 #ifdef OGRAPISPY_ENABLED
 // Keep in sync with ograpispy.cpp
