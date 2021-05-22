@@ -567,6 +567,11 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     VSIFCloseL(fp);
     return NULL;
   }
+  if (VSIFSeekL(fp, 0, SEEK_SET) == -1) {
+    _openslide_io_error(err, "Couldn't seek to beginning of %s", tc->filename);
+    VSIFCloseL(fp);
+    return NULL;
+  }
 
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks
