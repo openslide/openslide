@@ -57,18 +57,24 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
                           GError **err) {
-  return _openslide_hash_file_part(hash, filename, 0, -1, err);
+  return _openslide_hash_file_part(hash, filename, 0, -1, err, NULL);
 }
 
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size,
-			       GError **err) {
+			       GError **err,
+             VSILFILE *fp) {
   bool success = false;
 
-  VSILFILE *f = VSIFOpenL( filename, "rb");
-  if (f == NULL) {
-    return false;
+  VSILFILE *f;
+  if (fp == NULL) {
+    VSILFILE *f = VSIFOpenL( filename, "rb");
+    if (f == NULL) {
+      return false;
+    }
+  } else {
+    f = fp;
   }
 
   if (size == -1) {
@@ -113,7 +119,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   success = true;
 
 DONE:
-  VSIFCloseL(f);
+  if (fp == NULL)
+    VSIFCloseL(f);
   return success;
 }
 

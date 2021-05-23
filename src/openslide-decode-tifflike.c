@@ -44,6 +44,7 @@ struct _openslide_tifflike {
   bool ndpi;
   GPtrArray *directories;
   GMutex value_lock;
+  VSILFILE *fp;
 };
 
 struct tiff_directory {
@@ -612,6 +613,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   tl->big_endian = big_endian;
   tl->directories = g_ptr_array_new();
   g_mutex_init(&tl->value_lock);
+  tl->fp = f;
 
   // initialize directory reading
   loop_detector = g_hash_table_new_full(_openslide_int64_hash,
@@ -686,16 +688,12 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   }
 
   g_hash_table_unref(loop_detector);
-  VSIFCloseL(f);
   return tl;
 
 FAIL:
   _openslide_tifflike_destroy(tl);
   if (loop_detector) {
     g_hash_table_unref(loop_detector);
-  }
-  if (f) {
-    VSIFCloseL(f);
   }
   return NULL;
 }
@@ -713,6 +711,10 @@ void _openslide_tifflike_destroy(struct _openslide_tifflike *tl) {
   g_ptr_array_free(tl->directories, true);
   g_free(tl->filename);
   g_mutex_clear(&tl->value_lock);
+
+  if (tl->fp) {
+    VSIFCloseL(tl->fp);
+  }
   g_slice_free(struct _openslide_tifflike, tl);
 }
 
@@ -1145,7 +1147,7 @@ static bool hash_tiff_level(struct _openslide_hash *hash,
   // hash raw data of each tile/strip
   for (int64_t i = 0; i < count; i++) {
     if (!_openslide_hash_file_part(hash, tl->filename, offsets[i], lengths[i],
-                                   err)) {
+                                   err, tl->fp)) {
       return false;
     }
   }
