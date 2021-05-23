@@ -66,7 +66,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
              VSILFILE *fp) {
   bool success = false;
 
-  VSILFILE *f;
+  VSILFILE *f = NULL;
   if (fp == NULL) {
     VSILFILE *f = VSIFOpenL( filename, "rb");
     if (f == NULL) {
