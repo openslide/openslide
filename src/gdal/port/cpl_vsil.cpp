@@ -2797,8 +2797,10 @@ VSIFilesystemHandler *VSIFileManager::GetHandler( const char *pszPath )
     {
         const char* pszIterKey = iter->first.c_str();
         const size_t nIterKeyLen = iter->first.size();
-        if( strncmp(pszPath, pszIterKey, nIterKeyLen) == 0 )
+        if( strncmp(pszPath, pszIterKey, nIterKeyLen) == 0 ) {
+            VSIDebug2("VSIFileManager::GetHandler(%s, %d)", pszIterKey, nIterKeyLen);
             return iter->second;
+        }
 
         // "/vsimem\foo" should be handled as "/vsimem/foo".
         if( nIterKeyLen && nPathLen > nIterKeyLen &&
@@ -2813,6 +2815,7 @@ VSIFilesystemHandler *VSIFileManager::GetHandler( const char *pszPath )
             return iter->second;
     }
 
+    VSIDebug1("VSIFileManager::GetHandler(%s)", pszPath);
     return poThis->poDefaultHandler;
 }
 
