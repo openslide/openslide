@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <glib.h>
-#include "gdal/port/cpl_vsi.h"
 
 struct _openslide_hash {
   GChecksum *checksum;

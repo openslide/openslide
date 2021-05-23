@@ -30,7 +30,7 @@
 #include <stdint.h>
 #include <tiffio.h>
 #include <glib.h>
-#include "cpl_vsi.h"
+#include "gdal/port/cpl_vsi.h"
 
 struct _openslide_hash;
 
