@@ -333,7 +333,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
     return true;
   }
 
-  VSILFILE *f = VSIFOpenL(tl->filename, "rb");
+  VSILFILE *f = tl->fp;
   if (!f) {
     goto FAIL;
   }
@@ -371,9 +371,6 @@ static bool populate_item(struct _openslide_tifflike *tl,
 FAIL:
   g_mutex_unlock(&tl->value_lock);
   g_free(buf);
-  if (f) {
-    VSIFCloseL(f);
-  }
   return success;
 }
 
