@@ -2797,7 +2797,6 @@ VSIFilesystemHandler *VSIFileManager::GetHandler( const char *pszPath )
     {
         const char* pszIterKey = iter->first.c_str();
         const size_t nIterKeyLen = iter->first.size();
-        VSIDebug2("VSIFileManager::GetHandler(%s, %d)", pszIterKey, nIterKeyLen);
         if( strncmp(pszPath, pszIterKey, nIterKeyLen) == 0 )
             return iter->second;
 
@@ -2814,7 +2813,6 @@ VSIFilesystemHandler *VSIFileManager::GetHandler( const char *pszPath )
             return iter->second;
     }
 
-    VSIDebug1("VSIFileManager::GetHandler(%s)", pszPath);
     return poThis->poDefaultHandler;
 }
 
