@@ -51,7 +51,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size,
 			       GError **err,
-				   VSILFILE *fp);
+			       VSILFILE *fp);
 
 // lockout
 void _openslide_hash_disable(struct _openslide_hash *hash);
