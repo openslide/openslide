@@ -75,7 +75,8 @@ PKG_CHECK_MODULES(SQLITE3, [sqlite3 >= 3.6.20])
 # optional
 PKG_CHECK_MODULES(GDAL, [gdal >= 3.2], [
   AC_DEFINE([HAVE_GDAL], [1], [Define to 1 if you have the GDAL headers.])
-], [:])PKG_CHECK_MODULES(VALGRIND, [valgrind], [
+], [:])
+PKG_CHECK_MODULES(VALGRIND, [valgrind], [
   AC_DEFINE([HAVE_VALGRIND], [1], [Define to 1 if you have the Valgrind headers.])
 ], [:])
 
