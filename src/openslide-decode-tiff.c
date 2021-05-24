@@ -532,8 +532,8 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
 #ifdef HAVE_GDAL
   VSILFILE *fp = VSIFOpenL( tc->filename, "rb");
-  if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", filename);
+  if (fp == NULL) {
+    _openslide_io_error(err, "Couldn't open %s", tc->filename);
   }
 #else
   VSILFILE *fp = _openslide_fopen(tc->filename, "rb", err);
