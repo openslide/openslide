@@ -828,7 +828,7 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 	// hash in the lowest-res images
 	if (zoom_level == zoom_levels - 1) {
 	  if (!_openslide_hash_file_part(quickhash1, datafile_paths[fileno],
-	                                 offset, length, err)) {
+	                                 offset, length, err, NULL)) {
             g_prefix_error(err, "Can't hash images: ");
             goto DONE;
 	  }

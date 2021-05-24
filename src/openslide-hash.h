@@ -30,6 +30,11 @@
 #include <stdint.h>
 #include <tiffio.h>
 #include <glib.h>
+#ifdef HAVE_GDAL
+#include <cpl_vsi.h>
+#else
+typedef FILE VSILFILE;
+#endif
 
 struct _openslide_hash;
 
@@ -45,7 +50,8 @@ bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size,
-			       GError **err);
+			       GError **err,
+				   VSILFILE *fp);
 
 // lockout
 void _openslide_hash_disable(struct _openslide_hash *hash);

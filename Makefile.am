@@ -14,7 +14,7 @@ lib_LTLIBRARIES = src/libopenslide.la
 
 src_libopenslide_la_LIBADD = $(GLIB2_LIBS) $(CAIRO_LIBS) $(SQLITE3_LIBS) \
 	$(LIBXML2_LIBS) $(OPENJPEG_LIBS) $(LIBTIFF_LIBS) $(LIBPNG_LIBS) \
-	$(LIBJPEG_LIBS) $(GDKPIXBUF_LIBS) $(ZLIB_LIBS)
+	$(LIBJPEG_LIBS) $(GDKPIXBUF_LIBS) $(ZLIB_LIBS) $(GDAL_LIBS)
 
 src_libopenslide_la_SOURCES = \
 	src/openslide.c \
