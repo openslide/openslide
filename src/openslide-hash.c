@@ -56,27 +56,33 @@ void _openslide_hash_string(struct _openslide_hash *hash, const char *str) {
 
 bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
                           GError **err) {
-  return _openslide_hash_file_part(hash, filename, 0, -1, err);
+  return _openslide_hash_file_part(hash, filename, 0, -1, err, NULL);
 }
 
 bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size,
-			       GError **err) {
+			       GError **err,
+             VSILFILE *fp) {
   bool success = false;
 
-  FILE *f = _openslide_fopen(filename, "rb", err);
-  if (f == NULL) {
-    return false;
+  VSILFILE *f = NULL;
+  if (fp == NULL) {
+    VSILFILE *f = VSIFOpenL( filename, "rb");
+    if (f == NULL) {
+      return false;
+    }
+  } else {
+    f = fp;
   }
 
   if (size == -1) {
     // hash to end of file
-    if (fseeko(f, 0, SEEK_END)) {
+    if (VSIFSeekL(f, 0, SEEK_END)) {
       _openslide_io_error(err, "Couldn't seek %s", filename);
       goto DONE;
     }
-    int64_t len = ftello(f);
+    int64_t len = VSIFTellL(f);
     if (len == -1) {
       _openslide_io_error(err, "Couldn't get size of %s", filename);
       goto DONE;
@@ -86,7 +92,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   uint8_t buf[4096];
 
-  if (fseeko(f, offset, SEEK_SET) == -1) {
+  if (VSIFSeekL(f, offset, SEEK_SET) == -1) {
     _openslide_io_error(err, "Can't seek in %s", filename);
     goto DONE;
   }
@@ -94,7 +100,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   int64_t bytes_left = size;
   while (bytes_left > 0) {
     int64_t bytes_to_read = MIN((int64_t) sizeof buf, bytes_left);
-    int64_t bytes_read = fread(buf, 1, bytes_to_read, f);
+    int64_t bytes_read = VSIFReadL(buf, 1, bytes_to_read, f);
 
     if (bytes_read != bytes_to_read) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -112,7 +118,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   success = true;
 
 DONE:
-  fclose(f);
+  if (fp == NULL)
+    VSIFCloseL(f);
   return success;
 }
 
