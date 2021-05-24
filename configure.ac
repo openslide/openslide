@@ -71,10 +71,11 @@ PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 PKG_CHECK_MODULES(GDKPIXBUF, [gdk-pixbuf-2.0 >= 2.14])
 PKG_CHECK_MODULES(LIBXML2, [libxml-2.0])
 PKG_CHECK_MODULES(SQLITE3, [sqlite3 >= 3.6.20])
-PKG_CHECK_MODULES(GDAL, [gdal >= 3.2])
 
 # optional
-PKG_CHECK_MODULES(VALGRIND, [valgrind], [
+PKG_CHECK_MODULES(GDAL, [gdal >= 3.2], [
+  AC_DEFINE([HAVE_GDAL], [1], [Define to 1 if you have the GDAL headers.])
+], [:])PKG_CHECK_MODULES(VALGRIND, [valgrind], [
   AC_DEFINE([HAVE_VALGRIND], [1], [Define to 1 if you have the Valgrind headers.])
 ], [:])
 
