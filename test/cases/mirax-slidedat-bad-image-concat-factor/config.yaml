@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file contains key ('|\xe2\x80\x9c)IMAGE_CONCAT_FACTOR('|\xe2\x80\x9d) in group ('|\xe2\x80\x9c)LAYER_0_LEVEL_2_SECTION('|\xe2\x80\x9d) which has (a )?value that cannot be interpreted.$
+error: ^Key file contains key “IMAGE_CONCAT_FACTOR” in group “LAYER_0_LEVEL_2_SECTION” which has a value that cannot be interpreted.$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

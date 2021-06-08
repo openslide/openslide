@@ -3,4 +3,3 @@ error: "^Can't find any images$"
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

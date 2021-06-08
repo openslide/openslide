@@ -1,5 +1,5 @@
 base: Generic-TIFF/CMU-1.tiff
-# Not anchored at head because libtiff 3.9.x prints some messages
+# Not anchored at head because libtiff prints some messages
 error: "Cannot hash TIFF tiles: Can't read from .*CMU-1.tiff$"
 slide: CMU-1.tiff
 success: false

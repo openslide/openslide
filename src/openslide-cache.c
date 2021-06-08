@@ -57,7 +57,7 @@ struct _openslide_cache_entry {
 };
 
 struct _openslide_cache {
-  GMutex *mutex;
+  GMutex mutex;
   GQueue *list;
   GHashTable *hashtable;
 
@@ -136,7 +136,7 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
   struct _openslide_cache *cache = g_slice_new0(struct _openslide_cache);
 
   // init mutex
-  cache->mutex = g_mutex_new();
+  g_mutex_init(&cache->mutex);
 
   // init queue
   cache->list = g_queue_new();
@@ -155,15 +155,15 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
 
 void _openslide_cache_destroy(struct _openslide_cache *cache) {
   // clear hashtable (auto-deletes all data)
-  g_mutex_lock(cache->mutex);
+  g_mutex_lock(&cache->mutex);
   g_hash_table_unref(cache->hashtable);
-  g_mutex_unlock(cache->mutex);
+  g_mutex_unlock(&cache->mutex);
 
   // clear list
   g_queue_free(cache->list);
 
   // free mutex
-  g_mutex_free(cache->mutex);
+  g_mutex_clear(&cache->mutex);
 
   // destroy struct
   g_slice_free(struct _openslide_cache, cache);
@@ -171,9 +171,9 @@ void _openslide_cache_destroy(struct _openslide_cache *cache) {
 
 
 int _openslide_cache_get_capacity(struct _openslide_cache *cache) {
-  g_mutex_lock(cache->mutex);
+  g_mutex_lock(&cache->mutex);
   int capacity = cache->capacity;
-  g_mutex_unlock(cache->mutex);
+  g_mutex_unlock(&cache->mutex);
   return capacity;
 }
 
@@ -181,10 +181,10 @@ void _openslide_cache_set_capacity(struct _openslide_cache *cache,
 				   int capacity_in_bytes) {
   g_assert(capacity_in_bytes >= 0);
 
-  g_mutex_lock(cache->mutex);
+  g_mutex_lock(&cache->mutex);
   cache->capacity = capacity_in_bytes;
   possibly_evict(cache, 0);
-  g_mutex_unlock(cache->mutex);
+  g_mutex_unlock(&cache->mutex);
 }
 
 // put and get
@@ -208,12 +208,12 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   *_entry = entry;
 
   // lock
-  g_mutex_lock(cache->mutex);
+  g_mutex_lock(&cache->mutex);
 
   // don't try to put anything in the cache that cannot possibly fit
   if (size_in_bytes > cache->capacity) {
     //g_debug("refused %p", entry);
-    g_mutex_unlock(cache->mutex);
+    g_mutex_unlock(&cache->mutex);
     _openslide_performance_warn_once(&cache->warned_overlarge_entry,
                                      "Rejecting overlarge cache entry of "
                                      "size %d bytes", size_in_bytes);
@@ -249,7 +249,7 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   g_atomic_int_inc(&entry->refcount);
 
   // unlock
-  g_mutex_unlock(cache->mutex);
+  g_mutex_unlock(&cache->mutex);
 
   //g_debug("insert %p", entry);
 }
@@ -261,7 +261,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
 			   int64_t y,
 			   struct _openslide_cache_entry **_entry) {
   // lock
-  g_mutex_lock(cache->mutex);
+  g_mutex_lock(&cache->mutex);
 
   // create key
   struct _openslide_cache_key key = { .plane = plane, .x = x, .y = y };
@@ -270,7 +270,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
 							     &key);
   if (value == NULL) {
-    g_mutex_unlock(cache->mutex);
+    g_mutex_unlock(&cache->mutex);
     *_entry = NULL;
     return NULL;
   }
@@ -287,7 +287,7 @@ void *_openslide_cache_get(struct _openslide_cache *cache,
   //g_debug("cache hit! %p %p %"PRId64" %"PRId64, (void *) entry, (void *) plane, x, y);
 
   // unlock
-  g_mutex_unlock(cache->mutex);
+  g_mutex_unlock(&cache->mutex);
 
   // return data
   *_entry = entry;

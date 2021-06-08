@@ -3,4 +3,3 @@ slide: Leica-1.scn
 # Parsed as generic-tiff
 success: true
 vendor: generic-tiff
-requires: [libtiff-4]

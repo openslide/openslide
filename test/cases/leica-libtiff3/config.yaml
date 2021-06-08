@@ -1,6 +1,0 @@
-base: Leica/Leica-1.scn
-slide: Leica-1.scn
-error: BigTIFF support requires libtiff >= 4
-success: false
-vendor: leica
-requires: [libtiff-3]

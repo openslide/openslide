@@ -3,4 +3,3 @@ error: '^No integer attribute "Width"$'
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

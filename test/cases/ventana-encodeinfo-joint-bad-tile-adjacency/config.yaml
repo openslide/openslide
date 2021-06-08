@@ -3,4 +3,3 @@ error: '^Unexpected tile join: RIGHT, \(1, 13\), \(3, 8\)$'
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

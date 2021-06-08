@@ -3,4 +3,3 @@ error: ^Cannot set TIFF directory 27$
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

@@ -2,7 +2,6 @@ base: Leica/Leica-2.scn
 slide: Leica-2.scn
 success: true
 vendor: leica
-requires: [libtiff-4]
 primary: true
 properties:
   openslide.quickhash-1: 1e3eb6b5ca64afd4c76f2de3f80053f3092611d4732753cd58e03031c7d0dc33

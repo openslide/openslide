@@ -1,5 +1,5 @@
 base: Aperio/JP2K-33003-1.svs
-error: "^OpenJPEG error: (00000002: unexpected marker ff53|Marker is not compliant with its position)$"
+error: "^OpenJPEG error: Marker is not compliant with its position$"
 slide: JP2K-33003-1.svs
 success: false
 vendor: aperio

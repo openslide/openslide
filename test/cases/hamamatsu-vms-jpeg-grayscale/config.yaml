@@ -2,7 +2,7 @@ base: Hamamatsu-vms/CMU-1.zip
 error: "^Can't validate JPEG 4: JPEG color components != 3$"
 generate:
     ? "CMU-1-40x - 2010-01-12 13.24.05_map2.jpg"
-    : "djpeg -grayscale %(in)s | cjpeg -outfile %(out)s -sample 1x1"
+    : "djpeg -grayscale %(in)s | cjpeg -outfile %(out)s -sample 1x1 -grayscale"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false
 vendor: hamamatsu
