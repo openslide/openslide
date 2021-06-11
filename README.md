@@ -16,6 +16,7 @@ vendors.
 The version on NKI-AI is forked by the AI for Oncology group at the Netherlands 
 Cancer Institute to add some small changes to work with our scanners.
 * Allow the reading of a larger class of 3dhistech images.
+* Some Aperio scanners save `Mag` as float, adapted this accordingly.
 
 
 What is the license?
@@ -144,8 +145,10 @@ If you want to build from the Git repository, you will first need to install a f
 On Ubuntu the following should work:
 
 ```
-sudo apt-get install pkg-config libtool zlib1g-dev libpng-dev libjpeg-dev libopenjp2-7-dev\
-                     libtiff-dev libglib2.0-dev libcairo-dev libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev
+sudo apt-get install pkg-config libtool zlib1g-dev libpng-dev\
+                     libjpeg-dev libopenjp2-7-dev make\
+                     libtiff-dev libglib2.0-dev libcairo-dev\
+                     libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev
 ```
 The package can subsequently built using
 
