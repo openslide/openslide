@@ -51,21 +51,21 @@ from zipfile import ZipFile
 
 TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
-CLANG_SUPPRESSIONS = '!!SRCDIR!!/clang.supp'
-CLANG_LSAN_SUPPRESSIONS = '!!SRCDIR!!/clang-lsan.supp'
-VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
-VALGRIND_SUPPRESSIONS_GLIB = '!!GLIB2_DATADIR!!/glib-2.0/valgrind/glib.supp'
-CASEROOT = '!!SRCDIR!!/cases'
-SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
-FROZENLIST = '!!SRCDIR!!/cases/frozen.yaml'
-MOSAICLIST = '!!SRCDIR!!/cases/mosaic.ini'
-CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '!!BUILDDIR!!/_slidedata')
+CLANG_SUPPRESSIONS = '@SRCDIR@/clang.supp'
+CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
+VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
+VALGRIND_SUPPRESSIONS_GLIB = '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
+CASEROOT = '@SRCDIR@/cases'
+SLIDELIST = '@SRCDIR@/cases/slides.yaml'
+FROZENLIST = '@SRCDIR@/cases/frozen.yaml'
+MOSAICLIST = '@SRCDIR@/cases/mosaic.ini'
+CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '@BUILDDIR@/_slidedata')
 WORKROOT = f'{CACHE}/unpacked'
 PRISTINE = f'{CACHE}/pristine'
 FUSEMOUNT = f'{CACHE}/fuse'
 FROZENBASE = CACHE
 FROZEN = f'{CACHE}/frozen'
-FEATURES = set('!!FEATURES!!'.split())
+FEATURES = set('@FEATURES@'.split())
 TESTCONF = 'config.yaml'
 
 GREEN = '\033[1;32m'
@@ -153,7 +153,7 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
     constructor.  Return the Popen instance.'''
 
     if testdir is None:
-        testdir = '!!BUILDDIR!!'
+        testdir = '@BUILDDIR@'
     env = os.environ.copy()
     env.update(
         G_MESSAGES_DEBUG='',
@@ -1032,21 +1032,21 @@ def _rebuild(configure_args):
     # To minimize collateral damage, unpack the dist tarball into a temp
     # directory and build there.
 
-    top_builddir = os.path.dirname('!!BUILDDIR!!')
+    top_builddir = os.path.dirname('@BUILDDIR@')
     prevdir = os.getcwd()
 
     # Make tarball
     os.chdir(top_builddir)
     subprocess.check_call(['make', 'dist-gzip'])
     os.chdir(prevdir)
-    tarpath = os.path.join(top_builddir, 'openslide-!!VERSION!!.tar.gz')
+    tarpath = os.path.join(top_builddir, 'openslide-@VERSION@.tar.gz')
 
     # Unpack and remove the tarball
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
     os.chdir(tempdir)
     tarfile.open(tarpath, 'r:gz').extractall()
     os.unlink(tarpath)
-    os.chdir('openslide-!!VERSION!!')
+    os.chdir('openslide-@VERSION@')
 
     # Build with specified CFLAGS
     subprocess.check_call(['./configure'] + configure_args)
@@ -1132,7 +1132,7 @@ def _mosaic(outfile, pristinedir=PRISTINE):
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
-    subprocess.check_call([os.path.join('!!BUILDDIR!!', 'mosaic'),
+    subprocess.check_call([os.path.join('@BUILDDIR@', 'mosaic'),
             pristinedir, MOSAICLIST, outfile])
 
 
@@ -1189,11 +1189,11 @@ def profile(pattern='*', level=0):
     for testname, slidefile in _successful_primary_tests(pattern):
         print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args = ['!!BUILDDIR!!/../libtool', '--mode=execute',
+            args = ['@BUILDDIR@/../libtool', '--mode=execute',
                     'valgrind', '--quiet', '--error-exitcode=3',
                     '--tool=callgrind', '--callgrind-out-file=' + fh.name,
                     '--instr-atstart=no',
-                    '!!BUILDDIR!!/profile', slidefile, str(level)]
+                    '@BUILDDIR@/profile', slidefile, str(level)]
             if subprocess.call(args, env=env) == 0:
                 subprocess.check_call(['callgrind_annotate',
                         '--threshold=80', fh.name])
