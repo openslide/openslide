@@ -142,17 +142,26 @@ How to build?
 -------------
 
 If you want to build from the Git repository, you will first need to install a few packages. 
-On Ubuntu the following should work:
 
+### Ubuntu
+
+On Ubuntu the following should work:
 ```
 sudo apt-get install pkg-config libtool zlib1g-dev libpng-dev\
                      libjpeg-dev libopenjp2-7-dev make\
                      libtiff-dev libglib2.0-dev libcairo-dev\
                      libgdk-pixbuf2.0-dev libxml2-dev libsqlite3-dev
 ```
+
+### Fedora/CentOS
+
+On Fedora/CentOS the following should work:
+```
+sudo yum install glib2-devel libtiff-devel gdk-pixbuf2-devel libxml2-devel sqlite-devel
+sudo dnf --enablerepo=powertools install openjpeg2-devel
+```
+
 The package can subsequently built using
-
-
 ```
 autoreconf -i
 ./configure
