@@ -718,6 +718,14 @@ void openslide_read_associated_image(openslide_t *osr,
   }
 }
 
+int openslide_cache_get_capacity(openslide_t *osr) {
+  return _openslide_cache_get_capacity(osr->cache);
+}
+
+void openslide_cache_set_capacity(openslide_t *osr, int capacity_in_bytes) {
+  _openslide_cache_set_capacity(osr->cache, capacity_in_bytes);
+}
+
 const char *openslide_get_version(void) {
   return SUFFIXED_VERSION;
 }

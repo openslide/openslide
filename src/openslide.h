@@ -431,6 +431,26 @@ void openslide_read_associated_image(openslide_t *osr,
 //@{
 
 /**
+ * Get the internal cache capacity.
+ *
+ * @return A string describing the OpenSlide version.
+ * @since 3.5.0
+ */
+OPENSLIDE_PUBLIC()
+int openslide_cache_get_capacity(openslide_t *osr);
+
+
+/**
+ * Set the internal cache capacity.
+ *
+ * @return A string describing the OpenSlide version.
+ * @since 3.5.0
+ */
+OPENSLIDE_PUBLIC()
+void openslide_cache_set_capacity(openslide_t *osr, int capacity_in_bytes);
+
+
+/**
  * Get the version of the OpenSlide library.
  *
  * @return A string describing the OpenSlide version.
