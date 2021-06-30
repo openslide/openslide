@@ -161,24 +161,6 @@ void _openslide_cache_destroy(struct _openslide_cache *cache) {
   g_slice_free(struct _openslide_cache, cache);
 }
 
-
-int _openslide_cache_get_capacity(struct _openslide_cache *cache) {
-  g_mutex_lock(&cache->mutex);
-  int capacity = cache->capacity;
-  g_mutex_unlock(&cache->mutex);
-  return capacity;
-}
-
-void _openslide_cache_set_capacity(struct _openslide_cache *cache,
-				   int capacity_in_bytes) {
-  g_assert(capacity_in_bytes >= 0);
-
-  g_mutex_lock(&cache->mutex);
-  cache->capacity = capacity_in_bytes;
-  possibly_evict(cache, 0);
-  g_mutex_unlock(&cache->mutex);
-}
-
 // put and get
 
 // the cache retains one reference, and the caller gets another one.  the

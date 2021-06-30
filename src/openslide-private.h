@@ -260,12 +260,6 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes);
 
 void _openslide_cache_destroy(struct _openslide_cache *cache);
 
-// cache size
-int _openslide_cache_get_capacity(struct _openslide_cache *cache);
-
-void _openslide_cache_set_capacity(struct _openslide_cache *cache,
-				   int capacity_in_bytes);
-
 // put and get
 void _openslide_cache_put(struct _openslide_cache *cache,
 			  void *plane,  // coordinate plane (level or grid)
