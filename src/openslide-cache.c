@@ -55,6 +55,7 @@ struct _openslide_cache {
   GMutex mutex;
   GQueue *list;
   GHashTable *hashtable;
+  int refcount;
 
   int capacity;
   int total_size;
@@ -148,15 +149,29 @@ struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
 					   hash_destroy_key,
 					   hash_destroy_value);
 
+  // init refcount
+  cache->refcount = 1;
+
   // init byte_capacity
   cache->capacity = capacity_in_bytes;
 
   return cache;
 }
 
-void _openslide_cache_destroy(struct _openslide_cache *cache) {
-  // clear hashtable (auto-deletes all data)
+static void cache_ref(struct _openslide_cache *cache) {
   g_mutex_lock(&cache->mutex);
+  cache->refcount++;
+  g_mutex_unlock(&cache->mutex);
+}
+
+static void cache_unref(struct _openslide_cache *cache) {
+  g_mutex_lock(&cache->mutex);
+  // decrement refcount, return if references remain
+  if (--cache->refcount) {
+    g_mutex_unlock(&cache->mutex);
+    return;
+  }
+  // clear hashtable (auto-deletes all data)
   g_hash_table_unref(cache->hashtable);
   g_mutex_unlock(&cache->mutex);
 
@@ -178,7 +193,7 @@ struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
 }
 
 void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb) {
-  _openslide_cache_destroy(cb->cache);
+  cache_unref(cb->cache);
   g_slice_free(struct _openslide_cache_binding, cb);
 }
 
