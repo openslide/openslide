@@ -255,7 +255,7 @@ struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
 // create
-struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes);
+struct _openslide_cache *_openslide_cache_create(uint64_t capacity_in_bytes);
 
 // binding a cache to an openslide_t
 struct _openslide_cache_binding *_openslide_cache_binding_create(void);
@@ -271,7 +271,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 			  int64_t x,
 			  int64_t y,
 			  void *data,
-			  int size_in_bytes,
+			  uint64_t size_in_bytes,
 			  struct _openslide_cache_entry **entry);
 
 void *_openslide_cache_get(struct _openslide_cache_binding *cb,
