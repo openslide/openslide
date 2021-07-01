@@ -48,7 +48,7 @@ struct _openslide_cache_value {
 struct _openslide_cache_entry {
   gint refcount;  // atomic ops only
   void *data;
-  int size;
+  int64_t size;
 };
 
 struct _openslide_cache {
@@ -57,8 +57,8 @@ struct _openslide_cache {
   GHashTable *hashtable;
   int refcount;
 
-  int capacity;
-  int total_size;
+  int64_t capacity;
+  int64_t total_size;
 
   gint warned_overlarge_entry;
 };
@@ -72,11 +72,11 @@ struct _openslide_cache_binding {
 
 // eviction
 // mutex must be held
-static void possibly_evict(struct _openslide_cache *cache, int incoming_size) {
+static void possibly_evict(struct _openslide_cache *cache,
+                           int64_t incoming_size) {
   g_assert(incoming_size >= 0);
-
-  int size = cache->total_size + incoming_size;
-  int target = cache->capacity;
+  int64_t size = cache->total_size + incoming_size;
+  int64_t target = cache->capacity;
 
   while(size > target) {
     // get key of last element
@@ -135,7 +135,7 @@ static void hash_destroy_value(gpointer data) {
   g_slice_free(struct _openslide_cache_value, value);
 }
 
-struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes) {
+struct _openslide_cache *_openslide_cache_create(int64_t capacity_in_bytes) {
   struct _openslide_cache *cache = g_slice_new0(struct _openslide_cache);
 
   // init mutex
@@ -224,7 +224,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 			  int64_t x,
 			  int64_t y,
 			  void *data,
-			  int size_in_bytes,
+			  int64_t size_in_bytes,
 			  struct _openslide_cache_entry **_entry) {
   // always create cache entry for caller's reference
   struct _openslide_cache_entry *entry =
@@ -246,7 +246,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
     g_mutex_unlock(&cache->mutex);
     _openslide_performance_warn_once(&cache->warned_overlarge_entry,
                                      "Rejecting overlarge cache entry of "
-                                     "size %d bytes", size_in_bytes);
+                                     "size %"PRId64" bytes", size_in_bytes);
     g_mutex_unlock(&cb->mutex);
     return;
   }
