@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2021      Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -24,6 +25,8 @@
 #include "openslide-private.h"
 
 #include <glib.h>
+
+#define DEFAULT_CACHE_SIZE (1024*1024*32)
 
 // hash table key
 struct _openslide_cache_key {
@@ -57,6 +60,12 @@ struct _openslide_cache {
   int total_size;
 
   gint warned_overlarge_entry;
+};
+
+// connection between a cache (possibly shared between multiple slide handles)
+// and a specific slide handle
+struct _openslide_cache_binding {
+  struct _openslide_cache *cache;
 };
 
 // eviction
@@ -161,11 +170,23 @@ void _openslide_cache_destroy(struct _openslide_cache *cache) {
   g_slice_free(struct _openslide_cache, cache);
 }
 
+struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
+  struct _openslide_cache_binding *cb =
+    g_slice_new0(struct _openslide_cache_binding);
+  cb->cache = _openslide_cache_create(DEFAULT_CACHE_SIZE);
+  return cb;
+}
+
+void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb) {
+  _openslide_cache_destroy(cb->cache);
+  g_slice_free(struct _openslide_cache_binding, cb);
+}
+
 // put and get
 
 // the cache retains one reference, and the caller gets another one.  the
 // entry must be unreffed when the caller is done with it.
-void _openslide_cache_put(struct _openslide_cache *cache,
+void _openslide_cache_put(struct _openslide_cache_binding *cb,
 			  void *plane,
 			  int64_t x,
 			  int64_t y,
@@ -181,7 +202,8 @@ void _openslide_cache_put(struct _openslide_cache *cache,
   entry->size = size_in_bytes;
   *_entry = entry;
 
-  // lock
+  // get cache and lock
+  struct _openslide_cache *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
   // don't try to put anything in the cache that cannot possibly fit
@@ -229,12 +251,13 @@ void _openslide_cache_put(struct _openslide_cache *cache,
 }
 
 // entry must be unreffed when the caller is done with the data
-void *_openslide_cache_get(struct _openslide_cache *cache,
+void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 			   void *plane,
 			   int64_t x,
 			   int64_t y,
 			   struct _openslide_cache_entry **_entry) {
-  // lock
+  // get cache and lock
+  struct _openslide_cache *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
   // create key

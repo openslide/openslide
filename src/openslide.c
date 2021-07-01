@@ -317,8 +317,7 @@ openslide_t *openslide_open(const char *filename) {
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
   // start cache
-  osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
-  //osr->cache = _openslide_cache_create(0);
+  osr->cache = _openslide_cache_binding_create();
 
   return osr;
 }
@@ -336,7 +335,7 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->property_names);
 
   if (osr->cache) {
-    _openslide_cache_destroy(osr->cache);
+    _openslide_cache_binding_destroy(osr->cache);
   }
 
   g_free(g_atomic_pointer_get(&osr->error));
