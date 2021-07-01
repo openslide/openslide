@@ -195,32 +195,15 @@ bool openslide_can_open(const char *filename) {
 }
 
 
-struct add_key_to_strv_data {
-  int i;
-  const char **strv;
-};
-
-static void add_key_to_strv(gpointer key,
-			    gpointer value G_GNUC_UNUSED,
-			    gpointer user_data) {
-  struct add_key_to_strv_data *d = user_data;
-
-  d->strv[d->i++] = key;
-}
-
 static int cmpstring(const void *p1, const void *p2) {
   return strcmp(* (char * const *) p1, * (char * const *) p2);
 }
 
 static const char **strv_from_hashtable_keys(GHashTable *h) {
-  int size = g_hash_table_size(h);
-  const char **result = g_new0(const char *, size + 1);
-
-  struct add_key_to_strv_data data = { 0, result };
-  g_hash_table_foreach(h, add_key_to_strv, &data);
-
+  guint size;
+  const char **result = (const char **) g_hash_table_get_keys_as_array(h,
+                                                                       &size);
   qsort(result, size, sizeof(char *), cmpstring);
-
   return result;
 }
 
