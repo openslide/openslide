@@ -43,6 +43,11 @@ extern "C" {
  */
 typedef struct _openslide openslide_t;
 
+/**
+ * An OpenSlide tile cache.
+ */
+typedef struct _openslide_cache openslide_cache_t;
+
 
 /**
  * @name Basic Usage

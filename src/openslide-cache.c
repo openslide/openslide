@@ -39,7 +39,7 @@ struct _openslide_cache_key {
 struct _openslide_cache_value {
   GList *link;            // direct pointer to the node in the list
   struct _openslide_cache_key *key; // for removing keys when aged out
-  struct _openslide_cache *cache; // sadly, for total_bytes and the list
+  openslide_cache_t *cache; // sadly, for total_bytes and the list
 
   struct _openslide_cache_entry *entry;  // may outlive the value
 };
@@ -68,13 +68,12 @@ struct _openslide_cache {
 // and a specific slide handle
 struct _openslide_cache_binding {
   GMutex mutex;
-  struct _openslide_cache *cache;
+  openslide_cache_t *cache;
 };
 
 // eviction
 // mutex must be held
-static void possibly_evict(struct _openslide_cache *cache,
-                           uint64_t incoming_size) {
+static void possibly_evict(openslide_cache_t *cache, uint64_t incoming_size) {
   uint64_t size = cache->total_size + incoming_size;
   uint64_t target = cache->capacity;
   g_assert(size > cache->total_size);
@@ -136,8 +135,8 @@ static void hash_destroy_value(gpointer data) {
   g_slice_free(struct _openslide_cache_value, value);
 }
 
-struct _openslide_cache *_openslide_cache_create(uint64_t capacity_in_bytes) {
-  struct _openslide_cache *cache = g_slice_new0(struct _openslide_cache);
+openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes) {
+  openslide_cache_t *cache = g_slice_new0(openslide_cache_t);
 
   // init mutex
   g_mutex_init(&cache->mutex);
@@ -160,13 +159,13 @@ struct _openslide_cache *_openslide_cache_create(uint64_t capacity_in_bytes) {
   return cache;
 }
 
-static void cache_ref(struct _openslide_cache *cache) {
+static void cache_ref(openslide_cache_t *cache) {
   g_mutex_lock(&cache->mutex);
   cache->refcount++;
   g_mutex_unlock(&cache->mutex);
 }
 
-static void cache_unref(struct _openslide_cache *cache) {
+static void cache_unref(openslide_cache_t *cache) {
   g_mutex_lock(&cache->mutex);
   // decrement refcount, return if references remain
   if (--cache->refcount) {
@@ -187,7 +186,7 @@ static void cache_unref(struct _openslide_cache *cache) {
   g_slice_free(struct _openslide_cache, cache);
 }
 
-void _openslide_cache_release(struct _openslide_cache *cache) {
+void _openslide_cache_release(openslide_cache_t *cache) {
   g_mutex_lock(&cache->mutex);
   bool already_released = cache->released;
   cache->released = true;
@@ -206,11 +205,11 @@ struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
 }
 
 void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
-                                  struct _openslide_cache *cache) {
+                                  openslide_cache_t *cache) {
   cache_ref(cache);
 
   g_mutex_lock(&cb->mutex);
-  struct _openslide_cache *old = cb->cache;
+  openslide_cache_t *old = cb->cache;
   cb->cache = cache;
   g_mutex_unlock(&cb->mutex);
 
@@ -248,7 +247,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 
   // get cache and lock
   g_mutex_lock(&cb->mutex);
-  struct _openslide_cache *cache = cb->cache;
+  openslide_cache_t *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
   // don't try to put anything in the cache that cannot possibly fit
@@ -305,7 +304,7 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 			   struct _openslide_cache_entry **_entry) {
   // get cache and lock
   g_mutex_lock(&cb->mutex);
-  struct _openslide_cache *cache = cb->cache;
+  openslide_cache_t *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
   // create key
