@@ -56,6 +56,7 @@ struct _openslide_cache {
   GQueue *list;
   GHashTable *hashtable;
   int refcount;
+  bool released;
 
   uint64_t capacity;
   uint64_t total_size;
@@ -184,6 +185,16 @@ static void cache_unref(struct _openslide_cache *cache) {
 
   // destroy struct
   g_slice_free(struct _openslide_cache, cache);
+}
+
+void _openslide_cache_release(struct _openslide_cache *cache) {
+  g_mutex_lock(&cache->mutex);
+  bool already_released = cache->released;
+  cache->released = true;
+  g_mutex_unlock(&cache->mutex);
+  g_return_if_fail(!already_released);
+
+  cache_unref(cache);
 }
 
 struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
