@@ -66,6 +66,7 @@ struct _openslide_cache {
 // connection between a cache (possibly shared between multiple slide handles)
 // and a specific slide handle
 struct _openslide_cache_binding {
+  GMutex mutex;
   struct _openslide_cache *cache;
 };
 
@@ -188,12 +189,29 @@ static void cache_unref(struct _openslide_cache *cache) {
 struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
   struct _openslide_cache_binding *cb =
     g_slice_new0(struct _openslide_cache_binding);
+  g_mutex_init(&cb->mutex);
   cb->cache = _openslide_cache_create(DEFAULT_CACHE_SIZE);
   return cb;
 }
 
+void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
+                                  struct _openslide_cache *cache) {
+  cache_ref(cache);
+
+  g_mutex_lock(&cb->mutex);
+  struct _openslide_cache *old = cb->cache;
+  cb->cache = cache;
+  g_mutex_unlock(&cb->mutex);
+
+  cache_unref(old);
+}
+
 void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb) {
+  g_mutex_lock(&cb->mutex);
   cache_unref(cb->cache);
+  g_mutex_unlock(&cb->mutex);
+
+  g_mutex_clear(&cb->mutex);
   g_slice_free(struct _openslide_cache_binding, cb);
 }
 
@@ -218,6 +236,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
   *_entry = entry;
 
   // get cache and lock
+  g_mutex_lock(&cb->mutex);
   struct _openslide_cache *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
@@ -228,6 +247,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
     _openslide_performance_warn_once(&cache->warned_overlarge_entry,
                                      "Rejecting overlarge cache entry of "
                                      "size %d bytes", size_in_bytes);
+    g_mutex_unlock(&cb->mutex);
     return;
   }
 
@@ -261,6 +281,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 
   // unlock
   g_mutex_unlock(&cache->mutex);
+  g_mutex_unlock(&cb->mutex);
 
   //g_debug("insert %p", entry);
 }
@@ -272,6 +293,7 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 			   int64_t y,
 			   struct _openslide_cache_entry **_entry) {
   // get cache and lock
+  g_mutex_lock(&cb->mutex);
   struct _openslide_cache *cache = cb->cache;
   g_mutex_lock(&cache->mutex);
 
@@ -283,6 +305,7 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 							     &key);
   if (value == NULL) {
     g_mutex_unlock(&cache->mutex);
+    g_mutex_unlock(&cb->mutex);
     *_entry = NULL;
     return NULL;
   }
@@ -300,6 +323,7 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 
   // unlock
   g_mutex_unlock(&cache->mutex);
+  g_mutex_unlock(&cb->mutex);
 
   // return data
   *_entry = entry;
