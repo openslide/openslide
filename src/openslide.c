@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2021      Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -698,6 +699,21 @@ void openslide_read_associated_image(openslide_t *osr,
 
     g_free(buf);
   }
+}
+
+openslide_cache_t *openslide_cache_create(size_t capacity) {
+  return _openslide_cache_create(capacity);
+}
+
+void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache) {
+  if (openslide_get_error(osr)) {
+    return;
+  }
+  _openslide_cache_binding_set(osr->cache, cache);
+}
+
+void openslide_cache_release(openslide_cache_t *cache) {
+  _openslide_cache_release(cache);
 }
 
 const char *openslide_get_version(void) {
