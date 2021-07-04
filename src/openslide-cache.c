@@ -41,6 +41,9 @@ struct _openslide_cache_value {
   struct _openslide_cache_key *key; // for removing keys when aged out
   openslide_cache_t *cache; // sadly, for total_bytes and the list
 
+  struct _openslide_cache_binding *cb; // sadly, for the binding's list
+  GList *binding_link; // direct pointer to the node in the binding's list
+
   struct _openslide_cache_entry *entry;  // may outlive the value
 };
 
@@ -69,6 +72,8 @@ struct _openslide_cache {
 struct _openslide_cache_binding {
   GMutex mutex;
   openslide_cache_t *cache;
+
+  GQueue *list;  // protected by cache->mutex
 };
 
 // eviction
@@ -96,6 +101,19 @@ static void possibly_evict(openslide_cache_t *cache, int64_t incoming_size) {
   }
 }
 
+// drop all cache values originating from this binding
+// binding mutex must be held
+static void invalidate_from_binding(struct _openslide_cache_binding *cb) {
+  openslide_cache_t *cache = cb->cache;
+  g_mutex_lock(&cache->mutex);
+  while (!g_queue_is_empty(cb->list)) {
+    struct _openslide_cache_value *value = g_queue_peek_head(cb->list);
+    //g_debug("invalidate %p: %p, size %"PRId64, (void *) cb, (void *) value, value->entry->size);
+    // remove from hashtable, this will trigger removal from everything
+    g_hash_table_remove(cache->hashtable, value->key);
+  }
+  g_mutex_unlock(&cache->mutex);
+}
 
 // hash function helpers
 static guint hash_func(gconstpointer key) {
@@ -123,6 +141,9 @@ static void hash_destroy_value(gpointer data) {
 
   // remove the item from the list
   g_queue_delete_link(value->cache->list, value->link);
+
+  // and the binding list
+  g_queue_delete_link(value->cb->list, value->binding_link);
 
   // decrement the total size
   value->cache->total_size -= value->entry->size;
@@ -201,6 +222,7 @@ struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
     g_slice_new0(struct _openslide_cache_binding);
   g_mutex_init(&cb->mutex);
   cb->cache = _openslide_cache_create(DEFAULT_CACHE_SIZE);
+  cb->list = g_queue_new();
   return cb;
 }
 
@@ -209,6 +231,7 @@ void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
   cache_ref(cache);
 
   g_mutex_lock(&cb->mutex);
+  invalidate_from_binding(cb);
   openslide_cache_t *old = cb->cache;
   cb->cache = cache;
   g_mutex_unlock(&cb->mutex);
@@ -218,10 +241,13 @@ void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
 
 void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb) {
   g_mutex_lock(&cb->mutex);
+  invalidate_from_binding(cb);
   cache_unref(cb->cache);
   g_mutex_unlock(&cb->mutex);
 
+  g_assert(g_queue_is_empty(cb->list));
   g_mutex_clear(&cb->mutex);
+  g_queue_free(cb->list);
   g_slice_free(struct _openslide_cache_binding, cb);
 }
 
@@ -274,11 +300,16 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
     g_slice_new(struct _openslide_cache_value);
   value->key = key;
   value->cache = cache;
+  value->cb = cb;
   value->entry = entry;
 
   // insert at head of queue
   g_queue_push_head(cache->list, value);
   value->link = g_queue_peek_head_link(cache->list);
+
+  // and similarly for the binding
+  g_queue_push_head(cb->list, value);
+  value->binding_link = g_queue_peek_head_link(cb->list);
 
   // insert into hash table
   g_hash_table_replace(cache->hashtable, key, value);
