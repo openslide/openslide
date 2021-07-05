@@ -30,6 +30,7 @@
 
 // hash table key
 struct _openslide_cache_key {
+  uint64_t binding_id;  // distinguishes values from different slide handles
   void *plane;  // cookie for coordinate plane (level, grid, etc.)
   int64_t x;
   int64_t y;
@@ -55,8 +56,10 @@ struct _openslide_cache {
   GMutex mutex;
   GQueue *list;
   GHashTable *hashtable;
+
   int refcount;
   bool released;
+  uint64_t next_binding_id;
 
   uint64_t capacity;
   uint64_t total_size;
@@ -69,6 +72,7 @@ struct _openslide_cache {
 struct _openslide_cache_binding {
   GMutex mutex;
   openslide_cache_t *cache;
+  uint64_t id;  // unique id assigned by cache upon bind
 };
 
 // eviction
@@ -102,7 +106,8 @@ static guint hash_func(gconstpointer key) {
   const struct _openslide_cache_key *c_key = key;
 
   // assume 32-bit hash
-  return (guint) (((guintptr) c_key->plane) ^
+  return (guint) ((c_key->binding_id << 16) ^
+                  ((guintptr) c_key->plane) ^
                   ((34369 * (uint64_t) c_key->y) + ((uint64_t) c_key->x)));
 }
 
@@ -111,7 +116,10 @@ static gboolean key_equal_func(gconstpointer a,
   const struct _openslide_cache_key *c_a = a;
   const struct _openslide_cache_key *c_b = b;
 
-  return (c_a->plane == c_b->plane) && (c_a->x == c_b->x) && (c_a->y == c_b->y);
+  return (c_a->binding_id == c_b->binding_id) &&
+    (c_a->plane == c_b->plane) &&
+    (c_a->x == c_b->x) &&
+    (c_a->y == c_b->y);
 }
 
 static void hash_destroy_key(gpointer data) {
@@ -201,6 +209,7 @@ struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
     g_slice_new0(struct _openslide_cache_binding);
   g_mutex_init(&cb->mutex);
   cb->cache = _openslide_cache_create(DEFAULT_CACHE_SIZE);
+  cb->id = cb->cache->next_binding_id++;
   return cb;
 }
 
@@ -208,9 +217,14 @@ void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
                                   openslide_cache_t *cache) {
   cache_ref(cache);
 
+  g_mutex_lock(&cache->mutex);
+  uint64_t id = cache->next_binding_id++;
+  g_mutex_unlock(&cache->mutex);
+
   g_mutex_lock(&cb->mutex);
   openslide_cache_t *old = cb->cache;
   cb->cache = cache;
+  cb->id = id;
   g_mutex_unlock(&cb->mutex);
 
   cache_unref(old);
@@ -265,6 +279,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 
   // create key
   struct _openslide_cache_key *key = g_slice_new(struct _openslide_cache_key);
+  key->binding_id = cb->id;
   key->plane = plane;
   key->x = x;
   key->y = y;
@@ -308,7 +323,12 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
   g_mutex_lock(&cache->mutex);
 
   // create key
-  struct _openslide_cache_key key = { .plane = plane, .x = x, .y = y };
+  struct _openslide_cache_key key = {
+    .binding_id = cb->id,
+    .plane = plane,
+    .x = x,
+    .y = y
+  };
 
   // lookup key, maybe return NULL
   struct _openslide_cache_value *value = g_hash_table_lookup(cache->hashtable,
@@ -329,7 +349,7 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
   struct _openslide_cache_entry *entry = value->entry;
   g_atomic_int_inc(&entry->refcount);
 
-  //g_debug("cache hit! %p %p %"PRId64" %"PRId64, (void *) entry, (void *) plane, x, y);
+  //g_debug("cache hit! %p %"PRIu64" %p %"PRId64" %"PRId64, (void *) entry, cb->id, (void *) plane, x, y);
 
   // unlock
   g_mutex_unlock(&cache->mutex);
