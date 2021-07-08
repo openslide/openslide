@@ -65,11 +65,6 @@ const uint64_t *_openslide_tifflike_get_uints(struct _openslide_tifflike *tl,
                                               int64_t dir, int32_t tag,
                                               GError **err);
 
-// if the file was detected as NDPI, heuristically add high-order bits to
-// the specified offset
-uint64_t _openslide_tifflike_uint_fix_offset_ndpi(struct _openslide_tifflike *tl,
-                                                  int64_t dir, uint64_t offset);
-
 // TIFF_SBYTE, TIFF_SSHORT, TIFF_SLONG
 int64_t _openslide_tifflike_get_sint(struct _openslide_tifflike *tl,
                                      int64_t dir, int32_t tag,
