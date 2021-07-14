@@ -348,6 +348,7 @@ static bool add_associated_image(openslide_t *osr,
 
     // get name
     if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &val)) {
+        printf("could not get name\n");
       return true;
     }
 
@@ -422,6 +423,17 @@ static bool aperio_open(openslide_t *osr,
     goto FAIL;
   }
 
+  char *image_desc_pre;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc_pre)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read ImageDescription field");
+    goto FAIL;
+  }
+
+  char gt450_workaround = 0;
+  if (strncmp(image_desc_pre, "Aperio Leica Biosystems GT450", strlen("Aperio Leica Biosystems GT450")) == 0)
+      gt450_workaround = 1;
+
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
    * page 14:
@@ -443,7 +455,9 @@ static bool aperio_open(openslide_t *osr,
    * always stripped.
    */
 
+  int tiff_dir_count = 0;
   do {
+    tiff_dir_count += 1;
     // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(tiff)) {
       level_count++;
@@ -537,6 +551,12 @@ static bool aperio_open(openslide_t *osr,
     } else {
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
+      if (gt450_workaround) {
+          if(dir == tiff_dir_count-2)
+              name = "label";
+          if (dir == tiff_dir_count-1)
+              name = "macro";
+      }
       if (!add_associated_image(osr, name, tc, tiff, err)) {
 	goto FAIL;
       }
