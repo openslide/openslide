@@ -41,7 +41,7 @@
 #include <math.h>
 #include <tiffio.h>
 
-static const char APERIO_DESCRIPTION[] = "Aperio";
+static const char APERIO_DESCRIPTION[] = "AppMag";
 
 #define APERIO_COMPRESSION_JP2K_YCBCR 33003
 #define APERIO_COMPRESSION_JP2K_RGB   33005
@@ -293,7 +293,7 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
   if (!tagval) {
     return false;
   }
-  if (!g_str_has_prefix(tagval, APERIO_DESCRIPTION)) {
+  if (!g_strrstr(tagval, APERIO_DESCRIPTION)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not an Aperio slide");
     return false;
