@@ -21,9 +21,6 @@ AC_PROG_CC_C99
 AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
 
-# Optional in C99
-AC_TYPE_UINTPTR_T
-
 LT_PREREQ([2.2.5])
 LT_INIT([win32-dll disable-static])
 LT_LANG([Windows Resource])
