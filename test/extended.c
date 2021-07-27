@@ -129,6 +129,81 @@ static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
                                 int64_t y G_GNUC_UNUSED) {}
 #endif /* !NONATOMIC_CLOEXEC && !WIN32 */
 
+#define CACHE_THREADS 5
+
+struct cache_thread_params {
+  GThread *thread;
+  openslide_t *osr[CACHE_THREADS];
+  int64_t w, h;
+  size_t cache_size;
+  gint *stop; // atomic ops
+};
+
+static void *cache_thread(void *data) {
+  struct cache_thread_params *params = data;
+  uint32_t *buf = g_malloc(4 * params->w * params->h);
+  while (!g_atomic_int_get(params->stop)) {
+    // read some tiles
+    openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);
+    // replace everyone's caches
+    openslide_cache_t *cache = openslide_cache_create(params->cache_size);
+    // redundantly set cache several times
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < CACHE_THREADS; j++) {
+        openslide_set_cache(params->osr[j], cache);
+      }
+    }
+    openslide_cache_release(cache);
+  }
+  g_free(buf);
+  return NULL;
+}
+
+static void cache_thread_start(struct cache_thread_params *param_array,
+                               openslide_t **osrs,
+                               int idx,
+                               int64_t w, int64_t h,
+                               size_t cache_size,
+                               gint *stop) {
+  struct cache_thread_params *params = &param_array[idx];
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    params->osr[i] = osrs[(idx + i) % CACHE_THREADS];
+  }
+  params->w = w;
+  params->h = h;
+  params->cache_size = cache_size;
+  params->stop = stop;
+  params->thread = g_thread_new("cache-thread", cache_thread, params);
+}
+
+// test sharing cache among multiple handles
+static void check_shared_cache(const char *slide) {
+  openslide_t *osrs[CACHE_THREADS];
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    osrs[i] = openslide_open(slide);
+    g_assert(osrs[i]);
+    g_assert(openslide_get_error(osrs[i]) == NULL);
+  }
+
+  struct cache_thread_params params[CACHE_THREADS];
+  gint stop = 0;
+  cache_thread_start(params, osrs, 0, 1000, 1000, 4000000, &stop);
+  cache_thread_start(params, osrs, 1, 1000, 1000, 4000000, &stop);
+  cache_thread_start(params, osrs, 2,  500,  500,  250000, &stop);
+  cache_thread_start(params, osrs, 3,  100,  100,  250000, &stop);
+  cache_thread_start(params, osrs, 4,  100,  100,       0, &stop);
+
+  // let them run
+  sleep(1);
+
+  g_atomic_int_set(&stop, 1);
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    g_thread_join(params[i].thread);
+  }
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    openslide_close(osrs[i]);
+  }
+}
 
 int main(int argc, char **argv) {
   common_fix_argv(&argc, &argv);
@@ -236,6 +311,8 @@ int main(int argc, char **argv) {
   openslide_close(osr);
 
   check_cloexec_leaks(path, argv[0], bounds_xx, bounds_yy);
+
+  check_shared_cache(path);
 
   return 0;
 }
