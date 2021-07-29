@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2021      Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -32,6 +33,7 @@
 
 #include "openslide-features.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -42,6 +44,11 @@ extern "C" {
  * The main OpenSlide type.
  */
 typedef struct _openslide openslide_t;
+
+/**
+ * An OpenSlide tile cache.
+ */
+typedef struct _openslide_cache openslide_cache_t;
 
 
 /**
@@ -422,6 +429,52 @@ OPENSLIDE_PUBLIC()
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest);
+//@}
+
+/**
+ * @name Caching
+ * Managing the in-memory tile cache.
+ *
+ * By default, each OpenSlide object has its own internal cache.  These
+ * functions can be used to configure a cache with a custom size, which may
+ * be shared between multiple OpenSlide objects.
+ */
+//@{
+
+/**
+ * Create a new tile cache, unconnected to any OpenSlide object.  The cache
+ * can be attached to one or more OpenSlide objects with openslide_set_cache().
+ * The cache must be released with openslide_cache_release() when done.
+ *
+ * @param capacity The capacity of the cache, in bytes.
+ * @return A new cache.
+ * @since 3.5.0
+ */
+OPENSLIDE_PUBLIC()
+openslide_cache_t *openslide_cache_create(size_t capacity);
+
+/**
+ * Attach a cache to the specified OpenSlide object, replacing the
+ * current cache.
+ *
+ * @param osr The OpenSlide object.
+ * @param cache The cache to attach.
+ * @since 3.5.0
+ */
+OPENSLIDE_PUBLIC()
+void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache);
+
+/**
+ * Release the cache.  The cache may be released while it is still attached
+ * to OpenSlide objects.  It will be freed once the last attached OpenSlide
+ * object is closed.
+ *
+ * @param cache The cache to release.
+ * @since 3.5.0
+ */
+OPENSLIDE_PUBLIC()
+void openslide_cache_release(openslide_cache_t *cache);
+
 //@}
 
 /**

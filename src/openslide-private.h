@@ -67,7 +67,7 @@ struct _openslide {
   const char **property_names; // filled in automatically from hashtable
 
   // cache
-  struct _openslide_cache *cache;
+  struct _openslide_cache_binding *cache;
 
   // error handling, NULL if no error
   gpointer error; // must use g_atomic_pointer!
@@ -251,31 +251,32 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
 
 
 /* Cache */
-#define _OPENSLIDE_USEFUL_CACHE_SIZE 1024*1024*32
-
+struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
-// constructor/destructor
-struct _openslide_cache *_openslide_cache_create(int capacity_in_bytes);
+// create/release
+openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes);
 
-void _openslide_cache_destroy(struct _openslide_cache *cache);
+void _openslide_cache_release(openslide_cache_t *cache);
 
-// cache size
-int _openslide_cache_get_capacity(struct _openslide_cache *cache);
+// binding a cache to an openslide_t
+struct _openslide_cache_binding *_openslide_cache_binding_create(void);
 
-void _openslide_cache_set_capacity(struct _openslide_cache *cache,
-				   int capacity_in_bytes);
+void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
+                                  openslide_cache_t *cache);
+
+void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb);
 
 // put and get
-void _openslide_cache_put(struct _openslide_cache *cache,
+void _openslide_cache_put(struct _openslide_cache_binding *cb,
 			  void *plane,  // coordinate plane (level or grid)
 			  int64_t x,
 			  int64_t y,
 			  void *data,
-			  int size_in_bytes,
+			  uint64_t size_in_bytes,
 			  struct _openslide_cache_entry **entry);
 
-void *_openslide_cache_get(struct _openslide_cache *cache,
+void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 			   void *plane,
 			   int64_t x,
 			   int64_t y,

@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2021      Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -317,8 +318,7 @@ openslide_t *openslide_open(const char *filename) {
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
   // start cache
-  osr->cache = _openslide_cache_create(_OPENSLIDE_USEFUL_CACHE_SIZE);
-  //osr->cache = _openslide_cache_create(0);
+  osr->cache = _openslide_cache_binding_create();
 
   return osr;
 }
@@ -336,7 +336,7 @@ void openslide_close(openslide_t *osr) {
   g_free(osr->property_names);
 
   if (osr->cache) {
-    _openslide_cache_destroy(osr->cache);
+    _openslide_cache_binding_destroy(osr->cache);
   }
 
   g_free(g_atomic_pointer_get(&osr->error));
@@ -699,6 +699,21 @@ void openslide_read_associated_image(openslide_t *osr,
 
     g_free(buf);
   }
+}
+
+openslide_cache_t *openslide_cache_create(size_t capacity) {
+  return _openslide_cache_create(capacity);
+}
+
+void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache) {
+  if (openslide_get_error(osr)) {
+    return;
+  }
+  _openslide_cache_binding_set(osr->cache, cache);
+}
+
+void openslide_cache_release(openslide_cache_t *cache) {
+  _openslide_cache_release(cache);
 }
 
 const char *openslide_get_version(void) {
