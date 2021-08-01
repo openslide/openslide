@@ -1,10 +1,10 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.61)
+AC_PREREQ(2.69)
 AC_INIT([OpenSlide], [3.4.1], [openslide-users@lists.andrew.cmu.edu], [openslide], [https://openslide.org])
 AC_CONFIG_SRCDIR([src])
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([foreign subdir-objects 1.11.1 dist-xz])
 AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
@@ -15,7 +15,7 @@ AC_CANONICAL_HOST
 
 # Checks for programs.
 AM_PROG_CC_C_O
-AC_PROG_CC_C99
+AC_PROG_CC
 
 # Largefile
 AC_SYS_LARGEFILE
