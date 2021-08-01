@@ -14,27 +14,32 @@ jobs:
   tests:
     name: Build
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            container: registry.fedoraproject.org/fedora:34
+          - os: macos-latest
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
     - name: Install dependencies (Linux)
       if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
-        sudo apt-get install \
+        # Actually a Fedora container
+        dnf install -y \
           gcc make autoconf automake libtool pkg-config \
-          zlib1g-dev \
-          libpng-dev \
-          libjpeg-turbo8-dev \
-          libtiff5-dev \
-          libopenjp2-7-dev \
-          libgdk-pixbuf2.0-dev \
-          libxml2-dev \
-          libsqlite3-dev \
-          libcairo2-dev \
-          libglib2.0-dev \
+          zlib-devel \
+          libpng-devel \
+          libjpeg-turbo-devel \
+          libtiff-devel \
+          openjpeg2-devel \
+          gdk-pixbuf2-devel \
+          libxml2-devel \
+          sqlite-devel \
+          cairo-devel \
+          glib2-devel \
           doxygen
     - name: Install dependencies (macOS)
       if: ${{ matrix.os == 'macos-latest' }}
@@ -62,11 +67,12 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:34
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
     - name: Install tools
-      run: sudo apt-get install doxygen
+      run: dnf install -y doxygen
     - name: Build
       run: |
         basename=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
