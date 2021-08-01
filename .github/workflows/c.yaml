@@ -19,7 +19,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            container: registry.fedoraproject.org/fedora:34
+            container: registry.fedoraproject.org/fedora:latest
           - os: macos-latest
     steps:
     - name: Check out repo
@@ -89,7 +89,7 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
-    container: registry.fedoraproject.org/fedora:34
+    container: registry.fedoraproject.org/fedora:latest
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
