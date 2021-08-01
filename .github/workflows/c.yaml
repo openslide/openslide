@@ -20,39 +20,37 @@ jobs:
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
-    - name: Install dependencies
+    - name: Install dependencies (Linux)
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
-        case "${{ matrix.os }}" in
-        ubuntu-latest)
-          sudo apt-get install \
-            gcc make autoconf automake libtool pkg-config \
-            zlib1g-dev \
-            libpng-dev \
-            libjpeg-turbo8-dev \
-            libtiff5-dev \
-            libopenjp2-7-dev \
-            libgdk-pixbuf2.0-dev \
-            libxml2-dev \
-            libsqlite3-dev \
-            libcairo2-dev \
-            libglib2.0-dev \
-            doxygen
-          ;;
-        macos-latest)
-          brew install \
-            gcc make autoconf automake libtool pkg-config \
-            zlib \
-            libpng \
-            jpeg-turbo \
-            libtiff \
-            openjpeg \
-            gdk-pixbuf \
-            libxml2 \
-            sqlite \
-            cairo \
-            glib
-          ;;
-        esac
+        sudo apt-get install \
+          gcc make autoconf automake libtool pkg-config \
+          zlib1g-dev \
+          libpng-dev \
+          libjpeg-turbo8-dev \
+          libtiff5-dev \
+          libopenjp2-7-dev \
+          libgdk-pixbuf2.0-dev \
+          libxml2-dev \
+          libsqlite3-dev \
+          libcairo2-dev \
+          libglib2.0-dev \
+          doxygen
+    - name: Install dependencies (macOS)
+      if: ${{ matrix.os == 'macos-latest' }}
+      run: |
+        brew install \
+          gcc make autoconf automake libtool pkg-config \
+          zlib \
+          libpng \
+          jpeg-turbo \
+          libtiff \
+          openjpeg \
+          gdk-pixbuf \
+          libxml2 \
+          sqlite \
+          cairo \
+          glib
     - name: Build
       run: |
         autoreconf -i
