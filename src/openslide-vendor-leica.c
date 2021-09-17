@@ -494,9 +494,7 @@ static struct collection *parse_xml_description(const char *xml,
                                 image->nm_offset_y);
 
     image->is_macro = (image->nm_offset_x == 0 &&
-                       image->nm_offset_y == 0 &&
-                       image->nm_across == collection->nm_across &&
-                       image->nm_down == collection->nm_down);
+                       image->nm_across == collection->nm_across);
 
     // get dimensions
     ctx->node = image_node;
