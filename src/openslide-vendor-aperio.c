@@ -536,7 +536,27 @@ static bool aperio_open(openslide_t *osr,
       }
     } else {
       // associated image
-      const char *name = (dir == 1) ? "thumbnail" : NULL;
+      uint32_t subfile_type;
+      const char *name;
+
+      if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfile_type)) {
+        // Fallback to the older detection mechanism, as it is not validated that this mechanism works for all scanners
+        name = (dir == 1) ? "thumbnail" : NULL;
+      } else {
+        // GT450 scanner
+        // According to info from Leica: https://github.com/openslide/openslide/issues/297#issuecomment-813424628
+	  switch (subfile_type) {
+	    case 1:
+	      name = "label";
+	      break;
+	    case 9:
+	      name = "macro";
+	      break;
+	    default:
+	      name = (dir == 1) ? "thumbnail" : NULL;
+	  } 
+      }
+
       if (!add_associated_image(osr, name, tc, tiff, err)) {
 	goto FAIL;
       }
