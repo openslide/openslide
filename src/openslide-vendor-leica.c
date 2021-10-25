@@ -686,7 +686,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       g_ptr_array_add(l->areas, area);
 
       // select and examine TIFF directory
-      if (!_openslide_tiff_level_init(tiff, dimension->dir,
+      if (!_openslide_tiff_level_init(tiff, dimension->dir, (toff_t) 0,
                                       NULL, tiffl,
                                       err)) {
         return false;

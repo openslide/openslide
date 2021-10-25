@@ -856,7 +856,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
         if (xml) {
           // get tile size
           struct _openslide_tiff_level tiffl;
-          if (!_openslide_tiff_level_init(tiff, dir, NULL, &tiffl, err)) {
+          if (!_openslide_tiff_level_init(tiff, dir, (toff_t) 0, NULL, &tiffl, err)) {
             goto FAIL;
           }
           // parse
@@ -897,7 +897,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // create level
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
-      if (!_openslide_tiff_level_init(tiff, dir,
+      if (!_openslide_tiff_level_init(tiff, dir, (toff_t) 0,
                                       &l->base, tiffl,
                                       err)) {
         g_slice_free(struct level, l);

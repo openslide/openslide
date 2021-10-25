@@ -617,7 +617,7 @@ static bool philips_open(openslide_t *osr,
       // create level
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
-      if (!_openslide_tiff_level_init(tiff, dir,
+      if (!_openslide_tiff_level_init(tiff, dir, (toff_t) 0,
                                       (struct _openslide_level *) l, tiffl,
                                       err)) {
         g_slice_free(struct level, l);

@@ -129,6 +129,7 @@ extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
+extern const struct _openslide_format _openslide_format_ome_tiff;
 extern const struct _openslide_format _openslide_format_philips;
 extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_trestle;
@@ -368,6 +369,7 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 #define TIFFFdOpen _OPENSLIDE_POISON(_openslide_tiffcache_get_)
 #define TIFFOpen _OPENSLIDE_POISON(_openslide_tiffcache_get__)
 #define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
+#define TIFFSetSubDirectory _OPENSLIDE_POISON(_openslide_tiff_set_subdir)
 
 
 #endif
