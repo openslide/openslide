@@ -50,6 +50,10 @@ static const char OMETIFF_ATTR_SIZE_Z[] = "SizeZ";
 static const char OMETIFF_ATTR_FIRST_C[] = "FirstC";
 static const char OMETIFF_ATTR_FIRST_T[] = "FirstT";
 static const char OMETIFF_ATTR_FIRST_Z[] = "FirstZ";
+static const char OMETIFF_ATTR_PHYSICAL_SIZE_X[] = "PhysicalSizeX";
+static const char OMETIFF_ATTR_PHYSICAL_SIZE_Y[] = "PhysicalSizeY";
+static const char OMETIFF_ATTR_PHYSICAL_SIZE_X_UNIT[] = "PhysicalSizeXUnit";
+static const char OMETIFF_ATTR_PHYSICAL_SIZE_Y_UNIT[] = "PhysicalSizeYUnit";
 static const char OMETIFF_ATTR_IFD[] = "IFD";
 
 #define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
@@ -71,6 +75,16 @@ static const char OMETIFF_ATTR_IFD[] = "IFD";
     }								\
   } while (0)
 
+#define PARSE_FLOAT_ATTRIBUTE_OR_DEFAULT(NODE, NAME, OUT, DEFAULT)		\
+  do {								\
+    GError *tmp_err = NULL;					\
+    OUT = _openslide_xml_parse_double_attr(NODE, NAME, &tmp_err);	\
+    if (tmp_err)  {						\
+      OUT = DEFAULT;					\
+    }								\
+  } while (0)
+
+
 struct ome_tiff_ops_data {
   struct _openslide_tiffcache *tc;
 };
@@ -88,6 +102,8 @@ struct pixels {
   int64_t size_z;
   int64_t size_c;
   int64_t size_t;
+  double mpp_x;
+  double mpp_y;
 
   GPtrArray* tiffdata;
 };
@@ -265,6 +281,120 @@ static void pixels_free(struct pixels* pixels) {
   g_slice_free(struct pixels, pixels);
 }
 
+static double convert_to_mpp(double size,
+                             const xmlChar* size_unit) {
+  if (size > 0.0) {
+    if (!size_unit || !xmlStrcmp(size_unit, BAD_CAST "\xc2\xb5m")) { // 'µm' micrometer SI unit
+      return size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Ym")) { // yottameter SI unit
+      return 1.0e30 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Zm")) { // zettameter SI unit
+      return 1.0e27 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Em")) { // exameter SI unit
+      return 1.0e24 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Pm")) { // petameter SI unit
+      return 1.0e21 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Tm")) { // terameter SI unit
+      return 1.0e18 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Gm")) { // gigameter SI unit
+      return 1.0e15 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "Mm")) { // megameter SI unit
+      return 1.0e12 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "km")) { // kilometer SI unit
+      return 1.0e9 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "hm")) { // hectometer SI unit
+      return 1.0e8 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "dam")) { // decameter SI unit
+      return 1.0e7 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "m")) { // meter SI unit
+      return 1.0e6 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "dm")) { // decimeter SI unit
+      return 1.0e5 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "cm")) { // centimeter SI unit
+      return 1.0e4 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "mm")) { // millimeter SI unit
+      return 1.0e3 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "nm")) { // nanometer SI unit
+      return 1.0e-3 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "pm")) { // picometer SI unit
+      return 1.0e-6 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "fm")) { // femtometer SI unit
+      return 1.0e-9 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "am")) { // attometer SI unit
+      return 1.0e-12 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "zm")) { // zeptometer SI unit
+      return 1.0e-15 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "ym")) { // yoctometer SI unit
+      return 1.0e-18 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "\xc3\x85")) { // 'Å' ångström SI-derived unit
+      return 1.0e-4 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "thou")) { // thou Imperial unit (or mil, 1/1000 inch)
+      return ((1/1000.0) * 2.54e4) * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "li")) { // line Imperial unit (1/12 inch)
+      return ((1/12.0) * 2.54e4) * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "in")) { // inch Imperial unit
+      return 2.54e4 * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "ft")) { // foot Imperial unit
+      return (12 * 2.54e4) * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "yd")) { // yard Imperial unit
+      return (3 * 12 * 2.54e4) * size;
+    }
+    else if (!xmlStrcmp(size_unit, BAD_CAST "mi")) { // terrestrial mile Imperial unit
+      return (1760 * 3 * 12 * 2.54e4) * size;
+    }
+  }
+
+  return 0.0;
+}
+
+static void get_pixels_mpp(xmlNode* pixels_node,
+                           struct pixels* pixels) {
+  // the PhysicalSizeX and PhysicalSizeY attributes are optional
+  double physical_size_x, physical_size_y;
+  PARSE_FLOAT_ATTRIBUTE_OR_DEFAULT(pixels_node, OMETIFF_ATTR_PHYSICAL_SIZE_X,
+                                   physical_size_x, 0.0);
+  PARSE_FLOAT_ATTRIBUTE_OR_DEFAULT(pixels_node, OMETIFF_ATTR_PHYSICAL_SIZE_Y,
+                                   physical_size_y, 0.0);
+
+  // the PhysicalSizeXUnit and PhysicalSizeYUnit attributes are optional but
+  // default to 'µm'
+  xmlChar* physical_size_x_unit = xmlGetProp(pixels_node,
+                                   BAD_CAST OMETIFF_ATTR_PHYSICAL_SIZE_X_UNIT);
+  pixels->mpp_x = convert_to_mpp(physical_size_x, physical_size_x_unit);
+  xmlFree(physical_size_x_unit);
+
+  xmlChar* physical_size_y_unit = xmlGetProp(pixels_node,
+                                   BAD_CAST OMETIFF_ATTR_PHYSICAL_SIZE_Y_UNIT);
+  pixels->mpp_y = convert_to_mpp(physical_size_y, physical_size_y_unit);
+  xmlFree(physical_size_y_unit);
+}
+
 static struct pixels* parse_xml_description(const char* xml,
                                             GError** err) {
   xmlXPathContext* ctx = NULL;
@@ -315,6 +445,7 @@ static struct pixels* parse_xml_description(const char* xml,
                               pixels->size_y);
   PARSE_INT_ATTRIBUTE_OR_FAIL(pixels_node, OMETIFF_ATTR_SIZE_Z,
                               pixels->size_z);
+  get_pixels_mpp(pixels_node, pixels);
 
   // get the TiffData nodes
   ctx->node = pixels_node;
@@ -335,13 +466,13 @@ static struct pixels* parse_xml_description(const char* xml,
     g_ptr_array_add(pixels->tiffdata, tiffdata);
 
     PARSE_INT_ATTRIBUTE_OR_DEFAULT(tiffdata_node, OMETIFF_ATTR_FIRST_C,
-                                    tiffdata->first_c, 0);
+                                   tiffdata->first_c, 0);
     PARSE_INT_ATTRIBUTE_OR_DEFAULT(tiffdata_node, OMETIFF_ATTR_FIRST_T,
-                                    tiffdata->first_t, 0);
+                                   tiffdata->first_t, 0);
     PARSE_INT_ATTRIBUTE_OR_DEFAULT(tiffdata_node, OMETIFF_ATTR_FIRST_Z,
-                                    tiffdata->first_z, 0);
+                                   tiffdata->first_z, 0);
     PARSE_INT_ATTRIBUTE_OR_DEFAULT(tiffdata_node, OMETIFF_ATTR_IFD,
-                                    tiffdata->ifd, 0);
+                                   tiffdata->ifd, 0);
   }
 
   success = true;
@@ -582,21 +713,30 @@ static void store_and_hash_properties(struct _openslide_tifflike* tl,
 
 static void set_resolution_prop(openslide_t* osr, TIFF* tiff,
                                 const char* property_name,
-                                ttag_t tag) {
+                                ttag_t tag,
+                                double fallback) {
   float f;
   uint16_t unit;
+  bool inserted = false;
 
   if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &unit) &&
       TIFFGetField(tiff, tag, &f)) {
       if (unit == RESUNIT_CENTIMETER) {
         g_hash_table_insert(osr->properties, g_strdup(property_name),
                             _openslide_format_double(10000.0 / f));
+        inserted = true;
       }
       else if (unit == RESUNIT_INCH)
       {
         g_hash_table_insert(osr->properties, g_strdup(property_name),
                             _openslide_format_double((25.4 * 1000.0) / f));
+        inserted = true;
       }
+  }
+
+  if (!inserted && (fallback > 0.0)) {
+    g_hash_table_insert(osr->properties, g_strdup(property_name),
+                        _openslide_format_double(fallback));
   }
 }
 
@@ -637,7 +777,6 @@ static bool ome_tiff_open(openslide_t *osr,
     pixels_free(pixels);
     goto FAIL;
   }
-  pixels_free(pixels);
 
   // store and hash properties, overriding value of 'openslide.comment' and
   // 'tiff.ImageDescription' with OME XML in case full-resolution plane
@@ -654,12 +793,14 @@ static bool ome_tiff_open(openslide_t *osr,
 
   // set MPP properties
   if (!_openslide_tiff_set_dir(tiff, property_dir, err)) {
+    pixels_free(pixels);
     goto FAIL;
   }
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
-                      TIFFTAG_XRESOLUTION);
+                      TIFFTAG_XRESOLUTION, pixels->mpp_x);
   set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
-                      TIFFTAG_YRESOLUTION);
+                      TIFFTAG_YRESOLUTION, pixels->mpp_y);
+  pixels_free(pixels);
 
   // unwrap level array
   int32_t level_count = level_array->len;
