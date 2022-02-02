@@ -86,6 +86,7 @@ struct read_tile_args {
   struct area *area;
 };
 
+#define NO_SUP_LABEL  -1  // ifd in collection starts with 0
 /* structs representing data parsed from ImageDescription XML */
 struct collection {
   char *barcode;
@@ -94,6 +95,10 @@ struct collection {
   int64_t nm_down;
 
   GPtrArray *images;
+
+  // Aperio Versa has one section for label
+  // <supplementalImage type="label" ifd="6"/>
+  int label_ifd;
 };
 
 struct image {
@@ -426,6 +431,7 @@ static struct collection *parse_xml_description(const char *xml,
 
   // create collection struct
   collection = g_slice_new0(struct collection);
+  collection->label_ifd = NO_SUP_LABEL;
   collection->images = g_ptr_array_new();
 
   // Get barcode as stored in 2010/10/01 namespace
@@ -453,6 +459,7 @@ static struct collection *parse_xml_description(const char *xml,
   // get the image nodes
   ctx->node = collection_node;
   images_result = _openslide_xml_xpath_eval(ctx, "d:image");
+
   if (!images_result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find any images");
@@ -551,6 +558,20 @@ static struct collection *parse_xml_description(const char *xml,
 
     // sort dimensions
     g_ptr_array_sort(image->dimensions, dimension_compare);
+  }
+
+  // find label ifd
+  xmlNode *sup_image_node = _openslide_xml_xpath_get_node(ctx,
+                                   "/d:scn/d:collection/d:supplementalImage");
+  if (sup_image_node) {
+      xmlChar *s = xmlGetProp(sup_image_node, BAD_CAST "type");
+      if (s && strcmp((char *) s, "label") == 0) {
+          PARSE_INT_ATTRIBUTE_OR_FAIL(sup_image_node, LEICA_ATTR_IFD,
+                                      collection->label_ifd);
+      }
+
+      if (s)
+          xmlFree(s);
   }
 
   success = true;
@@ -846,6 +867,13 @@ static bool leica_open(openslide_t *osr, const char *filename,
     collection_free(collection);
     goto FAIL;
   }
+
+  // add associated label for Aperio Versa
+  if (collection->label_ifd != NO_SUP_LABEL) {
+      _openslide_tiff_add_associated_image(osr, "label", tc,
+                                           collection->label_ifd, err);
+  }
+
   collection_free(collection);
 
   // set hash and properties
