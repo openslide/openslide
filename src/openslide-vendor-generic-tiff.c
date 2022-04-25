@@ -188,6 +188,20 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
+static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
+                                const char *property_name,
+                                ttag_t tag) {
+  float f;
+  uint16_t unit;
+
+  if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &unit) &&
+      TIFFGetField(tiff, tag, &f) &&
+      unit == RESUNIT_CENTIMETER) {
+    g_hash_table_insert(osr->properties, g_strdup(property_name),
+                        _openslide_format_double(10000.0 / f));
+  }
+}
+
 static bool generic_tiff_open(openslide_t *osr,
                               const char *filename,
                               struct _openslide_tifflike *tl,
@@ -260,12 +274,22 @@ static bool generic_tiff_open(openslide_t *osr,
 
   // set hash and properties
   struct level *top_level = level_array->pdata[level_array->len - 1];
+  int32_t property_dir = 0;
   if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
                                                     top_level->tiffl.dir,
-                                                    0,
+                                                    property_dir,
                                                     err)) {
     return false;
   }
+
+  // set MPP properties
+  if (!_openslide_tiff_set_dir(ct.tiff, property_dir, err)) {
+    return false;
+  }
+  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
+                      TIFFTAG_XRESOLUTION);
+  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
+                      TIFFTAG_YRESOLUTION);
 
   // get icc profile size, if present
   struct level *base_level = level_array->pdata[0];
