@@ -152,6 +152,7 @@ else
 fi
 AC_SUBST([CYGWIN_CROSS_TEST])
 AM_CONDITIONAL([CYGWIN_CROSS_TEST], [test -n "$CYGWIN_CROSS_TEST"])
+AM_CONDITIONAL([BUILD_FUZZER], [test $BUILD_FUZZER = 1])
 
 # gcc assumes Win32 stack frames are 16-byte-aligned by default, but the
 # Win32 ABI only requires 4-byte alignment.  If gcc emits aligned SSE
