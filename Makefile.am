@@ -190,5 +190,13 @@ man_MANS += tools/openslide-write-png.1
 tools_openslide_write_png_CPPFLAGS = $(COMMON_CPPFLAGS) $(LIBPNG_CFLAGS)
 tools_openslide_write_png_LDADD = $(COMMON_LDADD) $(LIBPNG_LIBS)
 
+if BUILD_FUZZER
+tools_openslide_show_properties_CPPFLAGS += -fsanitize=fuzzer-no-link
+tools_openslide_show_properties_LDADD = -fsanitize=fuzzer-no-link
+tools_openslide_quickhash1sum_CPPFLAGS = -fsanitize=fuzzer-no-link
+tools_openslide_quickhash1sum_LDADD = -fsanitize=fuzzer-no-link
+tools_openslide_write_png_CPPFLAGS = -fsanitize=fuzzer-no-link
+tools_openslide_write_png_LDADD = -fsanitize=fuzzer-no-link
+endif
 # man pages
 EXTRA_DIST += $(man_MANS:=.in)
