@@ -2,7 +2,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
 #include "openslide.h"
+
+int delete_file(const char*);
+char *buf_to_file(const uint8_t*, size_t);
 
 int delete_file(const char *pathname) {
   int ret = unlink(pathname);
@@ -52,7 +59,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         exit(EXIT_FAILURE);
 
     openslide_t *slide = openslide_open(filename);
-    if (openslide) {
+    if (slide) {
         const char *err = openslide_get_error(slide);
         if (!err) {
             openslide_get_level_count(slide);
