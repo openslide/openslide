@@ -65,10 +65,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             openslide_get_level_count(slide);
             openslide_get_level0_dimensions(slide, &w, &h);
         }
+        openslide_close(slide);
     }
 
     // Cleanup
-    openslide_close(slide);
     delete_file(filename);
     return 0;
 }
