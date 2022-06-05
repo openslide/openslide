@@ -68,6 +68,10 @@ src_libopenslide_la_CPPFLAGS = -pedantic -D_OPENSLIDE_BUILDING_DLL \
 
 src_libopenslide_la_LDFLAGS = -version-info 4:1:4 -no-undefined
 
+if BUILD_FUZZER
+src_libopenslide_la_CPPFLAGS += -fsanitize=fuzzer-no-link
+src_libopenslide_la_LDFLAGS += -fsanitize=fuzzer-no-link
+endif
 
 pkginclude_HEADERS = \
 	src/openslide.h \
@@ -102,11 +106,14 @@ common_libopenslide_common_a_SOURCES = \
 COMMON_CPPFLAGS = $(GLIB2_CFLAGS) -I$(top_srcdir)/src -I$(top_srcdir)/common
 COMMON_LDADD = common/libopenslide-common.a src/libopenslide.la $(GLIB2_LIBS)
 
+if BUILD_FUZZER
+COMMON_CPPFLAGS += -fsanitize=fuzzer-no-link
+endif
 
 # test
 
 noinst_PROGRAMS = test/test test/try_open test/parallel test/query \
-	test/extended test/mosaic test/profile test/fuzz
+	test/extended test/mosaic test/profile
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
@@ -140,9 +147,12 @@ test_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_profile_LDADD = $(COMMON_LDADD)
 
+if BUILD_FUZZER
 test_fuzz_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
-test_fuzz_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
-test_fuzz_LDADD = $(COMMON_LDADD)
+test_fuzz_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS) -fsanitize=fuzzer-no-link
+test_fuzz_LDADD = $(COMMON_LDADD) -fsanitize=fuzzer-no-link
+noinst_PROGRAMS += test/fuzz
+endif
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink
