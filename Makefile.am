@@ -120,7 +120,7 @@ noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
 
-if BULD_FUZZER
+if BUILD_FUZZER
 FUZZ_FLAGS = -fsanitize=fuzzer-no-link
 TEST_CFLAGS += -fsanitize=fuzzer-no-link
 else
