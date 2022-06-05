@@ -1,5 +1,7 @@
 EXTRA_DIST = README.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt doc/Doxyfile CONTRIBUTING.txt
 
+AM_CONDITIONAL([BUILD_FUZZER], [test $BUILD_FUZZER = 1])
+
 # doxygen
 dist-hook:
 	cd $(distdir)/doc; doxygen
