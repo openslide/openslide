@@ -140,9 +140,9 @@ test_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_profile_LDADD = $(COMMON_LDADD)
 
-fuzz_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
-fuzz_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
-fuzz_profile_LDADD = $(COMMON_LDADD)
+test_fuzz_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
+test_fuzz_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
+test_fuzz_LDADD = $(COMMON_LDADD)
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink
