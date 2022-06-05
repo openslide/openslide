@@ -148,8 +148,9 @@ test_profile_LDADD = $(COMMON_LDADD)
 
 if BUILD_FUZZER
 test_fuzz_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
-test_fuzz_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS) -fsanitize=fuzzer-no-link
-test_fuzz_LDADD = $(COMMON_LDADD) -fsanitize=fuzzer-no-link
+test_fuzz_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS) -fsanitize=fuzzer
+test_fuzz_LDFLAGS = -fsanitize=fuzzer
+test_fuzz_LDADD = $(COMMON_LDADD)
 noinst_PROGRAMS += test/fuzz
 endif
 
