@@ -1,0 +1,10 @@
+image: ghcr.io/ennamarie19/openslide-fuzz:latest
+project: openslide
+target: openslide-fuzz
+testsuite:
+    - file://test/corpus
+
+cmds:
+    - cmd: /fuzz
+      libfuzzer: true
+      max_length: 22000000
