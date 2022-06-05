@@ -106,7 +106,7 @@ COMMON_LDADD = common/libopenslide-common.a src/libopenslide.la $(GLIB2_LIBS)
 # test
 
 noinst_PROGRAMS = test/test test/try_open test/parallel test/query \
-	test/extended test/mosaic test/profile
+	test/extended test/mosaic test/profile test/fuzz
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
@@ -139,6 +139,10 @@ test_mosaic_LDADD = $(COMMON_LDADD) $(CAIRO_LIBS)
 test_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_profile_LDADD = $(COMMON_LDADD)
+
+fuzz_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
+fuzz_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
+fuzz_profile_LDADD = $(COMMON_LDADD)
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink
