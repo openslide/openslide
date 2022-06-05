@@ -107,6 +107,9 @@ COMMON_LDADD = common/libopenslide-common.a src/libopenslide.la $(GLIB2_LIBS)
 
 if BUILD_FUZZER
 COMMON_CPPFLAGS += -fsanitize=fuzzer-no-link
+COMMON_LDFLAGS = -fsanitize=fuzzer-no-link
+common_libopenslide_common_a_CPPFLAGS += -fsanitize=fuzzer-no-link
+common_libopenslide_common_LDFLAGS = -fsanitize=fuzzer-no-link
 endif
 
 # test
