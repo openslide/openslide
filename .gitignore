@@ -59,3 +59,6 @@ Makefile.in
 /.vs/openslide/v16/Browse.VC.opendb
 /.vs/openslide/v16/Browse.VC.db-wal
 /.vs/openslide/v16/Browse.VC.db-shm
+/.vs/slnx.sqlite-journal
+/.vs/openslide/FileContentIndex
+/.vs/openslide/v17
