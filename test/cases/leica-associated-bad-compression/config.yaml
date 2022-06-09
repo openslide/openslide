@@ -3,4 +3,3 @@ error: "^Can't read macro associated image: Unsupported TIFF compression: 252$"
 slide: Leica-1.scn
 success: false
 vendor: leica
-requires: [libtiff-4]

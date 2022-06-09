@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file does not have key ('|\xe2\x80\x9c)INDEXFILE('|\xe2\x80\x9d)( in group ('|\xe2\x80\x9c)HIERARCHICAL('|\xe2\x80\x9d))?$
+error: ^Key file does not have key “INDEXFILE” in group “HIERARCHICAL”$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

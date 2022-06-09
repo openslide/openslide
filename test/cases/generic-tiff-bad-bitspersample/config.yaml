@@ -1,6 +1,5 @@
 base: Generic-TIFF/CMU-1.tiff
-# Not anchored at head because libtiff 3.9.x prints other messages
-error: "Failure in TIFFRGBAImageOK: Sorry, can not handle images with 12-bit samples$"
+error: "^Failure in TIFFRGBAImageOK: Sorry, can not handle images with 12-bit samples$"
 slide: CMU-1.tiff
 success: false
 vendor: generic-tiff

@@ -1,0 +1,113 @@
+name: C
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  tests:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            container: registry.fedoraproject.org/fedora:latest
+          - os: macos-latest
+    steps:
+    - name: Check out repo
+      uses: actions/checkout@v2
+    - name: Install dependencies (Linux)
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: |
+        # Actually a Fedora container
+        dnf install -y \
+          gcc make autoconf automake libtool pkg-config \
+          python3-requests python3-pyyaml \
+          zlib-devel \
+          libpng-devel \
+          libjpeg-turbo-devel \
+          libtiff-devel \
+          openjpeg2-devel \
+          gdk-pixbuf2-devel \
+          libxml2-devel \
+          sqlite-devel \
+          cairo-devel \
+          glib2-devel \
+          doxygen
+    # Quick way to get Python 3 on macOS
+    - name: Set up Python (macOS)
+      uses: actions/setup-python@v2
+      if: ${{ matrix.os == 'macos-latest' }}
+    - name: Install dependencies (macOS)
+      if: ${{ matrix.os == 'macos-latest' }}
+      run: |
+        brew install \
+          gcc make autoconf automake libtool pkg-config \
+          zlib \
+          libpng \
+          jpeg-turbo \
+          libtiff \
+          openjpeg \
+          gdk-pixbuf \
+          libxml2 \
+          sqlite \
+          cairo \
+          glib
+        python -m pip install --upgrade pip
+        pip install requests PyYAML
+    - name: Build
+      run: |
+        autoreconf -i
+        ./configure
+        make -j4
+    - name: Cache pristine slides
+      uses: actions/cache@v2
+      with:
+        key: pristine
+        path: test/_slidedata/pristine
+    # Can't cache frozen tests because cache doesn't handle sparse files
+    - name: Unpack tests
+      run: |
+        cd test
+        ./driver unfreeze
+        ./driver unpack nonfrozen
+    - name: Test
+      # Temporarily, until macOS is fixed
+      continue-on-error: true
+      run: cd test && ./driver run
+    - name: Check exports
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: cd test && ./driver exports
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:latest
+    steps:
+    - name: Check out repo
+      uses: actions/checkout@v2
+    - name: Install tools
+      run: dnf install -y doxygen
+    - name: Build
+      run: |
+        basename=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
+        mkdir artifact
+        cd doc
+        doxygen
+        mv html ../artifact/${basename}
+        echo "basename=${basename}" >> $GITHUB_ENV
+    - name: Archive
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.basename }}
+        path: artifact

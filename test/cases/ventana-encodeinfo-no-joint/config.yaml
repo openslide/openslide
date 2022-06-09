@@ -3,4 +3,3 @@ error: "^Couldn't find tile joint info$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

@@ -3,4 +3,3 @@ error: "^Cannot hash TIFF tiles: Can't read from .*OS-2.bif$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]

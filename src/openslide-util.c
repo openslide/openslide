@@ -108,12 +108,6 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     _openslide_io_error(err, "Couldn't get size of %s", filename);
     goto FAIL;
   }
-  if (size == 0) {
-    // glib < 2.32 logs a critical error when parsing a zero-length key file
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Key file %s is empty", filename);
-    goto FAIL;
-  }
   if (size > max_size) {
     g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                 "Key file %s too large", filename);

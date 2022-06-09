@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Key file contains key ('|\xe2\x80\x9c)IMAGENUMBER_Y('|\xe2\x80\x9d) in group ('|\xe2\x80\x9c)GENERAL('|\xe2\x80\x9d) which has (a )?value that cannot be interpreted.$
+error: ^Key file contains key “IMAGENUMBER_Y” in group “GENERAL” which has a value that cannot be interpreted.$
 slide: CMU-1.mrxs
 success: false
 vendor: mirax
