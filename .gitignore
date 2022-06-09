@@ -51,3 +51,6 @@ Makefile.in
 /doc/html
 /doc/latex
 /doc/man
+
+
+.idea/
