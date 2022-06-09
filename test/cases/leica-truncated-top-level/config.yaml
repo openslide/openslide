@@ -1,6 +1,5 @@
 base: Leica/Leica-1.scn
 error: "^Cannot hash TIFF tiles: Can't read from .*Leica-1.scn$"
 slide: Leica-1.scn
-requires: [libtiff-4]
 success: false
 vendor: leica

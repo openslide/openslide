@@ -3,4 +3,3 @@ error: "^Tile number out of bounds: 987$"
 slide: OS-2.bif
 success: false
 vendor: ventana
-requires: [libtiff-4]
