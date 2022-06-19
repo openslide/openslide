@@ -29,13 +29,6 @@ Requirements
 This library requires zlib, libpng, libjpeg, libtiff >= 4.0, OpenJPEG >= 2.1,
 GDK-PixBuf, libxml2, SQLite >= 3.6.20, cairo >= 1.2, and glib >= 2.56.
 
-If you want to run the test suite, you will need PyYAML, python-requests,
-xdelta3, cjpeg and djpeg (from libjpeg), a Git checkout of OpenSlide,
-at least one installed font, and > 120 GB of disk space.  Valgrind mode
-requires Valgrind, plus debug symbols for library dependencies (particularly
-glib2) and Fontconfig.  Profile mode requires Valgrind.  Coverage mode
-requires gcov and Doxygen.
-
 
 Features
 ========
