@@ -57,24 +57,6 @@ doc/html/openslide_8h.html in this distribution.
 Additional documentation is available from the OpenSlide website:
 https://openslide.org/
 
-The design and implementation of the library are described in a published
-technical note:
-
- OpenSlide: A Vendor-Neutral Software Foundation for Digital Pathology
- Adam Goode, Benjamin Gilbert, Jan Harkes, Drazen Jukic, M. Satyanarayanan
- Journal of Pathology Informatics 2013, 4:27
-
- http://download.openslide.org/docs/JPatholInform_2013_4_1_27_119005.pdf
-
-There is also an older technical report:
-
- CMU-CS-08-136
- A Vendor-Neutral Library and Viewer for Whole-Slide Images
- Adam Goode, M. Satyanarayanan
-
- http://reports-archive.adm.cs.cmu.edu/anon/2008/abstracts/08-136.html
- http://reports-archive.adm.cs.cmu.edu/anon/2008/CMU-CS-08-136.pdf
-
 
 Acknowledgements
 ================
