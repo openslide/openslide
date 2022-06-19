@@ -42,6 +42,10 @@ extern "C" {
 
 /**
  * The main OpenSlide type.
+ *
+ * An @ref openslide_t object can be used concurrently from multiple threads
+ * without locking.  (But you must lock or otherwise use memory barriers
+ * when passing the object between threads.)
  */
 typedef struct _openslide openslide_t;
 
@@ -330,6 +334,16 @@ const char *openslide_get_error(openslide_t *osr);
 /**
  * @name Properties
  * Querying properties.
+ *
+ * Properties are string key-value pairs containing metadata about a whole
+ * slide image.  These functions allow listing the available properties and
+ * obtaining their values.
+ *
+ * [Some properties](https://openslide.org/properties/) are officially
+ * documented and are expected to be stable; others are undocumented but may
+ * still be useful.  Many properties are uninterpreted data gathered
+ * directly from the slide files.  New properties may be added in future
+ * releases of OpenSlide.
  */
 //@{
 
