@@ -76,6 +76,21 @@ jobs:
       with:
         key: pristine
         path: test/_slidedata/pristine
+    - name: Check for overlarge tests
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: |
+        # We don't want to allow arbitrarily large binary diffs into the
+        # repo, where they'll live in the Git history forever.  At the time
+        # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
+        # set the cutoff at 6000.
+        # https://openslide.org/docs/testsuite/#tips
+        THRESHOLD=6000
+        large=$(find test/cases -type f -size +${THRESHOLD}c)
+        if [ -n "$large" ]; then
+            echo "Found test case files larger than $THRESHOLD bytes:"
+            echo "$large"
+            exit 1
+        fi
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
