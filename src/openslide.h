@@ -42,18 +42,26 @@ extern "C" {
 
 /**
  * The main OpenSlide type.
+ *
+ * An @ref openslide_t object can be used concurrently from multiple threads
+ * without locking.  (But you must lock or otherwise use memory barriers
+ * when passing the object between threads.)
  */
 typedef struct _openslide openslide_t;
 
 /**
  * An OpenSlide tile cache.
+ *
+ * An @ref openslide_cache_t object can be used concurrently from multiple
+ * threads without locking.  (But you must lock or otherwise use memory
+ * barriers when passing the object between threads.)
  */
 typedef struct _openslide_cache openslide_cache_t;
 
 
 /**
  * @name Basic Usage
- * Opening, reading, and closing.
+ * Opening, reading, and closing whole slide images.
  */
 //@{
 
@@ -170,6 +178,9 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
  * bytes in length. If an error occurs or has occurred, then the memory
  * pointed to by @p dest will be cleared.
  *
+ * For more information about processing pre-multiplied pixel data, see
+ * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
+ *
  * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
  * @param x The top left x-coordinate, in the level 0 reference frame.
@@ -189,7 +200,7 @@ void openslide_read_region(openslide_t *osr,
 /**
  * Close an OpenSlide object.
  * No other threads may be using the object.
- * After this call returns, the object cannot be used anymore.
+ * After this function returns, the object cannot be used anymore.
  *
  * @param osr The OpenSlide object.
  */
@@ -330,16 +341,24 @@ const char *openslide_get_error(openslide_t *osr);
 /**
  * @name Properties
  * Querying properties.
+ *
+ * Properties are string key-value pairs containing metadata about a whole
+ * slide image.  These functions allow listing the available properties and
+ * obtaining their values.
+ *
+ * [Some properties](https://openslide.org/properties/) are officially
+ * documented and are expected to be stable; others are undocumented but may
+ * still be useful.  Many properties are uninterpreted data gathered
+ * directly from the slide files.  New properties may be added in future
+ * releases of OpenSlide.
  */
 //@{
 
 /**
  * Get the NULL-terminated array of property names.
  *
- * Certain vendor-specific metadata properties may exist
- * within a whole slide image. They are encoded as key-value
- * pairs. This call provides a list of names as strings
- * that can be used to read properties with openslide_get_property_value().
+ * This function returns an array of strings naming properties available
+ * in the whole slide image.
  *
  * @param osr The OpenSlide object.
  * @return A NULL-terminated string array of property names, or
@@ -352,10 +371,7 @@ const char * const *openslide_get_property_names(openslide_t *osr);
 /**
  * Get the value of a single property.
  *
- * Certain vendor-specific metadata properties may exist
- * within a whole slide image. They are encoded as key-value
- * pairs. This call provides the value of the property given
- * by @p name.
+ * This function returns the value of the property given by @p name.
  *
  * @param osr The OpenSlide object.
  * @param name The name of the desired property. Must be
@@ -371,18 +387,19 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name);
 /**
  * @name Associated Images
  * Reading associated images.
+ *
+ * Certain vendor-specific associated images may exist within a whole slide
+ * image, such as label and thumbnail images.  Each associated image has a
+ * name, dimensions, and pixel data.  These functions allow listing the
+ * available associated images and reading their contents.
  */
 //@{
 
 /**
  * Get the NULL-terminated array of associated image names.
  *
- * Certain vendor-specific associated images may exist
- * within a whole slide image. They are encoded as key-value
- * pairs. This call provides a list of names as strings
- * that can be used to read associated images with
- * openslide_get_associated_image_dimensions() and
- * openslide_read_associated_image().
+ * This function returns an array of strings naming associated images
+ * available in the whole slide image.
  *
  * @param osr The OpenSlide object.
  * @return A NULL-terminated string array of associated image names, or
@@ -417,8 +434,11 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * with a whole slide image. @p dest must be a valid pointer to enough
  * memory to hold the image, at least (width * height * 4) bytes in
  * length.  Get the width and height with
- * openslide_get_associated_image_dimensions(). This call does nothing
+ * openslide_get_associated_image_dimensions(). This function does nothing
  * if an error occurred.
+ *
+ * For more information about processing pre-multiplied pixel data, see
+ * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
  *
  * @param osr The OpenSlide object.
  * @param dest The destination buffer for the ARGB data.
@@ -627,8 +647,8 @@ void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
  * @mainpage OpenSlide
  *
  * OpenSlide is a C library that provides a simple interface to read
- * whole-slide images (also known as virtual slides). See
- * https://openslide.org/ for more details.
+ * whole-slide images (also known as virtual slides). See the
+ * [OpenSlide website](https://openslide.org/) for more details.
  */
 
 #ifdef __cplusplus

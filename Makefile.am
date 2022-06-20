@@ -1,4 +1,4 @@
-EXTRA_DIST = README.txt lgpl-2.1.txt LICENSE.txt CHANGELOG.txt doc/Doxyfile CONTRIBUTING.txt
+EXTRA_DIST = README.md CHANGELOG.md doc/Doxyfile
 
 # doxygen
 dist-hook:
