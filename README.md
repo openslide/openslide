@@ -4,9 +4,6 @@ OpenSlide is a C library for reading whole slide image files (also known as
 virtual slides).  It provides a consistent and simple API for reading files
 from multiple vendors.
 
-This code is licensed under the [GNU LGPL version 2.1](lgpl-2.1.txt), not
-any later version.
-
 
 ## Features
 
@@ -46,6 +43,17 @@ documentation][docs] is available on the [OpenSlide website][website].
 [API]: https://openslide.org/api/openslide_8h.html
 [docs]: https://openslide.org/#documentation
 [website]: https://openslide.org/
+
+
+## License
+
+OpenSlide is released under the terms of the [GNU Lesser General Public
+License, version 2.1](https://openslide.org/license/).
+
+OpenSlide is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 
 ## Compiling
