@@ -1,0 +1,15 @@
+name: DCO report
+
+on:
+  workflow_run:
+    workflows: ["DCO"]
+    types:
+      - completed
+
+permissions:
+  pull-requests: write
+
+jobs:
+  comment:
+    name: Organization
+    uses: openslide/.github/.github/workflows/dco-report.yml@main
