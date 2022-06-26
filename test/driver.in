@@ -47,7 +47,7 @@ from urllib.parse import urljoin
 import yaml
 from zipfile import ZipFile
 
-TESTDATA_URL = 'http://openslide.cs.cmu.edu/download/openslide-testdata/'
+TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
 CASEROOT = '!!SRCDIR!!/cases'
