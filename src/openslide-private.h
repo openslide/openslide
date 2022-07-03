@@ -143,6 +143,10 @@ void _openslide_int64_free(gpointer data);
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err);
 
+void *_openslide_inflate_buffer(const void *src, int64_t src_len,
+                                int64_t dst_len,
+                                GError **err);
+
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
 
