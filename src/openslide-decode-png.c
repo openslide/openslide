@@ -49,18 +49,9 @@ static void error_callback(png_struct *png, const char *message) {
   longjmp(ectx->env, 1);
 }
 
-static void read_callback(png_struct *png, png_byte *buf, png_size_t len) {
-  FILE *f = png_get_io_ptr(png);
-  if (fread(buf, len, 1, f) != 1) {
-    png_error(png, "Read failed");
-  }
-}
-
-bool _openslide_png_read(const char *filename,
-                         int64_t offset,
-                         uint32_t *dest,
-                         int64_t w, int64_t h,
-                         GError **err) {
+static bool png_read(png_rw_ptr read_callback, void *callback_data,
+                     uint32_t *dest, int64_t w, int64_t h,
+                     GError **err) {
   png_struct *png = NULL;
   png_info *info = NULL;
   volatile bool success = false;
@@ -72,16 +63,6 @@ bool _openslide_png_read(const char *filename,
   png_byte **rows = g_slice_alloc(h * sizeof(*rows));
   for (int64_t y = 0; y < h; y++) {
     rows[y] = (png_byte *) &dest[y * w];
-  }
-
-  // open and seek
-  FILE *f = _openslide_fopen(filename, "rb", err);
-  if (!f) {
-    goto DONE;
-  }
-  if (fseeko(f, offset, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't fseek %s", filename);
-    goto DONE;
   }
 
   // init libpng
@@ -102,7 +83,7 @@ bool _openslide_png_read(const char *filename,
   if (!setjmp(ectx->env)) {
     // We can't use png_init_io(): passing FILE * between libraries isn't
     // safe on Windows
-    png_set_read_fn(png, f, read_callback);
+    png_set_read_fn(png, callback_data, read_callback);
 
     // read header
     png_read_info(png, info);
@@ -177,10 +158,62 @@ bool _openslide_png_read(const char *filename,
 
 DONE:
   png_destroy_read_struct(&png, &info, NULL);
-  if (f) {
-    fclose(f);
-  }
   g_slice_free1(h * sizeof(*rows), rows);
   g_slice_free(struct png_error_ctx, ectx);
   return success;
+}
+
+static void file_read_callback(png_struct *png, png_byte *buf, png_size_t len) {
+  FILE *f = png_get_io_ptr(png);
+  if (fread(buf, len, 1, f) != 1) {
+    png_error(png, "Read failed");
+  }
+}
+
+bool _openslide_png_read(const char *filename,
+                         int64_t offset,
+                         uint32_t *dest,
+                         int64_t w, int64_t h,
+                         GError **err) {
+  FILE *f = _openslide_fopen(filename, "rb", err);
+  if (!f) {
+    return false;
+  }
+  if (fseeko(f, offset, SEEK_SET)) {
+    _openslide_io_error(err, "Couldn't fseek %s", filename);
+    fclose(f);
+    return false;
+  }
+  bool ret = png_read(file_read_callback, f, dest, w, h, err);
+  fclose(f);
+  return ret;
+}
+
+struct mem {
+  const uint8_t *buf;
+  png_size_t off;
+  png_size_t len;
+};
+
+static void mem_read_callback(png_struct *png, png_byte *buf, png_size_t len) {
+  struct mem *mem = png_get_io_ptr(png);
+  if (mem->len - mem->off >= len) {
+    memcpy(buf, mem->buf + mem->off, len);
+    mem->off += len;
+  } else {
+    png_error(png, "Read past end of buffer");
+  }
+}
+
+bool _openslide_png_decode_buffer(const void *buf,
+                                  int64_t length,
+                                  uint32_t *dest,
+                                  int64_t w, int64_t h,
+                                  GError **err) {
+  struct mem mem = {
+    .buf = buf,
+    .off = 0,
+    .len = length,
+  };
+  return png_read(mem_read_callback, &mem, dest, w, h, err);
 }
