@@ -30,7 +30,7 @@
 #include <openjpeg.h>
 
 struct buffer_state {
-  uint8_t *data;
+  const uint8_t *data;
   int32_t offset;
   int32_t length;
 };
@@ -216,7 +216,7 @@ static OPJ_BOOL seek_callback(OPJ_OFF_T offset, void *data) {
 
 bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    int32_t w, int32_t h,
-                                   void *data, int32_t datalen,
+                                   const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err) {
   opj_image_t *image = NULL;
