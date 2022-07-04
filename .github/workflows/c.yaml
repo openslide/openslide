@@ -71,6 +71,10 @@ jobs:
         autoreconf -i
         ./configure
         make -j4 CFLAGS="-O2 -g -Werror"
+    - name: Check
+      run: |
+        trap "cat test-suite.log" EXIT
+        make check
     - name: Cache pristine slides
       uses: actions/cache@v2
       with:

@@ -31,6 +31,8 @@ Makefile.in
 /ltmain.sh
 /missing
 /stamp-h1
+/test-driver
+/test-suite.log
 /*.pc
 
 /mingw32-config.cache
@@ -38,6 +40,8 @@ Makefile.in
 /src/make-tables
 /src/openslide-tables.c
 
+/test/*.log
+/test/*.trs
 /test/_slidedata
 /test/driver
 /test/extended
@@ -45,6 +49,7 @@ Makefile.in
 /test/parallel
 /test/profile
 /test/query
+/test/synth
 /test/try_open
 
 /doc/html
