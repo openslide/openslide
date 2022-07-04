@@ -34,6 +34,8 @@
 
 #include <cairo.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
+
 /* the associated image structure */
 struct _openslide_associated_image {
   const struct _openslide_associated_image_ops *ops;
