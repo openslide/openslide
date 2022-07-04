@@ -26,6 +26,7 @@
 #include "openslide-decode-gdkpixbuf.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -81,13 +82,13 @@ static void area_prepared(GdkPixbufLoader *loader, void *data) {
   state->pixbuf = pixbuf;
 }
 
-bool _openslide_gdkpixbuf_read(const char *format,
-                               const char *filename,
-                               int64_t offset,
-                               int64_t length,
-                               uint32_t *dest,
-                               int32_t w, int32_t h,
-                               GError **err) {
+static bool gdkpixbuf_read(const char *format,
+                           size_t (*read_callback)(void *out, void *in, size_t size),
+                           void *callback_data,
+                           int64_t length,
+                           uint32_t *dest,
+                           int32_t w, int32_t h,
+                           GError **err) {
   GdkPixbufLoader *loader = NULL;
   uint8_t *buf = g_slice_alloc(BUFSIZE);
   bool success = false;
@@ -95,16 +96,6 @@ bool _openslide_gdkpixbuf_read(const char *format,
     .w = w,
     .h = h,
   };
-
-  // open and seek
-  FILE *f = _openslide_fopen(filename, "rb", err);
-  if (!f) {
-    goto DONE;
-  }
-  if (fseeko(f, offset, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't fseek %s", filename);
-    goto DONE;
-  }
 
   // create loader
   loader = gdk_pixbuf_loader_new_with_type(format, err);
@@ -115,10 +106,10 @@ bool _openslide_gdkpixbuf_read(const char *format,
 
   // read data
   while (length) {
-    size_t count = fread(buf, 1, MIN(length, BUFSIZE), f);
+    size_t count = read_callback(buf, callback_data, MIN(length, BUFSIZE));
     if (!count) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Short read loading pixbuf from %s", filename);
+                  "Short read loading pixbuf");
       goto DONE;
     }
     if (!gdk_pixbuf_loader_write(loader, buf, count, err)) {
@@ -161,9 +152,6 @@ DONE:
     gdk_pixbuf_loader_close(loader, NULL);
     g_object_unref(loader);
   }
-  if (f) {
-    fclose(f);
-  }
   g_slice_free1(BUFSIZE, buf);
 
   // now that the loader is closed, we know state.err won't be set
@@ -176,4 +164,59 @@ DONE:
     g_assert(!success);
   }
   return success;
+}
+
+static size_t file_read_callback(void *out, void *in, size_t size) {
+  return fread(out, 1, size, in);
+}
+
+bool _openslide_gdkpixbuf_read(const char *format,
+                               const char *filename,
+                               int64_t offset,
+                               int64_t length,
+                               uint32_t *dest,
+                               int32_t w, int32_t h,
+                               GError **err) {
+  FILE *f = _openslide_fopen(filename, "rb", err);
+  if (!f) {
+    return false;
+  }
+  if (fseeko(f, offset, SEEK_SET)) {
+    _openslide_io_error(err, "Couldn't fseek %s", filename);
+    fclose(f);
+    return false;
+  }
+  bool ret = gdkpixbuf_read(format, file_read_callback, f, length,
+                            dest, w, h, err);
+  fclose(f);
+  return ret;
+}
+
+struct mem {
+  const uint8_t *buf;
+  size_t off;
+  size_t len;
+};
+
+static size_t mem_read_callback(void *out, void *in, size_t size) {
+  struct mem *mem = in;
+  size_t count = MIN(size, mem->len - mem->off);
+  memcpy(out, mem->buf + mem->off, count);
+  mem->off += count;
+  return count;
+}
+
+bool _openslide_gdkpixbuf_decode_buffer(const char *format,
+                                        const void *buf,
+                                        int64_t length,
+                                        uint32_t *dest,
+                                        int32_t w, int32_t h,
+                                        GError **err) {
+  struct mem mem = {
+    .buf = buf,
+    .off = 0,
+    .len = length,
+  };
+  return gdkpixbuf_read(format, mem_read_callback, &mem, length,
+                        dest, w, h, err);
 }
