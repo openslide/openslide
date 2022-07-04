@@ -40,6 +40,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-vendor-mirax.c \
 	src/openslide-vendor-philips.c \
 	src/openslide-vendor-sakura.c \
+	src/openslide-vendor-synthetic.c \
 	src/openslide-vendor-trestle.c \
 	src/openslide-vendor-ventana.c
 

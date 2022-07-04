@@ -52,6 +52,8 @@ static const struct debug_option {
    "verify Hamamatsu restart markers"},
   {"performance", OPENSLIDE_DEBUG_PERFORMANCE,
    "log conditions causing poor performance"},
+  {"synthetic", OPENSLIDE_DEBUG_SYNTHETIC,
+   "openslide_open(\"\") opens a synthetic test slide"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
   {NULL, 0, NULL}
 };

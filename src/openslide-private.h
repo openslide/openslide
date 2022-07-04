@@ -133,6 +133,7 @@ extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips;
 extern const struct _openslide_format _openslide_format_sakura;
+extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
 
@@ -313,6 +314,7 @@ enum _openslide_debug_flag {
   OPENSLIDE_DEBUG_DETECTION,
   OPENSLIDE_DEBUG_JPEG_MARKERS,
   OPENSLIDE_DEBUG_PERFORMANCE,
+  OPENSLIDE_DEBUG_SYNTHETIC,
   OPENSLIDE_DEBUG_TILES,
 };
 
