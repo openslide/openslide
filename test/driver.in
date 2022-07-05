@@ -30,6 +30,7 @@ from hashlib import sha256
 import inspect
 from lzma import LZMACompressor
 import os
+import platform
 import re
 import requests
 import shlex
@@ -295,7 +296,7 @@ def _fetch_one(slide):
     os.makedirs(destpath)
     try:
         if is_zip:
-            dest = TemporaryFile()
+            dest = TemporaryFile(dir=destpath)
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
 
@@ -444,6 +445,66 @@ def _run_generator(command_str, inpath, outpath):
         raise IOError(f'Generator returned exit status {returncode}')
 
 
+_can_reflink = True
+def _try_reflink(inpath, outpath):
+    '''Try to make a zero-copy clone of the file inpath at outpath.  Return
+    True if successful.'''
+    # Python can't do this natively yet, and we don't want to require an
+    # external module
+    # https://github.com/python/cpython/issues/81338
+    global _can_reflink
+    if not _can_reflink:
+        return False
+    system = platform.system()
+    if system == 'Linux':
+        if subprocess.call(['cp', '--reflink=always', '--', inpath,
+                outpath], stderr=subprocess.DEVNULL) == 0:
+            return True
+        try:
+            # cp from coreutils <= 9.1 leaves an empty file at outpath
+            # https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56391
+            os.unlink(outpath)
+        except FileNotFoundError:
+            pass
+    elif system == 'Darwin':
+        if subprocess.call(['cp', '-c', inpath, outpath], stderr=DEVNULL) == 0:
+            return True
+    # If we fail once, don't try again.  It's possible that we might succeed
+    # under other circumstances (e.g. inpath and outpath might be on different
+    # filesystems) but let's not repeatedly spawn failing subprocesses.
+    _can_reflink = False
+    return False
+
+
+def _decode_xdelta(inpath, deltapath, outpath):
+    '''Apply an xdelta based on inpath and write it to outpath.'''
+    # If possible, reflink inpath to outpath and write only the changed
+    # blocks, saving a lot of disk space.
+    if _try_reflink(inpath, outpath):
+        bufsize = 1 << 20
+        # We could take this down to stat(outpath).st_blksize granularity (4K)
+        # but we don't need perfect savings.  Mostly we're trying to avoid
+        # copying huge runs of unchanged data.
+        blksize = 1 << 20
+        proc = subprocess.Popen(['xdelta3', 'decode', '-cs', inpath, deltapath],
+                stdout=subprocess.PIPE, bufsize=bufsize)
+        with open(outpath, 'rb+', buffering=bufsize) as fh:
+            while True:
+                want = proc.stdout.read(blksize)
+                if len(want) == 0:
+                    break
+                have = fh.read(blksize)
+                if want != have:
+                    fh.seek(-len(have), 1)
+                    fh.write(want)
+            fh.truncate()
+        if proc.wait() != 0:
+            raise IOError(f'xdelta failed with status {proc.returncode}')
+    else:
+        subprocess.check_call(['xdelta3', 'decode', '-s',
+                inpath, deltapath, outpath])
+
+
 def _unpack_one(testname):
     '''Unpack the specified test.'''
 
@@ -475,8 +536,7 @@ def _unpack_one(testname):
             if generator:
                 _run_generator(generator, origpath, newpath)
             elif os.path.exists(deltapath):
-                subprocess.check_call(['xdelta3', 'decode', '-s',
-                        origpath, deltapath, newpath])
+                _decode_xdelta(origpath, deltapath, newpath)
             else:
                 src = os.path.relpath(origpath, os.path.dirname(newpath))
                 symlink(src, newpath)
