@@ -295,7 +295,7 @@ def _fetch_one(slide):
     os.makedirs(destpath)
     try:
         if is_zip:
-            dest = TemporaryFile()
+            dest = TemporaryFile(dir=destpath)
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
 
