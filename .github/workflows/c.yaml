@@ -39,7 +39,7 @@ jobs:
           libjpeg-turbo-devel \
           libtiff-devel \
           openjpeg2-devel \
-          gdk-pixbuf2-devel \
+          gdk-pixbuf2-modules gdk-pixbuf2-devel \
           libxml2-devel \
           sqlite-devel \
           cairo-devel \
