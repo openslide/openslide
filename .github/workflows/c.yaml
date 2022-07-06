@@ -39,7 +39,7 @@ jobs:
           libjpeg-turbo-devel \
           libtiff-devel \
           openjpeg2-devel \
-          gdk-pixbuf2-devel \
+          gdk-pixbuf2-modules gdk-pixbuf2-devel \
           libxml2-devel \
           sqlite-devel \
           cairo-devel \
@@ -70,7 +70,7 @@ jobs:
       run: |
         autoreconf -i
         ./configure
-        make -j4
+        make -j4 CFLAGS="-O2 -g -Werror"
     - name: Cache pristine slides
       uses: actions/cache@v2
       with:
@@ -104,6 +104,38 @@ jobs:
     - name: Check exports
       if: ${{ matrix.os == 'ubuntu-latest' }}
       run: cd test && ./driver exports
+
+  windows_setup:
+    name: Set up Windows build
+    runs-on: ubuntu-latest
+    outputs:
+      pkgver: ${{ steps.params.outputs.pkgver }}
+    steps:
+      - name: Calculate parameters
+        id: params
+        run: |
+          case "${{ github.event_name }}" in
+          pull_request)
+              echo "::set-output name=pkgver::pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)"
+              ;;
+          push)
+              echo "::set-output name=pkgver::${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)"
+              ;;
+          *)
+              echo "Unknown event type ${{ github.event_name }}"
+              exit 1
+          esac
+
+  windows_build:
+    name: Windows build
+    needs: windows_setup
+    uses: openslide/openslide-winbuild/.github/workflows/windows.yml@main
+    with:
+      openslide_repo: openslide/openslide
+      openslide_ref: main
+      pkgver: ${{ needs.windows_setup.outputs.pkgver }}
+      werror: true
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
