@@ -44,7 +44,8 @@ jobs:
           sqlite-devel \
           cairo-devel \
           glib2-devel \
-          doxygen
+          doxygen \
+          xdelta libjpeg-turbo-utils
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
       uses: actions/setup-python@v2
@@ -63,7 +64,8 @@ jobs:
           libxml2 \
           sqlite \
           cairo \
-          glib
+          glib \
+          xdelta
         python -m pip install --upgrade pip
         pip install requests PyYAML
     - name: Build
