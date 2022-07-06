@@ -467,7 +467,8 @@ def _try_reflink(inpath, outpath):
         except FileNotFoundError:
             pass
     elif system == 'Darwin':
-        if subprocess.call(['cp', '-c', inpath, outpath], stderr=DEVNULL) == 0:
+        if subprocess.call(['cp', '-c', inpath, outpath],
+                stderr=subprocess.DEVNULL) == 0:
             return True
     # If we fail once, don't try again.  It's possible that we might succeed
     # under other circumstances (e.g. inpath and outpath might be on different
