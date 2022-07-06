@@ -70,7 +70,7 @@ jobs:
       run: |
         autoreconf -i
         ./configure
-        make -j4
+        make -j4 CFLAGS="-O2 -g -Werror"
     - name: Cache pristine slides
       uses: actions/cache@v2
       with:
