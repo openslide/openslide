@@ -45,7 +45,6 @@ Makefile.in
 /test/parallel
 /test/profile
 /test/query
-/test/test
 /test/try_open
 
 /doc/html
