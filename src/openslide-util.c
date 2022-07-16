@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <glib.h>
 #include <cairo.h>
+#include <zlib.h>
 
 #ifdef HAVE_FCNTL
 #include <unistd.h>
@@ -51,6 +52,8 @@ static const struct debug_option {
    "verify Hamamatsu restart markers"},
   {"performance", OPENSLIDE_DEBUG_PERFORMANCE,
    "log conditions causing poor performance"},
+  {"synthetic", OPENSLIDE_DEBUG_SYNTHETIC,
+   "openslide_open(\"\") opens a synthetic test slide"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
   {NULL, 0, NULL}
 };
@@ -152,6 +155,51 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
 FAIL:
   g_free(buf);
   fclose(f);
+  return NULL;
+}
+
+void *_openslide_inflate_buffer(const void *src, int64_t src_len,
+                                int64_t dst_len,
+                                GError **err) {
+  void *dst = g_malloc(dst_len);
+  z_stream strm = {
+    .avail_in = src_len,
+    .avail_out = dst_len,
+    .next_in = (Bytef *) src,
+    .next_out = (Bytef *) dst
+  };
+
+  int64_t error_code = -1;
+
+  error_code = inflateInit(&strm);
+  if (error_code != Z_OK) {
+    goto ZLIB_ERROR;
+  }
+  error_code = inflate(&strm, Z_FINISH);
+  if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
+    inflateEnd(&strm);
+    goto ZLIB_ERROR;
+  }
+  error_code = inflateEnd(&strm);
+  if (error_code != Z_OK) {
+    goto ZLIB_ERROR;
+  }
+
+  return dst;
+
+ZLIB_ERROR:
+  if (error_code == Z_STREAM_END) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read while decompressing: %lu/%"PRId64,
+                strm.total_out, dst_len);
+  } else if (strm.msg) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s (%s)", zError(error_code), strm.msg);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s", zError(error_code));
+  }
+  g_free(dst);
   return NULL;
 }
 

@@ -29,6 +29,8 @@
 #include <glib.h>
 #include <tiffio.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(TIFF, TIFFClose)
+
 struct _openslide_tiff_level {
   tdir_t dir;
   int64_t image_w;

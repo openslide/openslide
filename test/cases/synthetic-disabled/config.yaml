@@ -1,0 +1,6 @@
+base: Aperio/CMU-1.svs
+error: "^$"
+slide: ""
+success: false
+vendor: null
+# no synthetic debug flag

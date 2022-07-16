@@ -40,6 +40,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-vendor-mirax.c \
 	src/openslide-vendor-philips.c \
 	src/openslide-vendor-sakura.c \
+	src/openslide-vendor-synthetic.c \
 	src/openslide-vendor-trestle.c \
 	src/openslide-vendor-ventana.c
 
@@ -105,7 +106,9 @@ COMMON_LDADD = common/libopenslide-common.a src/libopenslide.la $(GLIB2_LIBS)
 
 # test
 
-noinst_PROGRAMS = test/try_open test/parallel test/query \
+TESTS = test/synth
+
+noinst_PROGRAMS = test/synth test/try_open test/parallel test/query \
 	test/extended test/mosaic test/profile
 noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
@@ -135,6 +138,10 @@ test_profile_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_profile_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 # VALGRIND_LIBS not needed
 test_profile_LDADD = $(COMMON_LDADD)
+
+test_synth_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
+test_synth_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
+test_synth_LDADD = $(COMMON_LDADD)
 
 if CYGWIN_CROSS_TEST
 noinst_PROGRAMS += test/symlink

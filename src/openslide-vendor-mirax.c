@@ -41,8 +41,6 @@
 #include <string.h>
 #include <math.h>
 
-#include <zlib.h>
-
 #include "openslide-hash.h"
 
 static const char MRXS_EXT[] = ".mrxs";
@@ -913,52 +911,6 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
   return success;
 }
 
-static void *inflate_buffer(const void *src,
-                            int64_t src_len,
-                            int64_t dst_len,
-                            GError **err) {
-  void *dst = g_malloc(dst_len);
-  z_stream strm = {
-    .avail_in = src_len,
-    .avail_out = dst_len,
-    .next_in = (Bytef *) src,
-    .next_out = (Bytef *) dst
-  };
-
-  int64_t error_code = -1;
-
-  error_code = inflateInit(&strm);
-  if (error_code != Z_OK) {
-    goto ZLIB_ERROR;
-  }
-  error_code = inflate(&strm, Z_FINISH);
-  if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
-    inflateEnd(&strm);
-    goto ZLIB_ERROR;
-  }
-  error_code = inflateEnd(&strm);
-  if (error_code != Z_OK) {
-    goto ZLIB_ERROR;
-  }
-
-  return dst;
-
-ZLIB_ERROR:
-  if (error_code == Z_STREAM_END) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Short read while decompressing: %lu/%"PRId64,
-                strm.total_out, dst_len);
-  } else if (strm.msg) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Decompression failure: %s (%s)", zError(error_code), strm.msg);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Decompression failure: %s", zError(error_code));
-  }
-  g_free(dst);
-  return NULL;
-}
-
 static void *read_record_data(const char *path,
                               int64_t size, int64_t offset,
                               GError **err) {
@@ -1175,11 +1127,11 @@ static bool process_indexfile(openslide_t *osr,
 
     if (slide_position_record == stitching_position_record) {
       // We need to decompress the buffer.
-      // Length check happens in inflate_buffer
-      void *decompressed = inflate_buffer(slide_position_buffer,
-                                          slide_position_size,
-                                          slide_position_buffer_size,
-                                          err);
+      // Length check happens in _openslide_inflate_buffer
+      void *decompressed = _openslide_inflate_buffer(slide_position_buffer,
+                                                     slide_position_size,
+                                                     slide_position_buffer_size,
+                                                     err);
 
       g_free(slide_position_buffer); // free the compressed buffer
 

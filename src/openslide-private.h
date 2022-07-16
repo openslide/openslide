@@ -34,6 +34,8 @@
 
 #include <cairo.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
+
 /* the associated image structure */
 struct _openslide_associated_image {
   const struct _openslide_associated_image_ops *ops;
@@ -131,6 +133,7 @@ extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips;
 extern const struct _openslide_format _openslide_format_sakura;
+extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
 
@@ -142,6 +145,10 @@ void _openslide_int64_free(gpointer data);
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err);
+
+void *_openslide_inflate_buffer(const void *src, int64_t src_len,
+                                int64_t dst_len,
+                                GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
 FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
@@ -307,6 +314,7 @@ enum _openslide_debug_flag {
   OPENSLIDE_DEBUG_DETECTION,
   OPENSLIDE_DEBUG_JPEG_MARKERS,
   OPENSLIDE_DEBUG_PERFORMANCE,
+  OPENSLIDE_DEBUG_SYNTHETIC,
   OPENSLIDE_DEBUG_TILES,
 };
 

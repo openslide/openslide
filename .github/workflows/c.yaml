@@ -44,7 +44,8 @@ jobs:
           sqlite-devel \
           cairo-devel \
           glib2-devel \
-          doxygen
+          doxygen \
+          xdelta libjpeg-turbo-utils
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
       uses: actions/setup-python@v2
@@ -63,7 +64,8 @@ jobs:
           libxml2 \
           sqlite \
           cairo \
-          glib
+          glib \
+          xdelta
         python -m pip install --upgrade pip
         pip install requests PyYAML
     - name: Build
@@ -71,6 +73,10 @@ jobs:
         autoreconf -i
         ./configure
         make -j4 CFLAGS="-O2 -g -Werror"
+    - name: Check
+      run: |
+        trap "cat test-suite.log" EXIT
+        make check
     - name: Cache pristine slides
       uses: actions/cache@v2
       with:

@@ -35,4 +35,11 @@ bool _openslide_gdkpixbuf_read(const char *format,
                                int32_t w, int32_t h,
                                GError **err);
 
+bool _openslide_gdkpixbuf_decode_buffer(const char *format,
+                                        const void *buf,
+                                        int64_t length,
+                                        uint32_t *dest,
+                                        int32_t w, int32_t h,
+                                        GError **err);
+
 #endif
