@@ -137,8 +137,8 @@ jobs:
     needs: windows_setup
     uses: openslide/openslide-winbuild/.github/workflows/windows.yml@main
     with:
-      openslide_repo: openslide/openslide
-      openslide_ref: main
+      openslide_repo: ${{ github.repository }}
+      openslide_ref: ${{ github.ref }}
       pkgver: ${{ needs.windows_setup.outputs.pkgver }}
       werror: true
 

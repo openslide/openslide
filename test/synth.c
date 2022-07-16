@@ -26,7 +26,7 @@
 
 int main(int argc, char **argv) {
   if (argc < 2 || !g_str_equal(argv[1], "child")) {
-    setenv("OPENSLIDE_DEBUG", "synthetic", 1);
+    putenv("OPENSLIDE_DEBUG=synthetic");
     // OpenSlide already evaluated debug flags, so we need to rerun
     // ourselves.  Do it in a cross-platform way.
     char *child_argv[] = {argv[0], "child", NULL};
