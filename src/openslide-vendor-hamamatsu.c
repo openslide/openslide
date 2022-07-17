@@ -315,7 +315,11 @@ static bool find_bitstream_start(struct _openslide_file *f,
 
   while (true) {
     // read marker
-    pos = _openslide_ftell(f);
+    pos = _openslide_ftell(f, err);
+    if (pos == -1) {
+      g_prefix_error(err, "Couldn't seek to JPEG marker: ");
+      return false;
+    }
     if (_openslide_fread(f, buf, sizeof(buf)) != sizeof(buf)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG marker at %"PRId64, pos);
@@ -359,7 +363,11 @@ static bool find_bitstream_start(struct _openslide_file *f,
     // check for SOS
     if (marker_byte == 0xDA) {
       // found it; done
-      *header_stop_position = _openslide_ftell(f);
+      *header_stop_position = _openslide_ftell(f, err);
+      if (*header_stop_position == -1) {
+        g_prefix_error(err, "Couldn't get header stop position: ");
+        return false;
+      }
       //g_debug("found bitstream start at %"PRId64, *header_stop_position);
       break;
     }
@@ -384,7 +392,11 @@ static bool find_next_ff_marker(struct _openslide_file *f,
                                 int *bytes_in_buf,
                                 GError **err) {
   //g_debug("bytes_in_buf: %d", *bytes_in_buf);
-  int64_t file_pos = _openslide_ftell(f);
+  int64_t file_pos = _openslide_ftell(f, err);
+  if (file_pos == -1) {
+    g_prefix_error(err, "Couldn't get file position: ");
+    return false;
+  }
   bool last_was_ff = false;
   while (true) {
     if (*bytes_in_buf == 0) {
@@ -1006,7 +1018,11 @@ static bool validate_jpeg_header(struct _openslide_file *f,
   }
 
   // find limits of JPEG header
-  int64_t header_start = _openslide_ftell(f);
+  int64_t header_start = _openslide_ftell(f, err);
+  if (header_start == -1) {
+    g_prefix_error(err, "Couldn't get header start position: ");
+    return false;
+  }
   if (!find_bitstream_start(f, sof_position, header_stop_position, err)) {
     return false;
   }
@@ -1472,9 +1488,9 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       _openslide_fclose(f);
       goto FAIL;
     }
-    jp->end_in_file = _openslide_ftell(f);
+    jp->end_in_file = _openslide_ftell(f, err);
     if (jp->end_in_file == -1) {
-      _openslide_io_error(err, "Can't read file size for JPEG %d", i);
+      g_prefix_error(err, "Can't read file size for JPEG %d: ", i);
       _openslide_fclose(f);
       goto FAIL;
     }

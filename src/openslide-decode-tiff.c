@@ -578,9 +578,9 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     _openslide_fclose(f);
     return NULL;
   }
-  int64_t size = _openslide_ftell(f);
+  int64_t size = _openslide_ftell(f, err);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't _openslide_ftell() for %s", tc->filename);
+    g_prefix_error(err, "Couldn't _openslide_ftell() for %s: ", tc->filename);
     _openslide_fclose(f);
     return NULL;
   }

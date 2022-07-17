@@ -76,9 +76,9 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
       g_prefix_error(err, "Couldn't seek %s: ", filename);
       goto DONE;
     }
-    int64_t len = _openslide_ftell(f);
+    int64_t len = _openslide_ftell(f, err);
     if (len == -1) {
-      _openslide_io_error(err, "Couldn't get size of %s", filename);
+      g_prefix_error(err, "Couldn't get size of %s: ", filename);
       goto DONE;
     }
     size = len - offset;

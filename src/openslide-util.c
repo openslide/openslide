@@ -101,9 +101,9 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     g_prefix_error(err, "Couldn't seek %s: ", filename);
     goto FAIL;
   }
-  int64_t size = _openslide_ftell(f);
+  int64_t size = _openslide_ftell(f, err);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't get size of %s", filename);
+    g_prefix_error(err, "Couldn't get size of %s: ", filename);
     goto FAIL;
   }
   if (size > max_size) {

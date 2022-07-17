@@ -131,8 +131,13 @@ bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
   return true;
 }
 
-off_t _openslide_ftell(struct _openslide_file *file) {
-  return ftello(file->fp);
+off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
+  off_t ret = ftello(file->fp);
+  if (ret == -1) {
+    g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
+                "%s", g_strerror(errno));
+  }
+  return ret;
 }
 
 void _openslide_fclose(struct _openslide_file *file) {
