@@ -43,27 +43,28 @@ struct _openslide_file {
 #undef fclose
 #undef g_file_test
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(FILE, fclose)
+
 static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   FILE *f;
 
 #ifdef HAVE__WFOPEN
-  wchar_t *path16 = (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
+  g_autofree wchar_t *path16 =
+    (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
   if (path16 == NULL) {
     g_prefix_error(err, "Couldn't open %s: ", path);
     return NULL;
   }
-  wchar_t *mode16 = (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
+  g_autofree wchar_t *mode16 =
+    (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
   if (mode16 == NULL) {
     g_prefix_error(err, "Bad file mode %s: ", mode);
-    g_free(path16);
     return NULL;
   }
   f = _wfopen(path16, mode16);
   if (f == NULL) {
     _openslide_io_error(err, "Couldn't open %s", path);
   }
-  g_free(mode16);
-  g_free(path16);
 #else
   f = fopen(path, mode);
   if (f == NULL) {
@@ -76,7 +77,7 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
 
 struct _openslide_file *_openslide_fopen(const char *path, GError **err)
 {
-  FILE *f = do_fopen(path, "rb" FOPEN_CLOEXEC_FLAG, err);
+  g_autoptr(FILE) f = do_fopen(path, "rb" FOPEN_CLOEXEC_FLAG, err);
   if (f == NULL) {
     return NULL;
   }
@@ -87,25 +88,22 @@ struct _openslide_file *_openslide_fopen(const char *path, GError **err)
     int fd = fileno(f);
     if (fd == -1) {
       _openslide_io_error(err, "Couldn't fileno() %s", path);
-      fclose(f);
       return NULL;
     }
     long flags = fcntl(fd, F_GETFD);
     if (flags == -1) {
       _openslide_io_error(err, "Couldn't F_GETFD %s", path);
-      fclose(f);
       return NULL;
     }
     if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
       _openslide_io_error(err, "Couldn't F_SETFD %s", path);
-      fclose(f);
       return NULL;
     }
   }
 #endif
 
   struct _openslide_file *file = g_slice_new0(struct _openslide_file);
-  file->fp = f;
+  file->fp = g_steal_pointer(&f);
   return file;
 }
 
