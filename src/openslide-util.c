@@ -97,8 +97,8 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // get file size and check against maximum
-  if (_openslide_fseek(f, 0, SEEK_END)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
+  if (!_openslide_fseek(f, 0, SEEK_END, err)) {
+    g_prefix_error(err, "Couldn't seek %s: ", filename);
     goto FAIL;
   }
   int64_t size = _openslide_ftell(f);
@@ -113,8 +113,8 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // read
-  if (_openslide_fseek(f, 0, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
+  if (!_openslide_fseek(f, 0, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek %s: ", filename);
     goto FAIL;
   }
   // catch file size changes

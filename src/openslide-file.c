@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <glib.h>
 
 #ifdef HAVE_FCNTL
@@ -120,8 +121,14 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
   return total;
 }
 
-int _openslide_fseek(struct _openslide_file *file, off_t offset, int whence) {
-  return fseeko(file->fp, offset, whence);
+bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
+                      GError **err) {
+  if (fseeko(file->fp, offset, whence)) {
+    g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
+                "%s", g_strerror(errno));
+    return false;
+  }
+  return true;
 }
 
 off_t _openslide_ftell(struct _openslide_file *file) {

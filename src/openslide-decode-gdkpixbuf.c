@@ -181,8 +181,8 @@ bool _openslide_gdkpixbuf_read(const char *format,
   if (!f) {
     return false;
   }
-  if (_openslide_fseek(f, offset, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't fseek %s", filename);
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't fseek %s: ", filename);
     _openslide_fclose(f);
     return false;
   }

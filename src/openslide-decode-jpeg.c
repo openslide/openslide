@@ -324,8 +324,8 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
   if (f == NULL) {
     return false;
   }
-  if (offset && _openslide_fseek(f, offset, SEEK_SET) == -1) {
-    _openslide_io_error(err, "Cannot seek to offset");
+  if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to offset: ");
     _openslide_fclose(f);
     return false;
   }
@@ -398,8 +398,8 @@ bool _openslide_jpeg_read(const char *filename,
   if (f == NULL) {
     return false;
   }
-  if (offset && _openslide_fseek(f, offset, SEEK_SET) == -1) {
-    _openslide_io_error(err, "Cannot seek to offset");
+  if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to offset: ");
     _openslide_fclose(f);
     return false;
   }

@@ -505,7 +505,7 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
   if (f == NULL) {
     return 0;
   }
-  if (_openslide_fseek(f, hdl->offset, SEEK_SET)) {
+  if (!_openslide_fseek(f, hdl->offset, SEEK_SET, NULL)) {
     _openslide_fclose(f);
     return 0;
   }
@@ -573,8 +573,8 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   }
 
   // get size
-  if (_openslide_fseek(f, 0, SEEK_END) == -1) {
-    _openslide_io_error(err, "Couldn't seek to end of %s", tc->filename);
+  if (!_openslide_fseek(f, 0, SEEK_END, err)) {
+    g_prefix_error(err, "Couldn't seek to end of %s: ", tc->filename);
     _openslide_fclose(f);
     return NULL;
   }

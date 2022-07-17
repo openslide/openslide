@@ -452,9 +452,8 @@ static bool read_nonhier_record(struct _openslide_file *f,
 				GError **err) {
   g_return_val_if_fail(recordno >= 0, false);
 
-  if (_openslide_fseek(f, nonhier_root_position, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier root");
+  if (!_openslide_fseek(f, nonhier_root_position, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier root: ");
     return false;
   }
 
@@ -466,9 +465,8 @@ static bool read_nonhier_record(struct _openslide_file *f,
   }
 
   // seek to record pointer
-  if (_openslide_fseek(f, ptr + 4 * recordno, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier record pointer %d", recordno);
+  if (!_openslide_fseek(f, ptr + 4 * recordno, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier record pointer %d: ", recordno);
     return false;
   }
 
@@ -481,9 +479,8 @@ static bool read_nonhier_record(struct _openslide_file *f,
   }
 
   // seek
-  if (_openslide_fseek(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier record %d", recordno);
+  if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier record %d: ", recordno);
     return false;
   }
 
@@ -503,9 +500,8 @@ static bool read_nonhier_record(struct _openslide_file *f,
   }
 
   // seek to offset
-  if (_openslide_fseek(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't seek to initial data page");
+  if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+    g_prefix_error(err, "Can't seek to initial data page: ");
     return false;
   }
 
@@ -703,9 +699,8 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
 
     //    g_debug("reading zoom_level %d", zoom_level);
 
-    if (_openslide_fseek(f, seek_location, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot seek to zoom level pointer %d", zoom_level);
+    if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
+      g_prefix_error(err, "Cannot seek to zoom level pointer %d: ", zoom_level);
       goto DONE;
     }
 
@@ -715,9 +710,8 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
                   "Can't read zoom level pointer");
       goto DONE;
     }
-    if (_openslide_fseek(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot seek to start of data pages");
+    if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+      g_prefix_error(err, "Cannot seek to start of data pages: ");
       goto DONE;
     }
 
@@ -737,9 +731,8 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
     }
 
     // seek to offset
-    if (_openslide_fseek(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't seek to initial data page");
+    if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+      g_prefix_error(err, "Can't seek to initial data page: ");
       goto DONE;
     }
 
@@ -921,9 +914,8 @@ static void *read_record_data(const char *path,
     return NULL;
   }
 
-  if (_openslide_fseek(f, offset, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek data file");
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek data file: ");
     _openslide_fclose(f);
     return NULL;
   }
@@ -1067,7 +1059,10 @@ static bool process_indexfile(openslide_t *osr,
 
   int32_t *slide_positions = NULL;
 
-  _openslide_fseek(indexfile, 0, SEEK_SET);
+  if (!_openslide_fseek(indexfile, 0, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek index file: ");
+    goto DONE;
+  }
 
   // save root positions
   const int64_t hier_root = strlen(INDEX_VERSION) + strlen(uuid);
@@ -1209,9 +1204,8 @@ static bool process_indexfile(openslide_t *osr,
   }
 
   // read hierarchical sections
-  if (_openslide_fseek(indexfile, hier_root, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to hier sections root");
+  if (!_openslide_fseek(indexfile, hier_root, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to hier sections root: ");
     goto DONE;
   }
 

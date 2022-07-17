@@ -350,8 +350,8 @@ static bool populate_item(struct _openslide_tifflike *tl,
   }
 
   //g_debug("reading tiff value: len: %"PRId64", offset %"PRIu64, len, item->offset);
-  if (_openslide_fseek(f, item->offset, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't seek to read TIFF value");
+  if (!_openslide_fseek(f, item->offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek to read TIFF value: ");
     goto FAIL;
   }
   if (_openslide_fread(f, buf, len) != (size_t) len) {
@@ -427,8 +427,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
   g_hash_table_insert(loop_detector, key, NULL);
 
   // no loop, let's seek
-  if (_openslide_fseek(f, off, SEEK_SET) != 0) {
-    _openslide_io_error(err, "Cannot seek to offset");
+  if (!_openslide_fseek(f, off, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to offset: ");
     goto FAIL;
   }
 

@@ -72,8 +72,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   if (size == -1) {
     // hash to end of file
-    if (_openslide_fseek(f, 0, SEEK_END)) {
-      _openslide_io_error(err, "Couldn't seek %s", filename);
+    if (!_openslide_fseek(f, 0, SEEK_END, err)) {
+      g_prefix_error(err, "Couldn't seek %s: ", filename);
       goto DONE;
     }
     int64_t len = _openslide_ftell(f);
@@ -86,8 +86,8 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   uint8_t buf[4096];
 
-  if (_openslide_fseek(f, offset, SEEK_SET) == -1) {
-    _openslide_io_error(err, "Can't seek in %s", filename);
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Can't seek in %s: ", filename);
     goto DONE;
   }
 
