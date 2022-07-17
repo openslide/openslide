@@ -26,6 +26,7 @@
 #include "openslide-private.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <errno.h>
 #include <glib.h>
@@ -46,6 +47,18 @@ struct _openslide_file {
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(FILE, fclose)
 
+static void io_error(GError **err, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
+static void io_error(GError **err, const char *fmt, ...) {
+  int my_errno = errno;
+  va_list ap;
+
+  va_start(ap, fmt);
+  g_autofree char *msg = g_strdup_vprintf(fmt, ap);
+  g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(my_errno),
+              "%s: %s", msg, g_strerror(my_errno));
+  va_end(ap);
+}
+
 static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   FILE *f;
 
@@ -64,12 +77,12 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   }
   f = _wfopen(path16, mode16);
   if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
+    io_error(err, "Couldn't open %s", path);
   }
 #else
   f = fopen(path, mode);
   if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
+    io_error(err, "Couldn't open %s", path);
   }
 #endif
 
@@ -88,16 +101,16 @@ struct _openslide_file *_openslide_fopen(const char *path, GError **err)
   if (!FOPEN_CLOEXEC_FLAG[0]) {
     int fd = fileno(f);
     if (fd == -1) {
-      _openslide_io_error(err, "Couldn't fileno() %s", path);
+      io_error(err, "Couldn't fileno() %s", path);
       return NULL;
     }
     long flags = fcntl(fd, F_GETFD);
     if (flags == -1) {
-      _openslide_io_error(err, "Couldn't F_GETFD %s", path);
+      io_error(err, "Couldn't F_GETFD %s", path);
       return NULL;
     }
     if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
-      _openslide_io_error(err, "Couldn't F_SETFD %s", path);
+      io_error(err, "Couldn't F_SETFD %s", path);
       return NULL;
     }
   }

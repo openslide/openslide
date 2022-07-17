@@ -317,8 +317,6 @@ enum OpenSlideError {
 #define OPENSLIDE_ERROR _openslide_error_quark()
 GQuark _openslide_error_quark(void);
 
-void _openslide_io_error(GError **err, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
-
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 
 /* Debug flags */
