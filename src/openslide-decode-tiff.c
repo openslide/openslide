@@ -573,14 +573,9 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   }
 
   // get size
-  if (!_openslide_fseek(f, 0, SEEK_END, err)) {
-    g_prefix_error(err, "Couldn't seek to end of %s: ", tc->filename);
-    _openslide_fclose(f);
-    return NULL;
-  }
-  int64_t size = _openslide_ftell(f, err);
+  int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    g_prefix_error(err, "Couldn't _openslide_ftell() for %s: ", tc->filename);
+    g_prefix_error(err, "Couldn't get size of %s: ", tc->filename);
     _openslide_fclose(f);
     return NULL;
   }

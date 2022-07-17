@@ -153,6 +153,24 @@ off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
   return ret;
 }
 
+off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
+  off_t orig = _openslide_ftell(file, err);
+  if (orig == -1) {
+    return -1;
+  }
+  if (!_openslide_fseek(file, 0, SEEK_END, err)) {
+    return -1;
+  }
+  off_t ret = _openslide_ftell(file, err);
+  if (ret == -1) {
+    return -1;
+  }
+  if (!_openslide_fseek(file, orig, SEEK_SET, err)) {
+    return -1;
+  }
+  return ret;
+}
+
 void _openslide_fclose(struct _openslide_file *file) {
   fclose(file->fp);
   g_slice_free(struct _openslide_file, file);

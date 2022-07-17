@@ -1483,12 +1483,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 			  comment);
     }
 
-    if (!_openslide_fseek(f, 0, SEEK_END, err)) {
-      g_prefix_error(err, "Can't seek to end of JPEG %d: ", i);
-      _openslide_fclose(f);
-      goto FAIL;
-    }
-    jp->end_in_file = _openslide_ftell(f, err);
+    jp->end_in_file = _openslide_fsize(f, err);
     if (jp->end_in_file == -1) {
       g_prefix_error(err, "Can't read file size for JPEG %d: ", i);
       _openslide_fclose(f);

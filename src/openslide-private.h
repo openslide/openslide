@@ -182,6 +182,7 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size);
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err);
 off_t _openslide_ftell(struct _openslide_file *file, GError **err);
+off_t _openslide_fsize(struct _openslide_file *file, GError **err);
 void _openslide_fclose(struct _openslide_file *file);
 bool _openslide_fexists(const char *path, GError **err);
 
