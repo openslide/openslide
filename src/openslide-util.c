@@ -125,7 +125,8 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     total += cur_len;
   }
   if (total != size) {
-    _openslide_io_error(err, "Couldn't read key file %s", filename);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read key file %s", filename);
     goto FAIL;
   }
 
