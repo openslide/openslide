@@ -501,7 +501,7 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
 
   // don't leave the file handle open between calls
   // also ensures FD_CLOEXEC is set
-  FILE *f = _openslide_fopen(hdl->tc->filename, "rb", NULL);
+  FILE *f = _openslide_fopen(hdl->tc->filename, NULL);
   if (f == NULL) {
     return 0;
   }
@@ -557,7 +557,7 @@ static toff_t tiff_do_size(thandle_t th) {
 #undef TIFFClientOpen
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
-  FILE *f = _openslide_fopen(tc->filename, "rb", err);
+  FILE *f = _openslide_fopen(tc->filename, err);
   if (f == NULL) {
     return NULL;
   }

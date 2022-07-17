@@ -175,7 +175,7 @@ bool _openslide_png_read(const char *filename,
                          uint32_t *dest,
                          int64_t w, int64_t h,
                          GError **err) {
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }

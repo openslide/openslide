@@ -66,11 +66,9 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
 }
 #define fopen _OPENSLIDE_POISON(_openslide_fopen)
 
-FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
+FILE *_openslide_fopen(const char *path, GError **err)
 {
-  char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
-  FILE *f = do_fopen(path, m, err);
-  g_free(m);
+  FILE *f = do_fopen(path, "rb" FOPEN_CLOEXEC_FLAG, err);
   if (f == NULL) {
     return NULL;
   }

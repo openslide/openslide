@@ -65,7 +65,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       GError **err) {
   bool success = false;
 
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }

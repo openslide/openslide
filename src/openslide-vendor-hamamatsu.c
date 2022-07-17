@@ -593,7 +593,7 @@ static bool read_from_jpeg(openslide_t *osr,
   volatile bool success = false;
 
   // open file
-  FILE *f = _openslide_fopen(jpeg->filename, "rb", err);
+  FILE *f = _openslide_fopen(jpeg->filename, err);
   if (f == NULL) {
     return false;
   }
@@ -880,7 +880,7 @@ static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
   for (current_jpeg = 0; current_jpeg < num_jpegs; current_jpeg++) {
     struct jpeg *jp = jpegs[current_jpeg];
     CHK(jp->filename);
-    f = _openslide_fopen(jp->filename, "rb", NULL);
+    f = _openslide_fopen(jp->filename, NULL);
     CHK(f);
     for (current_mcu_start = 1; current_mcu_start < jp->tile_count;
          current_mcu_start++) {
@@ -950,7 +950,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
     struct jpeg *jp = data->all_jpegs[current_jpeg];
     if (jp->tile_count > 1) {
       if (current_file == NULL) {
-	current_file = _openslide_fopen(jp->filename, "rb", &tmp_err);
+	current_file = _openslide_fopen(jp->filename, &tmp_err);
 	if (current_file == NULL) {
 	  //g_debug("restart_marker_thread_func fopen failed");
 	  break;
@@ -1432,7 +1432,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     jp->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(jp->filename, "rb", err)) == NULL) {
+    if ((f = _openslide_fopen(jp->filename, err)) == NULL) {
       g_prefix_error(err, "Can't open JPEG %d: ", i);
       goto FAIL;
     }
@@ -1597,7 +1597,7 @@ static bool ngr_read_tile(openslide_t *osr,
 
   if (!tiledata) {
     // read the tile data
-    FILE *f = _openslide_fopen(l->filename, "rb", err);
+    FILE *f = _openslide_fopen(l->filename, err);
     if (!f) {
       return false;
     }
@@ -1708,7 +1708,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     l->filename = g_strdup(image_filenames[i]);
 
     FILE *f;
-    if ((f = _openslide_fopen(l->filename, "rb", err)) == NULL) {
+    if ((f = _openslide_fopen(l->filename, err)) == NULL) {
       goto FAIL;
     }
 
@@ -2013,7 +2013,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       char *optimisation_filename = g_build_filename(dirname, tmp, NULL);
       g_free(tmp);
 
-      optimisation_file = _openslide_fopen(optimisation_filename, "rb", NULL);
+      optimisation_file = _openslide_fopen(optimisation_filename, NULL);
 
       if (optimisation_file == NULL) {
 	// g_debug("Can't open optimisation file");
@@ -2229,7 +2229,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   bool restart_marker_scan = false;
 
   // open file
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (!f) {
     goto FAIL;
   }

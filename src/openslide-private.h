@@ -151,7 +151,7 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 GError **err);
 
 /* fopen() wrapper which properly sets FD_CLOEXEC */
-FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
+FILE *_openslide_fopen(const char *path, GError **err);
 
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */

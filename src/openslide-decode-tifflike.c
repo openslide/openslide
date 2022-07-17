@@ -331,7 +331,7 @@ static bool populate_item(struct _openslide_tifflike *tl,
     return true;
   }
 
-  FILE *f = _openslide_fopen(tl->filename, "rb", err);
+  FILE *f = _openslide_fopen(tl->filename, err);
   if (!f) {
     goto FAIL;
   }
@@ -550,7 +550,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   GHashTable *loop_detector = NULL;
 
   // open file
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (!f) {
     goto FAIL;
   }

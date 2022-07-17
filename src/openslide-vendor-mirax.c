@@ -915,7 +915,7 @@ static void *read_record_data(const char *path,
                               int64_t size, int64_t offset,
                               GError **err) {
   void *buffer = NULL;
-  FILE *f = _openslide_fopen(path, "rb", err);
+  FILE *f = _openslide_fopen(path, err);
   if (!f) {
     return NULL;
   }
@@ -1730,7 +1730,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
-  indexfile = _openslide_fopen(tmp, "rb", err);
+  indexfile = _openslide_fopen(tmp, err);
   g_free(tmp);
   tmp = NULL;
 

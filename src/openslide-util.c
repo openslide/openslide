@@ -91,7 +91,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
   max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return NULL;
   }

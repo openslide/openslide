@@ -177,7 +177,7 @@ bool _openslide_gdkpixbuf_read(const char *format,
                                uint32_t *dest,
                                int32_t w, int32_t h,
                                GError **err) {
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  FILE *f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }
