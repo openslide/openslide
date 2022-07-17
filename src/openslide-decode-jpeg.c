@@ -273,7 +273,7 @@ void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc) {
   g_slice_free(struct _openslide_jpeg_decompress, dc);
 }
 
-static bool jpeg_get_dimensions(FILE *f,  // or:
+static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
                                 const void *buf, uint32_t buflen,
                                 int32_t *w, int32_t *h,
                                 GError **err) {
@@ -320,19 +320,19 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int64_t offset,
                                      int32_t *w, int32_t *h,
                                      GError **err) {
-  FILE *f = _openslide_fopen(filename, err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
-  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+  if (offset && _openslide_fseek(f, offset, SEEK_SET) == -1) {
     _openslide_io_error(err, "Cannot seek to offset");
-    fclose(f);
+    _openslide_fclose(f);
     return false;
   }
 
   bool success = jpeg_get_dimensions(f, NULL, 0, w, h, err);
 
-  fclose(f);
+  _openslide_fclose(f);
   return success;
 }
 
@@ -342,7 +342,7 @@ bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
   return jpeg_get_dimensions(NULL, buf, len, w, h, err);
 }
 
-static bool jpeg_decode(FILE *f,  // or:
+static bool jpeg_decode(struct _openslide_file *f,  // or:
                         const void *buf, uint32_t buflen,
                         void *dest, bool grayscale,
                         int32_t w, int32_t h,
@@ -394,19 +394,19 @@ bool _openslide_jpeg_read(const char *filename,
                           GError **err) {
   //g_debug("read JPEG: %s %"PRId64, filename, offset);
 
-  FILE *f = _openslide_fopen(filename, err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
-  if (offset && fseeko(f, offset, SEEK_SET) == -1) {
+  if (offset && _openslide_fseek(f, offset, SEEK_SET) == -1) {
     _openslide_io_error(err, "Cannot seek to offset");
-    fclose(f);
+    _openslide_fclose(f);
     return false;
   }
 
   bool success = jpeg_decode(f, NULL, 0, dest, false, w, h, err);
 
-  fclose(f);
+  _openslide_fclose(f);
   return success;
 }
 

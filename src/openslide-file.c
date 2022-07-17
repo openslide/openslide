@@ -22,6 +22,7 @@
 
 #include <config.h>
 
+#define NO_POISON_FSEEKO
 #include "openslide-private.h"
 
 #include <stdio.h>
@@ -33,7 +34,15 @@
 #include <fcntl.h>
 #endif
 
+struct _openslide_file {
+  FILE *fp;
+};
+
 #undef fopen
+#undef fread
+#undef fclose
+#undef g_file_test
+
 static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   FILE *f;
 
@@ -64,9 +73,8 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
 
   return f;
 }
-#define fopen _OPENSLIDE_POISON(_openslide_fopen)
 
-FILE *_openslide_fopen(const char *path, GError **err)
+struct _openslide_file *_openslide_fopen(const char *path, GError **err)
 {
   FILE *f = do_fopen(path, "rb" FOPEN_CLOEXEC_FLAG, err);
   if (f == NULL) {
@@ -96,5 +104,37 @@ FILE *_openslide_fopen(const char *path, GError **err)
   }
 #endif
 
-  return f;
+  struct _openslide_file *file = g_slice_new0(struct _openslide_file);
+  file->fp = f;
+  return file;
+}
+
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
+  char *bufp = buf;
+  size_t total = 0;
+  while (total < size) {
+    size_t count = fread(bufp + total, 1, size - total, file->fp);
+    if (count == 0) {
+      return total;
+    }
+    total += count;
+  }
+  return total;
+}
+
+int _openslide_fseek(struct _openslide_file *file, off_t offset, int whence) {
+  return fseeko(file->fp, offset, whence);
+}
+
+off_t _openslide_ftell(struct _openslide_file *file) {
+  return ftello(file->fp);
+}
+
+void _openslide_fclose(struct _openslide_file *file) {
+  fclose(file->fp);
+  g_slice_free(struct _openslide_file, file);
+}
+
+bool _openslide_fexists(const char *path) {
+  return g_file_test(path, G_FILE_TEST_EXISTS);
 }

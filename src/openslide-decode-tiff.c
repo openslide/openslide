@@ -501,17 +501,17 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
 
   // don't leave the file handle open between calls
   // also ensures FD_CLOEXEC is set
-  FILE *f = _openslide_fopen(hdl->tc->filename, NULL);
+  struct _openslide_file *f = _openslide_fopen(hdl->tc->filename, NULL);
   if (f == NULL) {
     return 0;
   }
-  if (fseeko(f, hdl->offset, SEEK_SET)) {
-    fclose(f);
+  if (_openslide_fseek(f, hdl->offset, SEEK_SET)) {
+    _openslide_fclose(f);
     return 0;
   }
-  int64_t rsize = fread(buf, 1, size, f);
+  int64_t rsize = _openslide_fread(f, buf, size);
   hdl->offset += rsize;
-  fclose(f);
+  _openslide_fclose(f);
   return rsize;
 }
 
@@ -557,34 +557,34 @@ static toff_t tiff_do_size(thandle_t th) {
 #undef TIFFClientOpen
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
-  FILE *f = _openslide_fopen(tc->filename, err);
+  struct _openslide_file *f = _openslide_fopen(tc->filename, err);
   if (f == NULL) {
     return NULL;
   }
 
   // read magic
   uint8_t buf[4];
-  if (fread(buf, 4, 1, f) != 1) {
+  if (_openslide_fread(f, buf, 4) != 4) {
     // can't read
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read TIFF magic number for %s", tc->filename);
-    fclose(f);
+    _openslide_fclose(f);
     return NULL;
   }
 
   // get size
-  if (fseeko(f, 0, SEEK_END) == -1) {
+  if (_openslide_fseek(f, 0, SEEK_END) == -1) {
     _openslide_io_error(err, "Couldn't seek to end of %s", tc->filename);
-    fclose(f);
+    _openslide_fclose(f);
     return NULL;
   }
-  int64_t size = ftello(f);
+  int64_t size = _openslide_ftell(f);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't ftello() for %s", tc->filename);
-    fclose(f);
+    _openslide_io_error(err, "Couldn't _openslide_ftell() for %s", tc->filename);
+    _openslide_fclose(f);
     return NULL;
   }
-  fclose(f);
+  _openslide_fclose(f);
 
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks

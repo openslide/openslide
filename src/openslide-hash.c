@@ -65,18 +65,18 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       GError **err) {
   bool success = false;
 
-  FILE *f = _openslide_fopen(filename, err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
 
   if (size == -1) {
     // hash to end of file
-    if (fseeko(f, 0, SEEK_END)) {
+    if (_openslide_fseek(f, 0, SEEK_END)) {
       _openslide_io_error(err, "Couldn't seek %s", filename);
       goto DONE;
     }
-    int64_t len = ftello(f);
+    int64_t len = _openslide_ftell(f);
     if (len == -1) {
       _openslide_io_error(err, "Couldn't get size of %s", filename);
       goto DONE;
@@ -86,7 +86,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   uint8_t buf[4096];
 
-  if (fseeko(f, offset, SEEK_SET) == -1) {
+  if (_openslide_fseek(f, offset, SEEK_SET) == -1) {
     _openslide_io_error(err, "Can't seek in %s", filename);
     goto DONE;
   }
@@ -94,7 +94,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   int64_t bytes_left = size;
   while (bytes_left > 0) {
     int64_t bytes_to_read = MIN((int64_t) sizeof buf, bytes_left);
-    int64_t bytes_read = fread(buf, 1, bytes_to_read, f);
+    int64_t bytes_read = _openslide_fread(f, buf, bytes_to_read);
 
     if (bytes_read != bytes_to_read) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -112,7 +112,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   success = true;
 
 DONE:
-  fclose(f);
+  _openslide_fclose(f);
   return success;
 }
 

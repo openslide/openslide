@@ -91,17 +91,17 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
   max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
-  FILE *f = _openslide_fopen(filename, err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return NULL;
   }
 
   // get file size and check against maximum
-  if (fseeko(f, 0, SEEK_END)) {
+  if (_openslide_fseek(f, 0, SEEK_END)) {
     _openslide_io_error(err, "Couldn't seek %s", filename);
     goto FAIL;
   }
-  int64_t size = ftello(f);
+  int64_t size = _openslide_ftell(f);
   if (size == -1) {
     _openslide_io_error(err, "Couldn't get size of %s", filename);
     goto FAIL;
@@ -113,7 +113,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // read
-  if (fseeko(f, 0, SEEK_SET)) {
+  if (_openslide_fseek(f, 0, SEEK_SET)) {
     _openslide_io_error(err, "Couldn't seek %s", filename);
     goto FAIL;
   }
@@ -121,10 +121,10 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   buf = g_malloc(size + 1);
   int64_t total = 0;
   size_t cur_len;
-  while ((cur_len = fread(buf + total, 1, size + 1 - total, f)) > 0) {
+  while ((cur_len = _openslide_fread(f, buf + total, size + 1 - total)) > 0) {
     total += cur_len;
   }
-  if (ferror(f) || total != size) {
+  if (total != size) {
     _openslide_io_error(err, "Couldn't read key file %s", filename);
     goto FAIL;
   }
@@ -144,12 +144,12 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     goto FAIL;
   }
   g_free(buf);
-  fclose(f);
+  _openslide_fclose(f);
   return key_file;
 
 FAIL:
   g_free(buf);
-  fclose(f);
+  _openslide_fclose(f);
   return NULL;
 }
 
