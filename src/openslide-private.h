@@ -183,7 +183,7 @@ bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err);
 off_t _openslide_ftell(struct _openslide_file *file, GError **err);
 void _openslide_fclose(struct _openslide_file *file);
-bool _openslide_fexists(const char *path);
+bool _openslide_fexists(const char *path, GError **err);
 
 typedef struct _openslide_file _openslide_file;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)

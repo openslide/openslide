@@ -386,21 +386,31 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
   }
 
   // verify existence
-  if (!_openslide_fexists(filename)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "File does not exist");
+  GError *tmp_err = NULL;
+  if (!_openslide_fexists(filename, &tmp_err)) {
+    if (tmp_err != NULL) {
+      g_propagate_prefixed_error(err, tmp_err, "Testing whether file exists: ");
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "File does not exist");
+    }
     return false;
   }
 
   // verify slidedat exists
   char *dirname = g_strndup(filename, strlen(filename) - strlen(MRXS_EXT));
   char *slidedat_path = g_build_filename(dirname, SLIDEDAT_INI, NULL);
-  bool ok = _openslide_fexists(slidedat_path);
+  bool ok = _openslide_fexists(slidedat_path, &tmp_err);
   g_free(slidedat_path);
   g_free(dirname);
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%s does not exist", SLIDEDAT_INI);
+    if (tmp_err != NULL) {
+      g_propagate_prefixed_error(err, tmp_err, "Testing whether %s exists: ",
+                                 SLIDEDAT_INI);
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "%s does not exist", SLIDEDAT_INI);
+    }
     return false;
   }
 

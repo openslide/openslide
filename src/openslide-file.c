@@ -158,6 +158,6 @@ void _openslide_fclose(struct _openslide_file *file) {
   g_slice_free(struct _openslide_file, file);
 }
 
-bool _openslide_fexists(const char *path) {
+bool _openslide_fexists(const char *path, GError **err G_GNUC_UNUSED) {
   return g_file_test(path, G_FILE_TEST_EXISTS);
 }
