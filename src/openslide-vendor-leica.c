@@ -494,7 +494,20 @@ static struct collection *parse_xml_description(const char *xml,
                                 image->nm_offset_y);
 
     image->is_macro = (image->nm_offset_x == 0 &&
-                       image->nm_across == collection->nm_across);
+                       image->nm_offset_y == 0 &&
+                       image->nm_across == collection->nm_across &&
+                       image->nm_down == collection->nm_down);
+
+    float objective;
+    if (strcmp(image->device_model, "Versa") == 0) {
+        /*
+           Note: please refer to: https://github.com/openslide/openslide/pull/348/commits/d2c49b5eec181b7781e600e88df84963dac07280
+           In Aperio Versa SCN files, the macro image has different view sizeY from collection's sizeY, the view offsetY is also not zero.
+           Objective < 2x is likely a macro image
+        */
+        objective = atof(image->objective);
+        image->is_macro = objective < 2 ? 1 : 0;
+    }
 
     // get dimensions
     ctx->node = image_node;
