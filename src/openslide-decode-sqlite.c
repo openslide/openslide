@@ -78,14 +78,13 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   // ":" filename prefix is reserved.
   // "file:" prefix invokes URI filename interpretation if enabled, which
   // might have been done globally.
-  char *path;
+  g_autofree char *path = NULL;
   if (g_str_has_prefix(filename, ":") || g_str_has_prefix(filename, "file:")) {
     path = g_strdup_printf("./%s", filename);
   } else {
     path = g_strdup(filename);
   }
   sqlite3 *db = do_open(path, SQLITE_OPEN_READONLY, err);
-  g_free(path);
   return db;
 }
 
