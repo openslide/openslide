@@ -150,9 +150,6 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
                                 GError **err);
 
-/* fopen() wrapper which properly sets FD_CLOEXEC */
-FILE *_openslide_fopen(const char *path, const char *mode, GError **err);
-
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */
 double _openslide_parse_double(const char *value);
@@ -175,6 +172,22 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           int64_t tile_w, int64_t tile_h,
                           int64_t clip_w, int64_t clip_h,
                           GError **err);
+
+
+// File handling
+struct _openslide_file;
+
+struct _openslide_file *_openslide_fopen(const char *path, GError **err);
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size);
+bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
+                      GError **err);
+off_t _openslide_ftell(struct _openslide_file *file, GError **err);
+off_t _openslide_fsize(struct _openslide_file *file, GError **err);
+void _openslide_fclose(struct _openslide_file *file);
+bool _openslide_fexists(const char *path, GError **err);
+
+typedef struct _openslide_file _openslide_file;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)
 
 
 // Grid helpers
@@ -305,8 +318,6 @@ enum OpenSlideError {
 #define OPENSLIDE_ERROR _openslide_error_quark()
 GQuark _openslide_error_quark(void);
 
-void _openslide_io_error(GError **err, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
-
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 
 /* Debug flags */
@@ -365,8 +376,11 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
    Every @p replacement must be unique to avoid conflicting-type errors. */
 #define _OPENSLIDE_POISON(replacement) error__use_ ## replacement ## _instead
 #define fopen _OPENSLIDE_POISON(_openslide_fopen)
-#define fseek _OPENSLIDE_POISON(fseeko)
-#define ftell _OPENSLIDE_POISON(ftello)
+#define fread _OPENSLIDE_POISON(_openslide_fread)
+#define fseek _OPENSLIDE_POISON(_openslide_fseek)
+#define ftell _OPENSLIDE_POISON(_openslide_ftell)
+#define fclose _OPENSLIDE_POISON(_openslide_fclose)
+#define g_file_test _OPENSLIDE_POISON(_openslide_fexists)
 #define strtod _OPENSLIDE_POISON(_openslide_parse_double)
 #define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double_)
 #define sqlite3_open _OPENSLIDE_POISON(_openslide_sqlite_open)
@@ -377,5 +391,12 @@ void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
 #define TIFFOpen _OPENSLIDE_POISON(_openslide_tiffcache_get__)
 #define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
 
+#ifndef NO_POISON_FSEEKO
+// openslide-file.c needs the original macros
+#undef fseeko
+#undef ftello
+#define fseeko _OPENSLIDE_POISON(_openslide_fseek_)
+#define ftello _OPENSLIDE_POISON(_openslide_ftell_)
+#endif
 
 #endif

@@ -28,6 +28,7 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-decode-tifflike.c \
 	src/openslide-decode-xml.c \
 	src/openslide-error.c \
+	src/openslide-file.c \
 	src/openslide-grid.c \
 	src/openslide-hash.c \
 	src/openslide-jdatasrc.c \

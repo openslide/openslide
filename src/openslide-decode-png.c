@@ -164,8 +164,8 @@ DONE:
 }
 
 static void file_read_callback(png_struct *png, png_byte *buf, png_size_t len) {
-  FILE *f = png_get_io_ptr(png);
-  if (fread(buf, len, 1, f) != 1) {
+  struct _openslide_file *f = png_get_io_ptr(png);
+  if (_openslide_fread(f, buf, len) != len) {
     png_error(png, "Read failed");
   }
 }
@@ -175,17 +175,17 @@ bool _openslide_png_read(const char *filename,
                          uint32_t *dest,
                          int64_t w, int64_t h,
                          GError **err) {
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }
-  if (fseeko(f, offset, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't fseek %s", filename);
-    fclose(f);
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't fseek %s: ", filename);
+    _openslide_fclose(f);
     return false;
   }
   bool ret = png_read(file_read_callback, f, dest, w, h, err);
-  fclose(f);
+  _openslide_fclose(f);
   return ret;
 }
 

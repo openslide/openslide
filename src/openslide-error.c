@@ -25,8 +25,6 @@
 #include "openslide-error.h"
 
 #include <glib.h>
-#include <stdarg.h>
-#include <errno.h>
 
 // public error functions
 const char *openslide_get_error(openslide_t *osr) {
@@ -47,18 +45,6 @@ void _openslide_propagate_error(openslide_t *osr, GError *err) {
 // internal error propagation
 GQuark _openslide_error_quark(void) {
   return g_quark_from_string("openslide-error-quark");
-}
-
-void _openslide_io_error(GError **err, const char *fmt, ...) {
-  int my_errno = errno;
-  va_list ap;
-
-  va_start(ap, fmt);
-  char *msg = g_strdup_vprintf(fmt, ap);
-  g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(my_errno),
-              "%s: %s", msg, g_strerror(my_errno));
-  g_free(msg);
-  va_end(ap);
 }
 
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err) {

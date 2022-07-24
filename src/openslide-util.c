@@ -33,11 +33,6 @@
 #include <cairo.h>
 #include <zlib.h>
 
-#ifdef HAVE_FCNTL
-#include <unistd.h>
-#include <fcntl.h>
-#endif
-
 #define KEY_FILE_HARD_MAX_SIZE (100 << 20)
 
 static const char DEBUG_ENV_VAR[] = "OPENSLIDE_DEBUG";
@@ -96,19 +91,15 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
   max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  struct _openslide_file *f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return NULL;
   }
 
   // get file size and check against maximum
-  if (fseeko(f, 0, SEEK_END)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
-    goto FAIL;
-  }
-  int64_t size = ftello(f);
+  int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't get size of %s", filename);
+    g_prefix_error(err, "Couldn't get size of %s: ", filename);
     goto FAIL;
   }
   if (size > max_size) {
@@ -118,19 +109,16 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // read
-  if (fseeko(f, 0, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
-    goto FAIL;
-  }
   // catch file size changes
   buf = g_malloc(size + 1);
   int64_t total = 0;
   size_t cur_len;
-  while ((cur_len = fread(buf + total, 1, size + 1 - total, f)) > 0) {
+  while ((cur_len = _openslide_fread(f, buf + total, size + 1 - total)) > 0) {
     total += cur_len;
   }
-  if (ferror(f) || total != size) {
-    _openslide_io_error(err, "Couldn't read key file %s", filename);
+  if (total != size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read key file %s", filename);
     goto FAIL;
   }
 
@@ -149,12 +137,12 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     goto FAIL;
   }
   g_free(buf);
-  fclose(f);
+  _openslide_fclose(f);
   return key_file;
 
 FAIL:
   g_free(buf);
-  fclose(f);
+  _openslide_fclose(f);
   return NULL;
 }
 
@@ -201,74 +189,6 @@ ZLIB_ERROR:
   }
   g_free(dst);
   return NULL;
-}
-
-#undef fopen
-static FILE *do_fopen(const char *path, const char *mode, GError **err) {
-  FILE *f;
-
-#ifdef HAVE__WFOPEN
-  wchar_t *path16 = (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
-  if (path16 == NULL) {
-    g_prefix_error(err, "Couldn't open %s: ", path);
-    return NULL;
-  }
-  wchar_t *mode16 = (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
-  if (mode16 == NULL) {
-    g_prefix_error(err, "Bad file mode %s: ", mode);
-    g_free(path16);
-    return NULL;
-  }
-  f = _wfopen(path16, mode16);
-  if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
-  }
-  g_free(mode16);
-  g_free(path16);
-#else
-  f = fopen(path, mode);
-  if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
-  }
-#endif
-
-  return f;
-}
-#define fopen _OPENSLIDE_POISON(_openslide_fopen)
-
-FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
-{
-  char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
-  FILE *f = do_fopen(path, m, err);
-  g_free(m);
-  if (f == NULL) {
-    return NULL;
-  }
-
-  /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
-#ifdef HAVE_FCNTL
-  if (!FOPEN_CLOEXEC_FLAG[0]) {
-    int fd = fileno(f);
-    if (fd == -1) {
-      _openslide_io_error(err, "Couldn't fileno() %s", path);
-      fclose(f);
-      return NULL;
-    }
-    long flags = fcntl(fd, F_GETFD);
-    if (flags == -1) {
-      _openslide_io_error(err, "Couldn't F_GETFD %s", path);
-      fclose(f);
-      return NULL;
-    }
-    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
-      _openslide_io_error(err, "Couldn't F_SETFD %s", path);
-      fclose(f);
-      return NULL;
-    }
-  }
-#endif
-
-  return f;
 }
 
 #undef g_ascii_strtod

@@ -386,40 +386,51 @@ static bool mirax_detect(const char *filename, struct _openslide_tifflike *tl,
   }
 
   // verify existence
-  if (!g_file_test(filename, G_FILE_TEST_EXISTS)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "File does not exist");
+  GError *tmp_err = NULL;
+  if (!_openslide_fexists(filename, &tmp_err)) {
+    if (tmp_err != NULL) {
+      g_propagate_prefixed_error(err, tmp_err, "Testing whether file exists: ");
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "File does not exist");
+    }
     return false;
   }
 
   // verify slidedat exists
   char *dirname = g_strndup(filename, strlen(filename) - strlen(MRXS_EXT));
   char *slidedat_path = g_build_filename(dirname, SLIDEDAT_INI, NULL);
-  bool ok = g_file_test(slidedat_path, G_FILE_TEST_EXISTS);
+  bool ok = _openslide_fexists(slidedat_path, &tmp_err);
   g_free(slidedat_path);
   g_free(dirname);
   if (!ok) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%s does not exist", SLIDEDAT_INI);
+    if (tmp_err != NULL) {
+      g_propagate_prefixed_error(err, tmp_err, "Testing whether %s exists: ",
+                                 SLIDEDAT_INI);
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "%s does not exist", SLIDEDAT_INI);
+    }
     return false;
   }
 
   return true;
 }
 
-static char *read_string_from_file(FILE *f, int len) {
+static char *read_string_from_file(struct _openslide_file *f, int len) {
   char *str = g_malloc(len + 1);
   str[len] = '\0';
 
-  if (fread(str, len, 1, f) != 1) {
+  if (_openslide_fread(f, str, len) != (size_t) len) {
     g_free(str);
     return NULL;
   }
   return str;
 }
 
-static bool read_le_int32_from_file_with_result(FILE *f, int32_t *OUT) {
-  if (fread(OUT, 4, 1, f) != 1) {
+static bool read_le_int32_from_file_with_result(struct _openslide_file *f,
+                                                int32_t *OUT) {
+  if (_openslide_fread(f, OUT, 4) != 4) {
     return false;
   }
 
@@ -429,7 +440,7 @@ static bool read_le_int32_from_file_with_result(FILE *f, int32_t *OUT) {
   return true;
 }
 
-static int32_t read_le_int32_from_file(FILE *f) {
+static int32_t read_le_int32_from_file(struct _openslide_file *f) {
   int32_t i;
 
   if (!read_le_int32_from_file_with_result(f, &i)) {
@@ -441,7 +452,7 @@ static int32_t read_le_int32_from_file(FILE *f) {
 }
 
 
-static bool read_nonhier_record(FILE *f,
+static bool read_nonhier_record(struct _openslide_file *f,
 				int64_t nonhier_root_position,
 				int datafile_count,
 				char **datafile_paths,
@@ -451,9 +462,8 @@ static bool read_nonhier_record(FILE *f,
 				GError **err) {
   g_return_val_if_fail(recordno >= 0, false);
 
-  if (fseeko(f, nonhier_root_position, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier root");
+  if (!_openslide_fseek(f, nonhier_root_position, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier root: ");
     return false;
   }
 
@@ -465,9 +475,8 @@ static bool read_nonhier_record(FILE *f,
   }
 
   // seek to record pointer
-  if (fseeko(f, ptr + 4 * recordno, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier record pointer %d", recordno);
+  if (!_openslide_fseek(f, ptr + 4 * recordno, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier record pointer %d: ", recordno);
     return false;
   }
 
@@ -480,9 +489,8 @@ static bool read_nonhier_record(FILE *f,
   }
 
   // seek
-  if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to nonhier record %d", recordno);
+  if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to nonhier record %d: ", recordno);
     return false;
   }
 
@@ -502,9 +510,8 @@ static bool read_nonhier_record(FILE *f,
   }
 
   // seek to offset
-  if (fseeko(f, ptr, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't seek to initial data page");
+  if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+    g_prefix_error(err, "Can't seek to initial data page: ");
     return false;
   }
 
@@ -673,7 +680,7 @@ static bool get_tile_position(int32_t *slide_positions,
   }
 }
 
-static bool process_hier_data_pages_from_indexfile(FILE *f,
+static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
 						   int64_t seek_location,
 						   int datafile_count,
 						   char **datafile_paths,
@@ -702,9 +709,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
 
     //    g_debug("reading zoom_level %d", zoom_level);
 
-    if (fseeko(f, seek_location, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot seek to zoom level pointer %d", zoom_level);
+    if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
+      g_prefix_error(err, "Cannot seek to zoom level pointer %d: ", zoom_level);
       goto DONE;
     }
 
@@ -714,9 +720,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
                   "Can't read zoom level pointer");
       goto DONE;
     }
-    if (fseeko(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot seek to start of data pages");
+    if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+      g_prefix_error(err, "Cannot seek to start of data pages: ");
       goto DONE;
     }
 
@@ -736,9 +741,8 @@ static bool process_hier_data_pages_from_indexfile(FILE *f,
     }
 
     // seek to offset
-    if (fseeko(f, ptr, SEEK_SET) == -1) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't seek to initial data page");
+    if (!_openslide_fseek(f, ptr, SEEK_SET, err)) {
+      g_prefix_error(err, "Can't seek to initial data page: ");
       goto DONE;
     }
 
@@ -915,28 +919,27 @@ static void *read_record_data(const char *path,
                               int64_t size, int64_t offset,
                               GError **err) {
   void *buffer = NULL;
-  FILE *f = _openslide_fopen(path, "rb", err);
+  struct _openslide_file *f = _openslide_fopen(path, err);
   if (!f) {
     return NULL;
   }
 
-  if (fseeko(f, offset, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek data file");
-    fclose(f);
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek data file: ");
+    _openslide_fclose(f);
     return NULL;
   }
 
   buffer = g_malloc(size);
-  if (fread(buffer, sizeof(char), size, f) != (size_t) size) {
+  if (_openslide_fread(f, buffer, size) != (size_t) size) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Error while reading data");
     g_free(buffer);
-    fclose(f);
+    _openslide_fclose(f);
     return NULL;
   }
 
-  fclose(f);
+  _openslide_fclose(f);
   return buffer;
 }
 
@@ -1003,7 +1006,7 @@ static enum image_format parse_image_format(const char *name, GError **err) {
 }
 
 static bool add_associated_image(openslide_t *osr,
-                                 FILE *indexfile,
+                                 struct _openslide_file *indexfile,
                                  int64_t nonhier_root,
                                  int datafile_count,
                                  char **datafile_paths,
@@ -1046,7 +1049,7 @@ static bool process_indexfile(openslide_t *osr,
 			      double overlap_y,
 			      int image_divisions,
 			      const struct slide_zoom_level_params *slide_zoom_level_params,
-			      FILE *indexfile,
+			      struct _openslide_file *indexfile,
 			      struct level **levels,
 			      struct _openslide_hash *quickhash1,
 			      GError **err) {
@@ -1066,7 +1069,10 @@ static bool process_indexfile(openslide_t *osr,
 
   int32_t *slide_positions = NULL;
 
-  rewind(indexfile);
+  if (!_openslide_fseek(indexfile, 0, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek index file: ");
+    goto DONE;
+  }
 
   // save root positions
   const int64_t hier_root = strlen(INDEX_VERSION) + strlen(uuid);
@@ -1208,9 +1214,8 @@ static bool process_indexfile(openslide_t *osr,
   }
 
   // read hierarchical sections
-  if (fseeko(indexfile, hier_root, SEEK_SET) == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot seek to hier sections root");
+  if (!_openslide_fseek(indexfile, hier_root, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to hier sections root: ");
     goto DONE;
   }
 
@@ -1474,7 +1479,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   int datafile_count = 0;
   char **datafile_paths = NULL;
 
-  FILE *indexfile = NULL;
+  struct _openslide_file *indexfile = NULL;
 
   int64_t base_w = 0;
   int64_t base_h = 0;
@@ -1730,7 +1735,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // read indexfile
   tmp = g_build_filename(dirname, index_filename, NULL);
-  indexfile = _openslide_fopen(tmp, "rb", err);
+  indexfile = _openslide_fopen(tmp, err);
   g_free(tmp);
   tmp = NULL;
 
@@ -2000,7 +2005,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     g_key_file_free(slidedat);
   }
   if (indexfile) {
-    fclose(indexfile);
+    _openslide_fclose(indexfile);
   }
 
   return success;
