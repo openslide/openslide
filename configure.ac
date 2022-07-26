@@ -197,6 +197,9 @@ AS_CASE([$host],
   ]
 )
 
+# Path prefix for glib Valgrind suppressions
+PKG_CHECK_VAR(GLIB2_DATADIR, [gio-2.0], datadir)
+
 # Compiler warnings
 WARN_CFLAGS="-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs"
 AC_SUBST([WARN_CFLAGS])

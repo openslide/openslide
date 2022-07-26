@@ -154,6 +154,7 @@ endif
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
 		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
+		-e 's:!!GLIB2_DATADIR!!:$(GLIB2_DATADIR):g' \
 		-e 's:!!VERSION!!:$(VERSION):g' \
 		-e 's:!!CYGWIN_CROSS_TEST!!:$(CYGWIN_CROSS_TEST):g' \
 		-e 's:!!FEATURES!!:$(FEATURE_FLAGS):g' "$<" > "$@" && \

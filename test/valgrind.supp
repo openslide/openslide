@@ -1,43 +1,5 @@
 # Valgrind suppressions
 
-# The GType initializer "possibly leaks" many things
-{
-   g_type_init() leaks
-   Memcheck:Leak
-   ...
-   fun:g_type_init_with_debug_flags
-}
-{
-   New GObject constructor leaks
-   Memcheck:Leak
-   ...
-   fun:gobject_init_ctor
-}
-{
-   GType registration
-   Memcheck:Leak
-   ...
-   fun:g_type_register_static
-}
-{
-   GType registration
-   Memcheck:Leak
-   ...
-   fun:g_type_register_fundamental
-}
-{
-   GType registration
-   Memcheck:Leak
-   ...
-   fun:g_type_add_interface_static
-}
-{
-   GType referencing
-   Memcheck:Leak
-   ...
-   fun:g_type_class_ref
-}
-
 # fontconfig
 {
     fontconfig leak through cairo_text_extents()
