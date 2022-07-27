@@ -18,59 +18,125 @@ jobs:
     name: Build
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
+    continue-on-error: ${{ matrix.failing || false }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             container: registry.fedoraproject.org/fedora:latest
+            extra: true
+          - os: ubuntu-latest
+            container: quay.io/centos/centos:stream8
+          # Use ubuntu-22.04 to get a newer Docker seccomp filter.  Otherwise
+          # "make check" fails with:
+          #     Spawning child failed: Failed to close file descriptor for child process (Operation not permitted)
+          - os: ubuntu-22.04
+            container: quay.io/centos/centos:stream9
+          - os: ubuntu-latest
+            container: debian:stable
+            ignore-fd-leaks: true
+          - os: ubuntu-20.04
+            ignore-fd-leaks: true
+          - os: ubuntu-22.04
           - os: macos-latest
+            failing: true
     steps:
     - name: Check out repo
-      uses: actions/checkout@v2
-    - name: Install dependencies (Linux)
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: |
-        # Actually a Fedora container
-        dnf install -y \
-          gcc make autoconf automake libtool pkg-config \
-          python3-requests python3-pyyaml \
-          zlib-devel \
-          libpng-devel \
-          libjpeg-turbo-devel \
-          libtiff-devel \
-          openjpeg2-devel \
-          gdk-pixbuf2-modules gdk-pixbuf2-devel \
-          libxml2-devel \
-          sqlite-devel \
-          cairo-devel \
-          glib2-devel \
-          doxygen \
-          xdelta libjpeg-turbo-utils
+      uses: actions/checkout@v3
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
       uses: actions/setup-python@v2
       if: ${{ matrix.os == 'macos-latest' }}
-    - name: Install dependencies (macOS)
-      if: ${{ matrix.os == 'macos-latest' }}
+    - name: Install dependencies
       run: |
-        brew install \
-          gcc make autoconf automake libtool pkg-config \
-          zlib \
-          libpng \
-          jpeg-turbo \
-          libtiff \
-          openjpeg \
-          gdk-pixbuf \
-          libxml2 \
-          sqlite \
-          cairo \
-          glib \
-          xdelta
-        python -m pip install --upgrade pip
-        pip install requests PyYAML
+        case "${{ matrix.os }}" in
+        macos-latest)
+            brew install \
+                gcc make autoconf automake libtool pkg-config \
+                zlib \
+                libpng \
+                jpeg-turbo \
+                libtiff \
+                openjpeg \
+                gdk-pixbuf \
+                libxml2 \
+                sqlite \
+                cairo \
+                glib \
+                xdelta
+            python -m pip install --upgrade pip
+            pip install requests PyYAML
+            ;;
+        ubuntu-*)
+            case "${{ matrix.container }}" in
+            *fedora*|*centos*)
+                pyver=3
+                . /etc/os-release
+                case "$VERSION_ID" in
+                8)
+                    dnf config-manager --set-enabled powertools
+                    pyver=38
+                    python=python38
+                    ;;
+                9)
+                    dnf install -y 'dnf-command(config-manager)'
+                    dnf config-manager --set-enabled crb
+                    dnf copr enable -y bgilbert/xdelta
+                    ;;
+                esac
+
+                dnf install -y \
+                    gcc make autoconf automake libtool pkg-config \
+                    $python python${pyver}-requests python${pyver}-pyyaml \
+                    zlib-devel \
+                    libpng-devel \
+                    libjpeg-turbo-devel \
+                    libtiff-devel \
+                    openjpeg2-devel \
+                    gdk-pixbuf2-modules gdk-pixbuf2-devel \
+                    libxml2-devel \
+                    sqlite-devel \
+                    cairo-devel \
+                    glib2-devel \
+                    doxygen \
+                    xdelta libjpeg-turbo-utils
+                ;;
+            *debian*|"")
+                if [ -n "${{ matrix.container }}" ]; then
+                    # Debian container
+                    jpeg=libjpeg-dev
+                else
+                    # Ubuntu, on host
+                    jpeg=libjpeg-turbo8-dev
+                    sudo=sudo
+                fi
+                $sudo apt-get update
+                $sudo apt-get -y install \
+                    gcc make autoconf automake libtool pkg-config \
+                    python3-requests python3-yaml \
+                    zlib1g-dev \
+                    libpng-dev \
+                    $jpeg \
+                    libtiff-dev \
+                    libopenjp2-7-dev \
+                    libgdk-pixbuf2.0-dev \
+                    libxml2-dev \
+                    libsqlite3-dev \
+                    libcairo2-dev \
+                    libglib2.0-dev \
+                    doxygen \
+                    xdelta3 libjpeg-turbo-progs
+                ;;
+            esac
+        esac
     - name: Build
       run: |
         autoreconf -i
+        if [ -n "${{ matrix.ignore-fd-leaks }}" ]; then
+            # Some distro versions have leaky libraries
+            echo "Disabling file descriptor leak check"
+            export CPPFLAGS="-DNONATOMIC_CLOEXEC"
+        fi
         ./configure
         make -j4 CFLAGS="-O2 -g -Werror"
     - name: Check
@@ -83,7 +149,7 @@ jobs:
         key: pristine
         path: test/_slidedata/pristine
     - name: Check for overlarge tests
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+      if: matrix.extra
       run: |
         # We don't want to allow arbitrarily large binary diffs into the
         # repo, where they'll live in the Git history forever.  At the time
@@ -104,11 +170,9 @@ jobs:
         ./driver unfreeze
         ./driver unpack nonfrozen
     - name: Test
-      # Temporarily, until macOS is fixed
-      continue-on-error: true
       run: cd test && ./driver run
     - name: Check exports
-      if: ${{ matrix.os == 'ubuntu-latest' }}
+      if: matrix.extra
       run: cd test && ./driver exports
 
   windows_setup:
@@ -148,7 +212,7 @@ jobs:
     container: registry.fedoraproject.org/fedora:latest
     steps:
     - name: Check out repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Install tools
       run: dnf install -y doxygen
     - name: Build

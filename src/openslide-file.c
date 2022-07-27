@@ -45,7 +45,10 @@ struct _openslide_file {
 #undef fclose
 #undef g_file_test
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(FILE, fclose)
+static void wrap_fclose(FILE *fp) {
+  fclose(fp);
+}
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(FILE, wrap_fclose)
 
 static void io_error(GError **err, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 static void io_error(GError **err, const char *fmt, ...) {
