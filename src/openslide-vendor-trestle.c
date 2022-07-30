@@ -300,7 +300,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   int32_t level_count = 0;
 
   // open TIFF
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   TIFF *tiff = _openslide_tiffcache_get(tc, err);
   if (!tiff) {
     goto FAIL;
@@ -429,7 +429,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 
   // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
-  data->tc = tc;
+  data->tc = g_steal_pointer(&tc);
 
   return true;
 
@@ -437,7 +437,6 @@ FAIL:
   destroy_data(data, levels, level_count);
   g_free(overlaps);
   _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

@@ -555,7 +555,7 @@ static bool philips_open(openslide_t *osr,
   bool success = false;
 
   // open TIFF
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   TIFF *tiff = _openslide_tiffcache_get(tc, err);
   if (!tiff) {
     goto FAIL;
@@ -712,7 +712,7 @@ static bool philips_open(openslide_t *osr,
 
   // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
-  data->tc = tc;
+  data->tc = g_steal_pointer(&tc);
 
   // done
   success = true;
@@ -730,7 +730,6 @@ FAIL:
   }
   // free TIFF
   _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
 
 DONE:
   // free XML
