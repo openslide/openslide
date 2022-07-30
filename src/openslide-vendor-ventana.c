@@ -169,7 +169,7 @@ static bool read_subtile(openslide_t *osr,
   double subtile_y = subtile_row % l->subtiles_per_tile * subtile_h;
 
   // get tile data, possibly from cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
@@ -226,9 +226,6 @@ static bool read_subtile(openslide_t *osr,
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return success;
 }

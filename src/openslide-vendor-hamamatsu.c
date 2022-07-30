@@ -696,7 +696,7 @@ static bool read_jpeg_tile(openslide_t *osr,
   //g_debug("hamamatsu read_tile: jpeg %d %d, local %d %d, tile %d, dim %d %d", jpeg_col, jpeg_row, local_tile_col, local_tile_row, tileno, tw, th);
 
   // get the jpeg data, possibly from cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
@@ -728,9 +728,6 @@ static bool read_jpeg_tile(openslide_t *osr,
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }
@@ -1604,7 +1601,7 @@ static bool ngr_read_tile(openslide_t *osr,
   int64_t tw = l->column_width;
   int64_t th = MIN(NGR_TILE_HEIGHT, l->base.h - tile_y * NGR_TILE_HEIGHT);
   int tilesize = tw * th * 4;
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   // look up tile in cache
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tile_x, tile_y,
                                             &cache_entry);
@@ -1667,9 +1664,6 @@ static bool ngr_read_tile(openslide_t *osr,
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }

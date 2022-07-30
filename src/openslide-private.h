@@ -305,6 +305,10 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 // value unref
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
 
+typedef struct _openslide_cache_entry _openslide_cache_entry;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_cache_entry,
+                              _openslide_cache_entry_unref)
+
 
 /* Internal error propagation */
 enum OpenSlideError {

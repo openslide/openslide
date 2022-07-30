@@ -274,7 +274,7 @@ static bool read_tile(openslide_t *osr,
   //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", tile->src_x, tile->src_y, l->image_width, l->image_height, l->tile_w, l->tile_h, x, y, w, h);
 
   // get the image data, possibly from cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level,
                                             tile->image->imageno,
@@ -325,9 +325,6 @@ static bool read_tile(openslide_t *osr,
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return success;
 }
