@@ -285,7 +285,7 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
     }
 
     // read data
-    void *buf;
+    g_autofree void *buf = NULL;
     int32_t buflen;
     if (!_openslide_tiff_read_tile_data(tiffl, tiff,
                                         &buf, &buflen,
@@ -295,13 +295,11 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
     }
 
     // decompress
-    bool ret = decode_jpeg(buf, buflen, tables, tables_len,
-                           tiffl->photometric == PHOTOMETRIC_YCBCR ? JCS_YCbCr : JCS_RGB,
-                           dest,
-                           tiffl->tile_w, tiffl->tile_h,
-                           err);
-    g_free(buf);
-    return ret;
+    return decode_jpeg(buf, buflen, tables, tables_len,
+                       tiffl->photometric == PHOTOMETRIC_YCBCR ? JCS_YCbCr : JCS_RGB,
+                       dest,
+                       tiffl->tile_w, tiffl->tile_h,
+                       err);
   } else {
     // Fallback: read tile through libtiff
     _openslide_performance_warn_once(&tiffl->warned_read_indirect,
@@ -339,17 +337,16 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   tsize_t tile_size = sizes[tile_no];
 
   // get raw tile
-  tdata_t buf = g_malloc(tile_size);
+  g_autofree tdata_t buf = g_malloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read raw tile");
-    g_free(buf);
     return false;
   }
 
   // set outputs
-  *_buf = buf;
+  *_buf = g_steal_pointer(&buf);
   *_len = size;
   return true;
 }
@@ -496,17 +493,15 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
 
   // don't leave the file handle open between calls
   // also ensures FD_CLOEXEC is set
-  struct _openslide_file *f = _openslide_fopen(hdl->tc->filename, NULL);
+  g_autoptr(_openslide_file) f = _openslide_fopen(hdl->tc->filename, NULL);
   if (f == NULL) {
     return 0;
   }
   if (!_openslide_fseek(f, hdl->offset, SEEK_SET, NULL)) {
-    _openslide_fclose(f);
     return 0;
   }
   int64_t rsize = _openslide_fread(f, buf, size);
   hdl->offset += rsize;
-  _openslide_fclose(f);
   return rsize;
 }
 
@@ -552,7 +547,7 @@ static toff_t tiff_do_size(thandle_t th) {
 #undef TIFFClientOpen
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
-  struct _openslide_file *f = _openslide_fopen(tc->filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(tc->filename, err);
   if (f == NULL) {
     return NULL;
   }
@@ -563,7 +558,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     // can't read
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read TIFF magic number for %s", tc->filename);
-    _openslide_fclose(f);
     return NULL;
   }
 
@@ -571,10 +565,8 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
     g_prefix_error(err, "Couldn't get size of %s: ", tc->filename);
-    _openslide_fclose(f);
     return NULL;
   }
-  _openslide_fclose(f);
 
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks
