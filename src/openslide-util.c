@@ -73,8 +73,6 @@ void _openslide_int64_free(gpointer data) {
 
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err) {
-  char *buf = NULL;
-
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
    * because the load_from_file function incorrectly parses a value when
@@ -93,7 +91,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
   max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return NULL;
   }
@@ -102,17 +100,17 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
     g_prefix_error(err, "Couldn't get size of %s: ", filename);
-    goto FAIL;
+    return NULL;
   }
   if (size > max_size) {
     g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                 "Key file %s too large", filename);
-    goto FAIL;
+    return NULL;
   }
 
   // read
   // catch file size changes
-  buf = g_malloc(size + 1);
+  g_autofree char *buf = g_malloc(size + 1);
   int64_t total = 0;
   size_t cur_len;
   while ((cur_len = _openslide_fread(f, buf + total, size + 1 - total)) > 0) {
@@ -121,7 +119,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   if (total != size) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read key file %s", filename);
-    goto FAIL;
+    return NULL;
   }
 
   /* skip the UTF-8 BOM if it is present. */
@@ -131,27 +129,35 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // parse
-  GKeyFile *key_file = g_key_file_new();
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
   if (!g_key_file_load_from_data(key_file,
                                  buf + offset, size - offset,
                                  flags, err)) {
-    g_key_file_free(key_file);
-    goto FAIL;
+    return NULL;
   }
-  g_free(buf);
-  _openslide_fclose(f);
-  return key_file;
+  return g_steal_pointer(&key_file);
+}
 
-FAIL:
-  g_free(buf);
-  _openslide_fclose(f);
-  return NULL;
+static void zlib_error(z_stream *strm, int64_t dst_len, int error_code,
+                       GError **err) {
+  if (error_code == Z_STREAM_END) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read while decompressing: %lu/%"PRId64,
+                strm->total_out, dst_len);
+  } else if (strm->msg) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s (%s)",
+                zError(error_code), strm->msg);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s", zError(error_code));
+  }
 }
 
 void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
                                 GError **err) {
-  void *dst = g_malloc(dst_len);
+  g_autofree void *dst = g_malloc(dst_len);
   z_stream strm = {
     .avail_in = src_len,
     .avail_out = dst_len,
@@ -159,38 +165,23 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
     .next_out = (Bytef *) dst
   };
 
-  int64_t error_code = -1;
-
-  error_code = inflateInit(&strm);
+  int64_t error_code = inflateInit(&strm);
   if (error_code != Z_OK) {
-    goto ZLIB_ERROR;
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
   }
   error_code = inflate(&strm, Z_FINISH);
   if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
     inflateEnd(&strm);
-    goto ZLIB_ERROR;
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
   }
   error_code = inflateEnd(&strm);
   if (error_code != Z_OK) {
-    goto ZLIB_ERROR;
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
   }
-
-  return dst;
-
-ZLIB_ERROR:
-  if (error_code == Z_STREAM_END) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Short read while decompressing: %lu/%"PRId64,
-                strm.total_out, dst_len);
-  } else if (strm.msg) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Decompression failure: %s (%s)", zError(error_code), strm.msg);
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Decompression failure: %s", zError(error_code));
-  }
-  g_free(dst);
-  return NULL;
+  return g_steal_pointer(&dst);
 }
 
 #undef g_ascii_strtod
@@ -198,7 +189,7 @@ double _openslide_parse_double(const char *value) {
   // Canonicalize comma to decimal point, since the locale of the
   // originating system sometimes leaks into slide files.
   // This will break if the value includes grouping characters.
-  char *canonical = g_strdup(value);
+  g_autofree char *canonical = g_strdup(value);
   g_strdelimit(canonical, ",", '.');
 
   char *endptr;
@@ -206,10 +197,8 @@ double _openslide_parse_double(const char *value) {
   double result = g_ascii_strtod(canonical, &endptr);
   // fail on overflow/underflow
   if (canonical[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
-    result = NAN;
+    return NAN;
   }
-
-  g_free(canonical);
   return result;
 }
 #define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double)
@@ -322,7 +311,7 @@ void _openslide_debug_init(void) {
     return;
   }
 
-  char **keywords = g_strsplit(debug_str, ",", 0);
+  g_auto(GStrv) keywords = g_strsplit(debug_str, ",", 0);
   bool printed_help = false;
   for (char **kw = keywords; *kw; kw++) {
     g_strstrip(*kw);
@@ -342,7 +331,6 @@ void _openslide_debug_init(void) {
       }
     }
   }
-  g_strfreev(keywords);
 }
 
 bool _openslide_debug(enum _openslide_debug_flag flag) {
