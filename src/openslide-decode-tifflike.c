@@ -184,7 +184,7 @@ static uint64_t fix_offset_ndpi(uint64_t diroff, uint64_t offset) {
     if (!OUT) {								\
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
                   "Cannot allocate TIFF value array");			\
-      goto FAIL;							\
+      return false;							\
     }									\
   } while (0)
 
@@ -315,9 +315,6 @@ static bool set_item_values(struct tiff_item *item,
   // record that we've set all values
   item->offset = NO_OFFSET;
   return true;
-
-FAIL:
-  return false;
 }
 
 static bool populate_item(struct _openslide_tifflike *tl,
