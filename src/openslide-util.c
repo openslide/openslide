@@ -297,13 +297,12 @@ bool _openslide_clip_tile(uint32_t *tiledata,
     return true;
   }
 
-  cairo_surface_t *surface =
+  g_autoptr(cairo_surface_t) surface =
     cairo_image_surface_create_for_data((unsigned char *) tiledata,
                                         CAIRO_FORMAT_ARGB32,
                                         tile_w, tile_h,
                                         tile_w * 4);
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
+  g_autoptr(cairo_t) cr = cairo_create(surface);
 
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 
@@ -313,10 +312,7 @@ bool _openslide_clip_tile(uint32_t *tiledata,
   cairo_rectangle(cr, 0, clip_h, tile_w, tile_h - clip_h);
   cairo_fill(cr);
 
-  bool success = _openslide_check_cairo_status(cr, err);
-  cairo_destroy(cr);
-
-  return success;
+  return _openslide_check_cairo_status(cr, err);
 }
 
 // note: g_getenv() is not reentrant

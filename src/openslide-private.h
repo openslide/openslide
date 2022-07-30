@@ -34,6 +34,7 @@
 
 #include <cairo.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_t, cairo_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
 
 /* the associated image structure */

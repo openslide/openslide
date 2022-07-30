@@ -91,46 +91,43 @@ static bool render_missing_tile(struct level *l,
                                 uint32_t *dest,
                                 int64_t tile_col, int64_t tile_row,
                                 GError **err) {
-  bool success = true;
-
   int64_t tw = l->tiffl.tile_w;
   int64_t th = l->tiffl.tile_h;
 
   // always fill with transparent (needed for SATURATE)
   memset(dest, 0, tw * th * 4);
 
-  if (l->prev) {
-    // recurse into previous level
-    double relative_ds = l->prev->base.downsample / l->base.downsample;
-
-    cairo_surface_t *surface =
-      cairo_image_surface_create_for_data((unsigned char *) dest,
-                                          CAIRO_FORMAT_ARGB32,
-                                          tw, th, tw * 4);
-    cairo_t *cr = cairo_create(surface);
-    cairo_surface_destroy(surface);
-    cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
-    cairo_translate(cr, -1, -1);
-    cairo_scale(cr, relative_ds, relative_ds);
-
-    // For the usual case that we are on a tile boundary in the previous
-    // level, extend the region by one pixel in each direction to ensure we
-    // paint the surrounding tiles.  This reduces the visible seam that
-    // would otherwise occur with non-integer downsamples.
-    success = _openslide_grid_paint_region(l->prev->grid, cr, tiff,
-                                           (tile_col * tw - 1) / relative_ds,
-                                           (tile_row * th - 1) / relative_ds,
-                                           (struct _openslide_level *) l->prev,
-                                           ceil((tw + 2) / relative_ds),
-                                           ceil((th + 2) / relative_ds),
-                                           err);
-    if (success) {
-      success = _openslide_check_cairo_status(cr, err);
-    }
-    cairo_destroy(cr);
+  if (l->prev == NULL) {
+    // no previous levels; nothing to do
+    return true;
   }
 
-  return success;
+  // recurse into previous level
+  double relative_ds = l->prev->base.downsample / l->base.downsample;
+
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) dest,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tw, th, tw * 4);
+  g_autoptr(cairo_t) cr = cairo_create(surface);
+  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+  cairo_translate(cr, -1, -1);
+  cairo_scale(cr, relative_ds, relative_ds);
+
+  // For the usual case that we are on a tile boundary in the previous
+  // level, extend the region by one pixel in each direction to ensure we
+  // paint the surrounding tiles.  This reduces the visible seam that
+  // would otherwise occur with non-integer downsamples.
+  if (!_openslide_grid_paint_region(l->prev->grid, cr, tiff,
+                                    (tile_col * tw - 1) / relative_ds,
+                                    (tile_row * th - 1) / relative_ds,
+                                    (struct _openslide_level *) l->prev,
+                                    ceil((tw + 2) / relative_ds),
+                                    ceil((th + 2) / relative_ds),
+                                    err)) {
+    return false;
+  }
+  return _openslide_check_cairo_status(cr, err);
 }
 
 static bool decode_tile(struct level *l,
@@ -228,12 +225,11 @@ static bool read_tile(openslide_t *osr,
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-								 CAIRO_FORMAT_ARGB32,
-								 tw, th,
-								 tw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
 
   return true;

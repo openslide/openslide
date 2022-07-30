@@ -295,10 +295,10 @@ static bool read_tile(openslide_t *osr,
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                 CAIRO_FORMAT_RGB24,
-                                                                 iw, ih,
-                                                                 iw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_RGB24,
+                                        iw, ih, iw * 4);
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
@@ -307,7 +307,7 @@ static bool read_tile(openslide_t *osr,
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(l->tile_w),
                                                            ceil(l->tile_h));
-    cairo_t *cr2 = cairo_create(surface2);
+    g_autoptr(cairo_t) cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -tile->src_x, -tile->src_y);
 
     // replace original image surface
@@ -319,11 +319,9 @@ static bool read_tile(openslide_t *osr,
                     ceil(l->tile_h));
     cairo_fill(cr2);
     success = _openslide_check_cairo_status(cr2, err);
-    cairo_destroy(cr2);
   }
 
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
 
   return success;

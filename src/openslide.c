@@ -527,7 +527,7 @@ static bool read_region_area(openslide_t *osr,
                              int64_t w, int64_t h,
                              GError **err) {
   // create the cairo surface for the dest
-  cairo_surface_t *surface;
+  g_autoptr(cairo_surface_t) surface = NULL;
   if (dest) {
     surface =
       cairo_image_surface_create_for_data((unsigned char *) dest,
@@ -539,22 +539,18 @@ static bool read_region_area(openslide_t *osr,
   }
 
   // create the cairo context
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
+  g_autoptr(cairo_t) cr = cairo_create(surface);
 
   // paint
   if (!read_region(osr, cr, x, y, level, w, h, err)) {
-    cairo_destroy(cr);
     return false;
   }
 
   // done
   if (!_openslide_check_cairo_status(cr, err)) {
-    cairo_destroy(cr);
     return false;
   }
 
-  cairo_destroy(cr);
   return true;
 }
 
