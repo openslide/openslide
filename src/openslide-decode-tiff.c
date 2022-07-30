@@ -579,7 +579,9 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // check magic
   // TODO: remove if libtiff gets private error/warning callbacks
   if (buf[0] != buf[1]) {
-    goto NOT_TIFF;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a TIFF file: %s", tc->filename);
+    return NULL;
   }
   uint16_t version;
   switch (buf[0]) {
@@ -592,10 +594,14 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     version = (buf[3] << 8) | buf[2];
     break;
   default:
-    goto NOT_TIFF;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a TIFF file: %s", tc->filename);
+    return NULL;
   }
   if (version != 42 && version != 43) {
-    goto NOT_TIFF;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a TIFF file: %s", tc->filename);
+    return NULL;
   }
 
   // allocate
@@ -614,11 +620,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     tiff_do_close(hdl);
   }
   return tiff;
-
-NOT_TIFF:
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-              "Not a TIFF file: %s", tc->filename);
-  return NULL;
 }
 #define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
 
