@@ -63,9 +63,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 			       const char *filename,
 			       int64_t offset, int64_t size,
 			       GError **err) {
-  bool success = false;
-
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
@@ -75,7 +73,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     int64_t len = _openslide_fsize(f, err);
     if (len == -1) {
       g_prefix_error(err, "Couldn't get size of %s: ", filename);
-      goto DONE;
+      return false;
     }
     size = len - offset;
   }
@@ -85,7 +83,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   if (offset != 0) {
     if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
       g_prefix_error(err, "Can't seek in %s: ", filename);
-      goto DONE;
+      return false;
     }
   }
 
@@ -97,7 +95,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     if (bytes_read != bytes_to_read) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read from %s", filename);
-      goto DONE;
+      return false;
     }
 
     //    g_debug("hash '%s' %"PRId64" %d", filename, offset + (size - bytes_left), bytes_to_read);
@@ -107,11 +105,7 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     _openslide_hash_data(hash, buf, bytes_read);
   }
 
-  success = true;
-
-DONE:
-  _openslide_fclose(f);
-  return success;
+  return true;
 }
 
 // Invalidate this hash.  Use if this slide is unhashable for some reason.
