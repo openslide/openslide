@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
- *  Copyright (c) 2021      Benjamin Gilbert
+ *  Copyright (c) 2021-2022 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -140,32 +140,32 @@ static bool open_backend(openslide_t *osr,
                          struct _openslide_tifflike *tl,
                          struct _openslide_hash **quickhash1_OUT,
                          GError **err) {
+  g_autoptr(_openslide_hash) quickhash1 = NULL;
   if (quickhash1_OUT) {
-    *quickhash1_OUT = _openslide_hash_quickhash1_create();
+    quickhash1 = _openslide_hash_quickhash1_create();
   }
 
-  bool result = format->open(osr, filename, tl,
-                             quickhash1_OUT ? *quickhash1_OUT : NULL,
-                             err);
-
-  // check for error-handling bugs in open function
-  if (!result && err && !*err) {
-    g_warning("%s opener failed without setting error", format->name);
-    // assume the worst
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unknown error");
+  if (!format->open(osr, filename, tl, quickhash1, err)) {
+    if (err && !*err) {
+      // error-handling bug in open function
+      g_warning("%s opener failed without setting error", format->name);
+      // assume the worst
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unknown error");
+    }
+    return false;
   }
-  if (result && err && *err) {
+  if (err && *err) {
+    // error-handling bug in open function
     g_warning("%s opener succeeded but set error", format->name);
-    result = false;
+    return false;
   }
 
-  // if we have a hash and a false result, destroy
-  if (quickhash1_OUT && !result) {
-    _openslide_hash_destroy(*quickhash1_OUT);
+  if (quickhash1_OUT) {
+    *quickhash1_OUT = g_steal_pointer(&quickhash1);
   }
 
-  return result;
+  return true;
 }
 
 const char *openslide_detect_vendor(const char *filename) {
@@ -226,7 +226,7 @@ openslide_t *openslide_open(const char *filename) {
   openslide_t *osr = create_osr();
 
   // open backend
-  struct _openslide_hash *quickhash1 = NULL;
+  g_autoptr(_openslide_hash) quickhash1 = NULL;
   bool success = open_backend(osr, format, filename, tl, &quickhash1,
                               &tmp_err);
   _openslide_tifflike_destroy(tl);
@@ -261,7 +261,6 @@ openslide_t *openslide_open(const char *filename) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
 		osr->levels[i]->downsample, osr->levels[i - 1]->downsample);
       openslide_close(osr);
-      _openslide_hash_destroy(quickhash1);
       return NULL;
     }
   }
@@ -273,7 +272,6 @@ openslide_t *openslide_open(const char *filename) {
                         g_strdup(OPENSLIDE_PROPERTY_NAME_QUICKHASH1),
                         g_strdup(hash_str));
   }
-  _openslide_hash_destroy(quickhash1);
 
   // set other properties
   g_hash_table_insert(osr->properties,
