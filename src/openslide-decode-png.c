@@ -175,18 +175,15 @@ bool _openslide_png_read(const char *filename,
                          uint32_t *dest,
                          int64_t w, int64_t h,
                          GError **err) {
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't fseek %s: ", filename);
-    _openslide_fclose(f);
     return false;
   }
-  bool ret = png_read(file_read_callback, f, dest, w, h, err);
-  _openslide_fclose(f);
-  return ret;
+  return png_read(file_read_callback, f, dest, w, h, err);
 }
 
 struct mem {
