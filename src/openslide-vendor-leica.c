@@ -396,7 +396,7 @@ static struct collection *parse_xml_description(const char *xml,
   // parse the xml
   xmlDoc *doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
-    return false;
+    return NULL;
   }
 
   // create XPATH context to query the document
