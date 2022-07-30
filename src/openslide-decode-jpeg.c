@@ -314,20 +314,16 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int64_t offset,
                                      int32_t *w, int32_t *h,
                                      GError **err) {
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
   if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Cannot seek to offset: ");
-    _openslide_fclose(f);
     return false;
   }
 
-  bool success = jpeg_get_dimensions(f, NULL, 0, w, h, err);
-
-  _openslide_fclose(f);
-  return success;
+  return jpeg_get_dimensions(f, NULL, 0, w, h, err);
 }
 
 bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
@@ -383,20 +379,16 @@ bool _openslide_jpeg_read(const char *filename,
                           GError **err) {
   //g_debug("read JPEG: %s %"PRId64, filename, offset);
 
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return false;
   }
   if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Cannot seek to offset: ");
-    _openslide_fclose(f);
     return false;
   }
 
-  bool success = jpeg_decode(f, NULL, 0, dest, false, w, h, err);
-
-  _openslide_fclose(f);
-  return success;
+  return jpeg_decode(f, NULL, 0, dest, false, w, h, err);
 }
 
 bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
