@@ -215,11 +215,10 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
                         uint32_t *dest,
                         int32_t w, int32_t h,
                         GError **err) {
-  volatile bool result = false;
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  struct _openslide_jpeg_decompress *dc =
+  g_autoptr(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -231,7 +230,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
       if (jpeg_read_header(cinfo, false) != JPEG_HEADER_TABLES_ONLY) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Couldn't load JPEG tables");
-        goto DONE;
+        return false;
       }
     }
 
@@ -242,7 +241,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
-      goto DONE;
+      return false;
     }
 
     // set color space from TIFF photometric tag (for Aperio)
@@ -250,18 +249,14 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
 
     // decompress
     if (!_openslide_jpeg_decompress_run(dc, dest, false, w, h, err)) {
-      goto DONE;
+      return false;
     }
-    result = true;
+    return true;
   } else {
     // setjmp has returned again
     _openslide_jpeg_propagate_error(err, dc);
+    return false;
   }
-
-DONE:
-  _openslide_jpeg_decompress_destroy(dc);
-
-  return result;
 }
 
 bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,

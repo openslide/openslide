@@ -613,7 +613,7 @@ static bool read_from_jpeg(openslide_t *osr,
 
   // begin decompress
   struct jpeg_decompress_struct *cinfo;
-  struct _openslide_jpeg_decompress *dc =
+  g_autoptr(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
   jmp_buf env;
 
@@ -665,7 +665,6 @@ static bool read_from_jpeg(openslide_t *osr,
   }
 
 OUT:
-  _openslide_jpeg_decompress_destroy(dc);
   _openslide_fclose(f);
   return success;
 }
@@ -1008,7 +1007,6 @@ static bool validate_jpeg_header(struct _openslide_file *f,
                                  int64_t *header_stop_position,
                                  char **comment, GError **err) {
   jmp_buf env;
-  volatile bool success = false;
 
   if (comment) {
     *comment = NULL;
@@ -1025,7 +1023,7 @@ static bool validate_jpeg_header(struct _openslide_file *f,
   }
 
   struct jpeg_decompress_struct *cinfo;
-  struct _openslide_jpeg_decompress *dc =
+  g_autoptr(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -1033,7 +1031,7 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     if (!jpeg_random_access_src(cinfo, f,
                                 header_start, *sof_position,
                                 *header_stop_position, -1, -1, err)) {
-      goto DONE;
+      return false;
     }
 
     if (comment) {
@@ -1044,18 +1042,18 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
-      goto DONE;
+      return false;
     }
     if (cinfo->num_components != 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "JPEG color components != 3");
-      goto DONE;
+      return false;
     }
     if (cinfo->restart_interval == 0) {
       g_set_error(err, OPENSLIDE_HAMAMATSU_ERROR,
                   OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
                   "No restart markers");
-      goto DONE;
+      return false;
     }
 
     jpeg_start_decompress(cinfo);
@@ -1091,31 +1089,26 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     if (cinfo->restart_interval > mcus_per_row) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Restart interval greater than MCUs per row");
-      goto DONE;
+      return false;
     }
 
     int leftover_mcus = mcus_per_row % cinfo->restart_interval;
     if (leftover_mcus != 0) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Inconsistent restart marker spacing within row");
-      goto DONE;
+      return false;
     }
 
     *tw = mcu_width * cinfo->restart_interval;
     *th = mcu_height;
 
     //g_debug("size: %d %d, tile size: %d %d, mcu size: %d %d, restart_interval: %d, mcus_per_row: %u, leftover mcus: %d", *w, *h, *tw, *th, mcu_width, mcu_height, cinfo->restart_interval, mcus_per_row, leftover_mcus);
+    return true;
   } else {
     // setjmp has returned again
     _openslide_jpeg_propagate_error(err, dc);
-    goto DONE;
+    return false;
   }
-
-  success = true;
-
-DONE:
-  _openslide_jpeg_decompress_destroy(dc);
-  return success;
 }
 
 static int64_t *extract_optimisations_for_one_jpeg(struct _openslide_file *opt_f,

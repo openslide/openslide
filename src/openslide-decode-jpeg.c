@@ -277,11 +277,10 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
                                 const void *buf, uint32_t buflen,
                                 int32_t *w, int32_t *h,
                                 GError **err) {
-  volatile bool result = false;
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  struct _openslide_jpeg_decompress *dc =
+  g_autoptr(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -296,24 +295,19 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
-      goto DONE;
+      return false;
     }
 
     jpeg_calc_output_dimensions(cinfo);
 
     *w = cinfo->output_width;
     *h = cinfo->output_height;
-    result = true;
+    return true;
   } else {
     // setjmp returned again
     _openslide_jpeg_propagate_error(err, dc);
+    return false;
   }
-
-DONE:
-  // free buffers
-  _openslide_jpeg_decompress_destroy(dc);
-
-  return result;
 }
 
 bool _openslide_jpeg_read_dimensions(const char *filename,
@@ -347,11 +341,10 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
                         void *dest, bool grayscale,
                         int32_t w, int32_t h,
                         GError **err) {
-  volatile bool result = false;
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  struct _openslide_jpeg_decompress *dc =
+  g_autoptr(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -368,23 +361,19 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
-      goto DONE;
+      return false;
     }
 
     // decompress
     if (!_openslide_jpeg_decompress_run(dc, dest, grayscale, w, h, err)) {
-      goto DONE;
+      return false;
     }
-    result = true;
+    return true;
   } else {
     // setjmp has returned again
     _openslide_jpeg_propagate_error(err, dc);
+    return false;
   }
-
-DONE:
-  _openslide_jpeg_decompress_destroy(dc);
-
-  return result;
 }
 
 bool _openslide_jpeg_read(const char *filename,
