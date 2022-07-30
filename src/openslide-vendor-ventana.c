@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2022 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -70,23 +71,23 @@ static const char ATTR_OVERLAP_Y[] = "OverlapY";
 static const char DIRECTION_RIGHT[] = "RIGHT";
 static const char DIRECTION_UP[] = "UP";
 
-#define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
+#define PARSE_INT_ATTRIBUTE_OR_RETURN(NODE, NAME, OUT, RET)	\
   do {								\
     GError *tmp_err = NULL;					\
     OUT = _openslide_xml_parse_int_attr(NODE, NAME, &tmp_err);	\
     if (tmp_err)  {						\
       g_propagate_error(err, tmp_err);				\
-      goto FAIL;						\
+      return RET;						\
     }								\
   } while (0)
 
-#define PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)			\
+#define PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(NODE, NAME, OUT, RET)		\
   do {									\
     GError *tmp_err = NULL;						\
     OUT = _openslide_xml_parse_double_attr(NODE, NAME, &tmp_err);	\
     if (tmp_err)  {							\
       g_propagate_error(err, tmp_err);					\
-      goto FAIL;							\
+      return RET;							\
     }									\
   } while (0)
 
@@ -321,18 +322,16 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (!doc) {
     return false;
   }
 
   // check for iScan element
   if (!get_initial_xml_iscan(doc, err)) {
-    xmlFreeDoc(doc);
     return false;
   }
 
-  xmlFreeDoc(doc);
   return true;
 }
 
@@ -371,7 +370,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 static bool parse_initial_xml(openslide_t *osr, const char *xml,
                               GError **err) {
   // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (!doc) {
     return false;
   }
@@ -379,18 +378,17 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   // get iScan element
   xmlNode *iscan = get_initial_xml_iscan(doc, err);
   if (!iscan) {
-    goto FAIL;
+    return false;
   }
 
   // copy all iScan attributes to vendor properties
   for (xmlAttr *attr = iscan->properties; attr; attr = attr->next) {
-    xmlChar *value = xmlGetNoNsProp(iscan, attr->name);
+    g_autoptr(xmlChar) value = xmlGetNoNsProp(iscan, attr->name);
     if (value && *value) {
       g_hash_table_insert(osr->properties,
                           g_strdup_printf("ventana.%s", attr->name),
                           g_strdup((char *) value));
     }
-    xmlFree(value);
   }
 
   // set standard properties
@@ -401,13 +399,7 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
   _openslide_duplicate_double_prop(osr, "ventana.ScanRes",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
-  // clean up
-  xmlFreeDoc(doc);
   return true;
-
-FAIL:
-  xmlFreeDoc(doc);
-  return false;
 }
 
 static bool get_tile_coordinates(const struct area *area,
@@ -416,7 +408,7 @@ static bool get_tile_coordinates(const struct area *area,
                                  GError **err) {
   // get tile number
   int64_t tile;
-  PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, attr_name, tile);
+  PARSE_INT_ATTRIBUTE_OR_RETURN(joint_info, attr_name, tile, false);
   if (tile < 1 || tile > area->tile_count) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Tile number out of bounds: %"PRId64, tile);
@@ -450,45 +442,40 @@ static struct bif *parse_level0_xml(const char *xml,
                                     int64_t tiff_tile_width,
                                     int64_t tiff_tile_height,
                                     GError **err) {
-  GPtrArray *area_array = g_ptr_array_new();
-  xmlXPathContext *ctx = NULL;
-  xmlXPathObject *info_result = NULL;
-  xmlXPathObject *origin_result = NULL;
-  xmlXPathObject *result = NULL;
-  double total_offset_x = 0;
-  double total_offset_y = 0;
-  int64_t total_x_weight = 0;
-  int64_t total_y_weight = 0;
-  bool success = false;
-
   // parse
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (!doc) {
     g_prefix_error(err, "Parsing level 0 XML: ");
-    goto FAIL;
+    return NULL;
   }
-  ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
 
   // query AOI metadata
-  info_result =
+  g_autoptr(xmlXPathObject) info_result =
     _openslide_xml_xpath_eval(ctx, "/EncodeInfo/SlideStitchInfo/ImageInfo");
-  origin_result =
+  g_autoptr(xmlXPathObject) origin_result =
     _openslide_xml_xpath_eval(ctx, "/EncodeInfo/AoiOrigin/*");
   if (!info_result || !origin_result ||
       info_result->nodesetval->nodeNr != origin_result->nodesetval->nodeNr) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Missing or inconsistent region metadata");
-    goto FAIL;
+    return NULL;
   }
 
   // walk AOIs
+  g_autoptr(GPtrArray) area_array =
+    g_ptr_array_new_with_free_func((GDestroyNotify) area_free);
+  double total_offset_x = 0;
+  double total_offset_y = 0;
+  int64_t total_x_weight = 0;
+  int64_t total_y_weight = 0;
   for (int i = 0; i < info_result->nodesetval->nodeNr; i++) {
     xmlNode *info = info_result->nodesetval->nodeTab[i];
     xmlNode *aoi = origin_result->nodesetval->nodeTab[i];
 
     // skip ignored AOIs
     int64_t aoi_scanned;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_AOI_SCANNED, aoi_scanned);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_AOI_SCANNED, aoi_scanned, NULL);
     if (!aoi_scanned) {
       continue;
     }
@@ -499,38 +486,38 @@ static struct bif *parse_level0_xml(const char *xml,
 
     // get start tiles
     int64_t start_col_x, start_row_y;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(aoi, ATTR_ORIGIN_X, start_col_x);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(aoi, ATTR_ORIGIN_Y, start_row_y);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(aoi, ATTR_ORIGIN_X, start_col_x, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(aoi, ATTR_ORIGIN_Y, start_row_y, NULL);
     int64_t tile_width, tile_height;
-    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_WIDTH, tile_width);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_HEIGHT, tile_height);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_WIDTH, tile_width, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_HEIGHT, tile_height, NULL);
     if (tile_width != tiff_tile_width || tile_height != tiff_tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Tile size mismatch: "
                   "expected %"PRId64"x%"PRId64", found %"PRId64"x%"PRId64,
                   tiff_tile_width, tiff_tile_height, tile_width, tile_height);
-      goto FAIL;
+      return NULL;
     }
     if (start_col_x % tile_width || start_row_y % tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Area origin not divisible by tile size: "
                   "%"PRId64" %% %"PRId64", %"PRId64" %% %"PRId64,
                   start_col_x, tile_width, start_row_y, tile_height);
-      goto FAIL;
+      return NULL;
     }
     area->start_col = start_col_x / tile_width;
     area->start_row = start_row_y / tile_height;
 
     // get tile counts
-    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_COLS, area->tiles_across);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(info, ATTR_NUM_ROWS, area->tiles_down);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_NUM_COLS, area->tiles_across, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_NUM_ROWS, area->tiles_down, NULL);
 
     // get position
     // it seems these are always whole numbers, but they are sometimes
     // encoded as floating-point values
     double x, y;
-    PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(info, ATTR_POS_X, x);
-    PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(info, ATTR_POS_Y, y);
+    PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(info, ATTR_POS_X, x, NULL);
+    PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(info, ATTR_POS_Y, y, NULL);
     area->x = x;
     area->y = y;
 
@@ -545,11 +532,12 @@ static struct bif *parse_level0_xml(const char *xml,
 
     // walk tiles
     ctx->node = info;
-    result = _openslide_xml_xpath_eval(ctx, "TileJointInfo");
+    g_autoptr(xmlXPathObject) result =
+      _openslide_xml_xpath_eval(ctx, "TileJointInfo");
     if (!result) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't find tile joint info");
-      goto FAIL;
+      return NULL;
     }
     for (int j = 0; j < result->nodesetval->nodeNr; j++) {
       xmlNode *joint_info = result->nodesetval->nodeTab[j];
@@ -559,15 +547,16 @@ static struct bif *parse_level0_xml(const char *xml,
       int64_t tile2_col, tile2_row;
       if (!get_tile_coordinates(area, joint_info, ATTR_TILE1,
                                 &tile1_col, &tile1_row, err)) {
-        goto FAIL;
+        return NULL;
       }
       if (!get_tile_coordinates(area, joint_info, ATTR_TILE2,
                                 &tile2_col, &tile2_row, err)) {
-        goto FAIL;
+        return NULL;
       }
 
       // check coordinates against direction, and get joint
-      xmlChar *direction = xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
+      g_autoptr(xmlChar) direction =
+        xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
       struct joint *joint;
       bool ok;
       bool direction_y = false;
@@ -588,8 +577,7 @@ static struct bif *parse_level0_xml(const char *xml,
       } else {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Bad direction attribute \"%s\"", (char *) direction);
-        xmlFree(direction);
-        goto FAIL;
+        return NULL;
       }
       if (!ok) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -597,20 +585,18 @@ static struct bif *parse_level0_xml(const char *xml,
                     "(%"PRId64", %"PRId64"), (%"PRId64", %"PRId64")",
                     (char *) direction, tile1_col, tile1_row,
                     tile2_col, tile2_row);
-        xmlFree(direction);
-        goto FAIL;
+        return NULL;
       }
-      xmlFree(direction);
 
       // read values
-      PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_X,
-                                     joint->offset_x);
+      PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_X,
+                                       joint->offset_x, NULL);
       joint->offset_x *= -1;
-      PARSE_DOUBLE_ATTRIBUTE_OR_FAIL(joint_info, ATTR_OVERLAP_Y,
-                                     joint->offset_y);
+      PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_Y,
+                                       joint->offset_y, NULL);
       joint->offset_y *= -1;
-      PARSE_INT_ATTRIBUTE_OR_FAIL(joint_info, ATTR_CONFIDENCE,
-                                  joint->confidence);
+      PARSE_INT_ATTRIBUTE_OR_RETURN(joint_info, ATTR_CONFIDENCE,
+                                    joint->confidence, NULL);
 
       // add to totals
       if (direction_y) {
@@ -621,33 +607,20 @@ static struct bif *parse_level0_xml(const char *xml,
         total_x_weight += joint->confidence;
       }
     }
-    xmlXPathFreeObject(result);
-    result = NULL;
-  }
-
-  success = true;
-
-FAIL:
-  // clean up
-  xmlXPathFreeObject(result);
-  xmlXPathFreeObject(origin_result);
-  xmlXPathFreeObject(info_result);
-  xmlXPathFreeContext(ctx);
-  if (doc) {
-    xmlFreeDoc(doc);
   }
 
   // create wrapper struct
   struct bif *bif = g_slice_new0(struct bif);
   bif->num_areas = area_array->len;
-  bif->areas = (struct area **) g_ptr_array_free(area_array, false);
+  bif->areas =
+    (struct area **) g_ptr_array_free(g_steal_pointer(&area_array), false);
   bif->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
   bif->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
   //g_debug("advances: %g %g", bif->tile_advance_x, bif->tile_advance_y);
 
   // Fix area Y coordinates.  The Pos-Y read from the file is the distance
   // from the bottom of the area to a point below all areas.
-  int64_t *heights = g_new(int64_t, bif->num_areas);
+  g_autofree int64_t *heights = g_new(int64_t, bif->num_areas);
   // find position of top of slide in coordinate plane of file
   int64_t top = 0;
   for (int32_t i = 0; i < bif->num_areas; i++) {
@@ -662,13 +635,6 @@ FAIL:
   for (int32_t i = 0; i < bif->num_areas; i++) {
     struct area *area = bif->areas[i];
     area->y = top - area->y - heights[i];
-  }
-  g_free(heights);
-
-  // free on failure
-  if (!success) {
-    bif_free(bif);
-    bif = NULL;
   }
 
   return bif;

@@ -221,7 +221,7 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // try to parse the XML
-  xmlDoc *doc = _openslide_xml_parse(image_desc, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
     return false;
   }
@@ -231,22 +231,17 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   if (xmlStrcmp(root->name, BAD_CAST XML_ROOT)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Root tag not %s", XML_ROOT);
-    xmlFreeDoc(doc);
     return false;
   }
 
   // check root tag type
-  xmlChar *type = xmlGetProp(root, BAD_CAST XML_ROOT_TYPE_ATTR);
+  g_autoptr(xmlChar) type = xmlGetProp(root, BAD_CAST XML_ROOT_TYPE_ATTR);
   if (!type || xmlStrcmp(type, BAD_CAST XML_ROOT_TYPE_VALUE)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Root %s not \"%s\"", XML_ROOT_TYPE_ATTR, XML_ROOT_TYPE_VALUE);
-    xmlFree(type);
-    xmlFreeDoc(doc);
     return false;
   }
-  xmlFree(type);
 
-  xmlFreeDoc(doc);
   return true;
 }
 
@@ -269,17 +264,15 @@ static bool get_compressed_xml_associated_image_data(xmlDoc *doc,
                                                      void **out_data,
                                                      gsize *out_len,
                                                      GError **err) {
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
-  if (b64_data) {
-    *out_data = g_base64_decode(b64_data, out_len);
-  } else {
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autofree char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
+  if (!b64_data) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read associated image data");
+    return false;
   }
-  g_free(b64_data);
-  xmlXPathFreeContext(ctx);
-  return b64_data != NULL;
+  *out_data = g_base64_decode(b64_data, out_len);
+  return true;
 }
 
 static bool get_xml_associated_image_data(struct _openslide_associated_image *_img,
@@ -340,7 +333,7 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
     return true;
   }
 
-  void *data;
+  g_autofree void *data = NULL;
   gsize len;
   if (!get_compressed_xml_associated_image_data(doc, xpath,
                                                 &data, &len, err)) {
@@ -349,10 +342,7 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
   }
 
   int32_t w, h;
-  bool success =
-    _openslide_jpeg_decode_buffer_dimensions(data, len, &w, &h, err);
-  g_free(data);
-  if (!success) {
+  if (!_openslide_jpeg_decode_buffer_dimensions(data, len, &w, &h, err)) {
     g_prefix_error(err, "Can't decode %s associated image: ", name);
     return false;
   }
@@ -379,27 +369,25 @@ static void add_properties_from_array(openslide_t *osr,
                                       xmlXPathContext *ctx,
                                       const char *prefix,
                                       xmlNode *node) {
-  xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+  g_autoptr(xmlChar) name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
   ctx->node = node;
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, "Array/DataObject");
+  g_autoptr(xmlXPathObject) result =
+    _openslide_xml_xpath_eval(ctx, "Array/DataObject");
   for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
     ctx->node = result->nodesetval->nodeTab[i];
-    char *sub_prefix = g_strdup_printf("%s.%s[%d]", prefix, name, i);
+    g_autofree char *sub_prefix = g_strdup_printf("%s.%s[%d]", prefix, name, i);
     add_properties(osr, ctx, sub_prefix, "Attribute");
-    g_free(sub_prefix);
   }
-  xmlXPathFreeObject(result);
-  xmlFree(name);
 }
 
 static void add_properties(openslide_t *osr,
                            xmlXPathContext *ctx,
                            const char *prefix,
                            const char *xpath) {
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, xpath);
+  g_autoptr(xmlXPathObject) result = _openslide_xml_xpath_eval(ctx, xpath);
   for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
     xmlNode *node = result->nodesetval->nodeTab[i];
-    xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+    g_autoptr(xmlChar) name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
 
     if (name) {
       if (!xmlStrcmp(name, BAD_CAST XML_SCANNED_IMAGES_NAME)) {
@@ -415,18 +403,15 @@ static void add_properties(openslide_t *osr,
 
       } else if (!xmlFirstElementChild(node)) {
         // Add value
-        xmlChar *value = xmlNodeGetContent(node);
+        g_autoptr(xmlChar) value = xmlNodeGetContent(node);
         if (value) {
           g_hash_table_insert(osr->properties,
                               g_strdup_printf("%s.%s", prefix, (char *) name),
                               g_strdup((char *) value));
         }
-        xmlFree(value);
       }
     }
-    xmlFree(name);
   }
-  xmlXPathFreeObject(result);
 }
 
 // returns *w and *h in mm
@@ -473,11 +458,9 @@ static bool fix_level_dimensions(struct level **levels,
                                  int32_t level_count,
                                  xmlDoc *doc,
                                  GError **err) {
-  bool success = false;
-
   // query pixel spacings
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  xmlXPathObject *result =
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathObject) result =
     _openslide_xml_xpath_eval(ctx,
                               "/DataObject"
                               "/Attribute[@Name='PIM_DP_SCANNED_IMAGES']"
@@ -492,20 +475,19 @@ static bool fix_level_dimensions(struct level **levels,
   if (!result || result->nodesetval->nodeNr != level_count) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't get level downsamples");
-    goto DONE;
+    return false;
   }
 
   // walk levels
   double l0_w = 0;
   double l0_h = 0;
   for (int32_t i = 0; i < level_count; i++) {
-    xmlChar *spacing = xmlNodeGetContent(result->nodesetval->nodeTab[i]);
+    g_autoptr(xmlChar) spacing =
+      xmlNodeGetContent(result->nodesetval->nodeTab[i]);
     double w, h;
-    bool ok = parse_pixel_spacing((const char *) spacing, &w, &h, err);
-    xmlFree(spacing);
-    if (!ok) {
+    if (!parse_pixel_spacing((const char *) spacing, &w, &h, err)) {
       g_prefix_error(err, "Level %d: ", i);
-      goto DONE;
+      return false;
     }
 
     if (i == 0) {
@@ -523,20 +505,14 @@ static bool fix_level_dimensions(struct level **levels,
     }
   }
 
-  success = true;
-
-DONE:
-  xmlXPathFreeObject(result);
-  xmlXPathFreeContext(ctx);
-  return success;
+  return true;
 }
 
 static bool verify_main_image_count(xmlDoc *doc, GError **err) {
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathObject) result =
+    _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
   int count = result ? result->nodesetval->nodeNr : 0;
-  xmlXPathFreeObject(result);
-  xmlXPathFreeContext(ctx);
   if (count != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected one WSI image, found %d", count);
