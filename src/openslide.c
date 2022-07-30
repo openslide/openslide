@@ -520,13 +520,49 @@ static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h
   return true;
 }
 
+static bool read_region_area(openslide_t *osr,
+                             uint32_t *dest, int64_t stride,
+                             int64_t x, int64_t y,
+                             int32_t level,
+                             int64_t w, int64_t h,
+                             GError **err) {
+  // create the cairo surface for the dest
+  cairo_surface_t *surface;
+  if (dest) {
+    surface =
+      cairo_image_surface_create_for_data((unsigned char *) dest,
+                                          CAIRO_FORMAT_ARGB32,
+                                          w, h, stride);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  }
+
+  // create the cairo context
+  cairo_t *cr = cairo_create(surface);
+  cairo_surface_destroy(surface);
+
+  // paint
+  if (!read_region(osr, cr, x, y, level, w, h, err)) {
+    cairo_destroy(cr);
+    return false;
+  }
+
+  // done
+  if (!_openslide_check_cairo_status(cr, err)) {
+    cairo_destroy(cr);
+    return false;
+  }
+
+  cairo_destroy(cr);
+  return true;
+}
+
 void openslide_read_region(openslide_t *osr,
 			   uint32_t *dest,
 			   int64_t x, int64_t y,
 			   int32_t level,
 			   int64_t w, int64_t h) {
-  GError *tmp_err = NULL;
-
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
@@ -558,43 +594,19 @@ void openslide_read_region(openslide_t *osr,
       int64_t sw = MIN(w - col * d, d);  // level plane
       int64_t sh = MIN(h - row * d, d);  // level plane
 
-      // create the cairo surface for the dest
-      cairo_surface_t *surface;
-      if (dest) {
-        surface = cairo_image_surface_create_for_data(
-                (unsigned char *) (dest + w * row * d + col * d),
-                CAIRO_FORMAT_ARGB32, sw, sh, w * 4);
-      } else {
-        // nil surface
-        surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
-      }
-
-      // create the cairo context
-      cairo_t *cr = cairo_create(surface);
-      cairo_surface_destroy(surface);
-
       // paint
-      if (!read_region(osr, cr, sx, sy, level, sw, sh, &tmp_err)) {
-        cairo_destroy(cr);
-        goto OUT;
+      GError *tmp_err = NULL;
+      if (!read_region_area(osr,
+                            dest + w * row * d + col * d, w * 4,
+                            sx, sy, level, sw, sh,
+                            &tmp_err)) {
+        _openslide_propagate_error(osr, tmp_err);
+        if (dest) {
+          // ensure we don't return a partial result
+          memset(dest, 0, w * h * 4);
+        }
+        return;
       }
-
-      // done
-      if (!_openslide_check_cairo_status(cr, &tmp_err)) {
-        cairo_destroy(cr);
-        goto OUT;
-      }
-
-      cairo_destroy(cr);
-    }
-  }
-
-OUT:
-  if (tmp_err) {
-    _openslide_propagate_error(osr, tmp_err);
-    if (dest) {
-      // ensure we don't return a partial result
-      memset(dest, 0, w * h * 4);
     }
   }
 }
