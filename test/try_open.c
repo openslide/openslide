@@ -215,6 +215,7 @@ int main(int argc, char **argv) {
       print_log, NULL);
 
   const char *vendor = openslide_detect_vendor(filename);
+  bool can_open = openslide_can_open(filename);
   openslide_t *osr = openslide_open(filename);
 
   // Check vendor if requested
@@ -229,6 +230,13 @@ int main(int argc, char **argv) {
            vendor ? vendor : "NULL",
            expected_vendor ? expected_vendor : "NULL");
     }
+  }
+
+  // Check can_open
+  bool did_open = osr && openslide_get_error(osr) == NULL;
+  if (can_open != did_open) {
+    fail("openslide_can_open returned %d but openslide_open %s",
+         can_open, did_open ? "succeeded" : "failed");
   }
 
   // Check for open errors

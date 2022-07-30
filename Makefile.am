@@ -116,7 +116,7 @@ CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
 
 test_try_open_CPPFLAGS = $(COMMON_CPPFLAGS)
-test_try_open_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
+test_try_open_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS) -Wno-deprecated-declarations
 test_try_open_LDADD = $(COMMON_LDADD)
 
 test_parallel_CPPFLAGS = $(COMMON_CPPFLAGS)
