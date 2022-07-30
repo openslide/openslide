@@ -548,7 +548,7 @@ FAIL:
 
 struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
                                                        GError **err) {
-  struct _openslide_tifflike *tl = NULL;
+  g_autoptr(_openslide_tifflike) tl = NULL;
   GHashTable *loop_detector = NULL;
 
   // open file
@@ -688,10 +688,9 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   g_hash_table_unref(loop_detector);
   _openslide_fclose(f);
-  return tl;
+  return g_steal_pointer(&tl);
 
 FAIL:
-  _openslide_tifflike_destroy(tl);
   if (loop_detector) {
     g_hash_table_unref(loop_detector);
   }

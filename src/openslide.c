@@ -97,8 +97,8 @@ static const struct _openslide_format *detect_format(const char *filename,
                                                      struct _openslide_tifflike **tl_OUT) {
   GError *tmp_err = NULL;
 
-  struct _openslide_tifflike *tl = _openslide_tifflike_create(filename,
-                                                              &tmp_err);
+  g_autoptr(_openslide_tifflike) tl =
+    _openslide_tifflike_create(filename, &tmp_err);
   if (!tl) {
     if (_openslide_debug(OPENSLIDE_DEBUG_DETECTION)) {
       g_message("tifflike: %s", tmp_err->message);
@@ -115,9 +115,7 @@ static const struct _openslide_format *detect_format(const char *filename,
     if (format->detect(filename, tl, &tmp_err)) {
       // success!
       if (tl_OUT) {
-        *tl_OUT = tl;
-      } else {
-        _openslide_tifflike_destroy(tl);
+        *tl_OUT = g_steal_pointer(&tl);
       }
       return format;
     }
@@ -130,7 +128,6 @@ static const struct _openslide_format *detect_format(const char *filename,
   }
 
   // no match
-  _openslide_tifflike_destroy(tl);
   return NULL;
 }
 
@@ -182,7 +179,7 @@ bool openslide_can_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
   // detect format
-  struct _openslide_tifflike *tl;
+  g_autoptr(_openslide_tifflike) tl = NULL;
   const struct _openslide_format *format = detect_format(filename, &tl);
   if (!format) {
     return false;
@@ -191,7 +188,6 @@ bool openslide_can_open(const char *filename) {
   // try opening
   openslide_t *osr = create_osr();
   bool success = open_backend(osr, format, filename, tl, NULL, NULL);
-  _openslide_tifflike_destroy(tl);
   openslide_close(osr);
   return success;
 }
@@ -215,7 +211,7 @@ openslide_t *openslide_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
 
   // detect format
-  struct _openslide_tifflike *tl;
+  g_autoptr(_openslide_tifflike) tl = NULL;
   const struct _openslide_format *format = detect_format(filename, &tl);
   if (!format) {
     // not a slide file
@@ -229,7 +225,6 @@ openslide_t *openslide_open(const char *filename) {
   g_autoptr(_openslide_hash) quickhash1 = NULL;
   bool success = open_backend(osr, format, filename, tl, &quickhash1,
                               &tmp_err);
-  _openslide_tifflike_destroy(tl);
   if (!success) {
     // failed to read slide
     _openslide_propagate_error(osr, tmp_err);
