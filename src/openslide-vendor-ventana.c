@@ -336,17 +336,20 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
+static void area_free(struct area *area) {
+  for (int64_t j = 0; j < area->tile_count; j++) {
+    g_slice_free(struct tile, area->tiles[j]);
+  }
+  g_free(area->tiles);
+  g_slice_free(struct area, area);
+}
+
 static void bif_free(struct bif *bif) {
   if (!bif) {
     return;
   }
   for (int32_t i = 0; i < bif->num_areas; i++) {
-    struct area *area = bif->areas[i];
-    for (int64_t j = 0; j < area->tile_count; j++) {
-      g_slice_free(struct tile, area->tiles[j]);
-    }
-    g_free(area->tiles);
-    g_slice_free(struct area, area);
+    area_free(bif->areas[i]);
   }
   g_free(bif->areas);
   g_slice_free(struct bif, bif);
