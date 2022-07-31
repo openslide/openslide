@@ -36,6 +36,7 @@
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_t, cairo_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
 
 /* the associated image structure */
 struct _openslide_associated_image {

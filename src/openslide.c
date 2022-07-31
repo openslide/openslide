@@ -186,10 +186,8 @@ bool openslide_can_open(const char *filename) {
   }
 
   // try opening
-  openslide_t *osr = create_osr();
-  bool success = open_backend(osr, format, filename, tl, NULL, NULL);
-  openslide_close(osr);
-  return success;
+  g_autoptr(openslide_t) osr = create_osr();
+  return open_backend(osr, format, filename, tl, NULL, NULL);
 }
 
 
@@ -206,8 +204,6 @@ static const char **strv_from_hashtable_keys(GHashTable *h) {
 }
 
 openslide_t *openslide_open(const char *filename) {
-  GError *tmp_err = NULL;
-
   g_assert(openslide_was_dynamically_loaded);
 
   // detect format
@@ -219,16 +215,15 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // alloc memory
-  openslide_t *osr = create_osr();
+  g_autoptr(openslide_t) osr = create_osr();
 
   // open backend
   g_autoptr(_openslide_hash) quickhash1 = NULL;
-  bool success = open_backend(osr, format, filename, tl, &quickhash1,
-                              &tmp_err);
-  if (!success) {
+  GError *tmp_err = NULL;
+  if (!open_backend(osr, format, filename, tl, &quickhash1, &tmp_err)) {
     // failed to read slide
     _openslide_propagate_error(osr, tmp_err);
-    return osr;
+    return g_steal_pointer(&osr);
   }
   g_assert(osr->levels);
 
@@ -255,7 +250,6 @@ openslide_t *openslide_open(const char *filename) {
     if (osr->levels[i]->downsample < osr->levels[i - 1]->downsample) {
       g_warning("Downsampled images not correctly ordered: %g < %g",
 		osr->levels[i]->downsample, osr->levels[i - 1]->downsample);
-      openslide_close(osr);
       return NULL;
     }
   }
@@ -314,7 +308,7 @@ openslide_t *openslide_open(const char *filename) {
   // start cache
   osr->cache = _openslide_cache_binding_create();
 
-  return osr;
+  return g_steal_pointer(&osr);
 }
 
 
@@ -613,8 +607,6 @@ void openslide_cairo_read_region(openslide_t *osr,
 				 int64_t x, int64_t y,
 				 int32_t level,
 				 int64_t w, int64_t h) {
-  GError *tmp_err = NULL;
-
   if (!ensure_nonnegative_dimensions(osr, w, h)) {
     return;
   }
@@ -623,6 +615,7 @@ void openslide_cairo_read_region(openslide_t *osr,
     return;
   }
 
+  GError *tmp_err = NULL;
   if (read_region(osr, cr, x, y, level, w, h, &tmp_err)) {
     _openslide_check_cairo_status(cr, &tmp_err);
   }
@@ -677,8 +670,6 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
-  GError *tmp_err = NULL;
-
   if (openslide_get_error(osr)) {
     return;
   }
@@ -689,8 +680,9 @@ void openslide_read_associated_image(openslide_t *osr,
     // this function is documented to do nothing on failure, so we need an
     // extra memcpy
     size_t pixels = img->w * img->h;
-    uint32_t *buf = g_new(uint32_t, pixels);
+    g_autofree uint32_t *buf = g_new(uint32_t, pixels);
 
+    GError *tmp_err = NULL;
     if (img->ops->get_argb_data(img, buf, &tmp_err)) {
       if (dest) {
         memcpy(dest, buf, pixels * sizeof(uint32_t));
@@ -698,8 +690,6 @@ void openslide_read_associated_image(openslide_t *osr,
     } else {
       _openslide_propagate_error(osr, tmp_err);
     }
-
-    g_free(buf);
   }
 }
 
