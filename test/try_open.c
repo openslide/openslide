@@ -21,6 +21,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -37,7 +38,7 @@ static gchar **prop_checks;
 static gchar **region_checks;
 static gboolean time_check;
 
-static gboolean have_error = FALSE;
+static bool have_error = false;
 
 static void fail(const char *str, ...) {
   va_list ap;
@@ -47,7 +48,7 @@ static void fail(const char *str, ...) {
     vfprintf(stderr, str, ap);
     fprintf(stderr, "\n");
     va_end(ap);
-    have_error = TRUE;
+    have_error = true;
   }
 }
 
@@ -55,7 +56,7 @@ static void print_log(const gchar *domain G_GNUC_UNUSED,
                       GLogLevelFlags level G_GNUC_UNUSED,
                       const gchar *message, void *data G_GNUC_UNUSED) {
   fprintf(stderr, "[log] %s\n", message);
-  have_error = TRUE;
+  have_error = true;
 }
 
 static void check_error(openslide_t *osr) {
@@ -248,7 +249,7 @@ int main(int argc, char **argv) {
     }
   } else if (!have_error) {
     // openslide_open returned NULL but logged nothing
-    have_error = TRUE;
+    have_error = true;
   }
 
   if (osr != NULL) {
@@ -267,7 +268,7 @@ int main(int argc, char **argv) {
       if (path != NULL) {
         // leaked
         fprintf(stderr, "Leaked file descriptor to %s\n", path);
-        have_error = TRUE;
+        have_error = true;
         g_free(path);
       }
     }
