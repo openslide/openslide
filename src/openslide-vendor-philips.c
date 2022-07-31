@@ -166,19 +166,16 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   struct philips_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops philips_ops = {
@@ -275,35 +272,26 @@ static bool get_xml_associated_image_data(struct _openslide_associated_image *_i
                                           uint32_t *dest,
                                           GError **err) {
   struct xml_associated_image *img = (struct xml_associated_image *) _img;
-  void *data = NULL;
-  bool success = false;
 
-  TIFF *tiff = _openslide_tiffcache_get(img->tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(img->tc, err);
+  if (!ct.tiff) {
     return false;
   }
 
-  xmlDoc *doc = parse_xml(tiff, err);
+  g_autoptr(xmlDoc) doc = parse_xml(ct.tiff, err);
   if (!doc) {
-    goto DONE;
+    return false;
   }
 
+  g_autofree void *data = NULL;
   gsize len;
   if (!get_compressed_xml_associated_image_data(doc, img->xpath,
                                                 &data, &len, err)) {
-    goto DONE;
+    return false;
   }
 
-  success = _openslide_jpeg_decode_buffer(data, len, dest,
-                                          img->base.w, img->base.h, err);
-
-DONE:
-  g_free(data);
-  if (doc) {
-    xmlFreeDoc(doc);
-  }
-  _openslide_tiffcache_put(img->tc, tiff);
-  return success;
+  return _openslide_jpeg_decode_buffer(data, len, dest,
+                                       img->base.w, img->base.h, err);
 }
 
 static void destroy_xml_associated_image(struct _openslide_associated_image *_img) {
@@ -528,13 +516,13 @@ static bool philips_open(openslide_t *osr,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
   // parse XML document
-  doc = parse_xml(tiff, err);
+  doc = parse_xml(ct.tiff, err);
   if (doc == NULL) {
     goto FAIL;
   }
@@ -548,21 +536,21 @@ static bool philips_open(openslide_t *osr,
   struct level *prev_l = NULL;
   do {
     // get directory
-    tdir_t dir = TIFFCurrentDirectory(tiff);
+    tdir_t dir = TIFFCurrentDirectory(ct.tiff);
 
     // get ImageDescription
     const char *image_desc;
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
       image_desc = NULL;
     }
 
-    if (TIFFIsTiled(tiff)) {
+    if (TIFFIsTiled(ct.tiff)) {
       // pyramid level
 
       // confirm it is either the first image, or reduced-resolution
       if (prev_l) {
         uint32_t subfiletype;
-        if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
+        if (!TIFFGetField(ct.tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
             !(subfiletype & FILETYPE_REDUCEDIMAGE)) {
           g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "Directory %d is not reduced-resolution", dir);
@@ -572,7 +560,7 @@ static bool philips_open(openslide_t *osr,
 
       // verify that we can read this compression
       uint16_t compression;
-      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
@@ -586,7 +574,7 @@ static bool philips_open(openslide_t *osr,
       // create level
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
-      if (!_openslide_tiff_level_init(tiff, dir,
+      if (!_openslide_tiff_level_init(ct.tiff, dir,
                                       (struct _openslide_level *) l, tiffl,
                                       err)) {
         g_slice_free(struct level, l);
@@ -628,7 +616,7 @@ static bool philips_open(openslide_t *osr,
         goto FAIL;
       }
     }
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // override level dimensions and downsamples to work around incorrect
   // level dimensions in the metadata
@@ -682,8 +670,7 @@ static bool philips_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &philips_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   // done
@@ -700,8 +687,6 @@ FAIL:
     }
     g_ptr_array_free(level_array, true);
   }
-  // free TIFF
-  _openslide_tiffcache_put(tc, tiff);
 
 DONE:
   // free XML

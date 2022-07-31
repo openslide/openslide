@@ -250,19 +250,16 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   struct ventana_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops ventana_ops = {
@@ -754,8 +751,8 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
@@ -774,11 +771,11 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   double prev_magnification = INFINITY;
   double level0_magnification = 0;
   do {
-    tdir_t dir = TIFFCurrentDirectory(tiff);
+    tdir_t dir = TIFFCurrentDirectory(ct.tiff);
 
     // read ImageDescription
     char *image_desc;
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
       continue;
     }
 
@@ -819,7 +816,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
         if (xml) {
           // get tile size
           struct _openslide_tiff_level tiffl;
-          if (!_openslide_tiff_level_init(tiff, dir, NULL, &tiffl, err)) {
+          if (!_openslide_tiff_level_init(ct.tiff, dir, NULL, &tiffl, err)) {
             goto FAIL;
           }
           // parse
@@ -838,7 +835,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       }
 
       // confirm that this directory is tiled
-      if (!TIFFIsTiled(tiff)) {
+      if (!TIFFIsTiled(ct.tiff)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Directory %d is not tiled", dir);
         goto FAIL;
@@ -846,7 +843,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
-      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
@@ -860,7 +857,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // create level
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
-      if (!_openslide_tiff_level_init(tiff, dir,
+      if (!_openslide_tiff_level_init(ct.tiff, dir,
                                       &l->base, tiffl,
                                       err)) {
         g_slice_free(struct level, l);
@@ -924,7 +921,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 	goto FAIL;
       }
     }
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // sort tiled levels
   g_ptr_array_sort(level_array, width_compare);
@@ -972,8 +969,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   osr->data = data;
   osr->ops = &ventana_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   return true;
@@ -990,8 +986,6 @@ FAIL:
     }
     g_ptr_array_free(level_array, true);
   }
-  // free TIFF
-  _openslide_tiffcache_put(tc, tiff);
   return false;
 }
 

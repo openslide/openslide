@@ -121,19 +121,16 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   struct generic_tiff_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops generic_tiff_ops = {
@@ -183,22 +180,22 @@ static bool generic_tiff_open(openslide_t *osr,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
   // accumulate tiled levels
   do {
     // confirm that this directory is tiled
-    if (!TIFFIsTiled(tiff)) {
+    if (!TIFFIsTiled(ct.tiff)) {
       continue;
     }
 
     // confirm it is either the first image, or reduced-resolution
-    if (TIFFCurrentDirectory(tiff) != 0) {
+    if (TIFFCurrentDirectory(ct.tiff) != 0) {
       uint32_t subfiletype;
-      if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_SUBFILETYPE, &subfiletype)) {
         continue;
       }
 
@@ -209,7 +206,7 @@ static bool generic_tiff_open(openslide_t *osr,
 
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read compression scheme");
       goto FAIL;
@@ -223,8 +220,8 @@ static bool generic_tiff_open(openslide_t *osr,
     // create level
     struct level *l = g_slice_new0(struct level);
     struct _openslide_tiff_level *tiffl = &l->tiffl;
-    if (!_openslide_tiff_level_init(tiff,
-                                    TIFFCurrentDirectory(tiff),
+    if (!_openslide_tiff_level_init(ct.tiff,
+                                    TIFFCurrentDirectory(ct.tiff),
                                     (struct _openslide_level *) l,
                                     tiffl,
                                     err)) {
@@ -240,7 +237,7 @@ static bool generic_tiff_open(openslide_t *osr,
 
     // add to array
     g_ptr_array_add(level_array, l);
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // sort tiled levels
   g_ptr_array_sort(level_array, width_compare);
@@ -272,8 +269,7 @@ static bool generic_tiff_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &generic_tiff_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   return true;
@@ -288,8 +284,6 @@ static bool generic_tiff_open(openslide_t *osr,
     }
     g_ptr_array_free(level_array, true);
   }
-  // free TIFF
-  _openslide_tiffcache_put(tc, tiff);
   return false;
 }
 

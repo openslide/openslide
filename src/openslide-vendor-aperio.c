@@ -242,19 +242,16 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   struct aperio_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops aperio_ops = {
@@ -409,8 +406,8 @@ static bool aperio_open(openslide_t *osr,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
@@ -437,13 +434,13 @@ static bool aperio_open(openslide_t *osr,
 
   do {
     // for aperio, the tiled directories are the ones we want
-    if (TIFFIsTiled(tiff)) {
+    if (TIFFIsTiled(ct.tiff)) {
       level_count++;
     }
 
     // check depth
     uint32_t depth;
-    if (TIFFGetField(tiff, TIFFTAG_IMAGEDEPTH, &depth) &&
+    if (TIFFGetField(ct.tiff, TIFFTAG_IMAGEDEPTH, &depth) &&
         depth != 1) {
       // we can't handle depth != 1
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -453,7 +450,7 @@ static bool aperio_open(openslide_t *osr,
 
     // check compression
     uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read compression scheme");
       goto FAIL;
@@ -465,19 +462,19 @@ static bool aperio_open(openslide_t *osr,
                   "Unsupported TIFF compression: %u", compression);
       goto FAIL;
     }
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // allocate private data
   data = g_slice_new0(struct aperio_ops_data);
 
   levels = g_new0(struct level *, level_count);
   int32_t i = 0;
-  if (!_openslide_tiff_set_dir(tiff, 0, err)) {
+  if (!_openslide_tiff_set_dir(ct.tiff, 0, err)) {
     goto FAIL;
   }
   do {
-    tdir_t dir = TIFFCurrentDirectory(tiff);
-    if (TIFFIsTiled(tiff)) {
+    tdir_t dir = TIFFCurrentDirectory(ct.tiff);
+    if (TIFFIsTiled(ct.tiff)) {
       //g_debug("tiled directory: %d", dir);
       struct level *l = g_slice_new0(struct level);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
@@ -486,7 +483,7 @@ static bool aperio_open(openslide_t *osr,
       }
       levels[i++] = l;
 
-      if (!_openslide_tiff_level_init(tiff,
+      if (!_openslide_tiff_level_init(ct.tiff,
                                       dir,
                                       (struct _openslide_level *) l,
                                       tiffl,
@@ -502,7 +499,7 @@ static bool aperio_open(openslide_t *osr,
                                               read_tile);
 
       // get compression
-      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &l->compression)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &l->compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
         goto FAIL;
@@ -511,7 +508,7 @@ static bool aperio_open(openslide_t *osr,
       // some Aperio slides have some zero-length tiles, apparently due to
       // an encoder bug
       toff_t *tile_sizes;
-      if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &tile_sizes)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_TILEBYTECOUNTS, &tile_sizes)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Cannot get tile sizes");
         goto FAIL;
@@ -529,12 +526,12 @@ static bool aperio_open(openslide_t *osr,
     } else {
       // associated image
       const char *name = (dir == 1) ? "thumbnail" : NULL;
-      if (!add_associated_image(osr, name, tc, tiff, err)) {
+      if (!add_associated_image(osr, name, tc, ct.tiff, err)) {
 	goto FAIL;
       }
       //g_debug("associated image: %d", dir);
     }
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // tiles concatenating a missing tile are sometimes corrupt, so we mark
   // them missing too
@@ -544,11 +541,11 @@ static bool aperio_open(openslide_t *osr,
   }
 
   // read properties
-  if (!_openslide_tiff_set_dir(tiff, 0, err)) {
+  if (!_openslide_tiff_set_dir(ct.tiff, 0, err)) {
     goto FAIL;
   }
   char *image_desc;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription field");
     goto FAIL;
@@ -573,15 +570,13 @@ static bool aperio_open(openslide_t *osr,
   osr->data = data;
   osr->ops = &aperio_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   return true;
 
 FAIL:
   destroy_data(data, levels, level_count);
-  _openslide_tiffcache_put(tc, tiff);
   return false;
 }
 

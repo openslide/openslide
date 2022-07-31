@@ -414,13 +414,11 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dest,
                                       GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
-  TIFF *tiff = _openslide_tiffcache_get(img->tc, err);
-  bool success = false;
-  if (tiff) {
-    success = _get_associated_image_data(tiff, img, dest, err);
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(img->tc, err);
+  if (!ct.tiff) {
+    return false;
   }
-  _openslide_tiffcache_put(img->tc, tiff);
-  return success;
+  return _get_associated_image_data(ct.tiff, img, dest, err);
 }
 
 static void destroy_associated_image(struct _openslide_associated_image *_img) {
@@ -476,12 +474,11 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
                                           GError **err) {
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
   bool ret = false;
-  if (tiff) {
-    ret = _add_associated_image(osr, name, tc, dir, tiff, err);
+  if (ct.tiff) {
+    ret = _add_associated_image(osr, name, tc, dir, ct.tiff, err);
   }
-  _openslide_tiffcache_put(tc, tiff);
 
   // safe even if successful
   g_prefix_error(err, "Can't read %s associated image: ", name);
@@ -623,7 +620,8 @@ struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   return tc;
 }
 
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err) {
+struct _openslide_cached_tiff _openslide_tiffcache_get(struct _openslide_tiffcache *tc,
+                                                       GError **err) {
   //g_debug("get TIFF");
   g_mutex_lock(&tc->lock);
   tc->outstanding++;
@@ -641,13 +639,19 @@ TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err) {
     tc->outstanding--;
     g_mutex_unlock(&tc->lock);
   }
-  return tiff;
+  struct _openslide_cached_tiff ct = {
+    .tc = tc,
+    .tiff = tiff,
+  };
+  return ct;
 }
 
-void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff) {
-  if (tiff == NULL) {
+void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct) {
+  if (ct == NULL || ct->tiff == NULL) {
     return;
   }
+  struct _openslide_tiffcache *tc = ct->tc;
+  TIFF *tiff = ct->tiff;
 
   //g_debug("put TIFF");
   g_mutex_lock(&tc->lock);

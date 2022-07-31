@@ -140,19 +140,16 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   struct trestle_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
 static const struct _openslide_ops trestle_ops = {
@@ -299,14 +296,14 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
   // parse ImageDescription
   char *image_desc;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription");
     goto FAIL;
@@ -317,7 +314,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   do {
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
-    if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read compression scheme");
       goto FAIL;
@@ -330,7 +327,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 
     // level ok
     level_count++;
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // create ops data
   data = g_slice_new0(struct trestle_ops_data);
@@ -344,7 +341,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
     levels[i] = l;
 
     // directories are linear
-    if (!_openslide_tiff_level_init(tiff, i,
+    if (!_openslide_tiff_level_init(ct.tiff, i,
                                     (struct _openslide_level *) l, tiffl,
                                     err)) {
       goto FAIL;
@@ -423,10 +420,9 @@ static bool trestle_open(openslide_t *osr, const char *filename,
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   // add associated images
-  add_associated_jpeg(osr, tiff, ".Full", "macro");
+  add_associated_jpeg(osr, ct.tiff, ".Full", "macro");
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   return true;
@@ -434,7 +430,6 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 FAIL:
   destroy_data(data, levels, level_count);
   g_free(overlaps);
-  _openslide_tiffcache_put(tc, tiff);
   return false;
 }
 

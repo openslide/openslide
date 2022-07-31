@@ -202,10 +202,9 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
 			 GError **err) {
   struct leica_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
-  bool success = true;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
@@ -213,21 +212,19 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
     struct area *area = l->areas->pdata[n];
 
     struct read_tile_args args = {
-      .tiff = tiff,
+      .tiff = ct.tiff,
       .area = area,
     };
     int64_t ax = x / l->base.downsample - area->offset_x;
     int64_t ay = y / l->base.downsample - area->offset_y;
-    success = _openslide_grid_paint_region(area->grid, cr, &args,
-                                           ax, ay, level, w, h,
-                                           err);
-    if (!success) {
-      break;
+    if (!_openslide_grid_paint_region(area->grid, cr, &args,
+                                      ax, ay, level, w, h,
+                                      err)) {
+      return false;
     }
   }
 
-  _openslide_tiffcache_put(data->tc, tiff);
-  return success;
+  return true;
 }
 
 static const struct _openslide_ops leica_ops = {
@@ -782,14 +779,14 @@ static bool leica_open(openslide_t *osr, const char *filename,
 
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
     goto FAIL;
   }
 
   // get the xml description
   char *image_desc;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription");
     goto FAIL;
@@ -803,7 +800,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
 
   // initialize and verify levels
   int64_t quickhash_dir;
-  if (!create_levels_from_collection(osr, tc, tiff, collection,
+  if (!create_levels_from_collection(osr, tc, ct.tiff, collection,
                                      level_array, &quickhash_dir, err)) {
     collection_free(collection);
     goto FAIL;
@@ -827,12 +824,12 @@ static bool leica_open(openslide_t *osr, const char *filename,
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 
   // set MPP properties
-  if (!_openslide_tiff_set_dir(tiff, property_dir, err)) {
+  if (!_openslide_tiff_set_dir(ct.tiff, property_dir, err)) {
     goto FAIL;
   }
-  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
+  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
                       TIFFTAG_XRESOLUTION);
-  set_resolution_prop(osr, tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
+  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
                       TIFFTAG_YRESOLUTION);
 
   // set region bounds properties
@@ -856,8 +853,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   osr->data = data;
   osr->ops = &leica_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
+  // store tiffcache reference
   data->tc = g_steal_pointer(&tc);
 
   return true;
@@ -870,8 +866,6 @@ FAIL:
     }
     g_ptr_array_free(level_array, true);
   }
-  // free TIFF
-  _openslide_tiffcache_put(tc, tiff);
   return false;
 }
 
