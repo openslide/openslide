@@ -349,7 +349,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
     levels[i] = l;
 
     // directories are linear
-    if (!_openslide_tiff_level_init(tiff, i,
+    if (!_openslide_tiff_level_init(tiff, i, (toff_t) 0,
                                     (struct _openslide_level *) l, tiffl,
                                     err)) {
       goto FAIL;

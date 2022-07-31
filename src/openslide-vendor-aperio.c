@@ -496,11 +496,13 @@ static bool aperio_open(openslide_t *osr,
 
       if (!_openslide_tiff_level_init(tiff,
                                       dir,
+                                      (toff_t) 0,
                                       (struct _openslide_level *) l,
                                       tiffl,
                                       err)) {
         goto FAIL;
       }
+      tiffl->force_photometric = true;
 
       l->grid = _openslide_grid_create_simple(osr,
                                               tiffl->tiles_across,

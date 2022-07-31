@@ -65,6 +65,13 @@ struct associated_image {
     }									\
   } while (0)
 
+#define SET_SUBDIR_OR_FAIL(tiff, offset)					\
+  do {									\
+    if (!_openslide_tiff_set_subdir(tiff, offset, err)) {			\
+      return false;							\
+    }									\
+  } while (0)
+
 #define GET_FIELD_OR_FAIL(tiff, tag, type, result)			\
   do {									\
     type tmp;								\
@@ -93,13 +100,37 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
 }
 #define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
 
+
+#undef TIFFSetSubDirectory
+bool _openslide_tiff_set_subdir(TIFF* tiff,
+                                toff_t offset,
+                                GError** err) {
+    if (offset == TIFFCurrentDirOffset(tiff)) {
+        // avoid libtiff unnecessarily rereading directory contents
+        return true;
+    }
+    if (!TIFFSetSubDirectory(tiff, offset)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+            "Cannot set TIFF sub-directory at offset %I64u", offset);
+        return false;
+    }
+    return true;
+}
+#define TIFFSetSubDirectory _OPENSLIDE_POISON(_openslide_tiff_set_subdir)
+
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
+                                toff_t offset,
                                 struct _openslide_level *level,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err) {
-  // set the directory
-  SET_DIR_OR_FAIL(tiff, dir);
+  // set the directory or directory offset
+  if (offset > 0) {
+    SET_SUBDIR_OR_FAIL(tiff, offset);
+  }
+  else {
+    SET_DIR_OR_FAIL(tiff, dir);
+  }
 
   // figure out tile size
   int64_t tw, th;
@@ -138,6 +169,7 @@ bool _openslide_tiff_level_init(TIFF *tiff,
 
   if (tiffl) {
     tiffl->dir = dir;
+    tiffl->offset = offset;
     tiffl->image_w = iw;
     tiffl->image_h = ih;
     tiffl->tile_w = tw;
@@ -149,6 +181,7 @@ bool _openslide_tiff_level_init(TIFF *tiff,
 
     tiffl->tile_read_direct = read_direct;
     tiffl->photometric = photometric;
+    tiffl->force_photometric = false;
   }
 
   return true;
@@ -211,6 +244,7 @@ static bool tiff_read_region(TIFF *tiff,
 
 static bool decode_jpeg(const void *buf, uint32_t buflen,
                         const void *tables, uint32_t tables_len,  // optional
+                        bool force_photometric,
                         J_COLOR_SPACE space,
                         uint32_t *dest,
                         int32_t w, int32_t h,
@@ -245,8 +279,10 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
       goto DONE;
     }
 
-    // set color space from TIFF photometric tag (for Aperio)
-    cinfo->jpeg_color_space = space;
+    // force color space from photometric if necessary
+    if (force_photometric) {
+      cinfo->jpeg_color_space = space;
+    }
 
     // decompress
     if (!_openslide_jpeg_decompress_run(dc, dest, false, w, h, err)) {
@@ -269,8 +305,13 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                uint32_t *dest,
                                int64_t tile_col, int64_t tile_row,
                                GError **err) {
-  // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  // set the directory or directory offset
+  if (tiffl->offset > 0) {
+      SET_SUBDIR_OR_FAIL(tiff, tiffl->offset);
+  }
+  else {
+      SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  }
 
   if (tiffl->tile_read_direct) {
     // Fast path: read raw data, decode through libjpeg
@@ -301,6 +342,7 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
 
     // decompress
     bool ret = decode_jpeg(buf, buflen, tables, tables_len,
+                           tiffl->force_photometric,
                            tiffl->photometric == PHOTOMETRIC_YCBCR ? JCS_YCbCr : JCS_RGB,
                            dest,
                            tiffl->tile_w, tiffl->tile_h,
@@ -323,8 +365,13 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
                                     void **_buf, int32_t *_len,
                                     int64_t tile_col, int64_t tile_row,
                                     GError **err) {
-  // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  // set the directory or directory offset
+  if (tiffl->offset > 0) {
+      SET_SUBDIR_OR_FAIL(tiff, tiffl->offset);
+  }
+  else {
+      SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  }
 
   // get tile number
   ttile_t tile_no = TIFFComputeTile(tiff,
@@ -366,9 +413,12 @@ bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
                                         int64_t tile_col, int64_t tile_row,
                                         bool *is_missing,
                                         GError **err) {
-  // set directory
-  if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
-    return false;
+  // set the directory or directory offset
+  if (tiffl->offset > 0) {
+      SET_SUBDIR_OR_FAIL(tiff, tiffl->offset);
+  }
+  else {
+      SET_DIR_OR_FAIL(tiff, tiffl->dir);
   }
 
   // get tile number

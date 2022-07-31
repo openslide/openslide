@@ -230,6 +230,7 @@ static bool generic_tiff_open(openslide_t *osr,
     struct _openslide_tiff_level *tiffl = &l->tiffl;
     if (!_openslide_tiff_level_init(tiff,
                                     TIFFCurrentDirectory(tiff),
+                                    (toff_t) 0,
                                     (struct _openslide_level *) l,
                                     tiffl,
                                     err)) {

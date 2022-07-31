@@ -33,6 +33,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(TIFF, TIFFClose)
 
 struct _openslide_tiff_level {
   tdir_t dir;
+  toff_t offset;
   int64_t image_w;
   int64_t image_h;
   int64_t tile_w;
@@ -43,12 +44,14 @@ struct _openslide_tiff_level {
   bool tile_read_direct;
   gint warned_read_indirect;
   uint16_t photometric;
+  bool force_photometric;
 };
 
 struct _openslide_tiffcache;
 
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
+                                toff_t offset,
                                 struct _openslide_level *level,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err);
@@ -86,6 +89,9 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
                              tdir_t dir,
                              GError **err);
 
+bool _openslide_tiff_set_subdir(TIFF* tiff,
+                                toff_t offset,
+                                GError** err);
 
 /* TIFF handles are not thread-safe, so we have a handle cache for
    multithreaded access */
