@@ -290,12 +290,12 @@ static xmlNode *get_initial_xml_iscan(xmlDoc *doc, GError **err) {
     }
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't find iScan element in initial XML");
-    return false;
+    return NULL;
 
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized root element in initial XML");
-    return false;
+    return NULL;
   }
 }
 

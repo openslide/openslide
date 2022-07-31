@@ -45,6 +45,7 @@ static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
     fail(#i " must be positive");	\
   }
 
+static void fail(const char *format, ...) G_GNUC_NORETURN;
 static void fail(const char *format, ...) {
   va_list ap;
 
@@ -88,17 +89,17 @@ static void write_png(openslide_t *osr, FILE *f,
   png_text text_ptr[1];
   memset(text_ptr, 0, sizeof text_ptr);
   text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
-  char *key = strdup(SOFTWARE);
+  char *key = g_strdup(SOFTWARE);
   text_ptr[0].key = key;
-  char *text = strdup(OPENSLIDE);
+  char *text = g_strdup(OPENSLIDE);
   text_ptr[0].text = text;
   text_ptr[0].text_length = strlen(text);
 
   png_set_text(png_ptr, info_ptr, text_ptr, 1);
 
   // background
-  const char *bgcolor = openslide_get_property_value(osr,
-						     OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
+  const char *bgcolor =
+    openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
   if (bgcolor) {
     int r, g, b;
     sscanf(bgcolor, "%2x%2x%2x", &r, &g, &b);
@@ -223,8 +224,7 @@ int main (int argc, char **argv) {
   // set up output file
   FILE *png = fopen(output, "wb");
   if (!png) {
-    fail("Can't open %s for writing: %s", output,
-	 strerror(errno));
+    fail("Can't open %s for writing: %s", output, strerror(errno));
   }
 
   write_png(osr, png, x, y, level, width, height);

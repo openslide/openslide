@@ -19,12 +19,13 @@
  *
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
 
-static gboolean query_vendor = FALSE;
+static gboolean query_vendor = false;
 
 static GOptionEntry options[] = {
   {"vendor", 'n', 0, G_OPTION_ARG_NONE, &query_vendor,
