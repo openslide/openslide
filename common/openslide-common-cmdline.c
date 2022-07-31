@@ -88,9 +88,8 @@ void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv) {
   GError *err = NULL;
 
-  GOptionContext *octx = make_option_context(info);
+  g_autoptr(GOptionContext) octx = make_option_context(info);
   common_parse_options(octx, argc, argv, &err);
-  g_option_context_free(octx);
 
   if (err) {
     fprintf(stderr, "%s: %s\n\n", g_get_prgname(), err->message);
@@ -116,12 +115,10 @@ void common_parse_commandline(const struct common_usage_info *info,
 }
 
 void common_usage(const struct common_usage_info *info) {
-  GOptionContext *octx = make_option_context(info);
+  g_autoptr(GOptionContext) octx = make_option_context(info);
 
-  gchar *help = g_option_context_get_help(octx, TRUE, NULL);
+  g_autofree gchar *help = g_option_context_get_help(octx, true, NULL);
   fprintf(stderr, "%s", help);
-  g_free(help);
 
-  g_option_context_free(octx);
   exit(2);
 }
