@@ -26,7 +26,7 @@
 #include "openslide-common.h"
 
 static bool process(const char *file, int successes, int total) {
-  openslide_t *osr = openslide_open(file);
+  g_autoptr(openslide_t) osr = openslide_open(file);
   if (osr == NULL) {
     fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
 	    g_get_prgname(), file);
@@ -38,7 +38,6 @@ static bool process(const char *file, int successes, int total) {
   if (err) {
     fprintf(stderr, "%s: %s: %s\n", g_get_prgname(), file, err);
     fflush(stderr);
-    openslide_close(osr);
     return false;
   }
 
@@ -61,7 +60,6 @@ static bool process(const char *file, int successes, int total) {
     property_names++;
   }
 
-  openslide_close(osr);
   return true;
 }
 

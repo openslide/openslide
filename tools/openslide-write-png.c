@@ -89,9 +89,9 @@ static void write_png(openslide_t *osr, FILE *f,
   png_text text_ptr[1];
   memset(text_ptr, 0, sizeof text_ptr);
   text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
-  char *key = g_strdup(SOFTWARE);
+  g_autofree char *key = g_strdup(SOFTWARE);
   text_ptr[0].key = key;
-  char *text = g_strdup(OPENSLIDE);
+  g_autofree char *text = g_strdup(OPENSLIDE);
   text_ptr[0].text = text;
   text_ptr[0].text_length = strlen(text);
 
@@ -111,7 +111,7 @@ static void write_png(openslide_t *osr, FILE *f,
   // start writing
   png_write_info(png_ptr, info_ptr);
 
-  uint32_t *dest = g_malloc(w * 4);
+  g_autofree uint32_t *dest = g_malloc(w * 4);
   int32_t lines_to_draw = h;
   double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;
@@ -165,9 +165,6 @@ static void write_png(openslide_t *osr, FILE *f,
   }
 
   // end
-  g_free(dest);
-  g_free(key);
-  g_free(text);
   png_write_end(png_ptr, info_ptr);
   png_destroy_write_struct(&png_ptr, &info_ptr);
 }
@@ -194,7 +191,7 @@ int main (int argc, char **argv) {
   const char *output = argv[7];
 
   // open slide
-  openslide_t *osr = openslide_open(slide);
+  g_autoptr(openslide_t) osr = openslide_open(slide);
 
   // check errors
   if (osr == NULL) {
@@ -230,7 +227,6 @@ int main (int argc, char **argv) {
   write_png(osr, png, x, y, level, width, height);
 
   fclose(png);
-  openslide_close(osr);
 
   return 0;
 }
