@@ -204,21 +204,20 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    tiledata = g_slice_alloc(tw * th * 4);
-    if (!decode_tile(l, tiff, tiledata, tile_col, tile_row, err)) {
-      g_slice_free1(tw * th * 4, tiledata);
+    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
+    if (!decode_tile(l, tiff, box.p, tile_col, tile_row, err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_tiff_clip_tile(tiffl, tiledata,
+    if (!_openslide_tiff_clip_tile(tiffl, box.p,
                                    tile_col, tile_row,
                                    err)) {
-      g_slice_free1(tw * th * 4, tiledata);
       return false;
     }
 
     // put it in the cache
+    tiledata = _openslide_slice_steal(&box);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
 			 tiledata, tw * th * 4,
 			 &cache_entry);

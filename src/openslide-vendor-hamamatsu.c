@@ -701,16 +701,16 @@ static bool read_jpeg_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = g_slice_alloc(tw * th * 4);
+    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
     if (!read_from_jpeg(osr,
                         jp, tileno,
                         l->scale_denom,
-                        tiledata, tw, th,
+                        box.p, tw, th,
                         err)) {
-      g_slice_free1(tw * th * 4, tiledata);
       return false;
     }
 
+    tiledata = _openslide_slice_steal(&box);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata,
@@ -1600,7 +1600,7 @@ static bool ngr_read_tile(openslide_t *osr,
 
   if (!tiledata) {
     // read the tile data
-    struct _openslide_file *f = _openslide_fopen(l->filename, err);
+    g_autoptr(_openslide_file) f = _openslide_fopen(l->filename, err);
     if (!f) {
       return false;
     }
@@ -1612,25 +1612,20 @@ static bool ngr_read_tile(openslide_t *osr,
     //g_debug("tile_x: %"PRId64", tile_y: %"PRId64", seeking to %"PRId64, tile_x, tile_y, offset);
     if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
       g_prefix_error(err, "Couldn't seek to tile offset: ");
-      _openslide_fclose(f);
       return false;
     }
 
     // alloc and read
-    int buf_size = tw * th * 6;
-    uint16_t *buf = g_slice_alloc(buf_size);
-
-    if (_openslide_fread(f, buf, buf_size) != (size_t) buf_size) {
+    g_auto(_openslide_slice) buf_box = _openslide_slice_alloc(tw * th * 6);
+    if (_openslide_fread(f, buf_box.p, buf_box.len) != buf_box.len) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read file %s", l->filename);
-      _openslide_fclose(f);
-      g_slice_free1(buf_size, buf);
       return false;
     }
-    _openslide_fclose(f);
 
     // got the data, now convert to 8-bit xRGB
     tiledata = g_slice_alloc(tilesize);
+    uint16_t *buf = buf_box.p;
     for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -1639,7 +1634,6 @@ static bool ngr_read_tile(openslide_t *osr,
 
       tiledata[i] = (r << 16) | (g << 8) | b;
     }
-    g_slice_free1(buf_size, buf);
 
     // put it in the cache
     _openslide_cache_put(osr->cache, level, tile_x, tile_y,
