@@ -27,6 +27,8 @@
 #include <glib.h>
 #include <openslide.h>
 
+#include "openslide-common.h"
+
 int main(int argc, char **argv) {
   if (argc < 2 || !g_str_equal(argv[1], "child")) {
     putenv("OPENSLIDE_DEBUG=synthetic");
@@ -49,7 +51,7 @@ int main(int argc, char **argv) {
   }
 
   // open
-  openslide_t *osr = openslide_open("");
+  g_autoptr(openslide_t) osr = openslide_open("");
   if (osr == NULL) {
     fprintf(stderr, "Couldn't open synthetic slide\n");
     return 1;
@@ -57,7 +59,6 @@ int main(int argc, char **argv) {
   const char *err = openslide_get_error(osr);
   if (err != NULL) {
     fprintf(stderr, "Opening synthetic slide: %s\n", err);
-    openslide_close(osr);
     return 1;
   }
 
@@ -67,7 +68,6 @@ int main(int argc, char **argv) {
   err = openslide_get_error(osr);
   if (err != NULL) {
     fprintf(stderr, "Reading region: %s\n", err);
-    openslide_close(osr);
     return 1;
   }
 
@@ -81,6 +81,5 @@ int main(int argc, char **argv) {
     }
   }
 
-  openslide_close(osr);
   return 0;
 }

@@ -40,11 +40,10 @@
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
 			     int64_t w, int64_t h) {
-  uint32_t *buf = g_new(uint32_t, w * h);
+  g_autofree uint32_t *buf = g_new(uint32_t, w * h);
   for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
     openslide_read_region(osr, buf, x, y, level, w, h);
   }
-  g_free(buf);
 
   const char *err = openslide_get_error(osr);
   if (err) {
@@ -57,19 +56,19 @@ static void test_image_fetch(openslide_t *osr,
 static gint leak_test_running;  /* atomic ops only */
 
 static gpointer cloexec_thread(const gpointer prog) {
-  GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal,
-        g_free, NULL);
+  g_autoptr(GHashTable) seen =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   gchar *argv[] = {prog, "--leak-check--", NULL};
 
   while (g_atomic_int_get(&leak_test_running)) {
-    gchar *out;
+    g_autofree char *out = NULL;
     if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
           G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL,
           &out, NULL, NULL, NULL)) {
       g_assert_not_reached();
     }
 
-    gchar **lines = g_strsplit(out, "\n", 0);
+    g_auto(GStrv) lines = g_strsplit(out, "\n", 0);
     for (gchar **line = lines; *line != NULL; line++) {
       if (**line == 0) {
         continue;
@@ -79,20 +78,16 @@ static gpointer cloexec_thread(const gpointer prog) {
         g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
       }
     }
-    g_strfreev(lines);
-    g_free(out);
   }
 
-  g_hash_table_destroy(seen);
   return NULL;
 }
 
 static void child_check_open_fds(void) {
   for (int i = 3; i < MAX_LEAK_FD; i++) {
-    gchar *path = common_get_fd_path(i);
+    g_autofree char *path = common_get_fd_path(i);
     if (path != NULL) {
       printf("%s\n", path);
-      g_free(path);
     }
   }
 }
@@ -110,13 +105,12 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   g_atomic_int_set(&leak_test_running, 1);
   GThread *thr = g_thread_new("cloexec", cloexec_thread, prog);
   guint32 buf[512 * 512];
-  GTimer *timer = g_timer_new();
+  g_autoptr(GTimer) timer = g_timer_new();
   while (g_timer_elapsed(timer, NULL) < 2) {
     openslide_t *osr = openslide_open(slide);
     openslide_read_region(osr, buf, x, y, 0, 512, 512);
     openslide_close(osr);
   }
-  g_timer_destroy(timer);
   g_atomic_int_set(&leak_test_running, 0);
   g_thread_join(thr);
 }
@@ -141,7 +135,7 @@ struct cache_thread_params {
 
 static void *cache_thread(void *data) {
   struct cache_thread_params *params = data;
-  uint32_t *buf = g_malloc(4 * params->w * params->h);
+  g_autofree uint32_t *buf = g_malloc(4 * params->w * params->h);
   while (!g_atomic_int_get(params->stop)) {
     // read some tiles
     openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);
@@ -155,7 +149,6 @@ static void *cache_thread(void *data) {
     }
     openslide_cache_release(cache);
   }
-  g_free(buf);
   return NULL;
 }
 
@@ -283,9 +276,8 @@ int main(int argc, char **argv) {
     const char *name = *associated_image_names;
     openslide_get_associated_image_dimensions(osr, name, &w, &h);
 
-    uint32_t *buf = g_new(uint32_t, w * h);
+    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
     openslide_read_associated_image(osr, name, buf);
-    g_free(buf);
 
     associated_image_names++;
   }

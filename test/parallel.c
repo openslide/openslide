@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   int priming = 5 * threads;
   int64_t w, h;
   openslide_get_level0_dimensions(state.osr, &w, &h);
-  GTimer *timer = g_timer_new();
+  g_autoptr(GTimer) timer = g_timer_new();
   for (int64_t y = 0; y < h; y += TILE_SIZE) {
     for (int64_t x = 0; x < w; x += TILE_SIZE) {
       if (priming) {
