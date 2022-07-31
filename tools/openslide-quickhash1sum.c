@@ -42,8 +42,8 @@ static bool process(const char *file) {
     return false;
   }
 
-  const char *hash = openslide_get_property_value(osr,
-        "openslide.quickhash-1");
+  const char *hash =
+    openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_QUICKHASH1);
   if (hash != NULL) {
     printf("%s  %s\n", hash, file);
   } else {
