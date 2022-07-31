@@ -119,29 +119,27 @@ static bool read_tile(openslide_t *osr,
                                             &is_missing, err)) {
       return false;
     }
-
     if (is_missing) {
-      // fill with transparent
-      tiledata = g_slice_alloc0(tw * th * 4);
+      // nothing to draw
+      return true;
+    }
 
-    } else {
-      tiledata = g_slice_alloc(tw * th * 4);
-      if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                     tiledata, tile_col, tile_row,
-                                     err)) {
-        g_slice_free1(tw * th * 4, tiledata);
-        return false;
-      }
+    tiledata = g_slice_alloc(tw * th * 4);
+    if (!_openslide_tiff_read_tile(tiffl, tiff,
+                                   tiledata, tile_col, tile_row,
+                                   err)) {
+      g_slice_free1(tw * th * 4, tiledata);
+      return false;
+    }
 
-      // clip, if necessary
-      if (!_openslide_clip_tile(tiledata,
-                                tw, th,
-                                l->base.w - tile_col * tw,
-                                l->base.h - tile_row * th,
-                                err)) {
-        g_slice_free1(tw * th * 4, tiledata);
-        return false;
-      }
+    // clip, if necessary
+    if (!_openslide_clip_tile(tiledata,
+                              tw, th,
+                              l->base.w - tile_col * tw,
+                              l->base.h - tile_row * th,
+                              err)) {
+      g_slice_free1(tw * th * 4, tiledata);
+      return false;
     }
 
     // put it in the cache
