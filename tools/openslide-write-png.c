@@ -88,9 +88,9 @@ static void write_png(openslide_t *osr, FILE *f,
   png_text text_ptr[1];
   memset(text_ptr, 0, sizeof text_ptr);
   text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
-  char *key = strdup(SOFTWARE);
+  char *key = g_strdup(SOFTWARE);
   text_ptr[0].key = key;
-  char *text = strdup(OPENSLIDE);
+  char *text = g_strdup(OPENSLIDE);
   text_ptr[0].text = text;
   text_ptr[0].text_length = strlen(text);
 
