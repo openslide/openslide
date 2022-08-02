@@ -122,12 +122,12 @@ struct dimension {
   double nm_per_pixel;
 };
 
+static void destroy_area(struct area *area) {
+  _openslide_grid_destroy(area->grid);
+  g_slice_free(struct area, area);
+}
+
 static void destroy_level(struct level *l) {
-  for (uint32_t n = 0; n < l->areas->len; n++) {
-    struct area *area = l->areas->pdata[n];
-    _openslide_grid_destroy(area->grid);
-    g_slice_free(struct area, area);
-  }
   g_ptr_array_free(l->areas, true);
   g_slice_free(struct level, l);
 }
@@ -280,27 +280,22 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
+static void dimension_free(struct dimension *dimension) {
+  g_slice_free(struct dimension, dimension);
+}
+
+static void image_free(struct image *image) {
+  g_ptr_array_free(image->dimensions, true);
+  g_free(image->creation_date);
+  g_free(image->device_model);
+  g_free(image->device_version);
+  g_free(image->illumination_source);
+  g_free(image->objective);
+  g_free(image->aperture);
+  g_slice_free(struct image, image);
+}
+
 static void collection_free(struct collection *collection) {
-  if (!collection) {
-    return;
-  }
-  for (uint32_t image_num = 0; image_num < collection->images->len;
-       image_num++) {
-    struct image *image = collection->images->pdata[image_num];
-    for (uint32_t dimension_num = 0; dimension_num < image->dimensions->len;
-         dimension_num++) {
-      struct dimension *dimension = image->dimensions->pdata[dimension_num];
-      g_slice_free(struct dimension, dimension);
-    }
-    g_ptr_array_free(image->dimensions, true);
-    g_free(image->creation_date);
-    g_free(image->device_model);
-    g_free(image->device_version);
-    g_free(image->illumination_source);
-    g_free(image->objective);
-    g_free(image->aperture);
-    g_slice_free(struct image, image);
-  }
   g_ptr_array_free(collection->images, true);
   g_free(collection->barcode);
   g_slice_free(struct collection, collection);
@@ -413,7 +408,8 @@ static struct collection *parse_xml_description(const char *xml,
 
   // create collection struct
   g_autoptr(collection) collection = g_slice_new0(struct collection);
-  collection->images = g_ptr_array_new();
+  collection->images =
+    g_ptr_array_new_with_free_func((GDestroyNotify) image_free);
 
   // Get barcode as stored in 2010/10/01 namespace
   g_autofree char *barcode =
@@ -462,7 +458,8 @@ static struct collection *parse_xml_description(const char *xml,
 
     // create image struct
     struct image *image = g_slice_new0(struct image);
-    image->dimensions = g_ptr_array_new();
+    image->dimensions =
+      g_ptr_array_new_with_free_func((GDestroyNotify) dimension_free);
     g_ptr_array_add(collection->images, image);
 
     image->creation_date = _openslide_xml_xpath_get_string(ctx, "d:creationDate/text()");
@@ -628,7 +625,8 @@ static bool create_levels_from_collection(openslide_t *osr,
       if (image == first_main_image) {
         // no level yet; create it
         l = g_slice_new0(struct level);
-        l->areas = g_ptr_array_new();
+        l->areas =
+          g_ptr_array_new_with_free_func((GDestroyNotify) destroy_area);
         l->nm_per_pixel = dimension->nm_per_pixel;
         g_ptr_array_add(levels, l);
       } else {
