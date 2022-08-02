@@ -177,19 +177,16 @@ bool _openslide_gdkpixbuf_read(const char *format,
                                uint32_t *dest,
                                int32_t w, int32_t h,
                                GError **err) {
-  struct _openslide_file *f = _openslide_fopen(filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't fseek %s: ", filename);
-    _openslide_fclose(f);
     return false;
   }
-  bool ret = gdkpixbuf_read(format, file_read_callback, f, length,
-                            dest, w, h, err);
-  _openslide_fclose(f);
-  return ret;
+  return gdkpixbuf_read(format, file_read_callback, f, length,
+                        dest, w, h, err);
 }
 
 struct mem {

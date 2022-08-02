@@ -98,4 +98,8 @@ void _openslide_jpeg_propagate_error(GError **err,
 
 void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc);
 
+typedef struct _openslide_jpeg_decompress _openslide_jpeg_decompress;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_jpeg_decompress,
+                              _openslide_jpeg_decompress_destroy)
+
 #endif

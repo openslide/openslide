@@ -250,7 +250,7 @@ static bool read_tile(openslide_t *osr G_GNUC_UNUSED,
   const struct synthetic_item *item = tile;
 
   // cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
@@ -274,9 +274,6 @@ static bool read_tile(openslide_t *osr G_GNUC_UNUSED,
                                         IMAGE_PIXELS * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }

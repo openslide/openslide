@@ -72,10 +72,9 @@ static void render_text(cairo_t *cr, const char *text) {
 
 static void render_tile(cairo_t *cr, const char *name, const char *path,
                         int64_t x, int64_t y, int32_t level) {
-  char *error = NULL;
-
   // read and draw tile
-  openslide_t *osr = openslide_open(path);
+  g_autoptr(openslide_t) osr = openslide_open(path);
+  g_autofree char *error = NULL;
   if (osr) {
     error = g_strdup(openslide_get_error(osr));
     if (!error) {
@@ -100,7 +99,6 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
       }
       g_slice_free1(TILE_WIDTH * TILE_HEIGHT * 4, buf);
     }
-    openslide_close(osr);
   } else {
     error = g_strdup("File not recognized");
   }
@@ -130,7 +128,6 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
   render_text(cr, name);
   if (error) {
     render_text(cr, error);
-    g_free(error);
   }
 }
 
@@ -146,12 +143,12 @@ int main(int argc, char **argv) {
   const char *out_file = argv[3];
 
   // read index file
-  GKeyFile *kf = g_key_file_new();
+  g_autoptr(GKeyFile) kf = g_key_file_new();
   if (!g_key_file_load_from_file(kf, index_file, G_KEY_FILE_NONE, &tmp_err)) {
     common_fail("Loading index file: %s", tmp_err->message);
   }
   gsize num_tiles;
-  char **tile_names = g_key_file_get_groups(kf, &num_tiles);
+  g_auto(GStrv) tile_names = g_key_file_get_groups(kf, &num_tiles);
 
   // calculate image size
   int cols = MIN(TILES_PER_ROW, num_tiles);
@@ -180,22 +177,19 @@ int main(int argc, char **argv) {
                     row * (TILE_HEIGHT + 1));
 
     char *name = tile_names[tile_num];
-    char *base = g_key_file_get_string(kf, name, KEY_BASE, NULL);
+    g_autofree char *base = g_key_file_get_string(kf, name, KEY_BASE, NULL);
     if (!base) {
       common_fail("No base path specified for %s", name);
     }
-    char *slide = g_key_file_get_string(kf, name, KEY_SLIDE, NULL);
+    g_autofree char *slide = g_key_file_get_string(kf, name, KEY_SLIDE, NULL);
     if (!slide) {
       slide = g_path_get_basename(base);
     }
     int level = g_key_file_get_integer(kf, name, KEY_LEVEL, NULL);
     int x = g_key_file_get_integer(kf, name, KEY_X, NULL);
     int y = g_key_file_get_integer(kf, name, KEY_Y, NULL);
-    char *path = g_build_filename(base_dir, base, slide, NULL);
+    g_autofree char *path = g_build_filename(base_dir, base, slide, NULL);
     render_tile(cr, name, path, x, y, level);
-    g_free(path);
-    g_free(slide);
-    g_free(base);
 
     cairo_restore(cr);
   }
@@ -215,7 +209,5 @@ int main(int argc, char **argv) {
   // clean up
   cairo_destroy(cr);
   cairo_surface_destroy(surface);
-  g_strfreev(tile_names);
-  g_key_file_free(kf);
   return 0;
 }

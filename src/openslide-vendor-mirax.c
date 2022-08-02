@@ -274,7 +274,7 @@ static bool read_tile(openslide_t *osr,
   //g_debug("mirax read_tile: src: %g %g, dim: %d %d, tile dim: %g %g, region %g %g %g %g", tile->src_x, tile->src_y, l->image_width, l->image_height, l->tile_w, l->tile_h, x, y, w, h);
 
   // get the image data, possibly from cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level,
                                             tile->image->imageno,
@@ -295,10 +295,10 @@ static bool read_tile(openslide_t *osr,
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                 CAIRO_FORMAT_RGB24,
-                                                                 iw, ih,
-                                                                 iw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_RGB24,
+                                        iw, ih, iw * 4);
 
   // if we are drawing a subregion of the tile, we must do an additional copy,
   // because cairo lacks source clipping
@@ -307,7 +307,7 @@ static bool read_tile(openslide_t *osr,
     cairo_surface_t *surface2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                            ceil(l->tile_w),
                                                            ceil(l->tile_h));
-    cairo_t *cr2 = cairo_create(surface2);
+    g_autoptr(cairo_t) cr2 = cairo_create(surface2);
     cairo_set_source_surface(cr2, surface, -tile->src_x, -tile->src_y);
 
     // replace original image surface
@@ -319,15 +319,10 @@ static bool read_tile(openslide_t *osr,
                     ceil(l->tile_h));
     cairo_fill(cr2);
     success = _openslide_check_cairo_status(cr2, err);
-    cairo_destroy(cr2);
   }
 
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return success;
 }

@@ -95,7 +95,7 @@ static bool read_tile(openslide_t *osr,
   int64_t th = tiffl->tile_h;
 
   // cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
@@ -123,16 +123,12 @@ static bool read_tile(openslide_t *osr,
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                 CAIRO_FORMAT_ARGB32,
-                                                                 tw, th,
-                                                                 tw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }
@@ -303,7 +299,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   int32_t level_count = 0;
 
   // open TIFF
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   TIFF *tiff = _openslide_tiffcache_get(tc, err);
   if (!tiff) {
     goto FAIL;
@@ -432,7 +428,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 
   // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
-  data->tc = tc;
+  data->tc = g_steal_pointer(&tc);
 
   return true;
 
@@ -440,7 +436,6 @@ FAIL:
   destroy_data(data, levels, level_count);
   g_free(overlaps);
   _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

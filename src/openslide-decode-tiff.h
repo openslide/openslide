@@ -97,4 +97,8 @@ void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
 
 void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
 
+typedef struct _openslide_tiffcache _openslide_tiffcache;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tiffcache,
+                              _openslide_tiffcache_destroy)
+
 #endif

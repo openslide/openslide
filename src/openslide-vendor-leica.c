@@ -52,13 +52,13 @@ static const char LEICA_ATTR_IFD[] = "ifd";
 static const char LEICA_ATTR_Z_PLANE[] = "z";
 static const char LEICA_VALUE_BRIGHTFIELD[] = "brightfield";
 
-#define PARSE_INT_ATTRIBUTE_OR_FAIL(NODE, NAME, OUT)		\
+#define PARSE_INT_ATTRIBUTE_OR_RETURN(NODE, NAME, OUT, RET)	\
   do {								\
     GError *tmp_err = NULL;					\
     OUT = _openslide_xml_parse_int_attr(NODE, NAME, &tmp_err);	\
     if (tmp_err)  {						\
       g_propagate_error(err, tmp_err);				\
-      goto FAIL;						\
+      return RET;						\
     }								\
   } while (0)
 
@@ -157,7 +157,7 @@ static bool read_tile(openslide_t *osr,
   int64_t th = tiffl->tile_h;
 
   // cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             args->area, tile_col, tile_row,
                                             &cache_entry);
@@ -186,16 +186,12 @@ static bool read_tile(openslide_t *osr,
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                 CAIRO_FORMAT_ARGB32,
-                                                                 tw, th,
-                                                                 tw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }
@@ -272,7 +268,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // try to parse the xml
-  xmlDoc *doc = _openslide_xml_parse(image_desc, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
     return false;
   }
@@ -282,11 +278,9 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
       !_openslide_xml_has_default_namespace(doc, LEICA_XMLNS_2)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unexpected XML namespace");
-    xmlFreeDoc(doc);
     return false;
   }
 
-  xmlFreeDoc(doc);
   return true;
 }
 
@@ -315,6 +309,9 @@ static void collection_free(struct collection *collection) {
   g_free(collection->barcode);
   g_slice_free(struct collection, collection);
 }
+
+typedef struct collection collection;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(collection, collection_free)
 
 static int dimension_compare(const void *a, const void *b) {
   const struct dimension *da = *(const struct dimension **) a;
@@ -387,20 +384,14 @@ static void set_region_bounds_props(openslide_t *osr,
 
 static struct collection *parse_xml_description(const char *xml,
                                                 GError **err) {
-  xmlXPathContext *ctx = NULL;
-  xmlXPathObject *images_result = NULL;
-  xmlXPathObject *result = NULL;
-  struct collection *collection = NULL;
-  bool success = false;
-
   // parse the xml
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
     return NULL;
   }
 
   // create XPATH context to query the document
-  ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
 
   // the recognizable structure is the following:
   /*
@@ -421,15 +412,16 @@ static struct collection *parse_xml_description(const char *xml,
   if (!collection_node) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find collection element");
-    goto FAIL;
+    return NULL;
   }
 
   // create collection struct
-  collection = g_slice_new0(struct collection);
+  g_autoptr(collection) collection = g_slice_new0(struct collection);
   collection->images = g_ptr_array_new();
 
   // Get barcode as stored in 2010/10/01 namespace
-  char *barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
+  g_autofree char *barcode =
+    _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
   if (barcode) {
     // Decode Base64
     gsize len;
@@ -437,7 +429,6 @@ static struct collection *parse_xml_description(const char *xml,
     // null-terminate
     collection->barcode = g_realloc(decoded, len + 1);
     collection->barcode[len] = 0;
-    g_free(barcode);
   } else {
     // Fall back to 2010/03/10 namespace.  It's not clear whether this
     // namespace also Base64-encodes the barcode, so we avoid performing
@@ -445,18 +436,19 @@ static struct collection *parse_xml_description(const char *xml,
     collection->barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/@barcode");
   }
 
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection_node, LEICA_ATTR_SIZE_X,
-                              collection->nm_across);
-  PARSE_INT_ATTRIBUTE_OR_FAIL(collection_node, LEICA_ATTR_SIZE_Y,
-                              collection->nm_down);
+  PARSE_INT_ATTRIBUTE_OR_RETURN(collection_node, LEICA_ATTR_SIZE_X,
+                                collection->nm_across, NULL);
+  PARSE_INT_ATTRIBUTE_OR_RETURN(collection_node, LEICA_ATTR_SIZE_Y,
+                                collection->nm_down, NULL);
 
   // get the image nodes
   ctx->node = collection_node;
-  images_result = _openslide_xml_xpath_eval(ctx, "d:image");
+  g_autoptr(xmlXPathObject) images_result =
+    _openslide_xml_xpath_eval(ctx, "d:image");
   if (!images_result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find any images");
-    goto FAIL;
+    return NULL;
   }
 
   // create image structs
@@ -469,7 +461,7 @@ static struct collection *parse_xml_description(const char *xml,
     if (!view) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't find view node");
-      goto FAIL;
+      return NULL;
     }
 
     // create image struct
@@ -484,14 +476,14 @@ static struct collection *parse_xml_description(const char *xml,
     image->objective = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:objectiveSettings/d:objective/text()");
     image->aperture = _openslide_xml_xpath_get_string(ctx, "d:scanSettings/d:illuminationSettings/d:numericalAperture/text()");
 
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_X,
-                                image->nm_across);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_SIZE_Y,
-                                image->nm_down);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_X,
-                                image->nm_offset_x);
-    PARSE_INT_ATTRIBUTE_OR_FAIL(view, LEICA_ATTR_OFFSET_Y,
-                                image->nm_offset_y);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(view, LEICA_ATTR_SIZE_X,
+                                  image->nm_across, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(view, LEICA_ATTR_SIZE_Y,
+                                  image->nm_down, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(view, LEICA_ATTR_OFFSET_X,
+                                  image->nm_offset_x, NULL);
+    PARSE_INT_ATTRIBUTE_OR_RETURN(view, LEICA_ATTR_OFFSET_Y,
+                                  image->nm_offset_y, NULL);
 
     image->is_macro = (image->nm_offset_x == 0 &&
                        image->nm_offset_y == 0 &&
@@ -500,11 +492,12 @@ static struct collection *parse_xml_description(const char *xml,
 
     // get dimensions
     ctx->node = image_node;
-    result = _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
+    g_autoptr(xmlXPathObject) result =
+      _openslide_xml_xpath_eval(ctx, "d:pixels/d:dimension");
     if (!result) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't find any dimensions in image");
-      goto FAIL;
+      return NULL;
     }
 
     // create dimension structs
@@ -513,46 +506,30 @@ static struct collection *parse_xml_description(const char *xml,
 
       // accept only dimensions from z-plane 0
       // TODO: support multiple z-planes
-      xmlChar *z = xmlGetProp(dimension_node, BAD_CAST LEICA_ATTR_Z_PLANE);
+      g_autoptr(xmlChar) z =
+        xmlGetProp(dimension_node, BAD_CAST LEICA_ATTR_Z_PLANE);
       if (z && strcmp((char *) z, "0")) {
-        xmlFree(z);
         continue;
       }
-      xmlFree(z);
 
       struct dimension *dimension = g_slice_new0(struct dimension);
       g_ptr_array_add(image->dimensions, dimension);
 
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_IFD,
-                                  dimension->dir);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_SIZE_X,
-                                  dimension->width);
-      PARSE_INT_ATTRIBUTE_OR_FAIL(dimension_node, LEICA_ATTR_SIZE_Y,
-                                  dimension->height);
+      PARSE_INT_ATTRIBUTE_OR_RETURN(dimension_node, LEICA_ATTR_IFD,
+                                    dimension->dir, NULL);
+      PARSE_INT_ATTRIBUTE_OR_RETURN(dimension_node, LEICA_ATTR_SIZE_X,
+                                    dimension->width, NULL);
+      PARSE_INT_ATTRIBUTE_OR_RETURN(dimension_node, LEICA_ATTR_SIZE_Y,
+                                    dimension->height, NULL);
 
       dimension->nm_per_pixel = (double) image->nm_across / dimension->width;
     }
-    xmlXPathFreeObject(result);
-    result = NULL;
 
     // sort dimensions
     g_ptr_array_sort(image->dimensions, dimension_compare);
   }
 
-  success = true;
-
-FAIL:
-  xmlXPathFreeObject(result);
-  xmlXPathFreeObject(images_result);
-  xmlXPathFreeContext(ctx);
-  xmlFreeDoc(doc);
-
-  if (success) {
-    return collection;
-  } else {
-    collection_free(collection);
-    return NULL;
-  }
+  return g_steal_pointer(&collection);
 }
 
 static void set_prop(openslide_t *osr, const char *name, const char *value) {
@@ -805,7 +782,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   GPtrArray *level_array = g_ptr_array_new();
 
   // open TIFF
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
+  g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   TIFF *tiff = _openslide_tiffcache_get(tc, err);
   if (!tiff) {
     goto FAIL;
@@ -882,7 +859,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
 
   // put TIFF handle and store tiffcache reference
   _openslide_tiffcache_put(tc, tiff);
-  data->tc = tc;
+  data->tc = g_steal_pointer(&tc);
 
   return true;
 
@@ -896,7 +873,6 @@ FAIL:
   }
   // free TIFF
   _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
   return false;
 }
 

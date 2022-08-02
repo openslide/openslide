@@ -52,12 +52,11 @@ char *common_get_fd_path(int fd) {
   if (hdl != INVALID_HANDLE_VALUE) {
     DWORD size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
     if (size) {
-      char *path = g_malloc(size);
+      g_autofree char *path = g_malloc(size);
       DWORD ret = GetFinalPathNameByHandle(hdl, path, size - 1, 0);
       if (ret > 0 && ret <= size) {
-        return path;
+        return g_steal_pointer(&path);
       }
-      g_free(path);
     }
   }
 #elif defined HAVE_PROC_PIDFDINFO
@@ -68,16 +67,14 @@ char *common_get_fd_path(int fd) {
   if (proc_pidfdinfo(getpid(), fd, PROC_PIDFDKQUEUEINFO, &kqi, sizeof(kqi))) {
     return NULL;
   }
-  char *path = g_malloc(MAXPATHLEN);
+  g_autofree char *path = g_malloc(MAXPATHLEN);
   if (!fcntl(fd, F_GETPATH, path)) {
-    return path;
+    return g_steal_pointer(&path);
   }
-  g_free(path);
 #else
   // Fallback; works only on Linux
-  char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), fd);
+  g_autofree char *link_path = g_strdup_printf("/proc/%d/fd/%d", getpid(), fd);
   char *path = g_file_read_link(link_path, NULL);
-  g_free(link_path);
   if (path) {
     return path;
   }

@@ -34,7 +34,9 @@
 
 #include <cairo.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_t, cairo_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -304,6 +306,10 @@ void *_openslide_cache_get(struct _openslide_cache_binding *cb,
 
 // value unref
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
+
+typedef struct _openslide_cache_entry _openslide_cache_entry;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_cache_entry,
+                              _openslide_cache_entry_unref)
 
 
 /* Internal error propagation */

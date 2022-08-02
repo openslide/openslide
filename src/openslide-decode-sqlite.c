@@ -116,6 +116,11 @@ bool _openslide_sqlite_step(sqlite3_stmt *stmt, GError **err) {
   }
 }
 
+// wrapper that returns void for g_autoptr
+void _openslide_sqlite_finalize(sqlite3_stmt *stmt) {
+  sqlite3_finalize(stmt);
+}
+
 // only legal if an error occurred
 void _openslide_sqlite_propagate_error(sqlite3 *db, GError **err) {
   g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,

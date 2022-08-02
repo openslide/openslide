@@ -29,6 +29,10 @@
 
 #include <openjpeg.h>
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(opj_codec_t, opj_destroy_codec)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(opj_image_t, opj_image_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(opj_stream_t, opj_stream_destroy)
+
 struct buffer_state {
   const uint8_t *data;
   int32_t offset;
@@ -171,13 +175,12 @@ static void warning_callback(const char *msg G_GNUC_UNUSED,
 static void error_callback(const char *msg, void *data) {
   GError **err = (GError **) data;
   if (err && !*err) {
-    char *detail = g_strdup(msg);
+    g_autofree char *detail = g_strdup(msg);
     g_strchomp(detail);
     // OpenJPEG can produce obscure error messages, so make sure to
     // indicate where they came from
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "OpenJPEG error: %s", detail);
-    g_free(detail);
   }
 }
 
@@ -219,17 +222,13 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err) {
-  opj_image_t *image = NULL;
-  GError *tmp_err = NULL;
-  bool success = false;
-
   g_assert(data != NULL);
   g_assert(datalen >= 0);
 
   // init stream
   // avoid tracking stream offset (and implementing skip callback) by having
   // OpenJPEG read the whole buffer at once
-  opj_stream_t *stream = opj_stream_create(datalen, true);
+  g_autoptr(opj_stream_t) stream = opj_stream_create(datalen, true);
   struct buffer_state state = {
     .data = data,
     .length = datalen,
@@ -241,17 +240,19 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   opj_stream_set_seek_function(stream, seek_callback);
 
   // init codec
-  opj_codec_t *codec = opj_create_decompress(OPJ_CODEC_J2K);
+  g_autoptr(opj_codec_t) codec = opj_create_decompress(OPJ_CODEC_J2K);
   opj_dparameters_t parameters;
   opj_set_default_decoder_parameters(&parameters);
   opj_setup_decoder(codec, &parameters);
 
   // enable error handlers
   // note: don't use info_handler, it outputs lots of junk
+  GError *tmp_err = NULL;
   opj_set_warning_handler(codec, warning_callback, &tmp_err);
   opj_set_error_handler(codec, error_callback, &tmp_err);
 
   // read header
+  g_autoptr(opj_image_t) image = NULL;
   if (!opj_read_header(stream, codec, &image)) {
     if (tmp_err) {
       g_propagate_error(err, tmp_err);
@@ -259,7 +260,7 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "opj_read_header() failed");
     }
-    goto DONE;
+    return false;
   }
   g_clear_error(&tmp_err);  // clear any spurious message
 
@@ -269,12 +270,12 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                 "Dimensional mismatch reading JP2K, "
                 "expected %dx%d, got %ux%u",
                 w, h, image->x1, image->y1);
-    goto DONE;
+    return false;
   }
   if (image->numcomps != 3) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected 3 image components, found %u", image->numcomps);
-    goto DONE;
+    return false;
   }
   // TODO more checks?
 
@@ -286,18 +287,12 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "opj_decode() failed");
     }
-    goto DONE;
+    return false;
   }
   g_clear_error(&tmp_err);  // clear any spurious message
 
   // copy pixels
   unpack_argb(space, image->comps, dest, w, h);
 
-  success = true;
-
-DONE:
-  opj_image_destroy(image);
-  opj_destroy_codec(codec);
-  opj_stream_destroy(stream);
-  return success;
+  return true;
 }

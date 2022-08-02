@@ -129,6 +129,12 @@ jobs:
                 ;;
             esac
         esac
+    - name: Check for uninitialized g_auto variables
+      run: |
+        if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
+            echo "Found g_auto* declarations without initializers"
+            exit 1
+        fi
     - name: Build
       run: |
         autoreconf -i
