@@ -119,7 +119,7 @@ struct area {
   int64_t tiles_across;
   int64_t tiles_down;
   int64_t tile_count;
-  struct tile **tiles;
+  struct tile *tiles;
 };
 
 struct joint {
@@ -333,9 +333,6 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
 }
 
 static void area_free(struct area *area) {
-  for (int64_t j = 0; j < area->tile_count; j++) {
-    g_slice_free(struct tile, area->tiles[j]);
-  }
   g_free(area->tiles);
   g_slice_free(struct area, area);
 }
@@ -519,10 +516,7 @@ static struct bif *parse_level0_xml(const char *xml,
 
     // create tile structs
     area->tile_count = area->tiles_across * area->tiles_down;
-    area->tiles = g_new(struct tile *, area->tile_count);
-    for (int64_t j = 0; j < area->tile_count; j++) {
-      area->tiles[j] = g_slice_new0(struct tile);
-    }
+    area->tiles = g_new0(struct tile, area->tile_count);
 
     // walk tiles
     ctx->node = info;
@@ -558,13 +552,13 @@ static struct bif *parse_level0_xml(const char *xml,
       if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
         // get left joint of right tile
         struct tile *tile =
-          area->tiles[tile2_row * area->tiles_across + tile2_col];
+          &area->tiles[tile2_row * area->tiles_across + tile2_col];
         joint = &tile->left;
         ok = (tile2_col == tile1_col + 1 && tile2_row == tile1_row);
       } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_UP)) {
         // get top joint of bottom tile
         struct tile *tile =
-          area->tiles[tile1_row * area->tiles_across + tile1_col];
+          &area->tiles[tile1_row * area->tiles_across + tile1_col];
         joint = &tile->top;
         ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
         direction_y = true;
