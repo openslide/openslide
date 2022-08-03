@@ -1263,10 +1263,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
       sd_l->tile_height = l->tile_height / scale_denom;
 
       int32_t num_jpegs = sd_l->jpegs_across * sd_l->jpegs_down;
-      sd_l->jpegs = g_new(struct jpeg *, num_jpegs);
-      for (int32_t j = 0; j < num_jpegs; j++) {
-        sd_l->jpegs[j] = l->jpegs[j];
-      }
+      sd_l->jpegs = g_memdup(l->jpegs, sizeof(struct jpeg *) * num_jpegs);
 
       // tile size hints
       sd_l->base.tile_w = sd_l->tile_width;
