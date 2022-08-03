@@ -80,7 +80,7 @@ jobs:
                 9)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled crb
-                    dnf copr enable -y bgilbert/xdelta
+                    dnf install -y epel-release epel-next-release
                     ;;
                 *)
                     extra=git-core
