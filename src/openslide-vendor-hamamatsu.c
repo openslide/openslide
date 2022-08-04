@@ -214,6 +214,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   int buffer_size = header_length + data_length;
+  // automatically freed when decompression is terminated
   JOCTET *buffer = (*cinfo->mem->alloc_large)((j_common_ptr) cinfo,
                                               JPOOL_IMAGE, buffer_size);
 
@@ -548,7 +549,6 @@ static bool compute_mcu_start(openslide_t *osr,
 			      int64_t *stop_position,
 			      GError **err) {
   struct hamamatsu_jpeg_ops_data *data = osr->data;
-  bool success = false;
 
   if (tileno < 0 || tileno >= jpeg->tile_count) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -556,10 +556,11 @@ static bool compute_mcu_start(openslide_t *osr,
     return false;
   }
 
-  g_mutex_lock(&data->restart_marker_mutex);
+  g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+    g_mutex_locker_new(&data->restart_marker_mutex);
 
   if (!_compute_mcu_start(jpeg, f, tileno, err)) {
-    goto OUT;
+    return false;
   }
 
   // start of data stream
@@ -575,18 +576,14 @@ static bool compute_mcu_start(openslide_t *osr,
       *stop_position = jpeg->end_in_file;
     } else {
       if (!_compute_mcu_start(jpeg, f, tileno + 1, err)) {
-        goto OUT;
+        return false;
       }
       *stop_position = jpeg->mcu_starts[tileno + 1];
     }
     g_assert(*stop_position != -1);
   }
 
-  success = true;
-
-OUT:
-  g_mutex_unlock(&data->restart_marker_mutex);
-  return success;
+  return true;
 }
 
 // wrapper that takes out-pointers to volatile, to avoid spurious longjmp
@@ -615,10 +612,8 @@ static bool read_from_jpeg(openslide_t *osr,
                            uint32_t *dest,
                            int32_t w, int32_t h,
                            GError **err) {
-  volatile bool success = false;
-
   // open file
-  struct _openslide_file *f = _openslide_fopen(jpeg->filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(jpeg->filename, err);
   if (f == NULL) {
     return false;
   }
@@ -637,7 +632,7 @@ static bool read_from_jpeg(openslide_t *osr,
                                   &start_position,
                                   &stop_position,
                                   err)) {
-    goto OUT;
+    return false;
   }
 
   if (setjmp(env) == 0) {
@@ -651,13 +646,13 @@ static bool read_from_jpeg(openslide_t *osr,
                                 start_position,
                                 stop_position,
                                 err)) {
-      goto OUT;
+      return false;
     }
 
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read JPEG header");
-      goto OUT;
+      return false;
     }
     cinfo->scale_num = 1;
     cinfo->scale_denom = scale_denom;
@@ -667,18 +662,12 @@ static bool read_from_jpeg(openslide_t *osr,
     //    g_debug("output_width: %d", cinfo->output_width);
     //    g_debug("output_height: %d", cinfo->output_height);
 
-    if (!_openslide_jpeg_decompress_run(dc, dest, false, w, h, err)) {
-      goto OUT;
-    }
-    success = true;
+    return _openslide_jpeg_decompress_run(dc, dest, false, w, h, err);
   } else {
     // setjmp returns again
     _openslide_jpeg_propagate_error(err, dc);
+    return false;
   }
-
-OUT:
-  _openslide_fclose(f);
-  return success;
 }
 
 static bool read_jpeg_tile(openslide_t *osr,
@@ -751,19 +740,19 @@ static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
   struct hamamatsu_jpeg_ops_data *data = osr->data;
   struct jpeg_level *l = (struct jpeg_level *) level;
 
-  g_mutex_lock(&data->restart_marker_cond_mutex);
-  // check for background errors
-  if (data->restart_marker_thread_error) {
-    // propagate error
-    g_propagate_error(err, data->restart_marker_thread_error);
-    data->restart_marker_thread_error = NULL;
-    g_mutex_unlock(&data->restart_marker_cond_mutex);
-    return false;
+  {
+    g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+      g_mutex_locker_new(&data->restart_marker_cond_mutex);
+    // check for background errors
+    if (data->restart_marker_thread_error) {
+      // propagate error
+      g_propagate_error(err, g_steal_pointer(&data->restart_marker_thread_error));
+      return false;
+    }
+    // tell the background thread to pause
+    data->restart_marker_users++;
+    //  g_debug("telling thread to pause");
   }
-  // tell the background thread to pause
-  data->restart_marker_users++;
-  //  g_debug("telling thread to pause");
-  g_mutex_unlock(&data->restart_marker_cond_mutex);
 
   // paint
   bool success = _openslide_grid_paint_region(l->grid, cr, NULL,
@@ -773,13 +762,15 @@ static bool jpeg_paint_region(openslide_t *osr, cairo_t *cr,
                                               err);
 
   // maybe tell the background thread to resume
-  g_mutex_lock(&data->restart_marker_cond_mutex);
-  if (!--data->restart_marker_users) {
-    data->restart_marker_last_used_time = g_get_monotonic_time();
-    //  g_debug("telling thread to awaken");
-    g_cond_signal(&data->restart_marker_cond);
+  {
+    g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+      g_mutex_locker_new(&data->restart_marker_cond_mutex);
+    if (!--data->restart_marker_users) {
+      data->restart_marker_last_used_time = g_get_monotonic_time();
+      //  g_debug("telling thread to awaken");
+      g_cond_signal(&data->restart_marker_cond);
+    }
   }
-  g_mutex_unlock(&data->restart_marker_cond_mutex);
 
   return success;
 }
@@ -788,11 +779,13 @@ static void jpeg_do_destroy(openslide_t *osr) {
   struct hamamatsu_jpeg_ops_data *data = osr->data;
 
   // tell the thread to finish and wait
-  g_mutex_lock(&data->restart_marker_cond_mutex);
-  g_warn_if_fail(data->restart_marker_users == 0);
-  data->restart_marker_thread_stop = true;
-  g_cond_signal(&data->restart_marker_cond);
-  g_mutex_unlock(&data->restart_marker_cond_mutex);
+  {
+    g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+      g_mutex_locker_new(&data->restart_marker_cond_mutex);
+    g_warn_if_fail(data->restart_marker_users == 0);
+    data->restart_marker_thread_stop = true;
+    g_cond_signal(&data->restart_marker_cond);
+  }
   if (data->restart_marker_thread) {
     g_thread_join(data->restart_marker_thread);
   }
@@ -810,11 +803,13 @@ static void jpeg_do_destroy(openslide_t *osr) {
   g_free(osr->levels);
 
   // the background stuff
-  g_mutex_lock(&data->restart_marker_cond_mutex);
-  if (data->restart_marker_thread_error) {
-    g_error_free(data->restart_marker_thread_error);
+  {
+    g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+      g_mutex_locker_new(&data->restart_marker_cond_mutex);
+    if (data->restart_marker_thread_error) {
+      g_error_free(data->restart_marker_thread_error);
+    }
   }
-  g_mutex_unlock(&data->restart_marker_cond_mutex);
   g_mutex_clear(&data->restart_marker_mutex);
   g_cond_clear(&data->restart_marker_cond);
   g_mutex_clear(&data->restart_marker_cond_mutex);
@@ -839,8 +834,8 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
   }
 
   // try to parse key file
-  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
-                                                G_KEY_FILE_NONE, err);
+  g_autoptr(GKeyFile) key_file =
+    _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE, G_KEY_FILE_NONE, err);
   if (!key_file) {
     g_prefix_error(err, "Can't read key file: ");
     return false;
@@ -853,25 +848,21 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
                                KEY_NUM_JPEG_COLS, NULL) < 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "VMS file has no columns");
-      g_key_file_free(key_file);
       return false;
     }
     if (g_key_file_get_integer(key_file, GROUP_VMS,
                                KEY_NUM_JPEG_ROWS, NULL) < 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "VMS file has no rows");
-      g_key_file_free(key_file);
       return false;
     }
 
   } else if (!g_key_file_has_group(key_file, GROUP_VMU)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not VMS or VMU file");
-    g_key_file_free(key_file);
     return false;
   }
 
-  g_key_file_free(key_file);
   return true;
 }
 
@@ -891,9 +882,6 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
                   "Invalid MCU starts: JPEG %d, tile %d, "		\
                   "assertion: " # ASSERTION,				\
                   current_jpeg, current_mcu_start);			\
-      if (f) {								\
-        _openslide_fclose(f);						\
-      }									\
       return false;							\
     }									\
   } while (0)
@@ -901,14 +889,11 @@ static gint width_compare(gconstpointer a, gconstpointer b) {
 // for debugging
 static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
                               GError **err) {
-  struct _openslide_file *f = NULL;
-  int32_t current_jpeg = 0;
-  int32_t current_mcu_start = 0;
-
-  for (current_jpeg = 0; current_jpeg < num_jpegs; current_jpeg++) {
+  for (int32_t current_jpeg = 0; current_jpeg < num_jpegs; current_jpeg++) {
     struct jpeg *jp = jpegs[current_jpeg];
+    int32_t current_mcu_start = 0;
     CHK(jp->filename);
-    f = _openslide_fopen(jp->filename, NULL);
+    g_autoptr(_openslide_file) f = _openslide_fopen(jp->filename, NULL);
     CHK(f);
     for (current_mcu_start = 1; current_mcu_start < jp->tile_count;
          current_mcu_start++) {
@@ -922,8 +907,6 @@ static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
       CHK(buf[0] == 0xFF);  // prefix
       CHK(buf[1] >= 0xD0 && buf[1] <= 0xD7);  // marker
     }
-    _openslide_fclose(f);
-    f = NULL;
   }
   return true;
 }
@@ -935,43 +918,43 @@ static gpointer restart_marker_thread_func(gpointer d) {
   int32_t current_jpeg = 0;
   int32_t current_mcu_start = 0;
 
-  struct _openslide_file *current_file = NULL;
+  g_autoptr(_openslide_file) current_file = NULL;
 
   GError *tmp_err = NULL;
 
   while(current_jpeg < data->jpeg_count) {
-    g_mutex_lock(&data->restart_marker_cond_mutex);
+    {
+      g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+        g_mutex_locker_new(&data->restart_marker_cond_mutex);
 
-    // should we pause?
-    while (data->restart_marker_users && !data->restart_marker_thread_stop) {
-      //      g_debug("thread paused");
-      g_cond_wait(&data->restart_marker_cond,
-		  &data->restart_marker_cond_mutex); // zzz
-      //      g_debug("thread awoken");
-    }
+      // should we pause?
+      while (data->restart_marker_users && !data->restart_marker_thread_stop) {
+        //      g_debug("thread paused");
+        g_cond_wait(&data->restart_marker_cond,
+                    &data->restart_marker_cond_mutex); // zzz
+        //      g_debug("thread awoken");
+      }
 
-    // should we stop?
-    if (data->restart_marker_thread_stop) {
-      //      g_debug("thread stopping");
-      g_mutex_unlock(&data->restart_marker_cond_mutex);
-      break;
-    }
+      // should we stop?
+      if (data->restart_marker_thread_stop) {
+        //      g_debug("thread stopping");
+        break;
+      }
 
-    // should we sleep?
-    int64_t end_time = data->restart_marker_last_used_time + G_TIME_SPAN_SECOND;
-    if (data->restart_marker_thread_throttle &&
-        end_time > g_get_monotonic_time()) {
-      //g_debug("zz: %lu", end_time - g_get_monotonic_time());
-      g_cond_wait_until(&data->restart_marker_cond,
-			&data->restart_marker_cond_mutex,
-			end_time);
-      //      g_debug("running again");
-      g_mutex_unlock(&data->restart_marker_cond_mutex);
-      continue;
+      // should we sleep?
+      int64_t end_time = data->restart_marker_last_used_time + G_TIME_SPAN_SECOND;
+      if (data->restart_marker_thread_throttle &&
+          end_time > g_get_monotonic_time()) {
+        //g_debug("zz: %lu", end_time - g_get_monotonic_time());
+        g_cond_wait_until(&data->restart_marker_cond,
+                          &data->restart_marker_cond_mutex,
+                          end_time);
+        //      g_debug("running again");
+        continue;
+      }
     }
 
     // we are finally able to run
-    g_mutex_unlock(&data->restart_marker_cond_mutex);
 
     //g_debug("current_jpeg: %d, current_mcu_start: %d",
     //        current_jpeg, current_mcu_start);
@@ -989,7 +972,6 @@ static gpointer restart_marker_thread_func(gpointer d) {
       if (!compute_mcu_start(osr, jp, current_file, current_mcu_start,
                              NULL, NULL, &tmp_err)) {
         //g_debug("restart_marker_thread_func compute_mcu_start failed");
-        _openslide_fclose(current_file);
         break;
       }
 
@@ -997,8 +979,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
       if (current_mcu_start >= jp->tile_count) {
 	current_mcu_start = 0;
 	current_jpeg++;
-	_openslide_fclose(current_file);
-	current_file = NULL;
+	_openslide_fclose(g_steal_pointer(&current_file));
       }
     } else {
       current_jpeg++;
@@ -1008,9 +989,9 @@ static gpointer restart_marker_thread_func(gpointer d) {
   // store error, if any
   if (tmp_err) {
     //g_debug("restart_marker_thread_func failed: %s", tmp_err->message);
-    g_mutex_lock(&data->restart_marker_cond_mutex);
+    g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+      g_mutex_locker_new(&data->restart_marker_cond_mutex);
     data->restart_marker_thread_error = tmp_err;
-    g_mutex_unlock(&data->restart_marker_cond_mutex);
   }
 
   //  g_debug("restart_marker_thread_func done!");
@@ -1080,11 +1061,11 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     if (comment) {
       if (cinfo->marker_list) {
 	// copy everything out
-	char *com = g_strndup((const gchar *) cinfo->marker_list->data,
-			      cinfo->marker_list->data_length);
+	g_autofree char *com =
+	  g_strndup((const gchar *) cinfo->marker_list->data,
+                    cinfo->marker_list->data_length);
 	// but only really save everything up to the first '\0'
 	*comment = g_strdup(com);
-	g_free(com);
       }
       jpeg_save_markers(cinfo, JPEG_COM, 0);  // stop saving
     }
@@ -1134,7 +1115,7 @@ static int64_t *extract_optimisations_for_one_jpeg(struct _openslide_file *opt_f
                                                    int32_t tiles_down,
                                                    int32_t tiles_across) {
   int32_t tile_count = tiles_across * tiles_down;
-  int64_t *mcu_starts = g_new(int64_t, tile_count);
+  g_autofree int64_t *mcu_starts = g_new(int64_t, tile_count);
   for (int32_t i = 0; i < tile_count; i++) {
     mcu_starts[i] = -1; // UNKNOWN value
   }
@@ -1164,7 +1145,7 @@ static int64_t *extract_optimisations_for_one_jpeg(struct _openslide_file *opt_f
 
       if (row == 0) {
 	// if we don't even get the first one, deallocate
-	goto FAIL;
+	return NULL;
       }
 
       break;
@@ -1177,11 +1158,7 @@ static int64_t *extract_optimisations_for_one_jpeg(struct _openslide_file *opt_f
     mcu_starts[row * tiles_across] = offset;
   }
 
-  return mcu_starts;
-
- FAIL:
-  g_free(mcu_starts);
-  return NULL;
+  return g_steal_pointer(&mcu_starts);
 }
 
 static void add_mpp_property(openslide_t *osr, GKeyFile *kf,
@@ -1198,7 +1175,7 @@ static void add_mpp_property(openslide_t *osr, GKeyFile *kf,
 static void add_properties(openslide_t *osr,
                            GKeyFile *kf, const char *group,
                            struct _openslide_level *level0) {
-  char **keys = g_key_file_get_keys(kf, group, NULL, NULL);
+  g_auto(GStrv) keys = g_key_file_get_keys(kf, group, NULL, NULL);
   if (keys == NULL) {
     return;
   }
@@ -1208,12 +1185,9 @@ static void add_properties(openslide_t *osr,
     if (value) {
       g_hash_table_insert(osr->properties,
 			  g_strdup_printf("hamamatsu.%s", *key),
-			  g_strdup(value));
-      g_free(value);
+                          value);
     }
   }
-
-  g_strfreev(keys);
 
   // this allows openslide.objective-power to have a fractional component
   // but it's better than rounding
@@ -1305,14 +1279,18 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
   }
 }
 
+typedef openslide_t jpeg_osr;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(jpeg_osr, jpeg_do_destroy)
+
 // consumes setup, even on failure
-static bool init_jpeg_ops(openslide_t *osr,
+static bool init_jpeg_ops(openslide_t *_osr,
                           struct jpeg_setup *_setup,
                           bool background_thread,
                           GError **err) {
   g_autoptr(jpeg_setup) setup = _setup;
 
   // allocate private data
+  g_autoptr(jpeg_osr) osr = _osr;
   g_assert(osr->data == NULL);
   struct hamamatsu_jpeg_ops_data *data =
     g_slice_new0(struct hamamatsu_jpeg_ops_data);
@@ -1347,26 +1325,24 @@ static bool init_jpeg_ops(openslide_t *osr,
   if (_openslide_debug(OPENSLIDE_DEBUG_JPEG_MARKERS)) {
     // run background thread to completion
     if (background_thread) {
-      g_thread_join(data->restart_marker_thread);
-      data->restart_marker_thread = NULL;
+      g_thread_join(g_steal_pointer(&data->restart_marker_thread));
     } else {
       restart_marker_thread_func(osr);
     }
 
     // check for errors
-    g_mutex_lock(&data->restart_marker_cond_mutex);
-    if (data->restart_marker_thread_error) {
-      g_propagate_error(err, data->restart_marker_thread_error);
-      data->restart_marker_thread_error = NULL;
-      g_mutex_unlock(&data->restart_marker_cond_mutex);
-      jpeg_do_destroy(osr);
-      return false;
+    {
+      g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+        g_mutex_locker_new(&data->restart_marker_cond_mutex);
+      if (data->restart_marker_thread_error) {
+        g_propagate_error(err,
+                          g_steal_pointer(&data->restart_marker_thread_error));
+        return false;
+      }
     }
-    g_mutex_unlock(&data->restart_marker_cond_mutex);
 
     // verify results
     if (!verify_mcu_starts(data->jpeg_count, data->all_jpegs, err)) {
-      jpeg_do_destroy(osr);
       return false;
     }
   }
@@ -1374,6 +1350,7 @@ static bool init_jpeg_ops(openslide_t *osr,
   // set ops
   osr->ops = &hamamatsu_jpeg_ops;
 
+  g_steal_pointer(&osr);
   return true;
 }
 
@@ -1561,12 +1538,15 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
   return init_jpeg_ops(osr, g_steal_pointer(&setup), true, err);
 }
 
+static void ngr_level_free(struct ngr_level *l) {
+  g_free(l->filename);
+  _openslide_grid_destroy(l->grid);
+  g_slice_free(struct ngr_level, l);
+}
+
 static void ngr_destroy(openslide_t *osr) {
   for (int i = 0; i < osr->level_count; i++) {
-    struct ngr_level *l = (struct ngr_level *) osr->levels[i];
-    g_free(l->filename);
-    _openslide_grid_destroy(l->grid);
-    g_slice_free(struct ngr_level, l);
+    ngr_level_free((struct ngr_level *) osr->levels[i]);
   }
   g_free(osr->levels);
 }
@@ -1678,20 +1658,19 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 				int num_levels, char **image_filenames,
 				GError **err) {
   // initialize individual ngr structs
-  struct ngr_level **levels = g_new(struct ngr_level *, num_levels);
-  for (int i = 0; i < num_levels; i++) {
-    levels[i] = g_slice_new0(struct ngr_level);
-  }
+  g_autoptr(GPtrArray) level_array =
+    g_ptr_array_new_with_free_func((GDestroyNotify) ngr_level_free);
 
   // open files
   for (int i = 0; i < num_levels; i++) {
-    struct ngr_level *l = levels[i];
+    struct ngr_level *l = g_slice_new0(struct ngr_level);
+    g_ptr_array_add(level_array, l);
 
     l->filename = g_strdup(image_filenames[i]);
 
-    struct _openslide_file *f;
-    if ((f = _openslide_fopen(l->filename, err)) == NULL) {
-      goto FAIL;
+    g_autoptr(_openslide_file) f = _openslide_fopen(l->filename, err);
+    if (f == NULL) {
+      return false;
     }
 
     // validate magic
@@ -1699,21 +1678,18 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     if (_openslide_fread(f, buf, sizeof(buf)) != sizeof(buf)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read magic on NGR file, level %d", i);
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
     if ((buf[0] != 'G') || (buf[1] != 'N')) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Bad magic on NGR file, level %d", i);
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
 
     // read w, h, column width, headersize
     if (!_openslide_fseek(f, 4, SEEK_SET, err)) {
       g_prefix_error(err, "Couldn't seek to NGR header: ");
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
     l->base.w = read_le_int32_from_file(f);
     l->base.h = read_le_int32_from_file(f);
@@ -1721,8 +1697,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     if (!_openslide_fseek(f, 24, SEEK_SET, err)) {
       g_prefix_error(err, "Couldn't seek within NGR header: ");
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
     l->start_in_file = read_le_int32_from_file(f);
 
@@ -1731,8 +1706,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 	(l->column_width <= 0) || (l->start_in_file <= 0)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read header, level %d", i);
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
 
     // ensure no remainder on columns
@@ -1740,8 +1714,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Width %"PRId64" not multiple of column width %d",
                   l->base.w, l->column_width);
-      _openslide_fclose(f);
-      goto FAIL;
+      return false;
     }
 
     l->grid = _openslide_grid_create_simple(osr,
@@ -1755,28 +1728,16 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     // tile size hints
     l->base.tile_w = l->column_width;
     l->base.tile_h = NGR_TILE_HEIGHT;
-
-    _openslide_fclose(f);
   }
 
   // set osr data
   g_assert(osr->levels == NULL);
-  osr->levels = (struct _openslide_level **) levels;
-  osr->level_count = num_levels;
+  osr->level_count = level_array->len;
+  osr->levels = (struct _openslide_level **)
+    g_ptr_array_free(g_steal_pointer(&level_array), false);
   osr->ops = &ngr_ops;
 
   return true;
-
- FAIL:
-  // destroy
-  for (int i = 0; i < num_levels; i++) {
-    _openslide_grid_destroy(levels[i]->grid);
-    g_free(levels[i]->filename);
-    g_slice_free(struct ngr_level, levels[i]);
-  }
-  g_free(levels);
-
-  return false;
 }
 
 
@@ -1784,18 +1745,13 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
                                    struct _openslide_tifflike *tl G_GNUC_UNUSED,
                                    struct _openslide_hash *quickhash1,
                                    GError **err) {
-  // initialize any variables destroyed/used in DONE
-  char *dirname = g_path_get_dirname(filename);
-  int num_images = 0;
-  char **image_filenames = NULL;
-  bool success = false;
-
   // first, see if it's a VMS/VMU file
-  GKeyFile *key_file = _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
-                                                G_KEY_FILE_NONE, err);
+  g_autoptr(GKeyFile) key_file =
+    _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                             G_KEY_FILE_NONE, err);
   if (!key_file) {
     g_prefix_error(err, "Can't load key file: ");
-    goto DONE;
+    return false;
   }
 
   // select group or fail, then read dimensions
@@ -1819,14 +1775,14 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not VMS or VMU file");
-    goto DONE;
+    return false;
   }
 
   // revalidate cols/rows
   if (num_cols < 1 || num_rows < 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "File missing columns or rows");
-    goto DONE;
+    return false;
   }
 
   // init the image filenames
@@ -1835,44 +1791,42 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   if (num_images_tmp > INT32_MAX) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Too many columns or rows");
-    goto DONE;
+    return false;
   }
-  num_images = num_images_tmp;
-  image_filenames = g_new0(char *, num_images);
+  g_autoptr(GPtrArray) image_filenames =
+    g_ptr_array_new_full(num_images_tmp, g_free);
+  g_ptr_array_set_size(image_filenames, num_images_tmp);
 
   // hash in the key file
   if (!_openslide_hash_file(quickhash1, filename, err)) {
-    goto DONE;
+    return false;
   }
 
   // extract MapFile
-  char *tmp;
-  tmp = g_key_file_get_string(key_file,
-			      groupname,
-			      KEY_MAP_FILE,
-			      NULL);
-  if (tmp && *tmp) {
-    char *map_filename = g_build_filename(dirname, tmp, NULL);
-    g_free(tmp);
+  g_autofree char *dirname = g_path_get_dirname(filename);
+  g_autofree char *map = g_key_file_get_string(key_file, groupname,
+                                               KEY_MAP_FILE, NULL);
+  if (map && *map) {
+    char *map_filename = g_build_filename(dirname, map, NULL);
 
-    image_filenames[num_images - 1] = map_filename;
+    image_filenames->pdata[image_filenames->len - 1] = map_filename;
 
     // hash in the map file
     if (!_openslide_hash_file(quickhash1, map_filename, err)) {
-      goto DONE;
+      return false;
     }
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't read map file");
-    g_free(tmp);
-    goto DONE;
+    return false;
   }
 
   // now each ImageFile
-  char **all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
+  g_auto(GStrv) all_keys = g_key_file_get_keys(key_file, groupname, NULL, NULL);
   for (char **tmp = all_keys; *tmp != NULL; tmp++) {
     char *key = *tmp;
-    char *value = g_key_file_get_string(key_file, groupname, key, NULL);
+    g_autofree char *value =
+      g_key_file_get_string(key_file, groupname, key, NULL);
 
     //    g_debug("%s", key);
 
@@ -1883,7 +1837,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       int col;
       int row;
 
-      char **split = g_strsplit(suffix, ",", 0);
+      g_auto(GStrv) split = g_strsplit(suffix, ",", 0);
       switch (g_strv_length(split)) {
       case 0:
 	// all zero
@@ -1921,18 +1875,13 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unknown number of image dimensions: %d",
                     g_strv_length(split));
-        g_free(value);
-        g_strfreev(split);
-        g_strfreev(all_keys);
-        goto DONE;
+        return false;
       }
-      g_strfreev(split);
 
       //g_debug("layer: %d, col: %d, row: %d", layer, col, row);
 
       if (layer != 0) {
         // skip non-zero layers for now
-        g_free(value);
         continue;
       }
 
@@ -1940,74 +1889,57 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Invalid row or column in Hamamatsu file (%d,%d)",
                     col, row);
-        g_free(value);
-	g_strfreev(all_keys);
-        goto DONE;
+        return false;
       }
 
       // compute index from x,y
       int i = row * num_cols + col;
 
       // init the file
-      if (image_filenames[i]) {
+      if (image_filenames->pdata[i]) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Duplicate image for (%d,%d)", col, row);
-        g_free(value);
-        g_strfreev(all_keys);
-        goto DONE;
+        return false;
       }
-      image_filenames[i] = g_build_filename(dirname, value, NULL);
+      image_filenames->pdata[i] = g_build_filename(dirname, value, NULL);
     }
-    g_free(value);
   }
-  g_strfreev(all_keys);
 
   // ensure all image filenames are filled
-  for (int i = 0; i < num_images; i++) {
-    if (!image_filenames[i]) {
+  for (guint i = 0; i < image_filenames->len; i++) {
+    if (!image_filenames->pdata[i]) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Can't read image filename %d", i);
-      goto DONE;
+      return false;
     }
   }
 
   // add macro image
-  tmp = g_key_file_get_string(key_file,
-			      groupname,
-			      KEY_MACRO_IMAGE,
-			      NULL);
-  if (tmp && *tmp) {
-    char *macro_filename = g_build_filename(dirname, tmp, NULL);
-    bool result = _openslide_jpeg_add_associated_image(osr,
-                                                       "macro",
-                                                       macro_filename, 0, err);
-    g_free(macro_filename);
-
-    if (!result) {
-      g_free(tmp);
-      goto DONE;
+  g_autofree char *macro = g_key_file_get_string(key_file, groupname,
+                                                 KEY_MACRO_IMAGE, NULL);
+  if (macro && *macro) {
+    g_autofree char *macro_filename = g_build_filename(dirname, macro, NULL);
+    if (!_openslide_jpeg_add_associated_image(osr, "macro", macro_filename,
+                                              0, err)) {
+      return false;
     }
   }
-  g_free(tmp);
 
   // finalize depending on what format
   if (groupname == GROUP_VMS) {
     // open OptimisationFile
-    struct _openslide_file *optimisation_file = NULL;
-    char *tmp = g_key_file_get_string(key_file,
-				      GROUP_VMS,
-				      KEY_OPTIMISATION_FILE,
-				      NULL);
-    if (tmp) {
-      char *optimisation_filename = g_build_filename(dirname, tmp, NULL);
-      g_free(tmp);
+    g_autoptr(_openslide_file) optimisation_file = NULL;
+    g_autofree char *opt = g_key_file_get_string(key_file, GROUP_VMS,
+				                 KEY_OPTIMISATION_FILE, NULL);
+    if (opt) {
+      g_autofree char *optimisation_filename =
+        g_build_filename(dirname, opt, NULL);
 
       optimisation_file = _openslide_fopen(optimisation_filename, NULL);
 
       if (optimisation_file == NULL) {
 	// g_debug("Can't open optimisation file");
       }
-      g_free(optimisation_filename);
     } else {
       // g_debug("Optimisation file key not present");
     }
@@ -2016,15 +1948,13 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
     }
 
     // do all the jpeg stuff
-    success = hamamatsu_vms_part2(osr,
-				  num_images, image_filenames,
-				  num_cols, num_rows,
-				  optimisation_file,
-				  err);
-
-    // clean up
-    if (optimisation_file) {
-      _openslide_fclose(optimisation_file);
+    if (!hamamatsu_vms_part2(osr,
+                             image_filenames->len,
+                             (char **) image_filenames->pdata,
+                             num_cols, num_rows,
+                             optimisation_file,
+                             err)) {
+      return false;
     }
   } else if (groupname == GROUP_VMU) {
     // verify a few assumptions for VMU
@@ -2032,10 +1962,8 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 						GROUP_VMU,
 						KEY_BITS_PER_PIXEL,
 						NULL);
-    char *pixel_order = g_key_file_get_string(key_file,
-					      GROUP_VMU,
-					      KEY_PIXEL_ORDER,
-					      NULL);
+    g_autofree char *pixel_order = g_key_file_get_string(key_file, GROUP_VMU,
+					                 KEY_PIXEL_ORDER, NULL);
 
     if (bits_per_pixel != 36) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -2045,34 +1973,21 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
                   "%s must be RGB", KEY_PIXEL_ORDER);
     } else {
       // assumptions verified
-      success = hamamatsu_vmu_part2(osr,
-				    num_images, image_filenames,
-				    err);
+      if (!hamamatsu_vmu_part2(osr,
+                               image_filenames->len,
+                               (char **) image_filenames->pdata,
+                               err)) {
+        return false;
+      }
     }
-    g_free(pixel_order);
   } else {
     g_assert_not_reached();
   }
 
   // now that we have the level 0 dimensions, add properties
-  if (success) {
-    add_properties(osr, key_file, groupname, osr->levels[0]);
-  }
+  add_properties(osr, key_file, groupname, osr->levels[0]);
 
- DONE:
-  g_free(dirname);
-
-  if (image_filenames) {
-    for (int i = 0; i < num_images; i++) {
-      g_free(image_filenames[i]);
-    }
-    g_free(image_filenames);
-  }
-  if (key_file) {
-    g_key_file_free(key_file);
-  }
-
-  return success;
+  return true;
 }
 
 const struct _openslide_format _openslide_format_hamamatsu_vms_vmu = {
@@ -2193,17 +2108,15 @@ static void ndpi_set_props(openslide_t *osr,
   const char *props = _openslide_tifflike_get_buffer(tl, dir,
                                                      NDPI_PROPERTY_MAP, NULL);
   if (props) {
-    char **records = g_strsplit(props, "\r\n", 0);
+    g_auto(GStrv) records = g_strsplit(props, "\r\n", 0);
     for (char **cur_record = records; *cur_record; cur_record++) {
-      char **pair = g_strsplit(*cur_record, "=", 2);
+      g_auto(GStrv) pair = g_strsplit(*cur_record, "=", 2);
       if (pair[0] && pair[0][0] && pair[1] && pair[1][0]) {
         g_hash_table_insert(osr->properties,
                             g_strdup_printf("hamamatsu.%s", pair[0]),
                             g_strdup(pair[1]));
       }
-      g_strfreev(pair);
     }
-    g_strfreev(records);
   }
 }
 
