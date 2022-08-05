@@ -75,6 +75,24 @@ PKG_CHECK_MODULES(VALGRIND, [valgrind], [
 
 gl_VISIBILITY
 
+# glib only offers autoptr macros when the compiler supports them
+AC_MSG_CHECKING([compiler support for cleanup attribute])
+saved_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS $GLIB2_CFLAGS"
+AC_COMPILE_IFELSE([
+  AC_LANG_PROGRAM([
+    #include <glib.h>
+    #ifndef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+    #error Cleanup functions not available
+    #endif
+  ])
+], [
+  AC_MSG_RESULT([yes])
+], [
+  AC_MSG_FAILURE([glib2 reports compiler does not support cleanup attribute])
+])
+CFLAGS="$saved_CFLAGS"
+
 # CLOEXEC
 AC_MSG_CHECKING([fopen() close-on-exec flag])
 AS_CASE([$host_os],
