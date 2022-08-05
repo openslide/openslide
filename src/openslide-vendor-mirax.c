@@ -950,7 +950,7 @@ static int32_t *read_slide_position_buffer(const void *buffer,
 
   const char *p = buffer;
   int64_t count = buffer_size / SLIDE_POSITION_RECORD_SIZE;
-  int32_t *result = g_new(int, count * 2);
+  int32_t *result = g_new(int32_t, count * 2);
   int32_t x;
   int32_t y;
   char zz;
