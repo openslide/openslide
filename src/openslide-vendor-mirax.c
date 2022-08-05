@@ -1464,7 +1464,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   int thumbnail_nonhier_offset = -1;
 
   int slide_zoom_level_value = -1;
-  char *key_slide_zoom_level_name = NULL;
   char *key_slide_zoom_level_count = NULL;
   char **slide_zoom_level_section_names = NULL;
   struct slide_zoom_level_section *slide_zoom_level_sections = NULL;
@@ -1553,7 +1552,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     if (strcmp(VALUE_SLIDE_ZOOM_LEVEL, value) == 0) {
       g_free(value);
       slide_zoom_level_value = i;
-      key_slide_zoom_level_name = g_strdup_printf(KEY_HIER_d_NAME, i);
       key_slide_zoom_level_count = g_strdup_printf(KEY_HIER_d_COUNT, i);
       break;
     }
@@ -1992,7 +1990,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   g_strfreev(slide_zoom_level_section_names);
   g_free(slide_zoom_level_sections);
   g_free(slide_zoom_level_params);
-  g_free(key_slide_zoom_level_name);
   g_free(key_slide_zoom_level_count);
 
   if (slidedat) {
