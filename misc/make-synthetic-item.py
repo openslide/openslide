@@ -10,6 +10,7 @@ for name in sys.argv[1:]:
     print(f'  &(const struct synthetic_item){{')
     print(f'    .name = "{name}",')
     print(f'    .description = "fill this in",')
+    print(f'    .is_valid = true,')
     print(f'    .is_image = true,')
     print(f'    .decode = decode_{name},')
     print(f'    .uncompressed_size = {len(uncompressed)},')

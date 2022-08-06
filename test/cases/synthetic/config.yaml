@@ -5,7 +5,7 @@ vendor: synthetic
 primary: true
 properties:
   # quickhash will change whenever items are added
-  openslide.quickhash-1: 62cbc433ecbbe3fe0ab32199bdea864c7e4ccbee5388313696abd4bd0c1506c3
+  openslide.quickhash-1: ed28afbe7a7a4ac2cc6bee2c89dd45740c9cfea0bb691ad41777006eb9bc1f46
   openslide.vendor: synthetic
 debug:
 - synthetic

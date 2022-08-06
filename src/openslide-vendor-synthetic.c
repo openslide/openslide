@@ -56,6 +56,7 @@ struct level {
 struct synthetic_item {
   const char *name;
   const char *description;
+  bool is_valid;
   bool is_image;
   bool (*decode)(const void *data, uint32_t len, uint32_t *dest, GError **err);
   uint32_t uncompressed_size;
@@ -208,11 +209,18 @@ static bool decode_item(const struct synthetic_item *item,
     g_prefix_error(err, "Decompressing %s: ", item->name);
     return false;
   }
-  if (!item->decode(uncompressed, item->uncompressed_size, dest, err)) {
+  bool ok = item->decode(uncompressed, item->uncompressed_size, dest, err);
+  if (item->is_valid && !ok) {
     g_prefix_error(err, "Decoding %s: ", item->name);
     return false;
+  } else if (!item->is_valid && ok) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decoding %s: invalid item decoded successfully", item->name);
+    return false;
+  } else if (!item->is_valid) {
+    g_clear_error(err);
   }
-  if (item->is_image) {
+  if (item->is_valid && item->is_image) {
     // check that pixels from the centers of the R/G/B swatches are reasonably
     // close to pure colors
     uint32_t r = dest[17 * IMAGE_PIXELS / 4];
@@ -339,11 +347,12 @@ static bool synthetic_open(openslide_t *osr,
       return false;
     }
 
-    const char *rendered = item->is_image ? "" : " (not rendered)";
+    const char *rendered =
+      item->is_valid && item->is_image ? "" : " (not rendered)";
     g_hash_table_insert(osr->properties,
                         g_strdup_printf("synthetic.item.%s", item->name),
                         g_strdup_printf("%s%s", item->description, rendered));
-    if (item->is_image) {
+    if (item->is_valid && item->is_image) {
       _openslide_grid_tilemap_add_tile(level->grid,
                                        count, 0,
                                        0.0, 0.0,
@@ -385,6 +394,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "bmp",
     .description = "BMP",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_bmp,
     .uncompressed_size = 582,
@@ -401,6 +411,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "j2k",
     .description = "J2K",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_j2k,
     .uncompressed_size = 428,
@@ -444,6 +455,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "jpeg",
     .description = "YCbCr JPEG",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_jpeg,
     .uncompressed_size = 735,
@@ -499,8 +511,38 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
     }
   },
   &(const struct synthetic_item){
+    .name = "jpeg.bad",
+    .description = "Corrupt JPEG",
+    .is_valid = false,
+    .is_image = true,
+    .decode = decode_jpeg,
+    .uncompressed_size = 518,
+    .compressed_size = 208,
+    .compressed_data = (const uint8_t[]){
+       0x78, 0xda, 0x95, 0x8e, 0x3b, 0x0e, 0xc2, 0x30, 0x10, 0x44, 0x77, 0xfd,
+       0x21, 0x4e, 0xec, 0x84, 0x75, 0xb0, 0x81, 0x96, 0x9e, 0x3b, 0xa4, 0x40,
+       0x42, 0x82, 0x9a, 0xc3, 0x90, 0x34, 0x1c, 0x85, 0xbb, 0x20, 0x0e, 0xc1,
+       0xa7, 0xe1, 0x26, 0xc6, 0x2e, 0x40, 0x02, 0x01, 0x11, 0xa3, 0x2d, 0x56,
+       0xa3, 0x37, 0xbb, 0x13, 0x4e, 0xe1, 0x06, 0xb4, 0x5e, 0xae, 0x96, 0x80,
+       0x51, 0x73, 0x9c, 0x03, 0x84, 0x2b, 0x2c, 0x80, 0x33, 0x96, 0x26, 0x4a,
+       0xc4, 0x91, 0x4a, 0x4a, 0x21, 0x64, 0x91, 0x65, 0x03, 0x65, 0x0a, 0x63,
+       0x74, 0xa1, 0x75, 0x59, 0xd5, 0x54, 0x56, 0xb6, 0xd2, 0x9a, 0xc6, 0x64,
+       0x47, 0xce, 0x7b, 0x6f, 0x86, 0x93, 0xe9, 0xd8, 0x4d, 0x6b, 0xe7, 0x5d,
+       0x3a, 0x82, 0x3c, 0x66, 0x84, 0xcc, 0xa5, 0xcc, 0x5d, 0xa9, 0x4b, 0xf7,
+       0xb7, 0xc2, 0x01, 0xac, 0x02, 0x04, 0xe4, 0x68, 0x81, 0x59, 0xe4, 0x16,
+       0xc3, 0x11, 0x5c, 0x74, 0x5e, 0xa5, 0x92, 0x8b, 0x0f, 0x77, 0xdb, 0x76,
+       0x5d, 0x9b, 0x96, 0x70, 0x01, 0xc3, 0x11, 0x18, 0x71, 0x02, 0xc0, 0xcd,
+       0x3e, 0x51, 0xf4, 0x9e, 0x4d, 0x94, 0x8a, 0x59, 0x94, 0x6c, 0x97, 0x00,
+       0xfb, 0x19, 0xe0, 0x88, 0x0d, 0xfe, 0x02, 0xd8, 0x13, 0xf8, 0xfa, 0x62,
+       0xd0, 0xb0, 0xdf, 0x00, 0x36, 0xb3, 0xdd, 0xa3, 0x34, 0xf0, 0xe8, 0xd3,
+       0xbe, 0xa7, 0x12, 0xf5, 0x55, 0xa2, 0xbe, 0x8f, 0x11, 0x38, 0xdf, 0x01,
+       0x7f, 0x2f, 0x44, 0xdc,
+    }
+  },
+  &(const struct synthetic_item){
     .name = "jpeg.rgb",
     .description = "RGB JPEG",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_jpeg,
     .uncompressed_size = 489,
@@ -553,6 +595,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "png",
     .description = "RGB PNG",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_png,
     .uncompressed_size = 101,
@@ -570,8 +613,26 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
     }
   },
   &(const struct synthetic_item){
+    .name = "png.bad",
+    .description = "Corrupt PNG",
+    .is_valid = false,
+    .is_image = true,
+    .decode = decode_png,
+    .uncompressed_size = 67,
+    .compressed_size = 66,
+    .compressed_data = (const uint8_t[]){
+       0x78, 0xda, 0xeb, 0x0c, 0xf0, 0x73, 0xe7, 0xe5, 0x92, 0xe2, 0x62, 0x60,
+       0x60, 0xe0, 0xf5, 0xf4, 0x70, 0x09, 0x02, 0xd2, 0x8c, 0x20, 0xcc, 0x01,
+       0x24, 0x18, 0xac, 0xea, 0x66, 0x87, 0x02, 0x29, 0x2e, 0xcf, 0x70, 0xc7,
+       0x10, 0x0e, 0xd9, 0xe4, 0x1f, 0xfc, 0x0c, 0x8c, 0x8c, 0x8c, 0x0c, 0x66,
+       0xf1, 0xe9, 0x0d, 0x20, 0x59, 0x4f, 0x57, 0x3f, 0x97, 0x75, 0x4e, 0x09,
+       0x4d, 0x00, 0x54, 0x5d, 0x0b, 0xcf,
+    }
+  },
+  &(const struct synthetic_item){
     .name = "tiff.jpeg",
     .description = "Tiled JPEG classic TIFF",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_tiff,
     .uncompressed_size = 992,
@@ -636,6 +697,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "tiff.jpeg.big",
     .description = "Tiled JPEG BigTIFF",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_tiff,
     .uncompressed_size = 1118,
@@ -699,6 +761,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "tiff.lzw",
     .description = "Tiled LZW classic TIFF",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_tiff,
     .uncompressed_size = 411,
@@ -732,6 +795,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "tiff.lzw.big",
     .description = "Tiled LZW BigTIFF",
+    .is_valid = true,
     .is_image = true,
     .decode = decode_tiff,
     .uncompressed_size = 549,
@@ -764,6 +828,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   &(const struct synthetic_item){
     .name = "xml",
     .description = "XML document",
+    .is_valid = true,
     .is_image = false,
     .decode = decode_xml,
     .uncompressed_size = 107,
