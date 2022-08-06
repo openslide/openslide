@@ -339,9 +339,10 @@ static bool synthetic_open(openslide_t *osr,
       return false;
     }
 
+    const char *rendered = item->is_image ? "" : " (not rendered)";
     g_hash_table_insert(osr->properties,
                         g_strdup_printf("synthetic.item.%s", item->name),
-                        g_strdup(item->description));
+                        g_strdup_printf("%s%s", item->description, rendered));
     if (item->is_image) {
       _openslide_grid_tilemap_add_tile(level->grid,
                                        count, 0,
@@ -762,7 +763,7 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
   },
   &(const struct synthetic_item){
     .name = "xml",
-    .description = "XML document (not rendered)",
+    .description = "XML document",
     .is_image = false,
     .decode = decode_xml,
     .uncompressed_size = 107,
