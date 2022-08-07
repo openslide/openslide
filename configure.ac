@@ -182,8 +182,6 @@ AS_CASE([$host],
 # Compiler warnings
 WARN_CFLAGS="-Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs"
 AC_SUBST([WARN_CFLAGS])
-# MinGW only
-gl_WARN_ADD([-Wno-pedantic-ms-format])
 
 AC_SUBST(AM_CFLAGS, ['$(WARN_CFLAGS) $(CFLAG_VISIBILITY) -DG_DISABLE_SINGLE_INCLUDES -DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED -fno-common'])
 
