@@ -47,6 +47,11 @@ struct _openslide_tiff_level {
 
 struct _openslide_tiffcache;
 
+struct _openslide_cached_tiff {
+  struct _openslide_tiffcache *tc;
+  TIFF *tiff;
+};
+
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
                                 struct _openslide_level *level,
@@ -91,14 +96,20 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
    multithreaded access */
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);
 
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
+// result.tiff is NULL on error
+struct _openslide_cached_tiff _openslide_tiffcache_get(struct _openslide_tiffcache *tc,
+                                                       GError **err);
 
-void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
+void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct);
 
 void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
 
 typedef struct _openslide_tiffcache _openslide_tiffcache;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tiffcache,
                               _openslide_tiffcache_destroy)
+
+typedef struct _openslide_cached_tiff _openslide_cached_tiff;
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_cached_tiff,
+                                 _openslide_cached_tiff_put)
 
 #endif

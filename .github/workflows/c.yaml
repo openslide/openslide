@@ -41,8 +41,6 @@ jobs:
           - os: macos-latest
             failing: true
     steps:
-    - name: Check out repo
-      uses: actions/checkout@v3
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
       uses: actions/setup-python@v2
@@ -83,6 +81,9 @@ jobs:
                     dnf config-manager --set-enabled crb
                     dnf copr enable -y bgilbert/xdelta
                     ;;
+                *)
+                    extra=git-core
+                    ;;
                 esac
 
                 dnf install -y \
@@ -99,7 +100,7 @@ jobs:
                     cairo-devel \
                     glib2-devel \
                     doxygen \
-                    xdelta libjpeg-turbo-utils
+                    xdelta libjpeg-turbo-utils $extra
                 ;;
             *debian*|"")
                 if [ -n "${{ matrix.container }}" ]; then
@@ -129,8 +130,12 @@ jobs:
                 ;;
             esac
         esac
+    - name: Check out repo
+      uses: actions/checkout@v3
     - name: Check for uninitialized g_auto variables
+      if: matrix.extra
       run: |
+        git config --global --add safe.directory $GITHUB_WORKSPACE
         if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
             echo "Found g_auto* declarations without initializers"
             exit 1

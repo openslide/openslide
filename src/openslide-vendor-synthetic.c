@@ -263,13 +263,13 @@ static bool read_tile(openslide_t *osr G_GNUC_UNUSED,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    tiledata = g_slice_alloc(IMAGE_BUFSIZE);
-    if (!decode_item(item, tiledata, err)) {
-      g_slice_free1(IMAGE_BUFSIZE, tiledata);
+    g_auto(_openslide_slice) box = _openslide_slice_alloc(IMAGE_BUFSIZE);
+    if (!decode_item(item, box.p, err)) {
       return false;
     }
 
     // put it in the cache
+    tiledata = _openslide_slice_steal(&box);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
                          tiledata, IMAGE_BUFSIZE, &cache_entry);
   }

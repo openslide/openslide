@@ -299,38 +299,34 @@ static bool read_image(uint32_t *tiledata,
                        int32_t tile_size,
                        sqlite3_stmt *stmt,
                        GError **err) {
-  uint8_t *red_channel = g_slice_alloc(tile_size * tile_size);
-  uint8_t *green_channel = g_slice_alloc(tile_size * tile_size);
-  uint8_t *blue_channel = g_slice_alloc(tile_size * tile_size);
-  bool success = false;
+  g_auto(_openslide_slice) red_channel =
+    _openslide_slice_alloc(tile_size * tile_size);
+  g_auto(_openslide_slice) green_channel =
+    _openslide_slice_alloc(tile_size * tile_size);
+  g_auto(_openslide_slice) blue_channel =
+    _openslide_slice_alloc(tile_size * tile_size);
 
-  if (!read_channel(red_channel, tile_col, tile_row, downsample,
+  if (!read_channel(red_channel.p, tile_col, tile_row, downsample,
                     INDEX_RED, focal_plane, tile_size, stmt, err)) {
-    goto OUT;
+    return false;
   }
-  if (!read_channel(green_channel, tile_col, tile_row, downsample,
+  if (!read_channel(green_channel.p, tile_col, tile_row, downsample,
                     INDEX_GREEN, focal_plane, tile_size, stmt, err)) {
-    goto OUT;
+    return false;
   }
-  if (!read_channel(blue_channel, tile_col, tile_row, downsample,
+  if (!read_channel(blue_channel.p, tile_col, tile_row, downsample,
                     INDEX_BLUE, focal_plane, tile_size, stmt, err)) {
-    goto OUT;
+    return false;
   }
 
   for (int32_t i = 0; i < tile_size * tile_size; i++) {
     tiledata[i] = 0xff000000 |
-                  (red_channel[i] << 16) |
-                  (green_channel[i] << 8) |
-                  blue_channel[i];
+                  (((uint8_t *) red_channel.p)[i] << 16) |
+                  (((uint8_t *) green_channel.p)[i] << 8) |
+                  ((uint8_t *) blue_channel.p)[i];
   }
 
-  success = true;
-
-OUT:
-  g_slice_free1(tile_size * tile_size, red_channel);
-  g_slice_free1(tile_size * tile_size, green_channel);
-  g_slice_free1(tile_size * tile_size, blue_channel);
-  return success;
+  return true;
 }
 
 static bool read_tile(openslide_t *osr,
@@ -351,10 +347,11 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    tiledata = g_slice_alloc(tile_size * tile_size * 4);
+    g_auto(_openslide_slice) box =
+      _openslide_slice_alloc(tile_size * tile_size * 4);
 
     // read tile
-    if (!read_image(tiledata, tile_col, tile_row, l->base.downsample,
+    if (!read_image(box.p, tile_col, tile_row, l->base.downsample,
                     data->focal_plane, tile_size, stmt, &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
                           OPENSLIDE_ERROR_NO_VALUE)) {
@@ -363,22 +360,21 @@ static bool read_tile(openslide_t *osr,
         return true;
       } else {
         g_propagate_error(err, tmp_err);
-        g_slice_free1(tile_size * tile_size * 4, tiledata);
         return false;
       }
     }
 
     // clip, if necessary
-    if (!_openslide_clip_tile(tiledata,
+    if (!_openslide_clip_tile(box.p,
                               tile_size, tile_size,
                               l->base.w - tile_col * tile_size,
                               l->base.h - tile_row * tile_size,
                               err)) {
-      g_slice_free1(tile_size * tile_size * 4, tiledata);
       return false;
     }
 
     // put it in the cache
+    tiledata = _openslide_slice_steal(&box);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata, tile_size * tile_size * 4,
