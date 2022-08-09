@@ -114,7 +114,7 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
 // while decoding a tiny RGB JPEG.
 static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   jmp_buf env;
@@ -265,7 +265,7 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -325,7 +325,7 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {

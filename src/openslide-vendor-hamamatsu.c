@@ -601,7 +601,7 @@ static bool read_from_jpeg(openslide_t *osr,
 
   // begin decompress
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
   jmp_buf env;
 
@@ -1002,7 +1002,7 @@ static bool validate_jpeg_header(struct _openslide_file *f,
   }
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {

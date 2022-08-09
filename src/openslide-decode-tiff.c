@@ -218,7 +218,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
