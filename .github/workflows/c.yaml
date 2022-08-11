@@ -49,8 +49,9 @@ jobs:
       run: |
         case "${{ matrix.os }}" in
         macos-latest)
+            brew update
             brew install \
-                gcc make autoconf automake libtool pkg-config \
+                autoconf automake libtool pkg-config \
                 zlib \
                 libpng \
                 jpeg-turbo \
@@ -148,7 +149,10 @@ jobs:
             echo "Disabling file descriptor leak check"
             export CPPFLAGS="-DNONATOMIC_CLOEXEC"
         fi
-        ./configure
+        if ! ./configure; then
+            cat config.log
+            exit 1
+        fi
         make -j4 CFLAGS="-O2 -g -Werror"
     - name: Check
       run: |
