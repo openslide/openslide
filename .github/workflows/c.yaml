@@ -81,7 +81,8 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra=git-core
+                    extra="git-core valgrind valgrind-devel dnf-plugins-core"
+                    valgrind=1
                     ;;
                 esac
 
@@ -100,6 +101,10 @@ jobs:
                     glib2-devel \
                     doxygen \
                     xdelta libjpeg-turbo-utils $extra
+
+                if [ -n "$valgrind" ]; then
+                    dnf debuginfo-install -y cairo fontconfig glib2
+                fi
                 ;;
             *debian*|"")
                 if [ -n "${{ matrix.container }}" ]; then
@@ -184,6 +189,13 @@ jobs:
         ./driver unpack nonfrozen
     - name: Test
       run: cd test && ./driver run
+    - name: Valgrind
+      # Valgrind tests are expensive, and maintaining suppressions across
+      # multiple distros can be fiddly.  We might catch some additional bugs
+      # if we enabled this everywhere (mainly when there are different code
+      # paths for different dependency versions) but it doesn't seem worth it.
+      if: matrix.extra
+      run: cd test && ./driver valgrind
     - name: Check exports
       if: matrix.extra
       run: cd test && ./driver exports

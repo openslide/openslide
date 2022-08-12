@@ -115,7 +115,7 @@ noinst_SCRIPTS = test/driver
 CLEANFILES += test/driver
 EXTRA_DIST += test/driver.in
 
-test_try_open_CPPFLAGS = $(COMMON_CPPFLAGS)
+test_try_open_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_try_open_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS) -Wno-deprecated-declarations
 test_try_open_LDADD = $(COMMON_LDADD)
 
@@ -154,6 +154,7 @@ endif
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
 		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
+		-e 's:!!GLIB2_DATADIR!!:$(GLIB2_DATADIR):g' \
 		-e 's:!!VERSION!!:$(VERSION):g' \
 		-e 's:!!CYGWIN_CROSS_TEST!!:$(CYGWIN_CROSS_TEST):g' \
 		-e 's:!!FEATURES!!:$(FEATURE_FLAGS):g' "$<" > "$@" && \

@@ -29,6 +29,11 @@
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
+#include "config.h"
+
+#ifdef HAVE_VALGRIND
+#include <valgrind.h>
+#endif
 
 #define MAX_FDS 128
 #define TIME_ITERATIONS 5
@@ -64,6 +69,14 @@ static void check_error(openslide_t *osr) {
   if (error != NULL) {
     fail("%s", error);
   }
+}
+
+static bool in_valgrind(void) {
+#ifdef HAVE_VALGRIND
+  return RUNNING_ON_VALGRIND;
+#else
+  return false;
+#endif
 }
 
 #define CHECK_RET(call, result)			\
@@ -260,6 +273,10 @@ int main(int argc, char **argv) {
     if (!g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
       g_autofree char *path = common_get_fd_path(i);
       if (path != NULL) {
+        if (in_valgrind() && g_str_has_prefix(path, "pipe:")) {
+          // valgrind likes to open pipes
+          continue;
+        }
         // leaked
         fprintf(stderr, "Leaked file descriptor to %s\n", path);
         have_error = true;
