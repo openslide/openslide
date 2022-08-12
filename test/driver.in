@@ -840,7 +840,8 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
         for testname in _list_tests():
             conf = _load_test_config(testname)
             if conf.get('freezable', True):
-                _run_one(testname, workdir=FUSEMOUNT)
+                _, msg = _run_one(testname, workdir=FUSEMOUNT)
+                print(msg)
                 # Ensure we at least have a shadow directory for the test.
                 # Otherwise, tests that solely test opening a missing file
                 # in a multi-file format will cause a base slide fetch and
@@ -945,8 +946,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
-        print(_color(BLUE, f'{testname}: skipped'))
-        return True
+        return True, _color(BLUE, f'{testname}: skipped')
     if conf['slide'] == '':
         # synthetic test slide
         slidefile = ''
@@ -983,8 +983,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
         else:
             msg = _color(RED, f'{testname}: expected to fail, but passed')
 
-    print(msg)
-    return ok
+    return ok, msg
 
 
 def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
@@ -1003,8 +1002,10 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
             workdir = WORKROOT
         else:
             workdir = FROZEN
-        if not _run_one(testname, valgrind, testname in xfail, testdir,
-                workdir=workdir):
+        ok, msg = _run_one(testname, valgrind, testname in xfail, testdir,
+                workdir=workdir)
+        print(msg)
+        if not ok:
             failed += 1
     print(f'\nFailed: {failed}/{len(tests)}')
     return failed
