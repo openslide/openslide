@@ -199,6 +199,12 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
                 '--leak-check=full', '--num-callers=30'] + args
+        env.update(
+            # Valgrind has known issues detecting memory initialization by
+            # libjpeg-turbo SIMD code.  Disable SIMD support.
+            # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
+            JSIMD_FORCENONE='1',
+        )
     elif extra_checks:
         # debug-blocks retains pointers to freed slices, so don't use it
         # with Valgrind
