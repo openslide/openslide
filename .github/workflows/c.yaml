@@ -23,7 +23,7 @@ jobs:
         include:
           - os: ubuntu-latest
             container: registry.fedoraproject.org/fedora:latest
-            extra: true
+            extra: extra checks
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream8
           # Use ubuntu-22.04 to get a newer Docker seccomp filter.  Otherwise
@@ -33,9 +33,9 @@ jobs:
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
             container: debian:stable
-            ignore-fd-leaks: true
+            ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-20.04
-            ignore-fd-leaks: true
+            ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: macos-latest
     steps:
@@ -142,9 +142,9 @@ jobs:
     - name: Build
       run: |
         autoreconf -i
-        if [ -n "${{ matrix.ignore-fd-leaks }}" ]; then
+        if [ -n "${{ matrix.ignore-cloexec-leaks }}" ]; then
             # Some distro versions have leaky libraries
-            echo "Disabling file descriptor leak check"
+            echo "Disabling CLOEXEC leak check"
             export CPPFLAGS="-DNONATOMIC_CLOEXEC"
         fi
         if ! ./configure; then
