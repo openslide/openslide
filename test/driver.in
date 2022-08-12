@@ -21,6 +21,7 @@
 #
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
 import errno
@@ -154,6 +155,17 @@ def _features_available(conf):
         if feature not in FEATURES:
             return False
     return True
+
+
+def _cpu_count():
+    # Does not account for cgroup CPU limits, which might be lower
+    # https://github.com/python/cpython/issues/80235
+    try:
+        # Linux
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        # macOS
+        return os.cpu_count()
 
 
 def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
@@ -829,7 +841,8 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
         for testname in _list_tests():
             conf = _load_test_config(testname)
             if conf.get('freezable', True):
-                _run_one(testname, workdir=FUSEMOUNT)
+                _, msg = _run_one(testname, workdir=FUSEMOUNT)
+                print(msg)
                 # Ensure we at least have a shadow directory for the test.
                 # Otherwise, tests that solely test opening a missing file
                 # in a multi-file format will cause a base slide fetch and
@@ -934,8 +947,7 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
 
     conf = _load_test_config(testname)
     if not _features_available(conf):
-        print(_color(BLUE, f'{testname}: skipped'))
-        return True
+        return True, _color(BLUE, f'{testname}: skipped')
     if conf['slide'] == '':
         # synthetic test slide
         slidefile = ''
@@ -972,11 +984,11 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
         else:
             msg = _color(RED, f'{testname}: expected to fail, but passed')
 
-    print(msg)
-    return ok
+    return ok, msg
 
 
-def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
+def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None,
+        parallel=True):
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results.'''
@@ -984,17 +996,36 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     for testname in tests:
         if not os.path.exists(os.path.join(FROZEN, testname)):
             _unpack_one(testname)
+
     failed = 0
-    xfail = set(xfail or [])
-    for testname in tests:
-        # Prefer the real test if available
-        if os.path.exists(os.path.join(WORKROOT, testname)):
-            workdir = WORKROOT
-        else:
-            workdir = FROZEN
-        if not _run_one(testname, valgrind, testname in xfail, testdir,
-                workdir=workdir):
-            failed += 1
+    executor = ThreadPoolExecutor(
+        thread_name_prefix='test-runner-',
+        max_workers=_cpu_count() if parallel else 1,
+    )
+    try:
+        xfail = set(xfail or [])
+        futures = []
+        for testname in tests:
+            # Prefer the real test if available
+            if os.path.exists(os.path.join(WORKROOT, testname)):
+                workdir = WORKROOT
+            else:
+                workdir = FROZEN
+            futures.append(
+                executor.submit(_run_one, testname, valgrind, testname in xfail,
+                    testdir, workdir=workdir)
+            )
+        for future in futures:
+            ok, msg = future.result()
+            print(msg)
+            if not ok:
+                failed += 1
+    except:
+        # In particular, KeyboardInterrupt
+        executor.shutdown(cancel_futures=True)
+        raise
+    else:
+        executor.shutdown()
     print(f'\nFailed: {failed}/{len(tests)}')
     return failed
 
@@ -1035,7 +1066,7 @@ def _rebuild(configure_args):
 
     # Build with specified CFLAGS
     subprocess.check_call(['./configure'] + configure_args)
-    subprocess.check_call(['make'])
+    subprocess.check_call(['make', f'-j{_cpu_count()}'])
 
     # Let the caller run, passing it the directory we came from.
     # Intentionally don't clean up tempdir on exception.
@@ -1051,7 +1082,8 @@ def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
     with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
         # Run tests
-        _run_all(testdir='test')
+        # Avoid races when writing coverage data
+        _run_all(testdir='test', parallel=False)
 
         # Generate coverage reports
         for dirpath, dirnames, filenames in os.walk('src'):
@@ -1068,7 +1100,7 @@ def coverage(outfile):
         if proc.returncode:
             raise IOError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(l.replace('.c.gcov', '.c', 1)
-                for l in report.split('\n'))
+                for l in report.decode().split('\n'))
         with open(os.path.join(basedir, outfile), 'w') as fh:
             fh.write(report)
 
@@ -1169,7 +1201,7 @@ def exports():
         out, _ = proc.communicate()
         if proc.returncode:
             raise IOError(f'objdump returned exit status {proc.returncode}')
-        for line in out.splitlines():
+        for line in out.decode().splitlines():
             words = line.split()
             if len(words) < 3:
                 continue
