@@ -1068,7 +1068,7 @@ def coverage(outfile):
         if proc.returncode:
             raise IOError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(l.replace('.c.gcov', '.c', 1)
-                for l in report.split('\n'))
+                for l in report.decode().split('\n'))
         with open(os.path.join(basedir, outfile), 'w') as fh:
             fh.write(report)
 
@@ -1169,7 +1169,7 @@ def exports():
         out, _ = proc.communicate()
         if proc.returncode:
             raise IOError(f'objdump returned exit status {proc.returncode}')
-        for line in out.splitlines():
+        for line in out.decode().splitlines():
             words = line.split()
             if len(words) < 3:
                 continue
