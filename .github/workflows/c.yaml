@@ -18,7 +18,6 @@ jobs:
     name: Build
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
-    continue-on-error: ${{ matrix.failing || false }}
     strategy:
       matrix:
         include:
@@ -39,7 +38,6 @@ jobs:
             ignore-fd-leaks: true
           - os: ubuntu-22.04
           - os: macos-latest
-            failing: true
     steps:
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)

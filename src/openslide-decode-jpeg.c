@@ -105,17 +105,6 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
   }
 }
 
-static struct jpeg_error_mgr *error_handler_init(struct openslide_jpeg_error_mgr *jerr,
-                                                 jmp_buf *env) {
-  jpeg_std_error(&jerr->base);
-  jerr->base.error_exit = my_error_exit;
-  jerr->base.output_message = my_output_message;
-  jerr->base.emit_message = my_emit_message;
-  jerr->env = env;
-  return (struct jpeg_error_mgr *) jerr;
-}
-
-
 // Detect support for JCS_ALPHA_EXTENSIONS.  Even if the extensions were
 // available at compile time, they may not be available at runtime because
 // support for JCS_ALPHA_EXTENSIONS isn't reflected in the libjpeg soname.
@@ -124,33 +113,24 @@ static struct jpeg_error_mgr *error_handler_init(struct openslide_jpeg_error_mgr
 // and we need that for Aperio slides.  Instead, try enabling the extensions
 // while decoding a tiny RGB JPEG.
 static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
+  struct jpeg_decompress_struct *cinfo;
+  g_auto(_openslide_jpeg_decompress) dc =
+    _openslide_jpeg_decompress_create(&cinfo);
+
   jmp_buf env;
-  volatile bool alpha_extensions = false;
-
-  struct jpeg_decompress_struct *cinfo =
-    g_slice_new0(struct jpeg_decompress_struct);
-  struct openslide_jpeg_error_mgr *jerr =
-    g_slice_new0(struct openslide_jpeg_error_mgr);
-
   if (!setjmp(env)) {
-    cinfo->err = error_handler_init(jerr, &env);
-    jpeg_create_decompress(cinfo);
+    _openslide_jpeg_decompress_init(dc, &env);
     _openslide_jpeg_mem_src(cinfo, one_pixel_rgb_jpeg,
                             sizeof(one_pixel_rgb_jpeg));
     jpeg_read_header(cinfo, true);
     cinfo->out_color_space = JCS_EXT_BGRA;
     jpeg_start_decompress(cinfo);
-    alpha_extensions = true;
+    return GINT_TO_POINTER(true);
   } else {
-    g_clear_error(&jerr->err);
+    g_clear_error(&dc->jerr.err);
     _openslide_performance_warn("Optimized libjpeg color space not available");
+    return GINT_TO_POINTER(false);
   }
-
-  jpeg_destroy_decompress(cinfo);
-  g_slice_free(struct jpeg_decompress_struct, cinfo);
-  g_slice_free(struct openslide_jpeg_error_mgr, jerr);
-  //g_debug("have JCS_ALPHA_EXTENSIONS: %d", alpha_extensions);
-  return GINT_TO_POINTER(alpha_extensions);
 }
 
 // the caller must assign the struct _openslide_jpeg_decompress * before
@@ -164,7 +144,12 @@ struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg
 // after setjmp(), initialize error handler and start decompressing
 void _openslide_jpeg_decompress_init(struct _openslide_jpeg_decompress *dc,
                                      jmp_buf *env) {
-  dc->cinfo.err = error_handler_init(&dc->jerr, env);
+  jpeg_std_error(&dc->jerr.base);
+  dc->jerr.base.error_exit = my_error_exit;
+  dc->jerr.base.output_message = my_output_message;
+  dc->jerr.base.emit_message = my_emit_message;
+  dc->jerr.env = env;
+  dc->cinfo.err = (struct jpeg_error_mgr *) &dc->jerr;
   jpeg_create_decompress(&dc->cinfo);
 }
 
@@ -280,7 +265,7 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {
@@ -340,7 +325,7 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
   jmp_buf env;
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {

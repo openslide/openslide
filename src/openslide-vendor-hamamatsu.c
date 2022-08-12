@@ -586,25 +586,6 @@ static bool compute_mcu_start(openslide_t *osr,
   return true;
 }
 
-// wrapper that takes out-pointers to volatile, to avoid spurious longjmp
-// clobber warnings in read_from_jpeg() on gcc 4.9
-static bool compute_mcu_start_volatile(openslide_t *osr,
-                                       struct jpeg *jpeg,
-                                       struct _openslide_file *f,
-                                       int64_t tileno,
-                                       volatile int64_t *start_position,
-                                       volatile int64_t *stop_position,
-                                       GError **err) {
-  int64_t start;
-  int64_t stop;
-  if (!compute_mcu_start(osr, jpeg, f, tileno, &start, &stop, err)) {
-    return false;
-  }
-  *start_position = start;
-  *stop_position = stop;
-  return true;
-}
-
 static bool read_from_jpeg(openslide_t *osr,
                            struct jpeg *jpeg,
                            int32_t tileno,
@@ -620,22 +601,20 @@ static bool read_from_jpeg(openslide_t *osr,
 
   // begin decompress
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
   jmp_buf env;
 
-  // figure out where to start the data stream
-  // volatile to avoid spurious longjmp clobber warnings
-  volatile int64_t start_position;
-  volatile int64_t stop_position;
-  if (!compute_mcu_start_volatile(osr, jpeg, f, tileno,
-                                  &start_position,
-                                  &stop_position,
-                                  err)) {
-    return false;
-  }
-
   if (setjmp(env) == 0) {
+    // figure out where to start the data stream
+    int64_t start_position;
+    int64_t stop_position;
+    if (!compute_mcu_start(osr, jpeg, f, tileno,
+                           &start_position, &stop_position,
+                           err)) {
+      return false;
+    }
+
     // start decompressing
     _openslide_jpeg_decompress_init(dc, &env);
 
@@ -1023,7 +1002,7 @@ static bool validate_jpeg_header(struct _openslide_file *f,
   }
 
   struct jpeg_decompress_struct *cinfo;
-  g_autoptr(_openslide_jpeg_decompress) dc =
+  g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
 
   if (setjmp(env) == 0) {

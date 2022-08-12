@@ -98,8 +98,12 @@ void _openslide_jpeg_propagate_error(GError **err,
 
 void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc);
 
-typedef struct _openslide_jpeg_decompress _openslide_jpeg_decompress;
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_jpeg_decompress,
-                              _openslide_jpeg_decompress_destroy)
+// volatile pointer, to ensure clang doesn't incorrectly optimize field
+// accesses after setjmp() returns again in the function allocating the struct
+// https://github.com/llvm/llvm-project/issues/57110
+typedef struct _openslide_jpeg_decompress * volatile _openslide_jpeg_decompress;
+G_DEFINE_AUTO_CLEANUP_FREE_FUNC(_openslide_jpeg_decompress,
+                                _openslide_jpeg_decompress_destroy,
+                                NULL)
 
 #endif

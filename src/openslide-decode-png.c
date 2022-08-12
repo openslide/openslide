@@ -60,17 +60,17 @@ static void png_ctx_free(struct png_ctx *ctx) {
   g_slice_free(struct png_ctx, ctx);
 }
 
-typedef struct png_ctx png_ctx;
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(png_ctx, png_ctx_free)
+// volatile pointer, to ensure clang doesn't incorrectly optimize field
+// accesses after setjmp() returns again in the function allocating the struct
+// https://github.com/llvm/llvm-project/issues/57110
+// also avoids setjmp clobber warnings in GCC 12.1.1
+typedef struct png_ctx * volatile png_ctx;
+G_DEFINE_AUTO_CLEANUP_FREE_FUNC(png_ctx, png_ctx_free, NULL)
 
-// We want to avoid inlining this to avoid compiler setjmp clobber warnings
-// in the caller.  We won't have G_GNUC_NO_INLINE until glib 2.58, so use
-// the raw attribute syntax for now.
-static struct png_ctx * __attribute__((noinline)) png_ctx_new(uint32_t *dest,
-                                                              int64_t w,
-                                                              int64_t h,
-                                                              GError **err) {
-  g_autoptr(png_ctx) ctx = g_slice_new0(struct png_ctx);
+static struct png_ctx *png_ctx_new(uint32_t *dest,
+                                   int64_t w, int64_t h,
+                                   GError **err) {
+  g_auto(png_ctx) ctx = g_slice_new0(struct png_ctx);
 
   // allocate row pointers
   ctx->rows = g_slice_alloc(h * sizeof(*ctx->rows));
@@ -94,14 +94,17 @@ static struct png_ctx * __attribute__((noinline)) png_ctx_new(uint32_t *dest,
     return NULL;
   }
 
-  return g_steal_pointer(&ctx);
+  // avoid g_steal_pointer because of volatile
+  struct png_ctx *ret = ctx;
+  ctx = NULL;
+  return ret;
 }
 
 static bool png_read(png_rw_ptr read_callback, void *callback_data,
                      uint32_t *dest, int64_t w, int64_t h,
                      GError **err) {
   // allocate context
-  g_autoptr(png_ctx) ctx = png_ctx_new(dest, w, h, err);
+  g_auto(png_ctx) ctx = png_ctx_new(dest, w, h, err);
   if (ctx == NULL) {
     return false;
   }
