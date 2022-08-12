@@ -21,6 +21,7 @@
 #
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
 import errno
@@ -986,7 +987,8 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
     return ok, msg
 
 
-def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
+def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None,
+        parallel=True):
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results.'''
@@ -994,19 +996,36 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None):
     for testname in tests:
         if not os.path.exists(os.path.join(FROZEN, testname)):
             _unpack_one(testname)
+
     failed = 0
-    xfail = set(xfail or [])
-    for testname in tests:
-        # Prefer the real test if available
-        if os.path.exists(os.path.join(WORKROOT, testname)):
-            workdir = WORKROOT
-        else:
-            workdir = FROZEN
-        ok, msg = _run_one(testname, valgrind, testname in xfail, testdir,
-                workdir=workdir)
-        print(msg)
-        if not ok:
-            failed += 1
+    executor = ThreadPoolExecutor(
+        thread_name_prefix='test-runner-',
+        max_workers=_cpu_count() if parallel else 1,
+    )
+    try:
+        xfail = set(xfail or [])
+        futures = []
+        for testname in tests:
+            # Prefer the real test if available
+            if os.path.exists(os.path.join(WORKROOT, testname)):
+                workdir = WORKROOT
+            else:
+                workdir = FROZEN
+            futures.append(
+                executor.submit(_run_one, testname, valgrind, testname in xfail,
+                    testdir, workdir=workdir)
+            )
+        for future in futures:
+            ok, msg = future.result()
+            print(msg)
+            if not ok:
+                failed += 1
+    except:
+        # In particular, KeyboardInterrupt
+        executor.shutdown(cancel_futures=True)
+        raise
+    else:
+        executor.shutdown()
     print(f'\nFailed: {failed}/{len(tests)}')
     return failed
 
@@ -1063,7 +1082,8 @@ def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
     with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
         # Run tests
-        _run_all(testdir='test')
+        # Avoid races when writing coverage data
+        _run_all(testdir='test', parallel=False)
 
         # Generate coverage reports
         for dirpath, dirnames, filenames in os.walk('src'):
