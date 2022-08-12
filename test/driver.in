@@ -156,6 +156,17 @@ def _features_available(conf):
     return True
 
 
+def _cpu_count():
+    # Does not account for cgroup CPU limits, which might be lower
+    # https://github.com/python/cpython/issues/80235
+    try:
+        # Linux
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        # macOS
+        return os.cpu_count()
+
+
 def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
         testdir=None, debug=[], args=[], **kwargs):
     '''Start the specified test from the testdir directory against the
@@ -1035,7 +1046,7 @@ def _rebuild(configure_args):
 
     # Build with specified CFLAGS
     subprocess.check_call(['./configure'] + configure_args)
-    subprocess.check_call(['make'])
+    subprocess.check_call(['make', f'-j{_cpu_count()}'])
 
     # Let the caller run, passing it the directory we came from.
     # Intentionally don't clean up tempdir on exception.
