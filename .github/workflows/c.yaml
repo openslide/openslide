@@ -89,6 +89,7 @@ jobs:
                 dnf install -y \
                     gcc make autoconf automake libtool pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
+                    diffutils \
                     zlib-devel \
                     libpng-devel \
                     libjpeg-turbo-devel \
