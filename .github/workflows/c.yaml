@@ -41,8 +41,10 @@ jobs:
     steps:
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       if: ${{ matrix.os == 'macos-latest' }}
+      with:
+        python-version: "3.10.x"
     - name: Install dependencies
       run: |
         case "${{ matrix.os }}" in
