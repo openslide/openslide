@@ -596,7 +596,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   // initialize directory reading
   g_autoptr(GHashTable) loop_detector =
-    g_hash_table_new_full(_openslide_int64_hash, _openslide_int64_equal,
+    g_hash_table_new_full(g_int64_hash, g_int64_equal,
                           _openslide_int64_free, NULL);
   struct tiff_directory *first_dir = NULL;
 

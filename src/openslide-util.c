@@ -57,16 +57,6 @@ static const struct debug_option {
 
 static uint32_t debug_flags;
 
-
-guint _openslide_int64_hash(gconstpointer v) {
-  int64_t i = *((const int64_t *) v);
-  return i ^ (i >> 32);
-}
-
-gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2) {
-  return *((int64_t *) v1) == *((int64_t *) v2);
-}
-
 void _openslide_int64_free(gpointer data) {
   g_slice_free(int64_t, data);
 }
