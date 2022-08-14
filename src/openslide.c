@@ -484,13 +484,26 @@ void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
   g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
 }
 
-static bool read_region(openslide_t *osr,
-			cairo_t *cr,
-			int64_t x, int64_t y,
-			int32_t level,
-			int64_t w, int64_t h,
-			GError **err) {
-  bool success = true;
+static bool read_region_area(openslide_t *osr,
+                             uint32_t *dest, int64_t stride,
+                             int64_t x, int64_t y,
+                             int32_t level,
+                             int64_t w, int64_t h,
+                             GError **err) {
+  // create the cairo surface for the dest
+  g_autoptr(cairo_surface_t) surface = NULL;
+  if (dest) {
+    surface =
+      cairo_image_surface_create_for_data((unsigned char *) dest,
+                                          CAIRO_FORMAT_ARGB32,
+                                          w, h, stride);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  }
+
+  // create the cairo context
+  g_autoptr(cairo_t) cr = cairo_create(surface);
 
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
@@ -516,49 +529,10 @@ static bool read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      success = osr->ops->paint_region(osr, cr, x, y, l, w, h, err);
+      if (!osr->ops->paint_region(osr, cr, x, y, l, w, h, err)) {
+        return false;
+      }
     }
-  }
-
-  return success;
-}
-
-static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
-  if (w < 0 || h < 0) {
-    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                                  "negative width (%"PRId64") "
-                                  "or negative height (%"PRId64") "
-                                  "not allowed", w, h);
-    _openslide_propagate_error(osr, tmp_err);
-    return false;
-  }
-  return true;
-}
-
-static bool read_region_area(openslide_t *osr,
-                             uint32_t *dest, int64_t stride,
-                             int64_t x, int64_t y,
-                             int32_t level,
-                             int64_t w, int64_t h,
-                             GError **err) {
-  // create the cairo surface for the dest
-  g_autoptr(cairo_surface_t) surface = NULL;
-  if (dest) {
-    surface =
-      cairo_image_surface_create_for_data((unsigned char *) dest,
-                                          CAIRO_FORMAT_ARGB32,
-                                          w, h, stride);
-  } else {
-    // nil surface
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
-  }
-
-  // create the cairo context
-  g_autoptr(cairo_t) cr = cairo_create(surface);
-
-  // paint
-  if (!read_region(osr, cr, x, y, level, w, h, err)) {
-    return false;
   }
 
   // done
@@ -574,7 +548,12 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t level,
 			   int64_t w, int64_t h) {
-  if (!ensure_nonnegative_dimensions(osr, w, h)) {
+  if (w < 0 || h < 0) {
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                  "negative width (%"PRId64") "
+                                  "or negative height (%"PRId64") "
+                                  "not allowed", w, h);
+    _openslide_propagate_error(osr, tmp_err);
     return;
   }
 
