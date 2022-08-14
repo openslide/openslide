@@ -587,7 +587,7 @@ void openslide_read_region(openslide_t *osr,
       // paint
       GError *tmp_err = NULL;
       if (!read_region_area(osr,
-                            dest + w * row * d + col * d, w * 4,
+                            dest ? dest + w * row * d + col * d : NULL, w * 4,
                             sx, sy, level, sw, sh,
                             &tmp_err)) {
         _openslide_propagate_error(osr, tmp_err);
