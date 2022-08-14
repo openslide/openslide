@@ -492,18 +492,6 @@ static bool read_region(openslide_t *osr,
 			GError **err) {
   bool success = true;
 
-  // save the old pattern, it's the only thing push/pop won't restore
-  cairo_pattern_t *old_source = cairo_get_source(cr);
-  cairo_pattern_reference(old_source);
-
-  // push, so that saturate works with all sorts of backends
-  cairo_push_group(cr);
-
-  // clear to set the bounds of the group (seems to be a recent cairo bug)
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_rectangle(cr, 0, 0, w, h);
-  cairo_fill(cr);
-
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
@@ -531,17 +519,6 @@ static bool read_region(openslide_t *osr,
       success = osr->ops->paint_region(osr, cr, x, y, l, w, h, err);
     }
   }
-
-  cairo_pop_group_to_source(cr);
-
-  if (success) {
-    // commit, nothing went wrong
-    cairo_paint(cr);
-  }
-
-  // restore old source
-  cairo_set_source(cr, old_source);
-  cairo_pattern_destroy(old_source);
 
   return success;
 }
