@@ -48,7 +48,6 @@ static const char SLIDEDAT_INI[] = "Slidedat.ini";
 static const int SLIDEDAT_MAX_SIZE = 1 << 20;
 
 static const char GROUP_GENERAL[] = "GENERAL";
-static const char KEY_SLIDE_VERSION[] = "SLIDE_VERSION";
 static const char KEY_SLIDE_ID[] = "SLIDE_ID";
 static const char KEY_IMAGENUMBER_X[] = "IMAGENUMBER_X";
 static const char KEY_IMAGENUMBER_Y[] = "IMAGENUMBER_Y";
@@ -1401,9 +1400,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   // load general stuff
   HAVE_GROUP_OR_FAIL(slidedat, GROUP_GENERAL);
 
-  g_autofree char *slide_version = NULL;
-  READ_KEY_OR_FAIL(slide_version, slidedat, GROUP_GENERAL,
-                   KEY_SLIDE_VERSION, value);
   g_autofree char *slide_id = NULL;
   READ_KEY_OR_FAIL(slide_id, slidedat, GROUP_GENERAL,
                    KEY_SLIDE_ID, value);
@@ -1608,7 +1604,6 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   /*
   g_debug("dirname: %s", dirname);
-  g_debug("slide_version: %s", slide_version);
   g_debug("slide_id: %s", slide_id);
   g_debug("images (%d,%d)", images_x, images_y);
   g_debug("index_filename: %s", index_filename);
