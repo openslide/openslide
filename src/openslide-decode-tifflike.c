@@ -384,19 +384,19 @@ static void tiff_item_destroy(gpointer data) {
 }
 
 static struct tiff_directory *read_directory(struct _openslide_file *f,
-                                             int64_t *diroff,
+                                             uint64_t *diroff,
                                              struct tiff_directory *first_dir,
                                              GHashTable *loop_detector,
                                              bool bigtiff,
                                              bool ndpi,
                                              bool big_endian,
                                              GError **err) {
-  int64_t off = *diroff;
+  uint64_t off = *diroff;
   *diroff = 0;
 
-  //  g_debug("diroff: %"PRId64, off);
+  //  g_debug("diroff: %"PRIu64, off);
 
-  if (off <= 0) {
+  if ((int64_t) off <= 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Bad offset");
     return NULL;
@@ -409,7 +409,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
                 "Loop detected");
     return NULL;
   }
-  int64_t *key = g_slice_new(int64_t);
+  uint64_t *key = g_slice_new(uint64_t);
   *key = off;
   g_hash_table_insert(loop_detector, key, NULL);
 
@@ -516,8 +516,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
   }
 
   // read the next dir offset
-  int64_t nextdiroff = read_uint(f, (bigtiff || ndpi) ? 8 : 4,
-                                 big_endian, &ok);
+  uint64_t nextdiroff = read_uint(f, (bigtiff || ndpi) ? 8 : 4,
+                                  big_endian, &ok);
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot read next directory offset");
@@ -564,7 +564,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
     pad = read_uint(f, 2, big_endian, &ok);
   }
   // for classic TIFF, will mask off the high bytes after NDPI detection
-  int64_t diroff = read_uint(f, 8, big_endian, &ok);
+  uint64_t diroff = read_uint(f, 8, big_endian, &ok);
 
   if (!ok) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -605,7 +605,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // the first directory -- when treated as a 64-bit value -- points to a
   // valid directory containing the NDPI_TAG.
   if (!bigtiff && diroff != 0) {
-    int64_t trial_diroff = diroff;
+    uint64_t trial_diroff = diroff;
     struct tiff_directory *d = read_directory(f, &trial_diroff,
                                               NULL,
                                               loop_detector,
