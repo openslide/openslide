@@ -77,7 +77,6 @@ pkginclude_HEADERS = \
 
 noinst_HEADERS = \
 	common/openslide-common.h \
-	src/openslide-cairo.h \
 	src/openslide-decode-gdkpixbuf.h \
 	src/openslide-decode-jp2k.h \
 	src/openslide-decode-jpeg.h \

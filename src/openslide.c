@@ -33,7 +33,6 @@
 #include <cairo.h>
 #include <libxml/parser.h>
 
-#include "openslide-cairo.h"
 #include "openslide-error.h"
 
 const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2022 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
@@ -645,31 +644,6 @@ void openslide_read_region(openslide_t *osr,
     }
   }
 }
-
-
-void openslide_cairo_read_region(openslide_t *osr,
-				 cairo_t *cr,
-				 int64_t x, int64_t y,
-				 int32_t level,
-				 int64_t w, int64_t h) {
-  if (!ensure_nonnegative_dimensions(osr, w, h)) {
-    return;
-  }
-
-  if (openslide_get_error(osr)) {
-    return;
-  }
-
-  GError *tmp_err = NULL;
-  if (read_region(osr, cr, x, y, level, w, h, &tmp_err)) {
-    _openslide_check_cairo_status(cr, &tmp_err);
-  }
-
-  if (tmp_err) {
-    _openslide_propagate_error(osr, tmp_err);
-  }
-}
-
 
 const char * const *openslide_get_property_names(openslide_t *osr) {
   if (openslide_get_error(osr)) {
