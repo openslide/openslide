@@ -140,8 +140,6 @@ extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
 
 /* GHashTable utils */
-guint _openslide_int64_hash(gconstpointer v);
-gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2);
 void _openslide_int64_free(gpointer data);
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */

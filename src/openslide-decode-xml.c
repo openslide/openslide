@@ -155,3 +155,10 @@ void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                         str);
   }
 }
+
+// xmlFree() is a macro that makes an indirect function call to code in
+// another library, which makes CFI unhappy.  Wrap it so we can filter the
+// wrapper out of CFI checks.
+void _openslide_xml_char_free(xmlChar *c) {
+  xmlFree(c);
+}

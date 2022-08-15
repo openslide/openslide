@@ -1182,7 +1182,7 @@ static void add_properties(openslide_t *osr,
 static void create_scaled_jpeg_levels(openslide_t *osr,
                                       GPtrArray *levels) {
   g_autoptr(GHashTable) expanded_levels =
-    g_hash_table_new_full(_openslide_int64_hash, _openslide_int64_equal,
+    g_hash_table_new_full(g_int64_hash, g_int64_equal,
                           _openslide_int64_free,
                           (GDestroyNotify) jpeg_level_free);
 

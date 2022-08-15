@@ -51,6 +51,8 @@ from zipfile import ZipFile
 
 TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
+CLANG_SUPPRESSIONS = '!!SRCDIR!!/clang.supp'
+CLANG_LSAN_SUPPRESSIONS = '!!SRCDIR!!/clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
 VALGRIND_SUPPRESSIONS_GLIB = '!!GLIB2_DATADIR!!/glib-2.0/valgrind/glib.supp'
 CASEROOT = '!!SRCDIR!!/cases'
@@ -185,6 +187,8 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
         G_MESSAGES_DEBUG='',
         OPENSLIDE_DEBUG=','.join(debug),
         GIO_USE_VFS='local',
+        LSAN_OPTIONS=f'suppressions={CLANG_LSAN_SUPPRESSIONS},print_suppressions=0',
+        UBSAN_OPTIONS=f'print_stacktrace=1',
     )
     if extra_checks:
         env.update(
@@ -1122,6 +1126,31 @@ def valgrind(pattern='*'):
     xfail = xfail.split(',') if xfail else []
     if _run_all(pattern, valgrind=True, xfail=xfail):
         sys.exit(1)
+
+
+@_command
+def sanitize(pattern='*'):
+    '''Unpack and run all tests matching the specified pattern with
+    clang sanitizers.  Ignore failures of test cases listed in the
+    comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
+    cflags = '-O2 -g -fno-omit-frame-pointer'
+    cflags += f' -fsanitize-ignorelist={CLANG_SUPPRESSIONS}'
+    # address and leak sanitizers
+    cflags += ' -fsanitize=address'
+    # UB sanitizer
+    cflags += ' -fsanitize=undefined -fsanitize=unsigned-integer-overflow'
+    cflags += ' -fsanitize=implicit-conversion -fsanitize=local-bounds'
+    # CFI (not supported on macOS)
+    if platform.system() != 'Darwin':
+        # -fvisibility=hidden is normally enabled by configure, but not for
+        # the earliest compiler tests
+        cflags += ' -fsanitize=cfi -fno-sanitize-trap=cfi'
+        cflags += ' -fsanitize-recover=cfi -flto -fvisibility=hidden'
+    with _rebuild(['CC=clang', f'CFLAGS={cflags}']) as basedir:
+        xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
+        xfail = xfail.split(',') if xfail else []
+        if _run_all(pattern, xfail=xfail, testdir='test'):
+            sys.exit(1)
 
 
 def _mosaic(outfile, pristinedir=PRISTINE):

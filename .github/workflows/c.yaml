@@ -24,6 +24,7 @@ jobs:
           - os: ubuntu-latest
             container: registry.fedoraproject.org/fedora:latest
             extra: extra checks
+            sanitize: sanitize
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream8
           # Use ubuntu-22.04 to get a newer Docker seccomp filter.  Otherwise
@@ -37,16 +38,19 @@ jobs:
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
-          - os: macos-latest
+          - os: macos-12
+            sanitize: sanitize
     steps:
     # Quick way to get Python 3 on macOS
     - name: Set up Python (macOS)
-      uses: actions/setup-python@v2
-      if: ${{ matrix.os == 'macos-latest' }}
+      uses: actions/setup-python@v4
+      if: ${{ startsWith(matrix.os, 'macos-') }}
+      with:
+        python-version: "3.10.x"
     - name: Install dependencies
       run: |
         case "${{ matrix.os }}" in
-        macos-latest)
+        macos-*)
             brew update
             brew install \
                 autoconf automake libtool pkg-config \
@@ -60,7 +64,8 @@ jobs:
                 sqlite \
                 cairo \
                 glib \
-                xdelta
+                xdelta \
+                doxygen
             python -m pip install --upgrade pip
             pip install requests PyYAML
             ;;
@@ -81,8 +86,9 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra="git-core valgrind valgrind-devel dnf-plugins-core"
-                    valgrind=1
+                    extra="git-core clang llvm valgrind valgrind-devel"
+                    extra="$extra dnf-plugins-core"
+                    debuginfo=1
                     ;;
                 esac
 
@@ -103,7 +109,7 @@ jobs:
                     doxygen \
                     xdelta libjpeg-turbo-utils $extra
 
-                if [ -n "$valgrind" ]; then
+                if [ -n "$debuginfo" ]; then
                     dnf debuginfo-install -y cairo fontconfig glib2
                 fi
                 ;;
@@ -190,6 +196,9 @@ jobs:
         ./driver unpack nonfrozen
     - name: Test
       run: cd test && ./driver run
+    - name: Sanitize
+      if: matrix.sanitize
+      run: cd test && ./driver sanitize
     - name: Valgrind
       # Valgrind tests are expensive, and maintaining suppressions across
       # multiple distros can be fiddly.  We might catch some additional bugs
