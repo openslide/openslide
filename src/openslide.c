@@ -30,6 +30,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
+#include <cairo.h>
 #include <libxml/parser.h>
 
 #include "openslide-cairo.h"
@@ -81,6 +82,39 @@ static bool level_in_range(openslide_t *osr, int32_t level) {
   }
 
   return true;
+}
+
+// pixman 0.38.x produces corrupt output.  Test for this at runtime, since
+// we might have been compiled with a different version, and the distro
+// might have backported a fix.
+// https://github.com/openslide/openslide/issues/278
+// https://gitlab.freedesktop.org/pixman/pixman/-/commit/8256c235
+static void *verify_pixman_works(void *arg G_GNUC_UNUSED) {
+  const int DIM = 16;
+  g_autofree uint32_t *dest = g_new0(uint32_t, DIM * DIM);
+  g_autofree uint32_t *src = g_new(uint32_t, DIM * DIM);
+  memset(src, 0xff, DIM * DIM * 4);
+
+  {
+    g_autoptr(cairo_surface_t) dest_surface =
+      cairo_image_surface_create_for_data((unsigned char *) dest,
+                                          CAIRO_FORMAT_ARGB32,
+                                          DIM, DIM, DIM * 4);
+    g_autoptr(cairo_t) cr = cairo_create(dest_surface);
+    // important
+    cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+
+    g_autoptr(cairo_surface_t) src_surface =
+      cairo_image_surface_create_for_data((unsigned char *) src,
+                                          CAIRO_FORMAT_ARGB32,
+                                          DIM, DIM, DIM * 4);
+    // fractional Y is important
+    cairo_set_source_surface(cr, src_surface, 0, 0.2);
+    cairo_paint(cr);
+  }
+
+  // white pixel if working, transparent if broken
+  return GINT_TO_POINTER(dest[8 * 16 + 8] != 0);
 }
 
 static openslide_t *create_osr(void) {
@@ -216,6 +250,17 @@ openslide_t *openslide_open(const char *filename) {
 
   // alloc memory
   g_autoptr(openslide_t) osr = create_osr();
+
+  // refuse to run on unpatched pixman 0.38.x
+  static GOnce pixman_once = G_ONCE_INIT;
+  g_once(&pixman_once, verify_pixman_works, NULL);
+  if (!GPOINTER_TO_INT(pixman_once.retval)) {
+    GError *tmp_err = NULL;
+    g_set_error(&tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "pixman 0.38.x does not render correctly; upgrade or downgrade pixman");
+    _openslide_propagate_error(osr, tmp_err);
+    return g_steal_pointer(&osr);
+  }
 
   // open backend
   g_autoptr(_openslide_hash) quickhash1 = NULL;
