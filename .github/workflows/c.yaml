@@ -77,6 +77,8 @@ jobs:
                 case "$VERSION_ID" in
                 8)
                     dnf config-manager --set-enabled powertools
+                    # https://bugzilla.redhat.com/show_bug.cgi?id=2124013
+                    dnf copr enable -y bgilbert/el8-pixman-openslide
                     pyver=38
                     python=python38
                     ;;
