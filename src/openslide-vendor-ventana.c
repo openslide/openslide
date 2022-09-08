@@ -50,6 +50,8 @@ static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_XML_ISCAN[] = "iScan";
 static const char INITIAL_XML_ALT_ROOT[] = "Metadata";
+static const char ENCODEINFO_XML_ROOT[] = "EncodeInfo";
+static const char SLIDEINFO_XML_ROOT[] = "SlideInfo";
 static const char SCANNER_MODEL_DP_200[] = "VENTANA DP 200";
 
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
@@ -285,8 +287,23 @@ static xmlNode *get_initial_xml_iscan(xmlDoc *doc, GError **err) {
     }
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't find iScan element in initial XML");
-    return NULL;
 
+    return NULL;
+  } else if (!xmlStrcmp(root->name, BAD_CAST ENCODEINFO_XML_ROOT)) {
+    for (xmlNode *node = root->children; node; node = node->next) {
+      if (!xmlStrcmp(node->name, BAD_CAST SLIDEINFO_XML_ROOT)) {
+        for (xmlNode *innerNode = node->children; innerNode; 
+              innerNode = innerNode->next) {
+          if (!xmlStrcmp(innerNode->name, BAD_CAST INITIAL_XML_ISCAN)) {
+            // /EncodeInfo/SlideInfo/iScan, found in some slides at level 1
+            return innerNode;
+          }
+        }
+      }
+    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't find iScan element in EncodeInfo XML");
+    return NULL;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized root element in initial XML");
@@ -361,8 +378,9 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-static bool parse_initial_xml(openslide_t *osr, const char *xml,
-                              GError **err) {
+// Gets the iScan node from a given xml block 
+static bool parse_ventana_iScan_xml(openslide_t *osr, const char *xml,
+                                    GError **err)  {
   // parse
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (!doc) {
@@ -385,6 +403,17 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
     }
   }
 
+  return true;
+
+}
+
+static bool parse_initial_xml(openslide_t *osr, const char *xml,
+                              GError **err) {
+  // parse XML at this level
+  if (!parse_ventana_iScan_xml(osr, xml, err)) {
+    return false;
+  }
+
   // set background color from iScan node property.
   char *wp_str = g_hash_table_lookup(osr->properties,
                                      "ventana.ScanWhitePoint");
@@ -400,6 +429,7 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   return true;
+
 }
 
 static bool get_tile_coordinates(const struct area *area,
@@ -806,6 +836,23 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
   char *scanner_model =
     g_hash_table_lookup(osr->properties, "ventana.ScannerModel");
+  // check level 1 for additional metadata if we're missing a scanner model
+  if (scanner_model == NULL) {
+    GError *tmp_err = NULL;
+    const char *lvl1_xml = _openslide_tifflike_get_buffer(tl, 1, 
+                                                          TIFFTAG_XMLPACKET,
+                                                          &tmp_err);
+    if (lvl1_xml) {
+      parse_ventana_iScan_xml(osr, lvl1_xml, err);
+    } else if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                                   OPENSLIDE_ERROR_NO_VALUE)) {
+      // Clear error if it's just no value
+      g_clear_error(&tmp_err);
+    } else {
+      g_propagate_error(err, tmp_err);
+      return false;
+    }
+  }
   bool is_dp200 = scanner_model && !strcmp(scanner_model, SCANNER_MODEL_DP_200);
 
   // walk directories
