@@ -383,7 +383,15 @@ static void set_region_bounds_props(openslide_t *osr,
 static struct collection *parse_xml_description(const char *xml,
                                                 GError **err) {
   // parse the xml
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
+  /* TODO
+
+     With g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
+     there is a memory double free. Looks like it happens when call
+     xmlFreeNodeList to free doc->children.
+
+     for the mement use the old form "xmlDoc *doc"
+   */
+  xmlDoc *doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
     return NULL;
   }
