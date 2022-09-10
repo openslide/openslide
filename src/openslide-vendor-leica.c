@@ -358,11 +358,13 @@ static void set_region_bounds_props(openslide_t *osr,
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, n),
                         g_strdup_printf("%"PRId64, area->tiffl.image_h));
+
     x0 = MIN(x0, area->offset_x);
     y0 = MIN(y0, area->offset_y);
     x1 = MAX(x1, area->offset_x + area->tiffl.image_w);
     y1 = MAX(y1, area->offset_y + area->tiffl.image_h);
   }
+
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
@@ -501,7 +503,7 @@ static struct collection *parse_xml_description(const char *xml,
         is a macro image.
       */
       objective = atof(image->objective);
-      image->is_macro = objective < 2 ? 1 : 0;
+      image->is_macro = objective < 2;
     }
 
     // get dimensions
@@ -556,6 +558,43 @@ static struct collection *parse_xml_description(const char *xml,
   }
 
   return g_steal_pointer(&collection);
+}
+
+/*
+ It appears Aperio Versa downsample the image until width and height is smaller
+ than 512. Because in a SCN file, one image can be larger than another, for
+ example put a rat and a mouse kidney on the same slide, image for rat kidney
+ is several time larger, therefor has more levels than image for mouse kidney.
+
+ Try remove levels from collections, so that all main images have same
+ dimension levels
+
+ */
+static void match_main_image_dimensions(struct collection *collection) {
+  struct image *image;
+  struct dimension *dp;
+  guint i, j;
+  guint nlevel = G_MAXUINT;
+
+  for (i = 0; i < collection->images->len; i++) {
+    image = collection->images->pdata[i];
+    if (image->is_macro)
+      continue;
+
+    nlevel = MIN(nlevel, image->dimensions->len);
+  }
+
+  for (i = 0; i < collection->images->len; i++) {
+    image = collection->images->pdata[i];
+    if (image->is_macro)
+      continue;
+
+    for (j = image->dimensions->len - 1; j > (nlevel - 1); j-- ) {
+      dp = g_ptr_array_remove_index(image->dimensions, j);
+      if (dp)
+        g_slice_free(struct dimension, dp);
+    }
+  }
 }
 
 static void set_prop(openslide_t *osr, const char *name, const char *value) {
@@ -684,6 +723,16 @@ static bool create_levels_from_collection(openslide_t *osr,
         }
       }
 
+      /* Aperio Versa's collection sizeX is not the same as sizeX of main image
+         therefor calculate level width by
+             ceil(collection->nm_across / l->nm_per_pixel)
+         is wrong
+         */
+      if (strcmp(image->device_model, "Versa") == 0) {
+        l->base.w = dimension->width;
+        l->base.h = dimension->height;
+      }
+
       // create area
       struct area *area = g_slice_new0(struct area);
       struct _openslide_tiff_level *tiffl = &area->tiffl;
@@ -742,8 +791,11 @@ static bool create_levels_from_collection(openslide_t *osr,
     struct level *l = levels->pdata[level_num];
 
     // set level size
-    l->base.w = ceil(collection->nm_across / l->nm_per_pixel);
-    l->base.h = ceil(collection->nm_down / l->nm_per_pixel);
+    if (strcmp(openslide_get_property_value(osr, "leica.device-model"),
+               "Versa") != 0) {
+      l->base.w = ceil(collection->nm_across / l->nm_per_pixel);
+      l->base.h = ceil(collection->nm_down / l->nm_per_pixel);
+    }
     //g_debug("level %d, nm/pixel %g", level_num, l->nm_per_pixel);
 
     // convert area offsets from nm to pixels
@@ -826,6 +878,8 @@ static bool leica_open(openslide_t *osr, const char *filename,
   if (!collection) {
     return false;
   }
+
+  match_main_image_dimensions(collection);
 
   // initialize and verify levels
   g_autoptr(GPtrArray) level_array =
