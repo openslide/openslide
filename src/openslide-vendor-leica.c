@@ -483,6 +483,20 @@ static struct collection *parse_xml_description(const char *xml,
                        image->nm_across == collection->nm_across &&
                        image->nm_down == collection->nm_down);
 
+    float objective;
+    if (strcmp(image->device_model, "Versa") == 0) {
+      /*
+        In an Aperio Versa SCN file taken at UTHSCSA, the macro image
+        has different view sizeY from collection's sizeY, the view offsetY
+        is also not zero.
+
+        Our application uses image taken by 20x objective, objective < 2x
+        is a macro image.
+      */
+      objective = atof(image->objective);
+      image->is_macro = objective < 2 ? 1 : 0;
+    }
+
     // get dimensions
     ctx->node = image_node;
     g_autoptr(xmlXPathObject) result =
