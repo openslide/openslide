@@ -182,6 +182,8 @@ struct _openslide_slice {
 
 struct _openslide_slice _openslide_slice_alloc(gsize len);
 
+struct _openslide_slice _openslide_slice_alloc0(gsize len);
+
 void *_openslide_slice_steal(struct _openslide_slice *box);
 
 void _openslide_slice_free(struct _openslide_slice *box);

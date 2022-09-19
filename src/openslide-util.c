@@ -348,6 +348,14 @@ struct _openslide_slice _openslide_slice_alloc(gsize len) {
   return box;
 }
 
+struct _openslide_slice _openslide_slice_alloc0(gsize len){
+  struct _openslide_slice box = {
+    .p = g_slice_alloc0(len),
+    .len = len,
+  };
+  return box;
+}
+
 void *_openslide_slice_steal(struct _openslide_slice *box) {
   void *p = box->p;
   box->p = NULL;
