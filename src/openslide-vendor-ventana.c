@@ -383,6 +383,12 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
     }
   }
 
+  // set background color from iScan node property.
+  char *wp_str = g_hash_table_lookup(osr->properties,
+                                     "ventana.ScanWhitePoint");
+  uint8_t wp = wp_str ? g_ascii_strtoull(wp_str, NULL, 10) : 255;
+  _openslide_set_background_color_prop(osr, wp, wp, wp);
+
   // set standard properties
   _openslide_duplicate_int_prop(osr, "ventana.Magnification",
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
