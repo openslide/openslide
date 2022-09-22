@@ -358,13 +358,11 @@ static void set_region_bounds_props(openslide_t *osr,
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, n),
                         g_strdup_printf("%"PRId64, area->tiffl.image_h));
-
     x0 = MIN(x0, area->offset_x);
     y0 = MIN(y0, area->offset_y);
     x1 = MAX(x1, area->offset_x + area->tiffl.image_w);
     y1 = MAX(y1, area->offset_y + area->tiffl.image_h);
   }
-
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
@@ -445,7 +443,6 @@ static struct collection *parse_xml_description(const char *xml,
   ctx->node = collection_node;
   g_autoptr(xmlXPathObject) images_result =
     _openslide_xml_xpath_eval(ctx, "d:image");
-
   if (!images_result) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Can't find any images");
@@ -494,16 +491,9 @@ static struct collection *parse_xml_description(const char *xml,
 
     float objective;
     if (strcmp(image->device_model, "Versa") == 0) {
-      /*
-        In an Aperio Versa SCN file taken at UTHSCSA, the macro image
-        has different view sizeY from collection's sizeY, the view offsetY
-        is also not zero.
-
-        Our application uses image taken by 20x objective, objective < 2x
-        is a macro image.
-      */
+      // image with lowest power objective is likely the macro image
       objective = atof(image->objective);
-      image->is_macro = objective < 2;
+      image->is_macro = objective < 2 ? 1 : 0;
     }
 
     // get dimensions
