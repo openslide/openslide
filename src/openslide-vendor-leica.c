@@ -383,15 +383,7 @@ static void set_region_bounds_props(openslide_t *osr,
 static struct collection *parse_xml_description(const char *xml,
                                                 GError **err) {
   // parse the xml
-  /* TODO
-
-     With g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
-     there is a memory double free. Looks like it happens when call
-     xmlFreeNodeList to free doc->children.
-
-     for the mement use the old form "xmlDoc *doc"
-   */
-  xmlDoc *doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
     return NULL;
   }
@@ -554,11 +546,11 @@ static struct collection *parse_xml_description(const char *xml,
   }
 
   // find label ifd
-  g_autofree xmlNode *sup_image_node =
+  xmlNode *sup_image_node =
     _openslide_xml_xpath_get_node(ctx,
                                   "/d:scn/d:collection/d:supplementalImage");
   if (sup_image_node) {
-    g_autofree xmlChar *s = xmlGetProp(sup_image_node, BAD_CAST "type");
+    g_autoptr(xmlChar) s = xmlGetProp(sup_image_node, BAD_CAST "type");
     if (s && strcmp((char *) s, "label") == 0) {
       PARSE_INT_ATTRIBUTE_OR_RETURN(sup_image_node, LEICA_ATTR_IFD,
                                     collection->label_ifd, NULL);
@@ -580,7 +572,6 @@ static struct collection *parse_xml_description(const char *xml,
  */
 static void match_main_image_dimensions(struct collection *collection) {
   struct image *image;
-  struct dimension *dp;
   guint i, j;
   guint nlevel = G_MAXUINT;
 
@@ -597,10 +588,9 @@ static void match_main_image_dimensions(struct collection *collection) {
     if (image->is_macro)
       continue;
 
-    for (j = image->dimensions->len - 1; j > (nlevel - 1); j-- ) {
-      dp = g_ptr_array_remove_index(image->dimensions, j);
-      if (dp)
-        g_slice_free(struct dimension, dp);
+    for (j = image->dimensions->len - 1; j > (nlevel - 1); j--) {
+      // image->dimensions has GDestroyNotify, it frees the removed dimension
+      g_ptr_array_remove_index(image->dimensions, j);
     }
   }
 }
