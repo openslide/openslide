@@ -52,6 +52,9 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_philips_tiff,
   &_openslide_format_ventana,
   &_openslide_format_generic_tiff,
+#ifdef HAVE_LIBJXR
+  &_openslide_format_zeiss,
+#endif
   NULL,
 };
 
