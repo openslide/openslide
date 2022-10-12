@@ -137,7 +137,7 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   struct WMPStream *pStream = NULL;
   PKImageDecode *pDecoder = NULL;
   PKFormatConverter *pConverter = NULL;
-  ERR err = WMP_errSuccess;
+  ERR err;
   PKPixelFormatGUID fmt;
   PKRect rect = {0, 0, 0, 0};
   int remixer;
@@ -145,8 +145,14 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   CreateWS_Memory(&pStream, (void *) data, datalen);
 
   // IID_PKImageWmpDecode is the only supported decoder PKIID
-  Call(PKCodecFactory_CreateCodec(&IID_PKImageWmpDecode, (void **) &pDecoder));
-  Call(pDecoder->Initialize(pDecoder, pStream));
+  err = PKCodecFactory_CreateCodec(&IID_PKImageWmpDecode, (void **) &pDecoder);
+  if (err < 0)
+    goto Cleanup;
+
+  err = pDecoder->Initialize(pDecoder, pStream);
+  if (err < 0)
+    goto Cleanup;
+
   pDecoder->GetSize(pDecoder, &rect.Width, &rect.Height);
   pDecoder->GetPixelFormat(pDecoder, &fmt);
 
@@ -172,9 +178,17 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   dst->pixel_bits = get_bits_per_pixel(&fmt_out);
 
   //Create color converter
-  Call(PKCodecFactory_CreateFormatConverter(&pConverter));
-  Call(pConverter->Initialize(pConverter, pDecoder, NULL, fmt_out));
-  Call(pConverter->Copy(pConverter, &rect, dst->data, dst->stride));
+  err = PKCodecFactory_CreateFormatConverter(&pConverter);
+  if (err < 0)
+    goto Cleanup;
+
+  err = pConverter->Initialize(pConverter, pDecoder, NULL, fmt_out);
+  if (err < 0)
+    goto Cleanup;
+
+  err = pConverter->Copy(pConverter, &rect, dst->data, dst->stride);
+  if (err < 0)
+    goto Cleanup;
 
   switch (remixer) {
   case RMX_CAIRO24RGB:
@@ -190,7 +204,8 @@ Cleanup:
   CloseWS_Memory(&pStream);
   pDecoder->Release(&pDecoder);
   pConverter->Release(&pConverter);
-  return true;
+
+  return (err < 0) ? false : true;
 }
 
 /* read JPEG XR encoded data from file

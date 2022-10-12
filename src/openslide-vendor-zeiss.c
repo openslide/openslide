@@ -18,8 +18,6 @@
  *  License along with OpenSlide. If not, see
  *  <http://www.gnu.org/licenses/>.
  *
- * Add Zeiss czi support. Wei Chen <chenw1@uthscsa.edu>
- *
  */
 #include <config.h>
 
@@ -529,7 +527,7 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
   struct zisraw_subblk_hdr *hdr;
   char buf[512];
   size_t len;
-  int64_t data_pos, offset_meta, n;
+  int64_t data_pos, data_size, offset_meta, n;
 
   // work with BGR24, BGR48
   if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
@@ -562,15 +560,13 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
   offset_meta = MAX(256, n);
   data_pos = zisraw_offset + sb->file_pos + sizeof(struct zisraw_seg_hdr) +
              offset_meta + GINT32_FROM_LE(hdr->meta_size);
+  data_size = GINT64_FROM_LE(hdr->data_size);
   switch (sb->compression) {
   case COMP_NONE:
-    czi_uncompressed_read(filename, data_pos, GINT64_FROM_LE(hdr->data_size),
-                          sb->pixel_type, dst, NULL);
-    break;
+    return czi_uncompressed_read(filename, data_pos, data_size,
+                                 sb->pixel_type, dst, NULL);
   case COMP_JXR:
-    _openslide_jxr_read(filename, data_pos, GINT64_FROM_LE(hdr->data_size),
-                        dst, NULL);
-    break;
+    return _openslide_jxr_read(filename, data_pos, data_size, dst, NULL);
   case COMP_JPEG:
     g_warning("JPEG is not supported\n");
     return false;
