@@ -46,9 +46,6 @@
 #define DIV_ROUND_CLOSEST(n, d)                                                \
   ((((n) < 0) != ((d) < 0)) ? (((n) - (d)/2)/(d)) : (((n) + (d)/2)/(d)))
 
-#define MERGE_GRAY_TO_ARGB(b, g, r)                                            \
-  (0xFF000000 | ((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | ((uint32_t)(b)))
-
 /* zeiss uses little-endian */
 struct zisraw_seg_hdr {
   char sid[CZI_SEG_ID_LEN];
@@ -163,39 +160,18 @@ struct czi_subblk {
   int8_t scene;
 };
 
-// image subblocks from multi-channel with same downsample, x and y store in
-// the same subblk array. Process at most 3 channels so they can fit in 32bits
-// ARGB output. Leave alpha channel in ARGB untouched.
-struct czi_address {
-  int64_t downsample;
-  int32_t x1, y1;
-  uint32_t tw, th;
-  struct czi_subblk *subblks[MAX_CHANNEL];
-  int32_t len;
-  int32_t pixel_type;
-  int32_t pixel_real_bits;  // a gray16 pixel may only use 12 or 14 bits
-};
-
-struct czi_address_key {
-  int64_t x;
-  int64_t y;
-  int downsample;
-};
-
 struct associated_image {
   struct _openslide_associated_image base;
   char *filename;
   int64_t data_offset;
   int32_t w, h;
   struct czi_subblk *subblk;
-  int32_t pixel_real_bits;
   int file_type;
 };
 
 struct czi_att_info {
   int64_t data_offset;
   int32_t w, h;
-  int32_t pixel_real_bits;
   int file_type;
 };
 
@@ -256,13 +232,11 @@ struct zeiss_ops_data {
   int32_t nsubblk;  // total number of subblocks
   int32_t w;
   int32_t h;
-  int32_t pixel_real_bits;
   int32_t scene;
   int32_t offset_x;
   int32_t offset_y;
   GPtrArray *subblks;
   GHashTable *grids;
-  GHashTable *addr_subblks;
   GHashTable *count_levels;
 };
 
@@ -296,9 +270,6 @@ static void destroy_ops_data(struct zeiss_ops_data *data)
   g_free(data->filename);
   if (data->count_levels)
     g_hash_table_destroy(data->count_levels);
-
-  if (data->addr_subblks)
-    g_hash_table_destroy(data->addr_subblks);
 
   if (data->grids)
     g_hash_table_destroy(data->grids);
@@ -513,7 +484,7 @@ static bool adjust_coordinate_origin(struct zeiss_ops_data *data,
 
 static bool czi_uncompressed_read(const char *filename,
                                   int64_t pos, int64_t len,
-                                  int32_t pixel_type, int32_t pixel_real_bits,
+                                  int32_t pixel_type,
                                   struct decoded_img *dst, GError **err)
 {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
@@ -538,9 +509,9 @@ static bool czi_uncompressed_read(const char *filename,
   case PT_BGR48:
     return convert_48bppbgr_to_cario24bpprgb(dst);
   case PT_GRAY16:
-    return convert_gray16_to_gray8(dst, pixel_real_bits);
+    return false;
   case PT_GRAY8:
-    return true;
+    return false;
   default:
     break;
   }
@@ -548,7 +519,7 @@ static bool czi_uncompressed_read(const char *filename,
 }
 
 static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
-                                  struct czi_subblk *sb, int pixel_real_bits,
+                                  struct czi_subblk *sb,
                                   struct decoded_img *dst,
                                   GError **err)
 {
@@ -557,9 +528,8 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
   size_t len;
   int64_t data_pos, offset_meta, n;
 
-  // work with BGR24, BGR48, GRAY8 and GRAY16
-  if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_GRAY8 &&
-      sb->pixel_type != PT_BGR48 && sb->pixel_type != PT_GRAY16) {
+  // work with BGR24, BGR48
+  if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
     g_warning("read_data_at_address(): pixel type %d not supported\n",
               sb->pixel_type);
     return false;
@@ -592,12 +562,12 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
   switch (sb->compression) {
   case COMP_NONE:
     czi_uncompressed_read(filename, data_pos, GINT64_FROM_LE(hdr->data_size),
-                          sb->pixel_type, pixel_real_bits,
+                          sb->pixel_type,
                           (struct decoded_img *)dst, NULL);
     break;
   case COMP_JXR:
     _openslide_jxr_read(filename, data_pos, GINT64_FROM_LE(hdr->data_size),
-                        pixel_real_bits, (struct decoded_img *)dst, NULL);
+                        (struct decoded_img *)dst, NULL);
     break;
   case COMP_JPEG:
     g_warning("JPEG is not supported\n");
@@ -612,68 +582,6 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
   return true;
 }
 
-static bool read_data_at_address(const char *filename, int64_t zisraw_offset,
-                                 struct czi_address *ca,
-                                 struct decoded_img *dst,
-                                 GError **err)
-{
-  struct decoded_img ch[MAX_CHANNEL];
-  uint32_t *p;
-  size_t gray8_len;
-  size_t j = 0;
-
-  // so far only work with BGR24, BGR48, GRAY8 and GRAY16
-  if (ca->pixel_type != PT_BGR24 && ca->pixel_type != PT_GRAY8 &&
-      ca->pixel_type != PT_BGR48 && ca->pixel_type != PT_GRAY16) {
-    g_warning("read_data_at_address(): pixel type %d not supported\n",
-              ca->pixel_type);
-    return false;
-  }
-
-  dst->w = ca->tw;
-  dst->h = ca->th;
-  if (ca->pixel_type == PT_BGR24) {
-    return read_data_from_subblk(filename, zisraw_offset, ca->subblks[0],
-                                 ca->pixel_real_bits, dst, err);
-  } else if (ca->pixel_type != PT_GRAY8 && ca->pixel_type != PT_GRAY16) {
-    g_warning("read_data_at_address(): pixel type %d not supported\n",
-              ca->pixel_type);
-    return false;
-  }
-
-  for (int i = 0; i < MAX_CHANNEL; i++) {
-    if (ca->subblks[i]) {
-      ch[i].w = ca->tw;
-      ch[i].h = ca->tw;
-      // read gray channel
-      read_data_from_subblk(filename, zisraw_offset, ca->subblks[i],
-                            ca->pixel_real_bits, &(ch[i]), err);
-    } else {
-      ch[i].size = ca->tw * ca->th;
-      ch[i].data = g_slice_alloc(ch[i].size);
-      memset(ch[i].data, 0, ch[i].size);
-    }
-  }
-
-  // generate a fake RGB from grayscale channels
-  dst->size = dst->w * dst->h * 4;
-  dst->data = g_slice_alloc(dst->size);
-  gray8_len = dst->w * dst->h;
-  g_assert(gray8_len == ch[0].size);
-  p = (uint32_t *) dst->data;
-  while (j < gray8_len) {
-    *p++ = MERGE_GRAY_TO_ARGB(ch[0].data[j],
-                              ch[1].data[j],
-                              ch[2].data[j]);
-    j++;
-  }
-
-  for (int i = 0; i < MAX_CHANNEL; i++)
-    g_slice_free1(ch[i].size, ch[i].data);
-
-  return true;
-}
-
 static bool read_tile(openslide_t *osr, cairo_t *cr,
                       struct _openslide_level *level G_GNUC_UNUSED,
                       int64_t tid G_GNUC_UNUSED, void *tile_data,
@@ -681,32 +589,31 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
 {
   struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
   struct decoded_img dst;
-  struct czi_address *ca = tile_data;
+  struct czi_subblk *sb = tile_data;
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   g_autoptr(cairo_surface_t) surface = NULL;
   unsigned char *img;
   int stride;
 
   // file_pos is unique
-  img = (unsigned char *)_openslide_cache_get(osr->cache, 0,
-                                               ca->subblks[0]->file_pos, 0,
-                                               &cache_entry);
+  img = (unsigned char *)_openslide_cache_get(osr->cache, 0, sb->file_pos, 0,
+                                              &cache_entry);
   if (!img) {
-    if (!read_data_at_address(data->filename, data->zisraw_offset,
-                              ca, &dst, NULL)) {
-      g_warning("read_data_at_address() failed\n");
+    if (!read_data_from_subblk(data->filename, data->zisraw_offset,
+                              sb, &dst, NULL)) {
+      g_warning("read_data_from_subblk() failed\n");
       return false;
     }
 
     // _openslide_cache_entry_unref will free data
-    _openslide_cache_put(osr->cache, 0, ca->subblks[0]->file_pos, 0,
+    _openslide_cache_put(osr->cache, 0, sb->file_pos, 0,
                          dst.data, dst.size, &cache_entry);
     img = (unsigned char *)dst.data;
   }
 
-  stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, ca->tw);
+  stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, sb->tw);
   surface = cairo_image_surface_create_for_data(img, CAIRO_FORMAT_RGB24,
-                                                ca->tw, ca->th, stride);
+                                                sb->tw, sb->th, stride);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
   return true;
@@ -737,28 +644,13 @@ static void count_levels(struct zeiss_ops_data *data, int64_t downsample)
   }
 }
 
-static void add_czi_address_to_grid(gpointer k G_GNUC_UNUSED,
-                                    gpointer v, gpointer ops_data)
-{
-  struct _openslide_grid *grid;
-  struct czi_address *addr = v;
-  struct zeiss_ops_data *data = ops_data;
-
-  grid = g_hash_table_lookup(data->grids, &addr->downsample);
-  if (!grid)
-    return;
-
-  _openslide_grid_range_add_tile(grid,
-                                 (double) addr->x1 / addr->downsample,
-                                 (double) addr->y1 / addr->downsample,
-                                 (double) addr->tw, (double) addr->th, addr);
-}
-
 static bool init_range_grids(openslide_t *osr, GError **err G_GNUC_UNUSED)
 {
   struct zeiss_ops_data *data = osr->data;
   struct _openslide_grid *grid;
   struct level *l;
+  GPtrArray *subblks = data->subblks;
+  struct czi_subblk *b;
   int64_t *k;
 
   data->grids = g_hash_table_new_full(g_int64_hash, g_int64_equal,
@@ -774,8 +666,15 @@ static bool init_range_grids(openslide_t *osr, GError **err G_GNUC_UNUSED)
     g_hash_table_insert(data->grids, k, grid);
   }
 
-  g_hash_table_foreach(data->addr_subblks,
-                       (GHFunc) add_czi_address_to_grid, data);
+  for (guint i = 0; i < subblks->len; i++) {
+    b = subblks->pdata[i];
+    grid = g_hash_table_lookup(data->grids, &b->downsample_i);
+    _openslide_grid_range_add_tile(grid,
+                                   (double) b->x1 / b->downsample_i ,
+                                   (double) b->y1 / b->downsample_i ,
+                                   (double) b->tw, (double) b->th, b);
+  }
+
   g_hash_table_foreach(data->grids, (GHFunc)finish_adding_tiles, NULL);
   return true;
 }
@@ -856,81 +755,6 @@ static bool load_dir_position(struct zeiss_ops_data *data, GError **err)
   return true;
 }
 
-static guint czi_addr_key_hash(gconstpointer key)
-{
-  const struct czi_address_key *k = key;
-
-  return (guint) (k->downsample + 293 * (k->x >> 8) + k->y);
-}
-
-static gboolean czi_addr_key_equal(gconstpointer a,
-                                               gconstpointer b)
-{
-  const struct czi_address_key *pa = a;
-  const struct czi_address_key *pb = b;
-
-  return (pa->x == pb->x) && (pa->y == pb->y) &&
-         (pa->downsample == pb->downsample);
-}
-
-static void destroy_addr_key(struct czi_address_key *k) {
-  g_slice_free(struct czi_address_key, k);
-}
-
-static void destroy_addr(struct czi_address *addr) {
-  g_slice_free(struct czi_address, addr);
-}
-
-static bool combine_subblks_from_multichannels(struct zeiss_ops_data *data,
-                                               GError **err G_GNUC_UNUSED)
-{
-  struct czi_subblk *b;
-  struct czi_address_key key, *key2;
-  struct czi_address *addr;
-  GPtrArray *subblks = data->subblks;
-
-  data->addr_subblks = g_hash_table_new_full(czi_addr_key_hash,
-                                             czi_addr_key_equal,
-                                             (GDestroyNotify) destroy_addr_key,
-                                             (GDestroyNotify) destroy_addr);
-  for (guint i = 0; i < subblks->len; i++) {
-    b = subblks->pdata[i];
-    if (b->channel >= MAX_CHANNEL)
-      continue;
-
-    key.x = b->x1;
-    key.y = b->y1;
-    key.downsample = b->downsample_i;
-    addr = g_hash_table_lookup(data->addr_subblks, &key);
-    if (!addr) {
-      addr = g_slice_new0(struct czi_address);
-      // assuming all channels have same bits, Bgr24 is 8bits, Gray16 usually
-      // has 14 bits as described in CZI meta xml
-      addr->pixel_real_bits = data->pixel_real_bits;
-      addr->downsample = b->downsample_i;
-      addr->x1 = b->x1;
-      addr->y1 = b->y1;
-      addr->tw = b->tw;
-      addr->th = b->th;
-      addr->pixel_type = b->pixel_type;
-
-      key2 = g_slice_new0(struct czi_address_key);
-      key2->x = key.x;
-      key2->y = key.y;
-      key2->downsample = key.downsample;
-      g_hash_table_insert(data->addr_subblks, key2, addr);
-    }
-
-    if (addr->tw != b->tw || addr->th != b->th ||
-        addr->pixel_type != b->pixel_type)
-      continue;
-
-    addr->subblks[b->channel] = b;
-    addr->len++;
-  }
-  return true;
-}
-
 static void set_prop(openslide_t *osr, const char *name, const char *value)
 {
   if (value)
@@ -1007,11 +831,6 @@ static void parse_xml_set_prop(openslide_t *osr, const char *xml, GError **err)
       "/ImageDocument/Metadata/Information/Image/SizeS/text()");
   data->scene = (int32_t) atol(size_s);
 
-  g_autofree char *pixel_bits =
-    _openslide_xml_xpath_get_string(ctx,
-      "/ImageDocument/Metadata/Information/Image/ComponentBitCount/text()");
-  data->pixel_real_bits = (int32_t) atol(pixel_bits);
-
   // in meter/pixel
   g_autofree char *mpp_x =
     _openslide_xml_xpath_get_string(ctx,
@@ -1034,21 +853,6 @@ static void parse_xml_set_prop(openslide_t *osr, const char *xml, GError **err)
   set_prop(osr, OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER, obj);
 
   set_prop(osr, OPENSLIDE_PROPERTY_NAME_VENDOR, "zeiss");
-}
-
-static int32_t parse_xml_get_pixel_real_bits(const char *xml, GError **err)
-{
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
-  if (doc == NULL) {
-    g_printerr("Error: cannot parse XML to xmlDoc\n");
-    return 0;
-  }
-
-  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
-  g_autofree char *pixel_bits =
-    _openslide_xml_xpath_get_string(ctx,
-      "/ImageDocument/Metadata/Information/Image/ComponentBitCount/text()");
-  return (int32_t) atol(pixel_bits);
 }
 
 static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err)
@@ -1152,8 +956,10 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 
   switch (img->file_type) {
   case ATT_CZI:
-    read_data_from_subblk(img->filename, img->data_offset, img->subblk,
-                          img->pixel_real_bits, &cbuf, err);
+    if (!read_data_from_subblk(img->filename, img->data_offset, img->subblk,
+                               &cbuf, err))
+      return false;
+
     memcpy(dst, cbuf.data, cbuf.size);
     g_slice_free1(cbuf.size, cbuf.data);
     return true;
@@ -1193,7 +999,6 @@ static bool _add_associated_image(openslide_t *osr, const char *filename,
   img->filename = g_strdup(filename);
   img->file_type = att_info->file_type;
   img->data_offset = att_info->data_offset;
-  img->pixel_real_bits = att_info->pixel_real_bits;
   if (sb) {
     img->base.w = sb->tw;
     img->base.h = sb->th;
@@ -1216,7 +1021,6 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err)
   struct czi_subblk *sb = NULL;
   struct associated_image_mapping *map = &known_associated_images[0];
   struct czi_att_info att_info;
-  char *xml;
 
   for ( ; map->czi_name; map++) {
     // read the outermost CZI to get offset to ZISRAWFILE, or to JPEG
@@ -1233,9 +1037,6 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err)
       // knowing offset to ZISRAWFILE, now parse the embeded CZI
       load_dir_position(data, err);
       read_subblk_dir(data, err);
-      xml = read_czi_meta_xml(data, err);
-      att_info.pixel_real_bits = parse_xml_get_pixel_real_bits(xml, NULL);
-      g_free(xml);
       // expect the embeded CZI file has only one image subblock
       sb = (struct czi_subblk *)data->subblks->pdata[0];
     }
@@ -1273,7 +1074,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
 
   g_autofree char *xml = read_czi_meta_xml(data, err);
   parse_xml_set_prop(osr, xml, err);
-  combine_subblks_from_multichannels(data, NULL);
   init_levels(osr, err);
   init_range_grids(osr, err);
   zeiss_add_associated_image(osr, err);

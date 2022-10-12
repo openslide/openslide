@@ -31,16 +31,12 @@
   (0xFF000000 | (uint32_t)((p)[0]) | ((uint32_t)((p)[1]) << 8) |               \
    ((uint32_t)((p)[2]) << 16))
 
-#define GRAY16TOGRAY8(p, ns)                                                   \
-  (uint8_t)((((uint16_t)((p)[0])) | (((uint16_t)((p)[1])) << 8)) >> ns)
-
 #define BGR48TOARGB32(p)                                                       \
   (0xFF000000 | (uint32_t)((p)[1]) | ((uint32_t)((p)[3]) << 8) |               \
    ((uint32_t)((p)[5]) << 16))
 
 enum remixer {
   RMX_CARIO24RGB,
-  RMX_GRAY16TOGRAY8,
   RMX_RGB48TOCARIO24RGB,
 };
 
@@ -134,33 +130,8 @@ bool convert_48bppbgr_to_cario24bpprgb(struct decoded_img *p)
   return true;
 }
 
-/* image may use less than 16bits, for example Zeiss may use 14bits or less */
-bool convert_gray16_to_gray8(struct decoded_img *p, int pixel_real_bits)
-{
-  size_t new_size = p->w * p->h;
-  uint8_t *buf = g_slice_alloc(new_size);
-  uint8_t *bp = buf;
-  int nshift = pixel_real_bits - 8;
-  size_t i = 0;
-
-  while (i < p->size) {
-    *bp++ = GRAY16TOGRAY8(&p->data[i], nshift);
-    i += 2;
-  }
-
-  g_slice_free1(p->size, p->data);
-  p->stride = p->w;
-  p->pixel_bits = 8;
-  p->size = new_size;
-  p->data = buf;
-  return true;
-}
-
-/* @pixel_real_bits: effective bits in input image. For example, only 14 bits
- * are used in a typical Zeiss AxioScan7 GRAY16 image.
- */
 bool _openslide_jxr_decode_buf(void *data, size_t datalen,
-                               int pixel_real_bits, struct decoded_img *dst,
+                               struct decoded_img *dst,
                                GError **unused G_GNUC_UNUSED)
 {
   struct WMPStream *pStream = NULL;
@@ -182,19 +153,10 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   // GUID_PKPixelFormat32bppRGBA is not supported by converter
   PKPixelFormatGUID fmt_out = GUID_PKPixelFormat24bppBGR;
   remixer = RMX_CARIO24RGB;
-  if (IsEqualGUID(&fmt, &GUID_PKPixelFormat8bppGray)) {
-    //fprintf(stderr, "jxr fmt is GUID_PKPixelFormat8bppGray\n");
-    fmt_out = GUID_PKPixelFormat8bppGray;
-  } else if (IsEqualGUID(&fmt, &GUID_PKPixelFormat16bppGray)) {
-    //fprintf(stderr, "jxr fmt is GUID_PKPixelFormat16bppGray\n");
-    fmt_out = GUID_PKPixelFormat16bppGray;
-    remixer = RMX_GRAY16TOGRAY8;
-  } else if (IsEqualGUID(&fmt, &GUID_PKPixelFormat24bppBGR)) {
-    //fprintf(stderr, "jxr fmt is GUID_PKPixelFormat24bppBGR\n");
+  if (IsEqualGUID(&fmt, &GUID_PKPixelFormat24bppBGR)) {
     fmt_out = GUID_PKPixelFormat24bppBGR;
     remixer = RMX_CARIO24RGB;
   } else if (IsEqualGUID(&fmt, &GUID_PKPixelFormat48bppRGB)) {
-    fprintf(stderr, "jxr fmt is GUID_PKPixelFormat48bppRGB\n");
     fmt_out = GUID_PKPixelFormat48bppRGB;
     remixer = RMX_RGB48TOCARIO24RGB;
   } else {
@@ -221,9 +183,6 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   case RMX_RGB48TOCARIO24RGB:
     convert_48bppbgr_to_cario24bpprgb(dst);
     break;
-  case RMX_GRAY16TOGRAY8:
-    convert_gray16_to_gray8(dst, pixel_real_bits);
-    break;
   }
 
 Cleanup:
@@ -238,7 +197,7 @@ Cleanup:
  * @pos and @len is the start and length of encoded data
  * A CZI file has many tiles encoded in JPEG XR */
 bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t len,
-                         int pixel_real_bits, struct decoded_img *dst,
+                         struct decoded_img *dst,
                          GError **err)
 {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
@@ -256,5 +215,5 @@ bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t len,
                 "Cannot read pixel data");
     return false;
   }
-  return _openslide_jxr_decode_buf(buf, len, pixel_real_bits, dst, err);
+  return _openslide_jxr_decode_buf(buf, len, dst, err);
 }
