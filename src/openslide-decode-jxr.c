@@ -36,7 +36,7 @@
    ((uint32_t)((p)[5]) << 16))
 
 enum remixer {
-  RMX_CARIO24RGB,
+  RMX_CAIRO24RGB,
   RMX_RGB48TOCARIO24RGB,
 };
 
@@ -90,7 +90,7 @@ static guint get_bits_per_pixel(const PKPixelFormatGUID *pixel_format)
 /* GUID_PKPixelFormat24bppBGR has 24bits per pixel. CAIRO_FORMAT_RGB24 has
  * 32bits, with the upper 8 bits unused
  */
-bool convert_24bppbgr_to_cario24bpprgb(struct decoded_img *p)
+bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
 {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
@@ -110,7 +110,7 @@ bool convert_24bppbgr_to_cario24bpprgb(struct decoded_img *p)
   return true;
 }
 
-bool convert_48bppbgr_to_cario24bpprgb(struct decoded_img *p)
+bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
 {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
@@ -131,7 +131,7 @@ bool convert_48bppbgr_to_cario24bpprgb(struct decoded_img *p)
 }
 
 bool _openslide_jxr_decode_buf(void *data, size_t datalen,
-                               struct decoded_img *dst,
+                               struct jxr_decoded *dst,
                                GError **unused G_GNUC_UNUSED)
 {
   struct WMPStream *pStream = NULL;
@@ -152,10 +152,10 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
 
   // GUID_PKPixelFormat32bppRGBA is not supported by converter
   PKPixelFormatGUID fmt_out = GUID_PKPixelFormat24bppBGR;
-  remixer = RMX_CARIO24RGB;
+  remixer = RMX_CAIRO24RGB;
   if (IsEqualGUID(&fmt, &GUID_PKPixelFormat24bppBGR)) {
     fmt_out = GUID_PKPixelFormat24bppBGR;
-    remixer = RMX_CARIO24RGB;
+    remixer = RMX_CAIRO24RGB;
   } else if (IsEqualGUID(&fmt, &GUID_PKPixelFormat48bppRGB)) {
     fmt_out = GUID_PKPixelFormat48bppRGB;
     remixer = RMX_RGB48TOCARIO24RGB;
@@ -177,7 +177,7 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
   Call(pConverter->Copy(pConverter, &rect, dst->data, dst->stride));
 
   switch (remixer) {
-  case RMX_CARIO24RGB:
+  case RMX_CAIRO24RGB:
     convert_24bppbgr_to_cario24bpprgb(dst);
     break;
   case RMX_RGB48TOCARIO24RGB:
@@ -197,7 +197,7 @@ Cleanup:
  * @pos and @len is the start and length of encoded data
  * A CZI file has many tiles encoded in JPEG XR */
 bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t len,
-                         struct decoded_img *dst,
+                         struct jxr_decoded *dst,
                          GError **err)
 {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
