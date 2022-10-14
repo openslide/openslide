@@ -38,7 +38,7 @@ struct jxr_decoded {
 };
 
 bool _openslide_jxr_decode_buf(void *data, size_t datalen,
-                               struct jxr_decoded *dst, GError **err);
+                               struct jxr_decoded *dst);
 
 bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t jxr_len,
                          struct jxr_decoded *dst, GError **err);

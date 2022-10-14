@@ -128,8 +128,8 @@ bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
 }
 
 bool _openslide_jxr_decode_buf(void *data, size_t datalen,
-                               struct jxr_decoded *dst,
-                               GError **unused G_GNUC_UNUSED) {
+                               struct jxr_decoded *dst) {
+
   struct WMPStream *pStream = NULL;
   PKImageDecode *pDecoder = NULL;
   PKFormatConverter *pConverter = NULL;
@@ -231,5 +231,5 @@ bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t len,
                 "Cannot read pixel data");
     return false;
   }
-  return _openslide_jxr_decode_buf(buf, len, dst, err);
+  return _openslide_jxr_decode_buf(buf, len, dst);
 }
