@@ -64,12 +64,12 @@ static struct wmp_err_msg {
   {0, NULL}
 };
 
-static void print_err(ERR err)
-{
+static void print_err(ERR err) {
   struct wmp_err_msg *p = &msgs[0];
 
-  if (err >= 0)
+  if (err >= 0) {
     return;
+  }
   while ((p++)->msg) {
     if (p->id == err) {
       fprintf(stderr, "_openslide_jxr_decode_buf error: %s\n", p->msg);
@@ -78,8 +78,7 @@ static void print_err(ERR err)
   }
 }
 
-static guint get_bits_per_pixel(const PKPixelFormatGUID *pixel_format)
-{
+static guint get_bits_per_pixel(const PKPixelFormatGUID *pixel_format) {
   PKPixelInfo pixel_info;
 
   pixel_info.pGUIDPixFmt = pixel_format;
@@ -90,8 +89,7 @@ static guint get_bits_per_pixel(const PKPixelFormatGUID *pixel_format)
 /* GUID_PKPixelFormat24bppBGR has 24bits per pixel. CAIRO_FORMAT_RGB24 has
  * 32bits, with the upper 8 bits unused
  */
-bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
-{
+bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
   uint32_t *bp = buf;
@@ -110,8 +108,7 @@ bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
   return true;
 }
 
-bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
-{
+bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
   uint32_t *bp = buf;
@@ -132,8 +129,7 @@ bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p)
 
 bool _openslide_jxr_decode_buf(void *data, size_t datalen,
                                struct jxr_decoded *dst,
-                               GError **unused G_GNUC_UNUSED)
-{
+                               GError **unused G_GNUC_UNUSED) {
   struct WMPStream *pStream = NULL;
   PKImageDecode *pDecoder = NULL;
   PKFormatConverter *pConverter = NULL;
@@ -146,12 +142,14 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
 
   // IID_PKImageWmpDecode is the only supported decoder PKIID
   err = PKCodecFactory_CreateCodec(&IID_PKImageWmpDecode, (void **) &pDecoder);
-  if (err < 0)
+  if (err < 0) {
     goto Cleanup;
+  }
 
   err = pDecoder->Initialize(pDecoder, pStream);
-  if (err < 0)
+  if (err < 0) {
     goto Cleanup;
+  }
 
   pDecoder->GetSize(pDecoder, &rect.Width, &rect.Height);
   pDecoder->GetPixelFormat(pDecoder, &fmt);
@@ -179,16 +177,19 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
 
   //Create color converter
   err = PKCodecFactory_CreateFormatConverter(&pConverter);
-  if (err < 0)
+  if (err < 0) {
     goto Cleanup;
+  }
 
   err = pConverter->Initialize(pConverter, pDecoder, NULL, fmt_out);
-  if (err < 0)
+  if (err < 0) {
     goto Cleanup;
+  }
 
   err = pConverter->Copy(pConverter, &rect, dst->data, dst->stride);
-  if (err < 0)
+  if (err < 0) {
     goto Cleanup;
+  }
 
   switch (remixer) {
   case RMX_CAIRO24RGB:
@@ -213,11 +214,11 @@ Cleanup:
  * A CZI file has many tiles encoded in JPEG XR */
 bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t len,
                          struct jxr_decoded *dst,
-                         GError **err)
-{
+                         GError **err) {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (!f)
+  if (!f) {
     return false;
+  }
 
   if (!_openslide_fseek(f, pos, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek to jxr pixel data");
