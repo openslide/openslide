@@ -499,7 +499,7 @@ static bool czi_uncompressed_read(const char *filename,
 
   switch (pixel_type) {
   case PT_BGR48:
-    return convert_48bppbgr_to_cario24bpprgb(dst);
+    return convert_48bppbgr_to_cairo24bpprgb(dst);
   case PT_GRAY16:
     return false;
   case PT_GRAY8:
@@ -507,7 +507,7 @@ static bool czi_uncompressed_read(const char *filename,
   default:
     break;
   }
-  return convert_24bppbgr_to_cario24bpprgb(dst);
+  return convert_24bppbgr_to_cairo24bpprgb(dst);
 }
 
 static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,

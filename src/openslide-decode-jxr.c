@@ -37,7 +37,7 @@
 
 enum remixer {
   RMX_CAIRO24RGB,
-  RMX_RGB48TOCARIO24RGB,
+  RMX_RGB48TOCAIRO24RGB,
 };
 
 static struct wmp_err_msg {
@@ -89,7 +89,7 @@ static guint get_bits_per_pixel(const PKPixelFormatGUID *pixel_format) {
 /* GUID_PKPixelFormat24bppBGR has 24bits per pixel. CAIRO_FORMAT_RGB24 has
  * 32bits, with the upper 8 bits unused
  */
-bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
+bool convert_24bppbgr_to_cairo24bpprgb(struct jxr_decoded *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
   uint32_t *bp = buf;
@@ -108,7 +108,7 @@ bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
   return true;
 }
 
-bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *p) {
+bool convert_48bppbgr_to_cairo24bpprgb(struct jxr_decoded *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_slice_alloc(new_size);
   uint32_t *bp = buf;
@@ -162,7 +162,7 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
     remixer = RMX_CAIRO24RGB;
   } else if (IsEqualGUID(&fmt, &GUID_PKPixelFormat48bppRGB)) {
     fmt_out = GUID_PKPixelFormat48bppRGB;
-    remixer = RMX_RGB48TOCARIO24RGB;
+    remixer = RMX_RGB48TOCAIRO24RGB;
   } else {
     printf("Unsupported jxr fmt, try decode with GUID_PKPixelFormat24bppBGR\n");
   }
@@ -193,10 +193,10 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
 
   switch (remixer) {
   case RMX_CAIRO24RGB:
-    convert_24bppbgr_to_cario24bpprgb(dst);
+    convert_24bppbgr_to_cairo24bpprgb(dst);
     break;
-  case RMX_RGB48TOCARIO24RGB:
-    convert_48bppbgr_to_cario24bpprgb(dst);
+  case RMX_RGB48TOCAIRO24RGB:
+    convert_48bppbgr_to_cairo24bpprgb(dst);
     break;
   }
 

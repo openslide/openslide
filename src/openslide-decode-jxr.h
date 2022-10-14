@@ -43,6 +43,6 @@ bool _openslide_jxr_decode_buf(void *data, size_t datalen,
 bool _openslide_jxr_read(const char *filename, int64_t pos, int64_t jxr_len,
                          struct jxr_decoded *dst, GError **err);
 
-bool convert_24bppbgr_to_cario24bpprgb(struct jxr_decoded *dst);
-bool convert_48bppbgr_to_cario24bpprgb(struct jxr_decoded *dst);
+bool convert_24bppbgr_to_cairo24bpprgb(struct jxr_decoded *dst);
+bool convert_48bppbgr_to_cairo24bpprgb(struct jxr_decoded *dst);
 #endif
