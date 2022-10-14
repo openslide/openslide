@@ -244,16 +244,6 @@ struct level {
   int32_t compression;
 };
 
-static void destroy(openslide_t *osr);
-static bool paint_region(openslide_t *osr, cairo_t *cr, int64_t x, int64_t y,
-                         struct _openslide_level *level, int32_t w, int32_t h,
-                         GError **err);
-
-static const struct _openslide_ops zeiss_ops = {
-  .paint_region = paint_region,
-  .destroy = destroy,
-};
-
 static void destroy_level(struct level *l) {
   g_slice_free(struct level, l);
 }
@@ -307,6 +297,11 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
 
   return true;
 }
+
+static const struct _openslide_ops zeiss_ops = {
+  .paint_region = paint_region,
+  .destroy = destroy,
+};
 
 static bool zeiss_detect(const char *filename,
                          struct _openslide_tifflike *tl, GError **err) {
