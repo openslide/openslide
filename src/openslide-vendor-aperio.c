@@ -430,10 +430,6 @@ static bool aperio_open(openslide_t *osr,
     goto FAIL;
   }
 
-  char gt450_workaround = 0;
-  if (strncmp(image_desc_pre, "Aperio Leica Biosystems GT450", strlen("Aperio Leica Biosystems GT450")) == 0)
-      gt450_workaround = 1;
-
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
    * page 14:

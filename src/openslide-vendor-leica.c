@@ -36,6 +36,7 @@
 
 #include <glib.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <tiffio.h>
@@ -86,6 +87,7 @@ struct read_tile_args {
   struct area *area;
 };
 
+#define NO_SUP_LABEL  -1  // ifd in collection starts with 0
 /* structs representing data parsed from ImageDescription XML */
 struct collection {
   char *barcode;
@@ -94,6 +96,10 @@ struct collection {
   int64_t nm_down;
 
   GPtrArray *images;
+
+  // Aperio Versa has one section for label
+  // <supplementalImage type="label" ifd="6"/>
+  int label_ifd;
 };
 
 struct image {
@@ -365,11 +371,13 @@ static void set_region_bounds_props(openslide_t *osr,
     g_hash_table_insert(osr->properties,
                         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, n),
                         g_strdup_printf("%"PRId64, area->tiffl.image_h));
+
     x0 = MIN(x0, area->offset_x);
     y0 = MIN(y0, area->offset_y);
     x1 = MAX(x1, area->offset_x + area->tiffl.image_w);
     y1 = MAX(y1, area->offset_y + area->tiffl.image_h);
   }
+
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),
@@ -427,6 +435,7 @@ static struct collection *parse_xml_description(const char *xml,
   // create collection struct
   collection = g_slice_new0(struct collection);
   collection->images = g_ptr_array_new();
+  collection->label_ifd = NO_SUP_LABEL;
 
   // Get barcode as stored in 2010/10/01 namespace
   char *barcode = _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
@@ -500,13 +509,13 @@ static struct collection *parse_xml_description(const char *xml,
 
     float objective;
     if (strcmp(image->device_model, "Versa") == 0) {
-        /*
-           Note: please refer to: https://github.com/openslide/openslide/pull/348/commits/d2c49b5eec181b7781e600e88df84963dac07280
-           In Aperio Versa SCN files, the macro image has different view sizeY from collection's sizeY, the view offsetY is also not zero.
-           Objective < 2x is likely a macro image
-        */
-        objective = atof(image->objective);
-        image->is_macro = objective < 2 ? 1 : 0;
+      /*
+          Note: please refer to: https://github.com/openslide/openslide/pull/348/commits/d2c49b5eec181b7781e600e88df84963dac07280
+          In Aperio Versa SCN files, the macro image has different view sizeY from collection's sizeY, the view offsetY is also not zero.
+          Objective < 2x is likely a macro image
+      */
+      objective = atof(image->objective);
+      image->is_macro = objective < 2 ? 1 : 0;
     }
 
     // get dimensions
@@ -548,6 +557,18 @@ static struct collection *parse_xml_description(const char *xml,
 
     // sort dimensions
     g_ptr_array_sort(image->dimensions, dimension_compare);
+
+    // find label ifd
+    xmlNode *sup_image_node =
+      _openslide_xml_xpath_get_node(ctx,
+                                    "/d:scn/d:collection/d:supplementalImage");
+    if (sup_image_node) {
+      g_autofree xmlChar *s = xmlGetProp(sup_image_node, BAD_CAST "type");
+      if (s && strcmp((char *) s, "label") == 0) {
+        PARSE_INT_ATTRIBUTE_OR_FAIL(sup_image_node, LEICA_ATTR_IFD,
+                                      collection->label_ifd);
+      }
+    }
   }
 
   success = true;
@@ -563,6 +584,41 @@ FAIL:
   } else {
     collection_free(collection);
     return NULL;
+  }
+}
+
+/*
+ It appears Aperio Versa downsample the image until width and height is smaller
+ than 512. Because in a SCN file, one image can be larger than another, for
+ example put a rat and a mouse kidney on the same slide, image for rat kidney
+ is several time larger, therefor has more levels than image for mouse kidney.
+
+ Try remove levels from collections, so that all main images have same
+ dimension levels
+
+ */
+static void match_main_image_dimensions(struct collection *collection) {
+  struct image *image;
+  struct dimension *dp;
+  guint i, j;
+  guint nlevel = G_MAXUINT;
+
+  for (i = 0; i < collection->images->len; i++) {
+    image = collection->images->pdata[i];
+    if (image->is_macro)
+      continue;
+
+    nlevel = MIN(nlevel, image->dimensions->len);
+  }
+
+  for (i = 0; i < collection->images->len; i++) {
+    image = collection->images->pdata[i];
+    if (image->is_macro)
+      continue;
+
+    for (j = image->dimensions->len - 1; j > (nlevel - 1); j-- ) {
+      g_ptr_array_remove_index(image->dimensions, j);
+    }
   }
 }
 
@@ -691,6 +747,17 @@ static bool create_levels_from_collection(openslide_t *osr,
         }
       }
 
+      // NOTE: The below code seems to introduce a problem for some SCN images
+      // /* Aperio Versa's collection sizeX is not the same as sizeX of main image
+      //    therefor calculate level width by
+      //        ceil(collection->nm_across / l->nm_per_pixel)
+      //    is wrong
+      //    */
+      // if (strcmp(image->device_model, "Versa") == 0) {
+      //   l->base.w = dimension->width;
+      //   l->base.h = dimension->height;
+      // }
+
       // create area
       struct area *area = g_slice_new0(struct area);
       struct _openslide_tiff_level *tiffl = &area->tiffl;
@@ -749,8 +816,12 @@ static bool create_levels_from_collection(openslide_t *osr,
     struct level *l = levels->pdata[level_num];
 
     // set level size
-    l->base.w = ceil(collection->nm_across / l->nm_per_pixel);
-    l->base.h = ceil(collection->nm_down / l->nm_per_pixel);
+    // NOTE: The below conditional seems to introduce a problem for some SCN images
+    // if (strcmp(openslide_get_property_value(osr, "leica.device-model"),
+    //            "Versa") != 0) {
+      l->base.w = ceil(collection->nm_across / l->nm_per_pixel);
+      l->base.h = ceil(collection->nm_down / l->nm_per_pixel);
+    // }
     //g_debug("level %d, nm/pixel %g", level_num, l->nm_per_pixel);
 
     // convert area offsets from nm to pixels
@@ -836,6 +907,8 @@ static bool leica_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
 
+  match_main_image_dimensions(collection);
+
   // initialize and verify levels
   int64_t quickhash_dir;
   if (!create_levels_from_collection(osr, tc, tiff, collection,
@@ -844,6 +917,12 @@ static bool leica_open(openslide_t *osr, const char *filename,
     goto FAIL;
   }
   collection_free(collection);
+
+  // add associated label for Aperio Versa
+  if (collection->label_ifd != NO_SUP_LABEL) {
+    _openslide_tiff_add_associated_image(osr, "label", tc,
+                                         collection->label_ifd, err);
+  }
 
   // set hash and properties
   struct level *level0 = level_array->pdata[0];
