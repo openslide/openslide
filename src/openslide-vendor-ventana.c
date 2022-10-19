@@ -180,35 +180,20 @@ static bool read_subtile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    _openslide_slice box;
-    // Slides with multiple AOIs are sparse, meaning the tiles between the AOIs
-    // are completely empty and need to be filled with transparent pixels.
-    bool is_missing;
-    if (!_openslide_tiff_check_missing_tile(tiffl, tiff,
-                                            tile_col, tile_row,
-                                            &is_missing, err)) {
+    _openslide_slice box = _openslide_slice_alloc(tw * th * 4);
+    if (!_openslide_tiff_read_tile(tiffl, tiff,
+                                    box.p, tile_col, tile_row,
+                                    err)) {
+      g_slice_free1(tw * th * 4, &box);
       return false;
     }
 
-    if (is_missing) {
-      // fill with transparent
-      box = _openslide_slice_alloc0(tw * th * 4);
-    } else {
-      box = _openslide_slice_alloc(tw * th * 4);
-      if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                     box.p, tile_col, tile_row,
-                                     err)) {
-        g_slice_free1(tw * th * 4, &box);
-        return false;
-      }
-
-      // clip, if necessary
-      if (!_openslide_tiff_clip_tile(tiffl, box.p,
-                                     tile_col, tile_row,
-                                     err)) {
-        g_slice_free1(tw * th * 4, &box);
-        return false;
-      }
+    // clip, if necessary
+    if (!_openslide_tiff_clip_tile(tiffl, box.p,
+                                    tile_col, tile_row,
+                                    err)) {
+      g_slice_free1(tw * th * 4, &box);
+      return false;
     }
 
     // put it in the cache
