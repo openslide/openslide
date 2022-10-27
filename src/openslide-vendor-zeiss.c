@@ -217,6 +217,13 @@ enum z_attach_content_file_type {
   ATT_JPG,
 };
 
+struct z_region {
+  int64_t x1;
+  int64_t y1;
+  int64_t x2;
+  int64_t y2;
+};
+
 struct zeiss_ops_data {
   // offset to ZISRAWFILE, one for each file, usually 0. CZI file is like
   // Russian doll, it can embed other CZI files. Non-zero value is the
@@ -234,6 +241,7 @@ struct zeiss_ops_data {
   int32_t offset_x;
   int32_t offset_y;
   GPtrArray *subblks;
+  GPtrArray *regions;
   GHashTable *grids;
   GHashTable *count_levels;
 };
@@ -252,6 +260,10 @@ static void destroy_subblk(struct czi_subblk *p) {
   g_slice_free(struct czi_subblk, p);
 }
 
+static void destroy_region(struct z_region *p) {
+  g_slice_free(struct z_region, p);
+}
+
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   g_free(data->filename);
   if (data->count_levels) {
@@ -263,6 +275,7 @@ static void destroy_ops_data(struct zeiss_ops_data *data) {
   }
 
   g_ptr_array_free(data->subblks, TRUE);
+  g_ptr_array_free(data->regions, TRUE);
   g_slice_free(struct zeiss_ops_data, data);
 }
 
@@ -1034,6 +1047,61 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err) {
   return true;
 }
 
+/* find region boundaries on level 0, and pyramid levels of each region */
+static void init_regions(struct zeiss_ops_data *data) {
+  struct z_region *r;
+  struct czi_subblk *b;
+
+  data->regions = g_ptr_array_new_full(16, (GDestroyNotify) destroy_region);
+  for (int i = 0; i < data->scene; i++) {
+    r = g_slice_new0(struct z_region);
+    r->x1 = INT64_MAX;
+    r->y1 = INT64_MAX;
+    r->x2 = INT64_MIN;
+    r->y2 = INT64_MIN;
+    g_ptr_array_add(data->regions, r);
+  }
+
+  for (guint i = 0; i < data->subblks->len; i++) {
+    b = data->subblks->pdata[i];
+    r = data->regions->pdata[b->scene];
+    // only check region boundary on top level
+    if (b->downsample_i != 1) {
+      continue;
+    }
+
+    r->x1 = MIN(r->x1, b->x1);
+    r->y1 = MIN(r->y1, b->y1);
+    r->x2 = MAX(r->x2, b->x1 + b->w);
+    r->y2 = MAX(r->y2, b->y1 + b->h);
+  }
+}
+
+static void set_region_props(openslide_t *osr) {
+  struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
+  struct z_region *r;
+
+  for (int i = 0; i < data->scene; i++) {
+    r = data->regions->pdata[i];
+    g_hash_table_insert(
+        osr->properties,
+        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
+        g_strdup_printf("%"PRId64, r->x1));
+    g_hash_table_insert(
+        osr->properties,
+        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, i),
+        g_strdup_printf("%"PRId64, r->y1));
+    g_hash_table_insert(
+        osr->properties,
+        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, i),
+        g_strdup_printf("%"PRId64, r->x2 - r->x1));
+    g_hash_table_insert(
+        osr->properties,
+        g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, i),
+        g_strdup_printf("%"PRId64, r->y2 - r->y1));
+  }
+}
+
 static bool zeiss_open(openslide_t *osr, const char *filename,
                        struct _openslide_tifflike *t G_GNUC_UNUSED,
                        struct _openslide_hash *quickhash1 G_GNUC_UNUSED,
@@ -1065,8 +1133,10 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
+  init_regions(data);
   init_levels(osr);
   init_range_grids(osr);
+  set_region_props(osr);
   if (!zeiss_add_associated_image(osr, err)) {
     return false;
   }
