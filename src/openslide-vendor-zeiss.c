@@ -217,11 +217,13 @@ enum z_attach_content_file_type {
   ATT_JPG,
 };
 
+// for finding location of each region(scene in CZI's term) and pyramid level
 struct z_region {
   int64_t x1;
   int64_t y1;
   int64_t x2;
   int64_t y2;
+  int64_t max_downsample;
 };
 
 struct zeiss_ops_data {
@@ -234,6 +236,7 @@ struct zeiss_ops_data {
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
+  int64_t common_downsample;
   int32_t nsubblk;  // total number of subblocks
   int32_t w;
   int32_t h;
@@ -660,6 +663,10 @@ static void init_range_grids(openslide_t *osr) {
 
   for (guint i = 0; i < subblks->len; i++) {
     b = subblks->pdata[i];
+    if (b->downsample_i > data->common_downsample) {
+      continue;
+    }
+
     grid = g_hash_table_lookup(data->grids, &b->downsample_i);
     _openslide_grid_range_add_tile(grid,
                                    (double) b->x1 / b->downsample_i ,
@@ -680,6 +687,25 @@ static gint cmp_int64(gpointer a, gpointer b) {
   return (*x < *y) ?  -1 : 1;
 }
 
+/* Scenes on a slide may have different sizes and pyramid levels. For example,
+ * rat kidney is likely to have more levels than a mouse kidney on the same
+ * slide. Find the maximum downsample value available on all scenes and use it
+ * to set the total levels. It helps deepzoom to show all sections on a slide
+ * at max zoom out.
+ */
+static int64_t get_common_downsample(struct zeiss_ops_data *data) {
+  struct z_region *r;
+  int64_t downsample = INT64_MAX;
+
+  for (int i = 0; i < data->scene; i++) {
+    r = data->regions->pdata[i];
+    if (downsample > r->max_downsample) {
+      downsample = r->max_downsample;
+    }
+  }
+  return downsample;
+}
+
 static void init_levels(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
   struct czi_subblk *b;
@@ -697,8 +723,13 @@ static void init_levels(openslide_t *osr) {
   GList *p = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
   downsamples = p;
 
+  data->common_downsample = get_common_downsample(data);
   while (p) {
     downsample_i = *((int64_t *) p->data);
+    if (downsample_i > data->common_downsample) {
+      break;
+    }
+
     l = g_slice_new0(struct level);
     l->base.downsample = (double) downsample_i;
     l->base.w = data->w / l->base.downsample;
@@ -1065,6 +1096,10 @@ static void init_regions(struct zeiss_ops_data *data) {
   for (guint i = 0; i < data->subblks->len; i++) {
     b = data->subblks->pdata[i];
     r = data->regions->pdata[b->scene];
+    if (r->max_downsample < b->downsample_i) {
+      r->max_downsample = b->downsample_i;
+    }
+
     // only check region boundary on top level
     if (b->downsample_i != 1) {
       continue;
