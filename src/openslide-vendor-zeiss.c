@@ -277,8 +277,13 @@ static void destroy_ops_data(struct zeiss_ops_data *data) {
     g_hash_table_destroy(data->grids);
   }
 
-  g_ptr_array_free(data->subblks, TRUE);
-  g_ptr_array_free(data->regions, TRUE);
+  if (data->subblks) {
+    g_ptr_array_free(data->subblks, TRUE);
+  }
+
+  if (data->regions) {
+    g_ptr_array_free(data->regions, TRUE);
+  }
   g_slice_free(struct zeiss_ops_data, data);
 }
 
