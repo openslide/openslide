@@ -21,7 +21,7 @@
  */
 
 /*
- * Optra (tif, otif) support
+ * Optra (tif, otif) support added by surajoptra
  *
  * quickhash comes from _openslide_tifflike_init_properties_and_hash
  *
