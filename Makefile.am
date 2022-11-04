@@ -43,7 +43,8 @@ src_libopenslide_la_SOURCES = \
 	src/openslide-vendor-sakura.c \
 	src/openslide-vendor-synthetic.c \
 	src/openslide-vendor-trestle.c \
-	src/openslide-vendor-ventana.c
+	src/openslide-vendor-ventana.c \
+	src/openslide-vendor-optra.c
 
 EXTRA_PROGRAMS = src/make-tables
 CLEANFILES = src/make-tables
