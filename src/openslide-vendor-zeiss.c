@@ -39,6 +39,7 @@
 #include <libxml/xpath.h>
 
 #define CZI_SEG_ID_LEN   16
+#define CZI_FILEHDR_LEN 544
 #define MAX_CHANNEL       3
 
 #define DIV_ROUND_CLOSEST(n, d)                                                \
@@ -1144,9 +1145,9 @@ static void set_region_props(openslide_t *osr) {
 
 static bool zeiss_open(openslide_t *osr, const char *filename,
                        struct _openslide_tifflike *t G_GNUC_UNUSED,
-                       struct _openslide_hash *quickhash1 G_GNUC_UNUSED,
-                       GError **err) {
+                       struct _openslide_hash *quickhash1, GError **err) {
   struct zeiss_ops_data *data = g_slice_new0(struct zeiss_ops_data);
+  char buf[CZI_FILEHDR_LEN];
 
   osr->data = data;
   osr->ops = &zeiss_ops;
@@ -1180,6 +1181,19 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   if (!zeiss_add_associated_image(osr, err)) {
     return false;
   }
+
+  g_autoptr(_openslide_file) f = _openslide_fopen(data->filename, err);
+  if (!f) {
+    return false;
+  }
+
+  if (_openslide_fread(f, buf, CZI_FILEHDR_LEN) != CZI_FILEHDR_LEN) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Cannot read FileHeader");
+    return false;
+  }
+
+  _openslide_hash_data(quickhash1, buf, CZI_FILEHDR_LEN);
   return true;
 }
 
