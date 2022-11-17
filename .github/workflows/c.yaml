@@ -56,6 +56,7 @@ jobs:
                 jpeg-turbo \
                 libtiff \
                 openjpeg \
+                jxrlib \
                 gdk-pixbuf \
                 libxml2 \
                 sqlite \
@@ -63,6 +64,8 @@ jobs:
                 glib \
                 xdelta \
                 doxygen
+            # jxrlib from homebrew has a bug
+            LC_ALL=C sed -i '' 's/#endif UNREFERENCED_PARAMETER/#endif/' /usr/local/Cellar/jxrlib/1.1_1/include/jxrlib/JXRMeta.h
             python -m pip install --upgrade pip
             pip install requests PyYAML
             ;;
@@ -78,6 +81,7 @@ jobs:
                     dnf copr enable -y bgilbert/el8-pixman-openslide
                     pyver=38
                     python=python38
+                    dnf install -y epel-release
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
@@ -100,6 +104,7 @@ jobs:
                     libjpeg-turbo-devel \
                     libtiff-devel \
                     openjpeg2-devel \
+                    jxrlib-devel \
                     gdk-pixbuf2-modules gdk-pixbuf2-devel \
                     libxml2-devel \
                     sqlite-devel \
@@ -136,6 +141,7 @@ jobs:
                     $jpeg \
                     libtiff-dev \
                     libopenjp2-7-dev \
+                    libjxr-dev \
                     libgdk-pixbuf2.0-dev \
                     libxml2-dev \
                     libsqlite3-dev \
