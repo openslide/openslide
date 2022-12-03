@@ -27,10 +27,7 @@ jobs:
             sanitize: sanitize
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream8
-          # Use ubuntu-22.04 to get a newer Docker seccomp filter.  Otherwise
-          # "make check" fails with:
-          #     Spawning child failed: Failed to close file descriptor for child process (Operation not permitted)
-          - os: ubuntu-22.04
+          - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
             container: debian:stable
