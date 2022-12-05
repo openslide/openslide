@@ -123,12 +123,6 @@ jobs:
                     # Ubuntu, on host
                     jpeg=libjpeg-turbo8-dev
                     sudo=sudo
-
-                    # https://launchpad.net/bugs/1988796
-                    . /etc/os-release
-                    if [ "$VERSION_ID" = "20.04" ]; then
-                        sudo add-apt-repository -ny "ppa:bgilbert/focal-pixman-openslide"
-                    fi
                 fi
                 $sudo apt-get update
                 $sudo apt-get -y install \
@@ -142,7 +136,6 @@ jobs:
                     libgdk-pixbuf2.0-dev \
                     libxml2-dev \
                     libsqlite3-dev \
-                    libpixman-1-dev \
                     libcairo2-dev \
                     libglib2.0-dev \
                     doxygen \
