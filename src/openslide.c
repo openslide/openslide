@@ -173,10 +173,7 @@ static bool open_backend(openslide_t *osr,
                          struct _openslide_tifflike *tl,
                          struct _openslide_hash **quickhash1_OUT,
                          GError **err) {
-  g_autoptr(_openslide_hash) quickhash1 = NULL;
-  if (quickhash1_OUT) {
-    quickhash1 = _openslide_hash_quickhash1_create();
-  }
+  g_autoptr(_openslide_hash) quickhash1 = _openslide_hash_quickhash1_create();
 
   if (!format->open(osr, filename, tl, quickhash1, err)) {
     if (err && !*err) {
@@ -194,10 +191,7 @@ static bool open_backend(openslide_t *osr,
     return false;
   }
 
-  if (quickhash1_OUT) {
-    *quickhash1_OUT = g_steal_pointer(&quickhash1);
-  }
-
+  *quickhash1_OUT = g_steal_pointer(&quickhash1);
   return true;
 }
 
@@ -210,22 +204,6 @@ const char *openslide_detect_vendor(const char *filename) {
   }
   return format->vendor;
 }
-
-bool openslide_can_open(const char *filename) {
-  g_assert(openslide_was_dynamically_loaded);
-
-  // detect format
-  g_autoptr(_openslide_tifflike) tl = NULL;
-  const struct _openslide_format *format = detect_format(filename, &tl);
-  if (!format) {
-    return false;
-  }
-
-  // try opening
-  g_autoptr(openslide_t) osr = create_osr();
-  return open_backend(osr, format, filename, tl, NULL, NULL);
-}
-
 
 static int cmpstring(const void *p1, const void *p2) {
   return strcmp(* (char * const *) p1, * (char * const *) p2);
