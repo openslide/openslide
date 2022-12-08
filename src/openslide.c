@@ -161,10 +161,8 @@ static bool open_backend(openslide_t *osr,
                          const struct _openslide_format *format,
                          const char *filename,
                          struct _openslide_tifflike *tl,
-                         struct _openslide_hash **quickhash1_OUT,
+                         struct _openslide_hash *quickhash1,
                          GError **err) {
-  g_autoptr(_openslide_hash) quickhash1 = _openslide_hash_quickhash1_create();
-
   if (!format->open(osr, filename, tl, quickhash1, err)) {
     if (err && !*err) {
       // error-handling bug in open function
@@ -180,8 +178,6 @@ static bool open_backend(openslide_t *osr,
     g_warning("%s opener succeeded but set error", format->name);
     return false;
   }
-
-  *quickhash1_OUT = g_steal_pointer(&quickhash1);
   return true;
 }
 
@@ -238,9 +234,9 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // open backend
-  g_autoptr(_openslide_hash) quickhash1 = NULL;
+  g_autoptr(_openslide_hash) quickhash1 = _openslide_hash_quickhash1_create();
   GError *tmp_err = NULL;
-  if (!open_backend(osr, format, filename, tl, &quickhash1, &tmp_err)) {
+  if (!open_backend(osr, format, filename, tl, quickhash1, &tmp_err)) {
     // failed to read slide
     _openslide_propagate_error(osr, tmp_err);
     return g_steal_pointer(&osr);
