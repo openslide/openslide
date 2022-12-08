@@ -78,7 +78,7 @@ endif
 libopenslide = library('openslide',
   openslide_sources,
   version : soversion,
-  c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="Openslide"'],
+  c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
   gnu_symbol_visibility : visibility,
   include_directories : config_h_include,
   dependencies : [

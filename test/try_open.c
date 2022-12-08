@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  g_log_set_handler("Openslide", (GLogLevelFlags)
+  g_log_set_handler("OpenSlide", (GLogLevelFlags)
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
       print_log, NULL);
 
