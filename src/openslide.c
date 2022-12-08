@@ -371,21 +371,6 @@ void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
   *h = osr->levels[level]->h;
 }
 
-void openslide_get_layer0_dimensions(openslide_t *osr,
-                                     int64_t *w, int64_t *h) {
-  openslide_get_level0_dimensions(osr, w, h);
-}
-
-void openslide_get_layer_dimensions(openslide_t *osr, int32_t level,
-                                    int64_t *w, int64_t *h) {
-  openslide_get_level_dimensions(osr, level, w, h);
-}
-
-
-const char *openslide_get_comment(openslide_t *osr) {
-  return openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_COMMENT);
-}
-
 
 int32_t openslide_get_level_count(openslide_t *osr) {
   if (openslide_get_error(osr)) {
@@ -393,10 +378,6 @@ int32_t openslide_get_level_count(openslide_t *osr) {
   }
 
   return osr->level_count;
-}
-
-int32_t openslide_get_layer_count(openslide_t *osr) {
-  return openslide_get_level_count(osr);
 }
 
 
@@ -422,11 +403,6 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
   return osr->level_count - 1;
 }
 
-int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
-						double downsample) {
-  return openslide_get_best_level_for_downsample(osr, downsample);
-}
-
 
 double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
   if (openslide_get_error(osr) || !level_in_range(osr, level)) {
@@ -436,25 +412,6 @@ double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
   return osr->levels[level]->downsample;
 }
 
-double openslide_get_layer_downsample(openslide_t *osr, int32_t level) {
-  return openslide_get_level_downsample(osr, level);
-}
-
-
-int openslide_give_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
-				 int64_t x G_GNUC_UNUSED,
-				 int64_t y G_GNUC_UNUSED,
-				 int32_t level G_GNUC_UNUSED,
-				 int64_t w G_GNUC_UNUSED,
-				 int64_t h G_GNUC_UNUSED) {
-  g_warning("openslide_give_prefetch_hint has never been implemented and should not be called");
-  return 0;
-}
-
-void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
-				    int prefetch_id G_GNUC_UNUSED) {
-  g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
-}
 
 static bool read_region_area(openslide_t *osr,
                              uint32_t *dest, int64_t stride,

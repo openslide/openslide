@@ -369,19 +369,6 @@ extern const int32_t _openslide_G_Cb[256];
 extern const int32_t _openslide_G_Cr[256];
 extern const int16_t _openslide_B_Cb[256];
 
-// deprecated prefetch stuff (maybe we'll undeprecate it someday),
-// still needs these declarations for ABI compat
-// TODO: remove if soname bump
-#undef openslide_give_prefetch_hint
-OPENSLIDE_PUBLIC()
-int openslide_give_prefetch_hint(openslide_t *osr,
-				 int64_t x, int64_t y,
-				 int32_t level,
-				 int64_t w, int64_t h);
-#undef openslide_cancel_prefetch_hint
-OPENSLIDE_PUBLIC()
-void openslide_cancel_prefetch_hint(openslide_t *osr, int prefetch_id);
-
 /* Prevent use of dangerous functions and functions with mandatory wrappers.
    Every @p replacement must be unique to avoid conflicting-type errors. */
 #define _OPENSLIDE_POISON(replacement) error__use_ ## replacement ## _instead
