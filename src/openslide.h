@@ -440,7 +440,10 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * with a whole slide image. @p dest must be a valid pointer to enough
  * memory to hold the image, at least (width * height * 4) bytes in
  * length.  Get the width and height with
- * openslide_get_associated_image_dimensions(). This function does nothing
+ * openslide_get_associated_image_dimensions().
+ *
+ * If an error occurs or has occurred, then the memory pointed to by @p dest
+ * will be cleared. In versions prior to 4.0.0, this function did nothing
  * if an error occurred.
  *
  * For more information about processing pre-multiplied pixel data, see
