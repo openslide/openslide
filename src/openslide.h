@@ -261,16 +261,22 @@ const char *openslide_get_error(openslide_t *osr);
 
 /**
  * The name of the property containing a slide's comment, if any.
+ *
+ * @since 3.0.0
  */
 #define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
 
 /**
  * The name of the property containing an identification of the vendor.
+ *
+ * @since 3.0.0
  */
 #define OPENSLIDE_PROPERTY_NAME_VENDOR "openslide.vendor"
 
 /**
  * The name of the property containing the "quickhash-1" sum.
+ *
+ * @since 3.0.0
  */
 #define OPENSLIDE_PROPERTY_NAME_QUICKHASH1 "openslide.quickhash-1"
 
