@@ -33,7 +33,6 @@
 #include <cairo.h>
 #include <libxml/parser.h>
 
-#include "openslide-cairo.h"
 #include "openslide-error.h"
 
 const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2022 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
@@ -485,25 +484,26 @@ void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
   g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
 }
 
-static bool read_region(openslide_t *osr,
-			cairo_t *cr,
-			int64_t x, int64_t y,
-			int32_t level,
-			int64_t w, int64_t h,
-			GError **err) {
-  bool success = true;
+static bool read_region_area(openslide_t *osr,
+                             uint32_t *dest, int64_t stride,
+                             int64_t x, int64_t y,
+                             int32_t level,
+                             int64_t w, int64_t h,
+                             GError **err) {
+  // create the cairo surface for the dest
+  g_autoptr(cairo_surface_t) surface = NULL;
+  if (dest) {
+    surface =
+      cairo_image_surface_create_for_data((unsigned char *) dest,
+                                          CAIRO_FORMAT_ARGB32,
+                                          w, h, stride);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
+  }
 
-  // save the old pattern, it's the only thing push/pop won't restore
-  cairo_pattern_t *old_source = cairo_get_source(cr);
-  cairo_pattern_reference(old_source);
-
-  // push, so that saturate works with all sorts of backends
-  cairo_push_group(cr);
-
-  // clear to set the bounds of the group (seems to be a recent cairo bug)
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_rectangle(cr, 0, 0, w, h);
-  cairo_fill(cr);
+  // create the cairo context
+  g_autoptr(cairo_t) cr = cairo_create(surface);
 
   // saturate those seams away!
   cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
@@ -529,60 +529,10 @@ static bool read_region(openslide_t *osr,
 
     // paint
     if (w > 0 && h > 0) {
-      success = osr->ops->paint_region(osr, cr, x, y, l, w, h, err);
+      if (!osr->ops->paint_region(osr, cr, x, y, l, w, h, err)) {
+        return false;
+      }
     }
-  }
-
-  cairo_pop_group_to_source(cr);
-
-  if (success) {
-    // commit, nothing went wrong
-    cairo_paint(cr);
-  }
-
-  // restore old source
-  cairo_set_source(cr, old_source);
-  cairo_pattern_destroy(old_source);
-
-  return success;
-}
-
-static bool ensure_nonnegative_dimensions(openslide_t *osr, int64_t w, int64_t h) {
-  if (w < 0 || h < 0) {
-    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                                  "negative width (%"PRId64") "
-                                  "or negative height (%"PRId64") "
-                                  "not allowed", w, h);
-    _openslide_propagate_error(osr, tmp_err);
-    return false;
-  }
-  return true;
-}
-
-static bool read_region_area(openslide_t *osr,
-                             uint32_t *dest, int64_t stride,
-                             int64_t x, int64_t y,
-                             int32_t level,
-                             int64_t w, int64_t h,
-                             GError **err) {
-  // create the cairo surface for the dest
-  g_autoptr(cairo_surface_t) surface = NULL;
-  if (dest) {
-    surface =
-      cairo_image_surface_create_for_data((unsigned char *) dest,
-                                          CAIRO_FORMAT_ARGB32,
-                                          w, h, stride);
-  } else {
-    // nil surface
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
-  }
-
-  // create the cairo context
-  g_autoptr(cairo_t) cr = cairo_create(surface);
-
-  // paint
-  if (!read_region(osr, cr, x, y, level, w, h, err)) {
-    return false;
   }
 
   // done
@@ -598,7 +548,12 @@ void openslide_read_region(openslide_t *osr,
 			   int64_t x, int64_t y,
 			   int32_t level,
 			   int64_t w, int64_t h) {
-  if (!ensure_nonnegative_dimensions(osr, w, h)) {
+  if (w < 0 || h < 0) {
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                  "negative width (%"PRId64") "
+                                  "or negative height (%"PRId64") "
+                                  "not allowed", w, h);
+    _openslide_propagate_error(osr, tmp_err);
     return;
   }
 
@@ -645,31 +600,6 @@ void openslide_read_region(openslide_t *osr,
     }
   }
 }
-
-
-void openslide_cairo_read_region(openslide_t *osr,
-				 cairo_t *cr,
-				 int64_t x, int64_t y,
-				 int32_t level,
-				 int64_t w, int64_t h) {
-  if (!ensure_nonnegative_dimensions(osr, w, h)) {
-    return;
-  }
-
-  if (openslide_get_error(osr)) {
-    return;
-  }
-
-  GError *tmp_err = NULL;
-  if (read_region(osr, cr, x, y, level, w, h, &tmp_err)) {
-    _openslide_check_cairo_status(cr, &tmp_err);
-  }
-
-  if (tmp_err) {
-    _openslide_propagate_error(osr, tmp_err);
-  }
-}
-
 
 const char * const *openslide_get_property_names(openslide_t *osr) {
   if (openslide_get_error(osr)) {

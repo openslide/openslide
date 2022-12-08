@@ -1260,8 +1260,7 @@ def exports():
         hidden_symbols = (set(get_symbols('.')) - exported_symbols -
                 ignore_symbols)
         bad_hidden = set(symbol for symbol in hidden_symbols
-                if not symbol.startswith('_openslide_')
-                and symbol != 'openslide_cairo_read_region')  # legacy
+                if not symbol.startswith('_openslide_'))
 
     # Report
     for symbol in sorted(bad_exported):
