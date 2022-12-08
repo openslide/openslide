@@ -477,7 +477,7 @@ void openslide_read_associated_image(openslide_t *osr,
  *
  * @param capacity The capacity of the cache, in bytes.
  * @return A new cache.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 openslide_cache_t *openslide_cache_create(size_t capacity);
@@ -488,7 +488,7 @@ openslide_cache_t *openslide_cache_create(size_t capacity);
  *
  * @param osr The OpenSlide object.
  * @param cache The cache to attach.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache);
@@ -499,7 +499,7 @@ void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache);
  * object is closed.
  *
  * @param cache The cache to release.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 void openslide_cache_release(openslide_cache_t *cache);
