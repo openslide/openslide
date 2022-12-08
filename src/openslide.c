@@ -119,16 +119,6 @@ static void *verify_pixman_works(void *arg G_GNUC_UNUSED) {
   return GINT_TO_POINTER(dest[8 * 16 + 8] != 0);
 }
 
-static openslide_t *create_osr(void) {
-  openslide_t *osr = g_new0(openslide_t, 1);
-  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
-                                          g_free, g_free);
-  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
-                                                 g_free,
-                                                 destroy_associated_image);
-  return osr;
-}
-
 static const struct _openslide_format *detect_format(const char *filename,
                                                      struct _openslide_tifflike **tl_OUT) {
   GError *tmp_err = NULL;
@@ -229,7 +219,12 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // alloc memory
-  g_autoptr(openslide_t) osr = create_osr();
+  g_autoptr(openslide_t) osr = g_new0(openslide_t, 1);
+  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                          g_free, g_free);
+  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                                 g_free,
+                                                 destroy_associated_image);
 
   // refuse to run on unpatched pixman 0.38.x
   static GOnce pixman_once = G_ONCE_INIT;
