@@ -209,12 +209,12 @@ static void add_properties(openslide_t *osr, char **tags) {
 
 static void parse_trestle_image_description(openslide_t *osr,
                                             const char *description,
-                                            int32_t *overlap_count_OUT,
+                                            uint32_t *overlap_count_OUT,
                                             int32_t **overlaps_OUT) {
   g_auto(GStrv) first_pass = g_strsplit(description, ";", -1);
   add_properties(osr, first_pass);
 
-  int32_t overlap_count = 0;
+  uint32_t overlap_count = 0;
   g_autofree int32_t *overlaps = NULL;
   for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
     //g_debug(" XX: %s", *cur_str);
@@ -279,7 +279,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
 
   // parse ImageDescription
   char *image_desc;
-  int32_t overlap_count = 0;
+  uint32_t overlap_count = 0;
   g_autofree int32_t *overlaps = NULL;
   if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
