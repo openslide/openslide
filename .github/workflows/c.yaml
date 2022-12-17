@@ -220,10 +220,10 @@ jobs:
         run: |
           case "${{ github.event_name }}" in
           pull_request)
-              echo "::set-output name=pkgver::pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)"
+              echo "pkgver=pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           push)
-              echo "::set-output name=pkgver::${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)"
+              echo "pkgver=${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           *)
               echo "Unknown event type ${{ github.event_name }}"
