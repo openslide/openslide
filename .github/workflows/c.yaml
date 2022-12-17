@@ -168,7 +168,7 @@ jobs:
         trap "cat test-suite.log" EXIT
         make check
     - name: Cache pristine slides
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         key: pristine
         path: test/_slidedata/pristine
@@ -258,7 +258,7 @@ jobs:
         mv html ../artifact/${basename}
         echo "basename=${basename}" >> $GITHUB_ENV
     - name: Archive
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ env.basename }}
         path: artifact
