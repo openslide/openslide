@@ -143,19 +143,11 @@ test_synth_CPPFLAGS = $(COMMON_CPPFLAGS) $(VALGRIND_CFLAGS)
 test_synth_CFLAGS = $(AM_CFLAGS) $(TEST_CFLAGS)
 test_synth_LDADD = $(COMMON_LDADD)
 
-if CYGWIN_CROSS_TEST
-noinst_PROGRAMS += test/symlink
-test_symlink_CFLAGS = $(AM_CFLAGS) -municode
-test_symlink_LDFLAGS = $(AM_LDFLAGS) -municode
-test_symlink_LDADD = -lkernel32
-endif
-
 test/driver: test/driver.in Makefile
 	$(AM_V_GEN)sed -e 's:!!SRCDIR!!:$(abs_srcdir)/test:g' \
 		-e 's:!!BUILDDIR!!:$(abs_builddir)/test:g' \
 		-e 's:!!GLIB2_DATADIR!!:$(GLIB2_DATADIR):g' \
 		-e 's:!!VERSION!!:$(VERSION):g' \
-		-e 's:!!CYGWIN_CROSS_TEST!!:$(CYGWIN_CROSS_TEST):g' \
 		-e 's:!!FEATURES!!:$(FEATURE_FLAGS):g' "$<" > "$@" && \
 		chmod +x "$@"
 

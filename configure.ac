@@ -139,18 +139,6 @@ AS_CASE([$host_os],
   ]
 )
 
-# The test driver has special support for testing Windows builds from Cygwin
-AC_MSG_CHECKING([whether to cross-test from Cygwin])
-if test "$host_os" = "mingw32" -a "$build_os" = "cygwin"; then
-  AC_MSG_RESULT([yes])
-  CYGWIN_CROSS_TEST=yes
-else
-  AC_MSG_RESULT([no])
-  CYGWIN_CROSS_TEST=""
-fi
-AC_SUBST([CYGWIN_CROSS_TEST])
-AM_CONDITIONAL([CYGWIN_CROSS_TEST], [test -n "$CYGWIN_CROSS_TEST"])
-
 # gcc assumes Win32 stack frames are 16-byte-aligned by default, but the
 # Win32 ABI only requires 4-byte alignment.  If gcc emits aligned SSE
 # instructions that access the stack, this can cause GPFs if we're called by

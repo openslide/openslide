@@ -78,35 +78,6 @@ _command_funcs = {}
 SKIP = object()
 
 
-if '!!CYGWIN_CROSS_TEST!!':
-    import ctypes
-
-    _cygwin = ctypes.CDLL('cygwin1.dll', use_errno=True)
-    _cygwin_conv_path = _cygwin.cygwin_conv_path
-    _cygwin_conv_path.argtypes = [ctypes.c_uint, ctypes.c_void_p,
-            ctypes.c_void_p, ctypes.c_size_t]
-    _cygwin_conv_path.restype = ctypes.c_ssize_t
-
-    def native_path(path):
-        flags = 0x100  # CCP_POSIX_TO_WIN_A | CCP_RELATIVE
-        size = _cygwin_conv_path(flags, path, None, 0)
-        if size == -1:
-            raise OSError(ctypes.get_errno(), "Couldn't convert path")
-        buf = ctypes.create_string_buffer(size)
-        if _cygwin_conv_path(flags, path, buf, size) == -1:
-            raise OSError(ctypes.get_errno(), "Couldn't convert path")
-        return buf.value
-
-    def symlink(src, dst):
-        if not os.path.isabs(src):
-            src = os.path.abspath(os.path.join(os.path.dirname(dst), src))
-        subprocess.check_call(['!!BUILDDIR!!/symlink', native_path(src),
-                native_path(dst)])
-else:
-    native_path = lambda p: p
-    symlink = os.symlink
-
-
 class ConnectionInterrupted(Exception):
     pass
 
@@ -196,7 +167,7 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
             G_SLICE='always-malloc',
             MALLOC_CHECK_='1',
         )
-    args = [os.path.join(testdir, test), native_path(slidefile)] + args
+    args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
         args = [os.path.join(testdir, '../libtool'), '--mode=execute',
                 'valgrind', '--quiet', '--error-exitcode=3',
@@ -564,7 +535,7 @@ def _unpack_one(testname):
                 _decode_xdelta(origpath, deltapath, newpath)
             else:
                 src = os.path.relpath(origpath, os.path.dirname(newpath))
-                symlink(src, newpath)
+                os.symlink(src, newpath)
 
 
 @_command
@@ -685,7 +656,7 @@ def _fusefs_init(shadowdir):
                             os.path.dirname(relpath))
                 shadowpath = self._shadowpath(relpath)
                 if not os.path.lexists(shadowpath):
-                    symlink(target, shadowpath)
+                    os.symlink(target, shadowpath)
             except OSError as exc:
                 raise FUSEError(exc.errno)
             return os.fsencode(target)
@@ -944,10 +915,10 @@ def unfreeze():
             if info.isfile() or info.isdir():
                 tf.extract(info, path=basedir, set_attrs=False)
             elif info.issym():
-                symlink(info.linkname, os.path.join(basedir, info.name))
+                os.symlink(info.linkname, os.path.join(basedir, info.name))
             else:
                 raise IOError(f'Unexpected type: {info.name}')
-    symlink(link_target, FROZEN)
+    os.symlink(link_target, FROZEN)
 
 
 def _run_one(testname, valgrind=False, xfail=False, testdir=None,
@@ -1161,8 +1132,7 @@ def _mosaic(outfile, pristinedir=PRISTINE):
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
     subprocess.check_call([os.path.join('!!BUILDDIR!!', 'mosaic'),
-            native_path(pristinedir), native_path(MOSAICLIST),
-            native_path(outfile)])
+            pristinedir, MOSAICLIST, outfile])
 
 
 @_command
