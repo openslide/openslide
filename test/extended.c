@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/types.h>
 #include <fcntl.h>
 #endif
@@ -52,7 +52,7 @@ static void test_image_fetch(openslide_t *osr,
   }
 }
 
-#if !defined(NONATOMIC_CLOEXEC) && !defined(WIN32)
+#if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
 static gint leak_test_running;  /* atomic ops only */
 
 static gpointer cloexec_thread(const gpointer prog) {
@@ -114,14 +114,14 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   g_atomic_int_set(&leak_test_running, 0);
   g_thread_join(thr);
 }
-#else /* !NONATOMIC_CLOEXEC && !WIN32 */
+#else /* !NONATOMIC_CLOEXEC && !_WIN32 */
 static void child_check_open_fds(void) {}
 
 static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
                                 void *prog G_GNUC_UNUSED,
                                 int64_t x G_GNUC_UNUSED,
                                 int64_t y G_GNUC_UNUSED) {}
-#endif /* !NONATOMIC_CLOEXEC && !WIN32 */
+#endif /* !NONATOMIC_CLOEXEC && !_WIN32 */
 
 #define CACHE_THREADS 5
 

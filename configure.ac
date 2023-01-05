@@ -138,25 +138,6 @@ AS_CASE([$host_os],
     ])
   ]
 )
-# Fallback: racily use fcntl()
-AC_CHECK_FUNCS([fcntl])
-
-# Windows _wfopen()
-AC_CHECK_FUNCS([_wfopen])
-
-# Mac OS X proc_pidfdinfo()
-AC_MSG_CHECKING([for proc_pidfdinfo])
-AC_LINK_IFELSE([
-  AC_LANG_PROGRAM(
-    [#include <libproc.h>],
-    [proc_pidfdinfo(0, 0, PROC_PIDFDKQUEUEINFO, NULL, 0)]
-  )
-], [
-  AC_MSG_RESULT([yes])
-  AC_DEFINE([HAVE_PROC_PIDFDINFO], [1], [Define to 1 if you have the proc_pidfdinfo function.])
-], [
-  AC_MSG_RESULT([no])
-])
 
 # The test driver has special support for testing Windows builds from Cygwin
 AC_MSG_CHECKING([whether to cross-test from Cygwin])
