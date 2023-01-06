@@ -38,12 +38,6 @@ jobs:
           - os: macos-12
             sanitize: sanitize
     steps:
-    # Quick way to get Python 3 on macOS
-    - name: Set up Python (macOS)
-      uses: actions/setup-python@v4
-      if: ${{ startsWith(matrix.os, 'macos-') }}
-      with:
-        python-version: "3.10.x"
     - name: Install dependencies
       run: |
         case "${{ matrix.os }}" in
@@ -63,8 +57,8 @@ jobs:
                 glib \
                 xdelta \
                 doxygen
-            python -m pip install --upgrade pip
-            pip install requests PyYAML
+            python3 -m pip install --upgrade pip
+            python3 -m pip install requests PyYAML
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
