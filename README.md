@@ -67,7 +67,7 @@ To build OpenSlide, you will need:
 - OpenJPEG &ge; 2.1
 - GDK-PixBuf
 - libxml2
-- SQLite &ge; 3.6.20
+- SQLite &ge; 3.14
 - cairo &ge; 1.2
 - glib &ge; 2.56
 
