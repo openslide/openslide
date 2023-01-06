@@ -60,6 +60,7 @@ more details.
 
 To build OpenSlide, you will need:
 
+- Meson
 - zlib
 - libpng
 - libjpeg
@@ -71,16 +72,13 @@ To build OpenSlide, you will need:
 - cairo &ge; 1.2
 - glib &ge; 2.56
 
-Then follow the usual build instructions:
+Then:
 
 ```
-./configure
-make
-make install
+meson setup builddir
+meson compile -C builddir
+meson install -C builddir
 ```
-
-If building from the Git repository, you will first need to install
-Autoconf, Automake, libtool, and pkg-config, and run `autoreconf -i`.
 
 
 ## Acknowledgements

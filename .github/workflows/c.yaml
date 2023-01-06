@@ -50,7 +50,7 @@ jobs:
             done
             brew update
             brew install \
-                autoconf automake libtool pkg-config \
+                meson pkg-config \
                 zlib \
                 libpng \
                 jpeg-turbo \
@@ -77,6 +77,7 @@ jobs:
                     # https://bugzilla.redhat.com/show_bug.cgi?id=2124013
                     dnf copr enable -y bgilbert/el8-pixman-openslide
                     pyver=38
+                    pydotver=3.8
                     python=python38
                     ;;
                 9)
@@ -92,7 +93,7 @@ jobs:
                 esac
 
                 dnf install -y \
-                    gcc make autoconf automake libtool pkg-config \
+                    gcc git meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
@@ -111,6 +112,9 @@ jobs:
                 if [ -n "$debuginfo" ]; then
                     dnf debuginfo-install -y cairo fontconfig glib2
                 fi
+                if [ -n "$pydotver" ]; then
+                    alternatives --set python3 "/usr/bin/python${pydotver}"
+                fi
                 ;;
             *debian*|"")
                 if [ -n "${{ matrix.container }}" ]; then
@@ -123,7 +127,7 @@ jobs:
                 fi
                 $sudo apt-get update
                 $sudo apt-get -y install \
-                    gcc make autoconf automake libtool pkg-config \
+                    gcc git meson pkg-config \
                     python3-requests python3-yaml \
                     zlib1g-dev \
                     libpng-dev \
@@ -152,26 +156,41 @@ jobs:
         fi
     - name: Build
       run: |
-        autoreconf -i
+        args=
         if [ -n "${{ matrix.ignore-cloexec-leaks }}" ]; then
             # Some distro versions have leaky libraries
             echo "Disabling CLOEXEC leak check"
-            export CPPFLAGS="-DNONATOMIC_CLOEXEC"
+            args="-D_nonatomic_cloexec=true"
         fi
-        if ! ./configure; then
-            cat config.log
+        if ! meson setup builddir --werror $args; then
+            cat builddir/meson-logs/meson-log.txt
             exit 1
         fi
-        make -j4 CFLAGS="-O2 -g -Werror"
+        ninja -C builddir
     - name: Check
       run: |
-        trap "cat test-suite.log" EXIT
-        make check
+        trap "cat builddir/meson-logs/testlog.txt" EXIT
+        meson test -C builddir
+    - name: Docs
+      if: matrix.extra
+      run: |
+        cd builddir
+        ninja doc/html
+        docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
+        mkdir doc-artifact
+        mv doc/html doc-artifact/${docroot}
+        echo "docroot=${docroot}" >> $GITHUB_ENV
+    - name: Archive docs
+      if: matrix.extra
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.docroot }}
+        path: builddir/doc-artifact
     - name: Cache pristine slides
       uses: actions/cache@v3
       with:
         key: pristine
-        path: test/_slidedata/pristine
+        path: builddir/test/_slidedata/pristine
     - name: Check for overlarge tests
       if: matrix.extra
       run: |
@@ -190,24 +209,24 @@ jobs:
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
-        cd test
+        cd builddir/test
         ./driver unfreeze
         ./driver unpack nonfrozen
     - name: Test
-      run: cd test && ./driver run
+      run: cd builddir/test && ./driver run
     - name: Sanitize
       if: matrix.sanitize
-      run: cd test && ./driver sanitize
+      run: cd builddir/test && ./driver sanitize
     - name: Valgrind
       # Valgrind tests are expensive, and maintaining suppressions across
       # multiple distros can be fiddly.  We might catch some additional bugs
       # if we enabled this everywhere (mainly when there are different code
       # paths for different dependency versions) but it doesn't seem worth it.
       if: matrix.extra
-      run: cd test && ./driver valgrind
+      run: cd builddir/test && ./driver valgrind
     - name: Check exports
       if: matrix.extra
-      run: cd test && ./driver exports
+      run: cd builddir/test && ./driver exports
 
   windows_setup:
     name: Set up Windows build
@@ -239,26 +258,3 @@ jobs:
       openslide_ref: ${{ github.ref }}
       pkgver: ${{ needs.windows_setup.outputs.pkgver }}
       werror: true
-
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    container: registry.fedoraproject.org/fedora:latest
-    steps:
-    - name: Check out repo
-      uses: actions/checkout@v3
-    - name: Install tools
-      run: dnf install -y doxygen
-    - name: Build
-      run: |
-        basename=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
-        mkdir artifact
-        cd doc
-        doxygen
-        mv html ../artifact/${basename}
-        echo "basename=${basename}" >> $GITHUB_ENV
-    - name: Archive
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ env.basename }}
-        path: artifact

@@ -36,6 +36,12 @@ option(
   description : 'For test suite; do not use',
 )
 option(
+  '_nonatomic_cloexec',
+  type : 'boolean',
+  value : 'false',
+  description : 'For CI; do not use',
+)
+option(
   '_sanitize',
   type : 'boolean',
   value : 'false',

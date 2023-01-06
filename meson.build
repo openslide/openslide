@@ -102,6 +102,11 @@ else
     conf.set('NONATOMIC_CLOEXEC', 1)
   endif
 endif
+if get_option('_nonatomic_cloexec')
+  # CI sets this on Linux distros with libraries that don't correctly set
+  # CLOEXEC.  Disable CLOEXEC leak check.
+  conf.set('NONATOMIC_CLOEXEC', 1)
+endif
 
 # Math library, host and build
 foreach i : [[cc, 'libm_dep'], [cc_native, 'libm_native_dep']]
