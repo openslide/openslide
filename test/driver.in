@@ -1294,6 +1294,8 @@ def _usage():
 
 
 def _main():
+    if '@FEATURES@'.strip('@') == 'FEATURES':
+        raise Exception('This program must be built with Meson before use.')
     try:
         cmd = sys.argv[1]
     except IndexError:
