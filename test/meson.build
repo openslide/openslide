@@ -49,7 +49,6 @@ configure_file(
   configuration : {
     'SRCDIR': meson.current_source_dir(),
     'BUILDDIR': meson.current_build_dir(),
-    'VERSION': version,
     # Path prefix for glib Valgrind suppressions
     'GLIB2_DATADIR': gio_dep.get_variable(
       default_value : '',

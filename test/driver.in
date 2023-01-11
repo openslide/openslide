@@ -1025,31 +1025,19 @@ def run(pattern='*'):
 
 
 @contextmanager
-def _rebuild(configure_args):
-    '''Context manager: rebuild the source with the specified CFLAGS and
-    yield to the caller to do profiling.'''
-    # To minimize collateral damage, unpack the dist tarball into a temp
-    # directory and build there.
+def _rebuild(setup_args):
+    '''Context manager: rebuild the source with the specified setup
+    arguments and yield to the caller to do profiling.'''
 
-    top_builddir = os.path.dirname('@BUILDDIR@')
+    top_srcdir = os.path.dirname('@SRCDIR@')
     prevdir = os.getcwd()
 
-    # Make tarball
-    os.chdir(top_builddir)
-    subprocess.check_call(['make', 'dist-gzip'])
-    os.chdir(prevdir)
-    tarpath = os.path.join(top_builddir, 'openslide-@VERSION@.tar.gz')
-
-    # Unpack and remove the tarball
+    # Set up and build
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
+    os.chdir(top_srcdir)
+    subprocess.run(['meson', 'setup', tempdir] + setup_args, check=True)
     os.chdir(tempdir)
-    tarfile.open(tarpath, 'r:gz').extractall()
-    os.unlink(tarpath)
-    os.chdir('openslide-@VERSION@')
-
-    # Build with specified CFLAGS
-    subprocess.check_call(['./configure'] + configure_args)
-    subprocess.check_call(['make', f'-j{_cpu_count()}'])
+    subprocess.run(['ninja'], check=True)
 
     # Let the caller run, passing it the directory we came from.
     # Intentionally don't clean up tempdir on exception.
@@ -1202,7 +1190,7 @@ def exports():
     '''Report exported or hidden symbols with improper names.'''
     def get_symbols(basedir):
         proc = subprocess.Popen(['objdump', '-T',
-                os.path.join(basedir, 'src', '.libs', 'libopenslide.so')],
+                os.path.join(basedir, 'src', 'libopenslide.so')],
                 stdout=subprocess.PIPE)
         out, _ = proc.communicate()
         if proc.returncode:
@@ -1220,12 +1208,12 @@ def exports():
     ignore_symbols = {'__bss_start', '_edata', '_end', '_fini', '_init'}
 
     # Check exported symbols
-    exported_symbols = set(get_symbols('..')) - ignore_symbols
+    exported_symbols = set(get_symbols('@BUILDDIR@/..')) - ignore_symbols
     bad_exported = set(symbol for symbol in exported_symbols
             if not symbol.startswith('openslide_'))
 
     # Check hidden symbols
-    with _rebuild(['gl_cv_cc_visibility=no']):
+    with _rebuild(['-D_export_internal_symbols=true']):
         hidden_symbols = (set(get_symbols('.')) - exported_symbols -
                 ignore_symbols)
         bad_hidden = set(symbol for symbol in hidden_symbols

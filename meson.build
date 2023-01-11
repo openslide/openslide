@@ -171,6 +171,9 @@ if not get_option('test').disabled() and not get_option('check_windows_abi_compa
   endif
 endif
 
+# Test suite options
+visibility = get_option('_export_internal_symbols') ? '' : 'hidden'
+
 # config.h
 configure_file(
   output : 'config.h',

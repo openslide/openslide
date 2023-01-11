@@ -23,3 +23,9 @@ option(
   value : 'auto',
   description : 'Test with 4-byte stack alignment on 32-bit Windows',
 )
+option(
+  '_export_internal_symbols',
+  type : 'boolean',
+  value : 'false',
+  description : 'For test suite; do not use',
+)
