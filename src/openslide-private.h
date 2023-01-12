@@ -138,6 +138,7 @@ extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
+extern const struct _openslide_format _openslide_format_optra;
 
 /* GHashTable utils */
 void _openslide_int64_free(gpointer data);
