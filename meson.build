@@ -173,6 +173,20 @@ endif
 
 # Test suite options
 visibility = get_option('_export_internal_symbols') ? '' : 'hidden'
+if get_option('_gcov')
+  add_project_arguments(
+    '-O0',
+    '-g',
+    '-fprofile-arcs',
+    '-ftest-coverage',
+    language : 'c'
+  )
+  # add_project_dependencies() is a bit cleaner but requires Meson >= 0.63
+  add_project_link_arguments(
+    '-lgcov',
+    language : 'c'
+  )
+endif
 
 # config.h
 configure_file(

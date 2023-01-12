@@ -29,3 +29,9 @@ option(
   value : 'false',
   description : 'For test suite; do not use',
 )
+option(
+  '_gcov',
+  type : 'boolean',
+  value : 'false',
+  description : 'For test suite; do not use',
+)

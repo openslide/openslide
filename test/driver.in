@@ -1051,7 +1051,7 @@ def _rebuild(setup_args):
 @_command
 def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
-    with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
+    with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
         # Avoid races when writing coverage data
         _run_all(testdir='test', parallel=False)
