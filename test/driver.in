@@ -51,7 +51,6 @@ from zipfile import ZipFile
 
 TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
-CLANG_SUPPRESSIONS = '@SRCDIR@/clang.supp'
 CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
 VALGRIND_SUPPRESSIONS_GLIB = '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
@@ -1025,9 +1024,9 @@ def run(pattern='*'):
 
 
 @contextmanager
-def _rebuild(setup_args):
+def _rebuild(setup_args, env={}):
     '''Context manager: rebuild the source with the specified setup
-    arguments and yield to the caller to do profiling.'''
+    arguments and environment, and yield to the caller to do profiling.'''
 
     top_srcdir = os.path.dirname('@SRCDIR@')
     prevdir = os.getcwd()
@@ -1035,7 +1034,10 @@ def _rebuild(setup_args):
     # Set up and build
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
     os.chdir(top_srcdir)
-    subprocess.run(['meson', 'setup', tempdir] + setup_args, check=True)
+    setup_env = os.environ.copy()
+    setup_env.update(env)
+    subprocess.run(['meson', 'setup', tempdir] + setup_args, check=True,
+            env=setup_env)
     os.chdir(tempdir)
     subprocess.run(['ninja'], check=True)
 
@@ -1092,20 +1094,7 @@ def sanitize(pattern='*'):
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
     comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
-    cflags = '-O2 -g -fno-omit-frame-pointer'
-    cflags += f' -fsanitize-ignorelist={CLANG_SUPPRESSIONS}'
-    # address and leak sanitizers
-    cflags += ' -fsanitize=address'
-    # UB sanitizer
-    cflags += ' -fsanitize=undefined -fsanitize=unsigned-integer-overflow'
-    cflags += ' -fsanitize=implicit-conversion -fsanitize=local-bounds'
-    # CFI (not supported on macOS)
-    if platform.system() != 'Darwin':
-        # -fvisibility=hidden is normally enabled by configure, but not for
-        # the earliest compiler tests
-        cflags += ' -fsanitize=cfi -fno-sanitize-trap=cfi'
-        cflags += ' -fsanitize-recover=cfi -flto -fvisibility=hidden'
-    with _rebuild(['CC=clang', f'CFLAGS={cflags}']) as basedir:
+    with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}) as basedir:
         xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail.split(',') if xfail else []
         if _run_all(pattern, xfail=xfail, testdir='test'):

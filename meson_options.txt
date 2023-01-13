@@ -35,3 +35,9 @@ option(
   value : 'false',
   description : 'For test suite; do not use',
 )
+option(
+  '_sanitize',
+  type : 'boolean',
+  value : 'false',
+  description : 'For test suite; do not use',
+)

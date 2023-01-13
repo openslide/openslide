@@ -187,6 +187,43 @@ if get_option('_gcov')
     language : 'c'
   )
 endif
+if get_option('_sanitize')
+  sanitize = [
+    '-fno-omit-frame-pointer',
+    '-fsanitize-ignorelist=' + meson.current_source_dir() / 'test/clang.supp',
+    # address and leak sanitizers
+    '-fsanitize=address',
+    # UB sanitizer
+    '-fsanitize=undefined',
+    '-fsanitize=unsigned-integer-overflow',
+    '-fsanitize=implicit-conversion',
+    '-fsanitize=local-bounds',
+  ]
+  if host_machine.system() != 'darwin'
+    # CFI (not supported on macOS)
+    sanitize += [
+      '-fsanitize=cfi',
+      '-fno-sanitize-trap=cfi',
+      '-fsanitize-recover=cfi',
+      '-flto',
+      # Needed in all binaries, not just libopenslide
+      '-fvisibility=hidden',
+    ]
+  endif
+  add_project_arguments(
+    sanitize,
+    language : 'c',
+  )
+  undefs = ['-Wl,-z', '-Wl,undefs']
+  if not cc.has_multi_link_arguments(undefs)
+    undefs = []
+  endif
+  add_project_link_arguments(
+    sanitize,
+    undefs,
+    language : 'c',
+  )
+endif
 
 # config.h
 configure_file(
