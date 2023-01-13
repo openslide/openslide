@@ -19,8 +19,6 @@
  *  <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-tifflike.h"
 

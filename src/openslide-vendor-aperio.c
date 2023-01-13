@@ -27,9 +27,6 @@
  *
  */
 
-
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-jp2k.h"
 #include "openslide-decode-tiff.h"

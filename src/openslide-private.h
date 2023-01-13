@@ -22,8 +22,6 @@
 #ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
 #define OPENSLIDE_OPENSLIDE_PRIVATE_H_
 
-#include <config.h>
-
 #include "openslide.h"
 #include "openslide-hash.h"
 
