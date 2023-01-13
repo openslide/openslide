@@ -101,7 +101,7 @@ static void write_png(openslide_t *osr, FILE *f,
   const char *bgcolor =
     openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
   if (bgcolor) {
-    int r, g, b;
+    unsigned r, g, b;
     sscanf(bgcolor, "%2x%2x%2x", &r, &g, &b);
 
     png_color_16 background = { 0, r, g, b, 0 };
