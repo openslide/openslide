@@ -1168,7 +1168,7 @@ def time(pattern='*'):
     for testname, slidefile in _successful_primary_tests(pattern):
         proc = _launch_test('try_open', slidefile, args=['-t'],
                 extra_checks=False, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True)
+                stderr=subprocess.PIPE, text=True, debug=['synthetic'])
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
