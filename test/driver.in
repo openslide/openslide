@@ -59,11 +59,12 @@ CASEROOT = '!!SRCDIR!!/cases'
 SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
 FROZENLIST = '!!SRCDIR!!/cases/frozen.yaml'
 MOSAICLIST = '!!SRCDIR!!/cases/mosaic.ini'
-WORKROOT = '!!BUILDDIR!!/_slidedata/unpacked'
-PRISTINE = '!!BUILDDIR!!/_slidedata/pristine'
-FUSEMOUNT = '!!BUILDDIR!!/_slidedata/fuse'
-FROZENBASE = '!!BUILDDIR!!/_slidedata'
-FROZEN = '!!BUILDDIR!!/_slidedata/frozen'
+CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '!!BUILDDIR!!/_slidedata')
+WORKROOT = f'{CACHE}/unpacked'
+PRISTINE = f'{CACHE}/pristine'
+FUSEMOUNT = f'{CACHE}/fuse'
+FROZENBASE = CACHE
+FROZEN = f'{CACHE}/frozen'
 FEATURES = set('!!FEATURES!!'.split())
 TESTCONF = 'config.yaml'
 
