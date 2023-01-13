@@ -170,8 +170,7 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
         )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
-        args = [os.path.join(testdir, '../libtool'), '--mode=execute',
-                'valgrind', '--quiet', '--error-exitcode=3',
+        args = ['valgrind', '--quiet', '--error-exitcode=3',
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
                 '--leak-check=full', '--num-callers=30'] + args
@@ -1189,8 +1188,7 @@ def profile(pattern='*', level=0):
     for testname, slidefile in _successful_primary_tests(pattern):
         print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args = ['@BUILDDIR@/../libtool', '--mode=execute',
-                    'valgrind', '--quiet', '--error-exitcode=3',
+            args = ['valgrind', '--quiet', '--error-exitcode=3',
                     '--tool=callgrind', '--callgrind-out-file=' + fh.name,
                     '--instr-atstart=no',
                     '@BUILDDIR@/profile', slidefile, str(level)]
