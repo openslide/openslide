@@ -63,7 +63,7 @@ static void free_argv(void) {
 
 void common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
-#ifdef G_OS_WIN32
+#ifdef _WIN32
     fixed_argv = g_win32_get_command_line();
 #else
     fixed_argv = g_strdupv(*argv);

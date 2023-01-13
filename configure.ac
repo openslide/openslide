@@ -61,7 +61,7 @@ PKG_CHECK_MODULES(LIBJPEG, [libjpeg], [], [
 
 PKG_CHECK_MODULES(OPENJPEG, [libopenjp2 >= 2.1.0])
 PKG_CHECK_MODULES(LIBTIFF, [libtiff-4])
-PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.56, gthread-2.0, gio-2.0, gobject-2.0])
+PKG_CHECK_MODULES(GLIB2, [glib-2.0 >= 2.56, gio-2.0, gobject-2.0])
 PKG_CHECK_MODULES(CAIRO, [cairo >= 1.2])
 PKG_CHECK_MODULES(LIBPNG, [libpng > 1.2])
 PKG_CHECK_MODULES(GDKPIXBUF, [gdk-pixbuf-2.0 >= 2.14])
@@ -138,37 +138,6 @@ AS_CASE([$host_os],
     ])
   ]
 )
-# Fallback: racily use fcntl()
-AC_CHECK_FUNCS([fcntl])
-
-# Windows _wfopen()
-AC_CHECK_FUNCS([_wfopen])
-
-# Mac OS X proc_pidfdinfo()
-AC_MSG_CHECKING([for proc_pidfdinfo])
-AC_LINK_IFELSE([
-  AC_LANG_PROGRAM(
-    [#include <libproc.h>],
-    [proc_pidfdinfo(0, 0, PROC_PIDFDKQUEUEINFO, NULL, 0)]
-  )
-], [
-  AC_MSG_RESULT([yes])
-  AC_DEFINE([HAVE_PROC_PIDFDINFO], [1], [Define to 1 if you have the proc_pidfdinfo function.])
-], [
-  AC_MSG_RESULT([no])
-])
-
-# The test driver has special support for testing Windows builds from Cygwin
-AC_MSG_CHECKING([whether to cross-test from Cygwin])
-if test "$host_os" = "mingw32" -a "$build_os" = "cygwin"; then
-  AC_MSG_RESULT([yes])
-  CYGWIN_CROSS_TEST=yes
-else
-  AC_MSG_RESULT([no])
-  CYGWIN_CROSS_TEST=""
-fi
-AC_SUBST([CYGWIN_CROSS_TEST])
-AM_CONDITIONAL([CYGWIN_CROSS_TEST], [test -n "$CYGWIN_CROSS_TEST"])
 
 # gcc assumes Win32 stack frames are 16-byte-aligned by default, but the
 # Win32 ABI only requires 4-byte alignment.  If gcc emits aligned SSE

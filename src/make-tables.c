@@ -33,7 +33,7 @@ static void fail(const char *fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
   exit(1);
-};
+}
 
 static void make_ycbcr_tables(FILE *f) {
   // R

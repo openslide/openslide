@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <glib.h>
 
-#ifdef HAVE_FCNTL
+#ifndef _WIN32
 #include <unistd.h>
 #include <fcntl.h>
 #endif
@@ -65,7 +65,7 @@ static void io_error(GError **err, const char *fmt, ...) {
 static FILE *do_fopen(const char *path, const char *mode, GError **err) {
   FILE *f;
 
-#ifdef HAVE__WFOPEN
+#ifdef _WIN32
   g_autofree wchar_t *path16 =
     (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
   if (path16 == NULL) {
@@ -99,8 +99,8 @@ struct _openslide_file *_openslide_fopen(const char *path, GError **err)
     return NULL;
   }
 
-  /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
-#ifdef HAVE_FCNTL
+  /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty, but compile-checked */
+#ifndef _WIN32
   if (!FOPEN_CLOEXEC_FLAG[0]) {
     int fd = fileno(f);
     if (fd == -1) {

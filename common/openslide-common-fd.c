@@ -21,7 +21,7 @@
 
 #include <config.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 #endif
@@ -32,8 +32,7 @@
 #include <fcntl.h>
 #include <glib.h>
 
-#ifdef HAVE_PROC_PIDFDINFO
-// Mac OS X
+#ifdef __APPLE__
 #include <sys/param.h>  // MAXPATHLEN
 #include <libproc.h>
 #endif
@@ -46,8 +45,7 @@ char *common_get_fd_path(int fd) {
     return NULL;
   }
 
-#if defined WIN32
-  // Windows
+#if defined _WIN32
   HANDLE hdl = (HANDLE) _get_osfhandle(fd);
   if (hdl != INVALID_HANDLE_VALUE) {
     DWORD size = GetFinalPathNameByHandle(hdl, NULL, 0, 0);
@@ -59,8 +57,7 @@ char *common_get_fd_path(int fd) {
       }
     }
   }
-#elif defined HAVE_PROC_PIDFDINFO
-  // Mac OS X
+#elif defined __APPLE__
   // Ignore kqueues, since they can be opened behind our back for
   // Grand Central Dispatch
   struct kqueue_fdinfo kqi;
