@@ -14,6 +14,12 @@ project(
 # special.
 soversion = '0.4.1'
 
+if not meson.is_subproject()
+  meson.add_dist_script(
+    'scripts/dist.py'
+  )
+endif
+
 conf = configuration_data()
 
 # Calculate derived versions
@@ -122,6 +128,12 @@ xml_dep        = dependency('libxml-2.0')
 sqlite_dep     = dependency('sqlite3', version : '>=3.14')
 valgrind_dep   = dependency('valgrind', required : false)
 
+doxygen = find_program(
+  'doxygen',
+  required : get_option('doc'),
+  disabler : true,
+)
+
 # Dependency checks
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
@@ -172,4 +184,7 @@ subdir('common')
 subdir('tools')
 if not get_option('test').disabled()
   subdir('test')
+endif
+if doxygen.found()
+  subdir('doc')
 endif

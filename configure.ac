@@ -180,6 +180,7 @@ AC_SUBST(FEATURE_FLAGS)
 AC_CONFIG_FILES([
 Makefile
 openslide.pc
+doc/Doxyfile
 src/openslide-dll.manifest
 src/openslide-dll.rc
 tools/openslide-quickhash1sum.1

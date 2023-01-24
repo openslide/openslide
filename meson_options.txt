@@ -11,6 +11,13 @@ option(
   description : 'Build tests',
 )
 option(
+  'doc',
+  type : 'feature',
+  value : 'auto',
+  yield : true,
+  description : 'Enable building documentation (requires Doxygen)'
+)
+option(
   'check_windows_abi_compat',
   type : 'feature',
   value : 'auto',
