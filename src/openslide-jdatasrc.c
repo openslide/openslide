@@ -18,8 +18,6 @@
  * This file is basically copied from libjpeg-turbo-1.3.0.
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 

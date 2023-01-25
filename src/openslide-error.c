@@ -19,8 +19,6 @@
  *
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-error.h"
 

@@ -29,8 +29,6 @@
  *
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-gdkpixbuf.h"
 #include "openslide-decode-jp2k.h"

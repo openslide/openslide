@@ -28,8 +28,6 @@
  *
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
 #include "openslide-decode-tifflike.h"

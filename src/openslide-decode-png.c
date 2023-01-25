@@ -21,8 +21,6 @@
  *
  */
 
-#include <config.h>
-
 // libpng < 1.5 breaks the build if setjmp.h is included before png.h
 #include <png.h>
 

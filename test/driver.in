@@ -51,21 +51,20 @@ from zipfile import ZipFile
 
 TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
-CLANG_SUPPRESSIONS = '!!SRCDIR!!/clang.supp'
-CLANG_LSAN_SUPPRESSIONS = '!!SRCDIR!!/clang-lsan.supp'
-VALGRIND_SUPPRESSIONS = '!!SRCDIR!!/valgrind.supp'
-VALGRIND_SUPPRESSIONS_GLIB = '!!GLIB2_DATADIR!!/glib-2.0/valgrind/glib.supp'
-CASEROOT = '!!SRCDIR!!/cases'
-SLIDELIST = '!!SRCDIR!!/cases/slides.yaml'
-FROZENLIST = '!!SRCDIR!!/cases/frozen.yaml'
-MOSAICLIST = '!!SRCDIR!!/cases/mosaic.ini'
-CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '!!BUILDDIR!!/_slidedata')
+CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
+VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
+VALGRIND_SUPPRESSIONS_GLIB = '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
+CASEROOT = '@SRCDIR@/cases'
+SLIDELIST = '@SRCDIR@/cases/slides.yaml'
+FROZENLIST = '@SRCDIR@/cases/frozen.yaml'
+MOSAICLIST = '@SRCDIR@/cases/mosaic.ini'
+CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '@BUILDDIR@/_slidedata')
 WORKROOT = f'{CACHE}/unpacked'
 PRISTINE = f'{CACHE}/pristine'
 FUSEMOUNT = f'{CACHE}/fuse'
 FROZENBASE = CACHE
 FROZEN = f'{CACHE}/frozen'
-FEATURES = set('!!FEATURES!!'.split())
+FEATURES = set('@FEATURES@'.split())
 TESTCONF = 'config.yaml'
 
 GREEN = '\033[1;32m'
@@ -153,7 +152,7 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
     constructor.  Return the Popen instance.'''
 
     if testdir is None:
-        testdir = '!!BUILDDIR!!'
+        testdir = '@BUILDDIR@'
     env = os.environ.copy()
     env.update(
         G_MESSAGES_DEBUG='',
@@ -170,8 +169,7 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
         )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
-        args = [os.path.join(testdir, '../libtool'), '--mode=execute',
-                'valgrind', '--quiet', '--error-exitcode=3',
+        args = ['valgrind', '--quiet', '--error-exitcode=3',
                 '--suppressions=' + VALGRIND_SUPPRESSIONS,
                 '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
                 '--leak-check=full', '--num-callers=30'] + args
@@ -1026,31 +1024,22 @@ def run(pattern='*'):
 
 
 @contextmanager
-def _rebuild(configure_args):
-    '''Context manager: rebuild the source with the specified CFLAGS and
-    yield to the caller to do profiling.'''
-    # To minimize collateral damage, unpack the dist tarball into a temp
-    # directory and build there.
+def _rebuild(setup_args, env={}):
+    '''Context manager: rebuild the source with the specified setup
+    arguments and environment, and yield to the caller to do profiling.'''
 
-    top_builddir = os.path.dirname('!!BUILDDIR!!')
+    top_srcdir = os.path.dirname('@SRCDIR@')
     prevdir = os.getcwd()
 
-    # Make tarball
-    os.chdir(top_builddir)
-    subprocess.check_call(['make', 'dist-gzip'])
-    os.chdir(prevdir)
-    tarpath = os.path.join(top_builddir, 'openslide-!!VERSION!!.tar.gz')
-
-    # Unpack and remove the tarball
+    # Set up and build
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
+    os.chdir(top_srcdir)
+    setup_env = os.environ.copy()
+    setup_env.update(env)
+    subprocess.run(['meson', 'setup', tempdir] + setup_args, check=True,
+            env=setup_env)
     os.chdir(tempdir)
-    tarfile.open(tarpath, 'r:gz').extractall()
-    os.unlink(tarpath)
-    os.chdir('openslide-!!VERSION!!')
-
-    # Build with specified CFLAGS
-    subprocess.check_call(['./configure'] + configure_args)
-    subprocess.check_call(['make', f'-j{_cpu_count()}'])
+    subprocess.run(['ninja'], check=True)
 
     # Let the caller run, passing it the directory we came from.
     # Intentionally don't clean up tempdir on exception.
@@ -1064,7 +1053,7 @@ def _rebuild(configure_args):
 @_command
 def coverage(outfile):
     '''Unpack and run all tests and write coverage report to outfile.'''
-    with _rebuild(['CFLAGS=-O0 -g -fprofile-arcs -ftest-coverage']) as basedir:
+    with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
         # Avoid races when writing coverage data
         _run_all(testdir='test', parallel=False)
@@ -1105,20 +1094,7 @@ def sanitize(pattern='*'):
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
     comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
-    cflags = '-O2 -g -fno-omit-frame-pointer'
-    cflags += f' -fsanitize-ignorelist={CLANG_SUPPRESSIONS}'
-    # address and leak sanitizers
-    cflags += ' -fsanitize=address'
-    # UB sanitizer
-    cflags += ' -fsanitize=undefined -fsanitize=unsigned-integer-overflow'
-    cflags += ' -fsanitize=implicit-conversion -fsanitize=local-bounds'
-    # CFI (not supported on macOS)
-    if platform.system() != 'Darwin':
-        # -fvisibility=hidden is normally enabled by configure, but not for
-        # the earliest compiler tests
-        cflags += ' -fsanitize=cfi -fno-sanitize-trap=cfi'
-        cflags += ' -fsanitize-recover=cfi -flto -fvisibility=hidden'
-    with _rebuild(['CC=clang', f'CFLAGS={cflags}']) as basedir:
+    with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}) as basedir:
         xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail.split(',') if xfail else []
         if _run_all(pattern, xfail=xfail, testdir='test'):
@@ -1132,7 +1108,7 @@ def _mosaic(outfile, pristinedir=PRISTINE):
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
-    subprocess.check_call([os.path.join('!!BUILDDIR!!', 'mosaic'),
+    subprocess.check_call([os.path.join('@BUILDDIR@', 'mosaic'),
             pristinedir, MOSAICLIST, outfile])
 
 
@@ -1189,11 +1165,10 @@ def profile(pattern='*', level=0):
     for testname, slidefile in _successful_primary_tests(pattern):
         print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args = ['!!BUILDDIR!!/../libtool', '--mode=execute',
-                    'valgrind', '--quiet', '--error-exitcode=3',
+            args = ['valgrind', '--quiet', '--error-exitcode=3',
                     '--tool=callgrind', '--callgrind-out-file=' + fh.name,
                     '--instr-atstart=no',
-                    '!!BUILDDIR!!/profile', slidefile, str(level)]
+                    '@BUILDDIR@/profile', slidefile, str(level)]
             if subprocess.call(args, env=env) == 0:
                 subprocess.check_call(['callgrind_annotate',
                         '--threshold=80', fh.name])
@@ -1204,7 +1179,7 @@ def exports():
     '''Report exported or hidden symbols with improper names.'''
     def get_symbols(basedir):
         proc = subprocess.Popen(['objdump', '-T',
-                os.path.join(basedir, 'src', '.libs', 'libopenslide.so')],
+                os.path.join(basedir, 'src', 'libopenslide.so')],
                 stdout=subprocess.PIPE)
         out, _ = proc.communicate()
         if proc.returncode:
@@ -1222,12 +1197,12 @@ def exports():
     ignore_symbols = {'__bss_start', '_edata', '_end', '_fini', '_init'}
 
     # Check exported symbols
-    exported_symbols = set(get_symbols('..')) - ignore_symbols
+    exported_symbols = set(get_symbols('@BUILDDIR@/..')) - ignore_symbols
     bad_exported = set(symbol for symbol in exported_symbols
             if not symbol.startswith('openslide_'))
 
     # Check hidden symbols
-    with _rebuild(['gl_cv_cc_visibility=no']):
+    with _rebuild(['-D_export_internal_symbols=true']):
         hidden_symbols = (set(get_symbols('.')) - exported_symbols -
                 ignore_symbols)
         bad_hidden = set(symbol for symbol in hidden_symbols
@@ -1294,6 +1269,8 @@ def _usage():
 
 
 def _main():
+    if '@FEATURES@'.strip('@') == 'FEATURES':
+        raise Exception('This program must be built with Meson before use.')
     try:
         cmd = sys.argv[1]
     except IndexError:

@@ -22,12 +22,7 @@
 #ifndef OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
 #define OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
 
-// jconfig.h redefines HAVE_STDLIB_H if libjpeg was not built with Autoconf
-#undef HAVE_STDLIB_H
 #include <jpeglib.h>
-#undef HAVE_STDLIB_H
-#include <config.h>  // fix damage
-
 #include <stdio.h>
 #include <stdint.h>
 #include <glib.h>
