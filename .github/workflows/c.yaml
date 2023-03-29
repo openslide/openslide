@@ -73,6 +73,7 @@ jobs:
                 . /etc/os-release
                 case "$VERSION_ID" in
                 8)
+                    dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     # https://bugzilla.redhat.com/show_bug.cgi?id=2124013
                     dnf copr enable -y bgilbert/el8-pixman-openslide
