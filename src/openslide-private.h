@@ -203,6 +203,14 @@ bool _openslide_fexists(const char *path, GError **err);
 typedef struct _openslide_file _openslide_file;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)
 
+struct _openslide_dir;
+
+struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err);
+const char *_openslide_dir_next(struct _openslide_dir *d);
+void _openslide_dir_close(struct _openslide_dir *d);
+
+typedef struct _openslide_dir _openslide_dir;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_dir, _openslide_dir_close)
 
 // Grid helpers
 struct _openslide_grid;
