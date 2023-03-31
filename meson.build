@@ -131,6 +131,13 @@ cairo_dep      = dependency('cairo', version : '>=1.2')
 gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0', version : '>=2.14')
 xml_dep        = dependency('libxml-2.0')
 sqlite_dep     = dependency('sqlite3', version : '>=3.14')
+dicom_dep      = dependency(
+  'libdicom',
+  # avoid 'check' dependency
+  default_options : ['tests=false'],
+  fallback : ['libdicom', 'libdicom_dep'],
+  required : get_option('dicom'),
+)
 valgrind_dep   = dependency('valgrind', required : false)
 
 doxygen = find_program(
@@ -140,6 +147,10 @@ doxygen = find_program(
 )
 
 # Dependency checks
+if dicom_dep.found()
+  conf.set('HAVE_LIBDICOM', 1)
+  feature_flags += 'dicom'
+endif
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
