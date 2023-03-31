@@ -45,6 +45,8 @@ static const struct debug_option {
    "verify Hamamatsu restart markers"},
   {"performance", OPENSLIDE_DEBUG_PERFORMANCE,
    "log conditions causing poor performance"},
+  {"search", OPENSLIDE_DEBUG_SEARCH,
+   "log skipped files when searching directory"},
   {"sql", OPENSLIDE_DEBUG_SQL,
    "log SQL queries"},
   {"synthetic", OPENSLIDE_DEBUG_SYNTHETIC,

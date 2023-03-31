@@ -40,6 +40,10 @@ struct _openslide_file {
   FILE *fp;
 };
 
+struct _openslide_dir {
+  GDir *dir;
+};
+
 #undef fopen
 #undef fread
 #undef fclose
@@ -181,4 +185,24 @@ void _openslide_fclose(struct _openslide_file *file) {
 
 bool _openslide_fexists(const char *path, GError **err G_GNUC_UNUSED) {
   return g_file_test(path, G_FILE_TEST_EXISTS);
+}
+
+struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {
+  g_autoptr(_openslide_dir) d = g_slice_new0(struct _openslide_dir);
+  d->dir = g_dir_open(dirname, 0, err);
+  if (!d->dir) {
+    return NULL;
+  }
+  return g_steal_pointer(&d);
+}
+
+const char *_openslide_dir_next(struct _openslide_dir *d) {
+  return g_dir_read_name(d->dir);
+}
+
+void _openslide_dir_close(struct _openslide_dir *d) {
+  if (d->dir) {
+    g_dir_close(d->dir);
+  }
+  g_slice_free(struct _openslide_dir, d);
 }

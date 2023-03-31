@@ -72,6 +72,9 @@ openslide_sources = [
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
 ]
+if dicom_dep.found()
+  openslide_sources += 'openslide-vendor-dicom.c'
+endif
 libopenslide = library('openslide',
   openslide_sources,
   version : soversion,
@@ -84,6 +87,7 @@ libopenslide = library('openslide',
     gobject_dep,
     gdk_pixbuf_dep,
     cairo_dep,
+    dicom_dep,
     sqlite_dep,
     xml_dep,
     tiff_dep,

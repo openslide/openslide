@@ -126,6 +126,7 @@ struct _openslide_format {
 };
 
 extern const struct _openslide_format _openslide_format_aperio;
+extern const struct _openslide_format _openslide_format_dicom;
 extern const struct _openslide_format _openslide_format_generic_tiff;
 extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
@@ -203,6 +204,14 @@ bool _openslide_fexists(const char *path, GError **err);
 typedef struct _openslide_file _openslide_file;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)
 
+struct _openslide_dir;
+
+struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err);
+const char *_openslide_dir_next(struct _openslide_dir *d);
+void _openslide_dir_close(struct _openslide_dir *d);
+
+typedef struct _openslide_dir _openslide_dir;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_dir, _openslide_dir_close)
 
 // Grid helpers
 struct _openslide_grid;
@@ -343,6 +352,7 @@ enum _openslide_debug_flag {
   OPENSLIDE_DEBUG_DETECTION,
   OPENSLIDE_DEBUG_JPEG_MARKERS,
   OPENSLIDE_DEBUG_PERFORMANCE,
+  OPENSLIDE_DEBUG_SEARCH,
   OPENSLIDE_DEBUG_SQL,
   OPENSLIDE_DEBUG_SYNTHETIC,
   OPENSLIDE_DEBUG_TILES,
