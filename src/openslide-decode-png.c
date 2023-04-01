@@ -203,7 +203,6 @@ bool _openslide_png_read(const char *filename,
     return false;
   }
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't fseek %s: ", filename);
     return false;
   }
   return png_read(file_read_callback, f, dest, w, h, err);

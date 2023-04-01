@@ -402,7 +402,6 @@ static bool find_next_ff_marker(struct _openslide_file *f,
   //g_debug("bytes_in_buf: %d", *bytes_in_buf);
   int64_t file_pos = _openslide_ftell(f, err);
   if (file_pos == -1) {
-    g_prefix_error(err, "Couldn't get file position: ");
     return false;
   }
   bool last_was_ff = false;
@@ -1569,7 +1568,6 @@ static bool ngr_read_tile(openslide_t *osr,
     uint64_t len = tw * th * 6;
     g_autofree uint16_t *buf = g_malloc(len);
     if (!_openslide_fread_exact(f, buf, len, err)) {
-      g_prefix_error(err, "Cannot read file %s: ", l->filename);
       return false;
     }
 

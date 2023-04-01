@@ -88,7 +88,6 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   // get file size and check against maximum
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    g_prefix_error(err, "Couldn't get size of %s: ", filename);
     return NULL;
   }
   if (size > max_size) {
@@ -101,7 +100,6 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   // ensure non-NULL pointer for zero-length file
   g_autofree char *buf = g_malloc(size ?: 1);
   if (!_openslide_fread_exact(f, buf, size, err)) {
-    g_prefix_error(err, "Reading key file %s: ", filename);
     return NULL;
   }
 

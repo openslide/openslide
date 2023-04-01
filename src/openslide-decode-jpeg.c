@@ -311,7 +311,6 @@ bool _openslide_jpeg_read_file_dimensions(struct _openslide_file *f,
                                           int32_t *w, int32_t *h,
                                           GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
     return false;
   }
 
@@ -391,7 +390,6 @@ bool _openslide_jpeg_read_file(struct _openslide_file *f,
                                int32_t w, int32_t h,
                                GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
     return false;
   }
 

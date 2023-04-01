@@ -419,7 +419,6 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
 
   // no loop, let's seek
   if (!_openslide_fseek(f, off, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
     return NULL;
   }
 

@@ -649,7 +649,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // get size
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    g_prefix_error(err, "Couldn't get size of %s: ", tc->filename);
     return NULL;
   }
 

@@ -70,7 +70,6 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
     // hash to end of file
     int64_t len = _openslide_fsize(f, err);
     if (len == -1) {
-      g_prefix_error(err, "Couldn't get size of %s: ", filename);
       return false;
     }
     size = len - offset;
@@ -80,7 +79,6 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
 
   if (offset != 0) {
     if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-      g_prefix_error(err, "Can't seek in %s: ", filename);
       return false;
     }
   }
@@ -89,7 +87,6 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   while (bytes_left > 0) {
     int64_t bytes_to_read = MIN((int64_t) sizeof buf, bytes_left);
     if (!_openslide_fread_exact(f, buf, bytes_to_read, err)) {
-      g_prefix_error(err, "Can't read from %s: ", filename);
       return false;
     }
 
