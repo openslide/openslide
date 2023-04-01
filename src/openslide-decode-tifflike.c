@@ -407,7 +407,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
                 "Loop detected");
     return NULL;
   }
-  uint64_t *key = g_slice_new(uint64_t);
+  uint64_t *key = g_new(uint64_t, 1);
   *key = off;
   g_hash_table_insert(loop_detector, key, NULL);
 
@@ -594,8 +594,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   // initialize directory reading
   g_autoptr(GHashTable) loop_detector =
-    g_hash_table_new_full(g_int64_hash, g_int64_equal,
-                          _openslide_int64_free, NULL);
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   struct tiff_directory *first_dir = NULL;
 
   // NDPI needs special quirks, since it is classic TIFF pretending to be

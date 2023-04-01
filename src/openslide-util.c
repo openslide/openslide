@@ -57,10 +57,6 @@ static const struct debug_option {
 
 static uint32_t debug_flags;
 
-void _openslide_int64_free(gpointer data) {
-  g_slice_free(int64_t, data);
-}
-
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err) {
   /* We load the whole key file into memory and parse it with

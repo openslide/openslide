@@ -1180,15 +1180,14 @@ static void add_properties(openslide_t *osr,
 static void create_scaled_jpeg_levels(openslide_t *osr,
                                       GPtrArray *levels) {
   g_autoptr(GHashTable) expanded_levels =
-    g_hash_table_new_full(g_int64_hash, g_int64_equal,
-                          _openslide_int64_free,
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
                           (GDestroyNotify) jpeg_level_free);
 
   for (guint i = 0; i < levels->len; i++) {
     struct jpeg_level *l = g_steal_pointer(&levels->pdata[i]);
 
     // add level
-    int64_t *key = g_slice_new(int64_t);
+    int64_t *key = g_new(int64_t, 1);
     *key = l->base.w;
     g_hash_table_insert(expanded_levels, key, l);
 
@@ -1228,7 +1227,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
                                                  sd_l->tile_height,
                                                  read_jpeg_tile);
 
-      key = g_slice_new(int64_t);
+      key = g_new(int64_t, 1);
       *key = sd_l->base.w;
       g_hash_table_insert(expanded_levels, key, sd_l);
     }
@@ -1249,7 +1248,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
     // move
     g_ptr_array_add(levels, l);
     g_hash_table_steal(expanded_levels, level_keys->data);
-    _openslide_int64_free(level_keys->data);  // key
+    g_free(level_keys->data);  // key
 
     // consume the head and continue
     level_keys = g_list_delete_link(level_keys, level_keys);
