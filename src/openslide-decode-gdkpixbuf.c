@@ -140,15 +140,15 @@ static bool gdkpixbuf_read(const char *format,
   }
 
   // read data
-  g_auto(_openslide_slice) box = _openslide_slice_alloc(BUFSIZE);
+  g_autofree void *buf = g_malloc(BUFSIZE);
   while (length) {
-    size_t count = read_callback(box.p, callback_data, MIN(length, box.len));
+    size_t count = read_callback(buf, callback_data, MIN(length, BUFSIZE));
     if (!count) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Short read loading pixbuf");
       return false;
     }
-    if (!gdk_pixbuf_loader_write(ctx->loader, box.p, count, err)) {
+    if (!gdk_pixbuf_loader_write(ctx->loader, buf, count, err)) {
       gdkpixbuf_ctx_check_error(ctx, err);
       return false;
     }

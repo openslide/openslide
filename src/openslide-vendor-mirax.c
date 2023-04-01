@@ -223,26 +223,26 @@ static uint32_t *read_image(openslide_t *osr,
   struct mirax_ops_data *data = osr->data;
   bool result = false;
 
-  g_auto(_openslide_slice) dest = _openslide_slice_alloc(w * h * 4);
+  g_autofree uint32_t *dest = g_malloc(w * h * 4);
 
   switch (format) {
   case FORMAT_JPEG:
     result = _openslide_jpeg_read(data->datafile_paths[image->fileno],
                                   image->start_in_file,
-                                  dest.p, w, h,
+                                  dest, w, h,
                                   err);
     break;
   case FORMAT_PNG:
     result = _openslide_png_read(data->datafile_paths[image->fileno],
                                  image->start_in_file,
-                                 dest.p, w, h,
+                                 dest, w, h,
                                  err);
     break;
   case FORMAT_BMP:
     result = _openslide_gdkpixbuf_read("bmp",
                                        data->datafile_paths[image->fileno],
                                        image->start_in_file, image->length,
-                                       dest.p, w, h,
+                                       dest, w, h,
                                        err);
     break;
   default:
@@ -252,7 +252,7 @@ static uint32_t *read_image(openslide_t *osr,
   if (!result) {
     return NULL;
   }
-  return _openslide_slice_steal(&dest);
+  return g_steal_pointer(&dest);
 }
 
 static bool read_tile(openslide_t *osr,

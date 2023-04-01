@@ -1562,8 +1562,9 @@ static bool ngr_read_tile(openslide_t *osr,
     }
 
     // alloc and read
-    g_auto(_openslide_slice) buf_box = _openslide_slice_alloc(tw * th * 6);
-    if (_openslide_fread(f, buf_box.p, buf_box.len) != buf_box.len) {
+    uint64_t len = tw * th * 6;
+    g_autofree uint16_t *buf = g_malloc(len);
+    if (_openslide_fread(f, buf, len) != len) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read file %s", l->filename);
       return false;
@@ -1571,7 +1572,6 @@ static bool ngr_read_tile(openslide_t *osr,
 
     // got the data, now convert to 8-bit xRGB
     tiledata = g_malloc(tilesize);
-    uint16_t *buf = buf_box.p;
     for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;

@@ -339,24 +339,3 @@ void _openslide_performance_warn_once(gint *warned_flag,
     }
   }
 }
-
-struct _openslide_slice _openslide_slice_alloc(gsize len) {
-  struct _openslide_slice box = {
-    .p = g_slice_alloc(len),
-    .len = len,
-  };
-  return box;
-}
-
-void *_openslide_slice_steal(struct _openslide_slice *box) {
-  void *p = box->p;
-  box->p = NULL;
-  return p;
-}
-
-void _openslide_slice_free(struct _openslide_slice *box) {
-  if (box && box->p) {
-    g_slice_free1(box->len, box->p);
-    box->p = NULL;
-  }
-}

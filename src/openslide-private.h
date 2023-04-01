@@ -173,22 +173,6 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           GError **err);
 
 
-// Slice allocator wrapper for g_auto
-struct _openslide_slice {
-  void *p;
-  gsize len;
-};
-
-struct _openslide_slice _openslide_slice_alloc(gsize len);
-
-void *_openslide_slice_steal(struct _openslide_slice *box);
-
-void _openslide_slice_free(struct _openslide_slice *box);
-
-typedef struct _openslide_slice _openslide_slice;
-G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_slice, _openslide_slice_free)
-
-
 // File handling
 struct _openslide_file;
 
