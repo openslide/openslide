@@ -135,6 +135,21 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
   return total;
 }
 
+bool _openslide_fread_exact(struct _openslide_file *file,
+                            void *buf, size_t size, GError **err) {
+  size_t count = _openslide_fread(file, buf, size);
+  if (!count && ferror(file->fp)) {
+    g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_IO, "I/O error");
+    return false;
+  } else if (count < size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read: %"PRIu64" < %"PRIu64,
+                (uint64_t) count, (uint64_t) size);
+    return false;
+  }
+  return true;
+}
+
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err) {
   if (fseeko(file->fp, offset, whence)) {  // ci-allow

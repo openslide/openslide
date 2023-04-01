@@ -320,10 +320,8 @@ static bool freadn_to_buf(struct _openslide_file *f, off_t offset,
     g_prefix_error(err, "Couldn't seek to offset %"PRId64": ", offset);
     return false;
   }
-  if (_openslide_fread(f, buf, len) != len) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Short read: wanted %"PRIu64" bytes at offset %"PRId64,
-                (uint64_t) len, (int64_t) offset);
+  if (!_openslide_fread_exact(f, buf, len, err)) {
+    g_prefix_error(err, "At offset %"PRId64": ", (int64_t) offset);
     return false;
   }
   return true;

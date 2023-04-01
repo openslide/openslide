@@ -88,19 +88,16 @@ bool _openslide_hash_file_part(struct _openslide_hash *hash,
   int64_t bytes_left = size;
   while (bytes_left > 0) {
     int64_t bytes_to_read = MIN((int64_t) sizeof buf, bytes_left);
-    int64_t bytes_read = _openslide_fread(f, buf, bytes_to_read);
-
-    if (bytes_read != bytes_to_read) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read from %s", filename);
+    if (!_openslide_fread_exact(f, buf, bytes_to_read, err)) {
+      g_prefix_error(err, "Can't read from %s: ", filename);
       return false;
     }
 
     //    g_debug("hash '%s' %"PRId64" %d", filename, offset + (size - bytes_left), bytes_to_read);
 
-    bytes_left -= bytes_read;
+    bytes_left -= bytes_to_read;
 
-    _openslide_hash_data(hash, buf, bytes_read);
+    _openslide_hash_data(hash, buf, bytes_to_read);
   }
 
   return true;

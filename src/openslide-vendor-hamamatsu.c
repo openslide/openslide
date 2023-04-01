@@ -222,11 +222,9 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
     g_prefix_error(err, "Couldn't seek to header start: ");
     return false;
   }
-  if (_openslide_fread(infile, buffer, header_length) !=
-      (size_t) header_length) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot read header in JPEG at %"PRId64,
-                header_start_position);
+  if (!_openslide_fread_exact(infile, buffer, header_length, err)) {
+    g_prefix_error(err, "Cannot read header in JPEG at %"PRId64": ",
+                   header_start_position);
     return false;
   }
 
@@ -236,10 +234,10 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
       g_prefix_error(err, "Couldn't seek to data start: ");
       return false;
     }
-    if (_openslide_fread(infile, buffer + header_length, data_length) !=
-        (size_t) data_length) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot read data in JPEG at %"PRId64, start_position);
+    if (!_openslide_fread_exact(infile, buffer + header_length,
+                                data_length, err)) {
+      g_prefix_error(err, "Cannot read data in JPEG at %"PRId64": ",
+                     start_position);
       return false;
     }
 
@@ -331,9 +329,8 @@ static bool find_bitstream_start(struct _openslide_file *f,
       g_prefix_error(err, "Couldn't seek to JPEG marker: ");
       return false;
     }
-    if (_openslide_fread(f, buf, sizeof(buf)) != sizeof(buf)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read JPEG marker at %"PRId64, pos);
+    if (!_openslide_fread_exact(f, buf, sizeof(buf), err)) {
+      g_prefix_error(err, "Couldn't read JPEG marker at %"PRId64": ", pos);
       return false;
     }
     if (buf[0] != 0xFF) {
@@ -357,9 +354,9 @@ static bool find_bitstream_start(struct _openslide_file *f,
     }
 
     // read length
-    if (_openslide_fread(f, buf, sizeof(buf)) != sizeof(buf)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read JPEG marker length at %"PRId64, pos);
+    if (!_openslide_fread_exact(f, buf, sizeof(buf), err)) {
+      g_prefix_error(err, "Couldn't read JPEG marker length at %"PRId64": ",
+                     pos);
       return false;
     }
     memcpy(&len, buf, sizeof(len));
@@ -416,11 +413,14 @@ static bool find_next_ff_marker(struct _openslide_file *f,
       int bytes_to_read = MIN(buf_size, file_size - file_pos);
 
       //g_debug("bytes_to_read: %d", bytes_to_read);
-      if (bytes_to_read == 0 ||
-          _openslide_fread(f, *buf, bytes_to_read) != (size_t) bytes_to_read) {
+      if (bytes_to_read == 0) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Short read searching for JPEG marker at %"PRId64,
-                    file_pos);
+                    "EOF searching for JPEG marker at %"PRId64, file_pos);
+        return false;
+      }
+      if (!_openslide_fread_exact(f, *buf, bytes_to_read, err)) {
+        g_prefix_error(err, "Searching for JPEG marker at %"PRId64": ",
+                       file_pos);
         return false;
       }
 
@@ -488,8 +488,13 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
         return false;
       }
 
-      if (_openslide_fread(f, buf, 2) != 2 ||
-          buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
+      if (!_openslide_fread_exact(f, buf, 2, err)) {
+        g_prefix_error(err,
+                       "Reading restart marker at recorded position %"PRId64": ",
+                       offset - 2);
+        return false;
+      }
+      if (buf[0] != 0xFF || buf[1] < 0xD0 || buf[1] > 0xD7) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Restart marker not found at recorded position %"PRId64,
                     offset - 2);
@@ -879,8 +884,8 @@ static bool verify_mcu_starts(int32_t num_jpegs, struct jpeg **jpegs,
       bool seek_ok = _openslide_fseek(f, offset - 2, SEEK_SET, NULL);
       CHK(seek_ok);
       uint8_t buf[2];
-      size_t count = _openslide_fread(f, buf, sizeof(buf));
-      CHK(count == sizeof(buf));
+      bool read_ok = _openslide_fread_exact(f, buf, sizeof(buf), NULL);
+      CHK(read_ok);
       CHK(buf[0] == 0xFF);  // prefix
       CHK(buf[1] >= 0xD0 && buf[1] <= 0xD7);  // marker
     }
@@ -1117,7 +1122,7 @@ static int64_t *extract_optimisations_for_one_jpeg(struct _openslide_file *opt_f
       int64_t i64;
     } u;
 
-    if (_openslide_fread(opt_f, u.buf, sizeof(u.buf)) != sizeof(u.buf)) {
+    if (!_openslide_fread_exact(opt_f, u.buf, sizeof(u.buf), NULL)) {
       // EOF or error, we've done all we can
 
       if (row == 0) {
@@ -1563,9 +1568,8 @@ static bool ngr_read_tile(openslide_t *osr,
     // alloc and read
     uint64_t len = tw * th * 6;
     g_autofree uint16_t *buf = g_malloc(len);
-    if (_openslide_fread(f, buf, len) != len) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Cannot read file %s", l->filename);
+    if (!_openslide_fread_exact(f, buf, len, err)) {
+      g_prefix_error(err, "Cannot read file %s: ", l->filename);
       return false;
     }
 
@@ -1620,7 +1624,7 @@ static const struct _openslide_ops ngr_ops = {
 static int32_t read_le_int32_from_file(struct _openslide_file *f) {
   int32_t i;
 
-  if (_openslide_fread(f, &i, 4) != 4) {
+  if (!_openslide_fread_exact(f, &i, 4, NULL)) {
     return -1;
   }
 
@@ -1651,9 +1655,8 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
     // validate magic
     char buf[2];
-    if (_openslide_fread(f, buf, sizeof(buf)) != sizeof(buf)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read magic on NGR file, level %d", i);
+    if (!_openslide_fread_exact(f, buf, sizeof(buf), err)) {
+      g_prefix_error(err, "Couldn't read magic on NGR file, level %d: ", i);
       return false;
     }
     if ((buf[0] != 'G') || (buf[1] != 'N')) {
