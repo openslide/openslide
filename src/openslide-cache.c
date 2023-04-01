@@ -364,7 +364,7 @@ void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
 
   if (g_atomic_int_dec_and_test(&entry->refcount)) {
     // free the data
-    g_slice_free1(entry->size, entry->data);
+    g_free(entry->data);
 
     // free the entry
     g_slice_free(struct _openslide_cache_entry, entry);

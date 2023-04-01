@@ -421,8 +421,7 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box =
-      _openslide_slice_alloc(l->base.tile_w * l->base.tile_h * 4);
+    g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
     uint32_t frame_number = 1 + tile_col + l->tiles_across * tile_row;
 
     g_mutex_lock(&l->file->lock);
@@ -453,14 +452,14 @@ static bool read_tile(openslide_t *osr,
     print_frame(frame);
 
     if (!_openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                       box.p,
+                                       buf,
                                        l->base.tile_w, l->base.tile_h,
                                        err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_clip_tile(box.p,
+    if (!_openslide_clip_tile(buf,
                               l->base.tile_w, l->base.tile_h,
                               l->base.w - tile_col * l->base.tile_w,
                               l->base.h - tile_row * l->base.tile_h,
@@ -469,7 +468,7 @@ static bool read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata, l->base.tile_w * l->base.tile_h * 4,
