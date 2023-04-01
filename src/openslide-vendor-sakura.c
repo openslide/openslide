@@ -162,14 +162,14 @@ static bool sakura_detect(const char *filename,
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
   struct sakura_ops_data *data = osr->data;
   g_free(data->filename);
   g_free(data->data_sql);
-  g_slice_free(struct sakura_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
     destroy_level((struct level *) osr->levels[i]);
@@ -443,7 +443,7 @@ static void destroy_associated_image(struct _openslide_associated_image *_img) {
 
   g_free(img->filename);
   g_free(img->data_sql);
-  g_slice_free(struct associated_image, img);
+  g_free(img);
 }
 
 static const struct _openslide_associated_image_ops sakura_associated_ops = {
@@ -478,7 +478,7 @@ static bool add_associated_image(openslide_t *osr,
   }
 
   // create struct
-  struct associated_image *img = g_slice_new0(struct associated_image);
+  struct associated_image *img = g_new0(struct associated_image, 1);
   img->base.ops = &sakura_associated_ops;
   img->base.w = w;
   img->base.h = h;
@@ -829,7 +829,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
         return false;
       }
 
-      l = g_slice_new0(struct level);
+      l = g_new0(struct level, 1);
       l->base.downsample = downsample;
       l->base.w = image_width / downsample;
       l->base.h = image_height / downsample;
@@ -904,7 +904,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   compute_quickhash1(quickhash1, db, unique_table_name, quickhash_tileids);
 
   // build ops data
-  struct sakura_ops_data *data = g_slice_new0(struct sakura_ops_data);
+  struct sakura_ops_data *data = g_new0(struct sakura_ops_data, 1);
   data->filename = g_strdup(filename);
   data->data_sql =
     g_strdup_printf("SELECT data FROM %s WHERE id=?", unique_table_name);

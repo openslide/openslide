@@ -61,7 +61,7 @@ static void destroy_level(struct level *l) {
     g_hash_table_destroy(l->missing_tiles);
   }
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
@@ -72,7 +72,7 @@ static void destroy(openslide_t *osr) {
 
   struct aperio_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct aperio_ops_data, data);
+  g_free(data);
 }
 
 static bool render_missing_tile(struct level *l,
@@ -437,7 +437,7 @@ static bool aperio_open(openslide_t *osr,
     // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(ct.tiff)) {
       //g_debug("tiled directory: %d", dir);
-      struct level *l = g_slice_new0(struct level);
+      struct level *l = g_new0(struct level, 1);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
       if (level_array->len) {
         l->prev = level_array->pdata[level_array->len - 1];
@@ -525,7 +525,7 @@ static bool aperio_open(openslide_t *osr,
   }
 
   // allocate private data
-  struct aperio_ops_data *data = g_slice_new0(struct aperio_ops_data);
+  struct aperio_ops_data *data = g_new0(struct aperio_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

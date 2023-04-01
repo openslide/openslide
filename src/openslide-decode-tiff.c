@@ -422,7 +422,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 static void destroy_associated_image(struct _openslide_associated_image *_img) {
   struct associated_image *img = (struct associated_image *) _img;
 
-  g_slice_free(struct associated_image, img);
+  g_free(img);
 }
 
 static const struct _openslide_associated_image_ops tiff_associated_ops = {
@@ -454,7 +454,7 @@ static bool _add_associated_image(openslide_t *osr,
   }
 
   // load into struct
-  struct associated_image *img = g_slice_new0(struct associated_image);
+  struct associated_image *img = g_new0(struct associated_image, 1);
   img->base.ops = &tiff_associated_ops;
   img->base.w = w;
   img->base.h = h;
@@ -529,7 +529,7 @@ static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
 static int tiff_do_close(thandle_t th) {
   struct tiff_file_handle *hdl = th;
 
-  g_slice_free(struct tiff_file_handle, hdl);
+  g_free(hdl);
   return 0;
 }
 
@@ -592,7 +592,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   }
 
   // allocate
-  struct tiff_file_handle *hdl = g_slice_new0(struct tiff_file_handle);
+  struct tiff_file_handle *hdl = g_new0(struct tiff_file_handle, 1);
   hdl->tc = tc;
   hdl->size = size;
 
@@ -611,7 +611,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
 #define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
 
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
-  struct _openslide_tiffcache *tc = g_slice_new0(struct _openslide_tiffcache);
+  struct _openslide_tiffcache *tc = g_new0(struct _openslide_tiffcache, 1);
   tc->filename = g_strdup(filename);
   tc->cache = g_queue_new();
   g_mutex_init(&tc->lock);
@@ -681,5 +681,5 @@ void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
   g_queue_free(tc->cache);
   g_mutex_clear(&tc->lock);
   g_free(tc->filename);
-  g_slice_free(struct _openslide_tiffcache, tc);
+  g_free(tc);
 }

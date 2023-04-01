@@ -288,7 +288,7 @@ static void dicom_file_destroy(struct dicom_file *f) {
   dcm_bot_destroy(f->bot);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
-  g_slice_free(struct dicom_file, f);
+  g_free(f);
 }
 
 typedef struct dicom_file dicom_file;
@@ -349,7 +349,7 @@ static bool verify_tag_str(DcmDataSet *dataset,
 }
 
 static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
-  g_autoptr(dicom_file) f = g_slice_new0(struct dicom_file);
+  g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
 
   f->filename = g_strdup(filename);
   f->filehandle = dicom_open_openslide_vfs(filename, err);
@@ -389,7 +389,7 @@ static void level_destroy(struct dicom_level *l) {
   if (l->file) {
     dicom_file_destroy(l->file);
   }
-  g_slice_free(struct dicom_level, l);
+  g_free(l);
 }
 
 typedef struct dicom_level dicom_level;
@@ -577,7 +577,7 @@ static void _associated_destroy(struct associated *a) {
   if (a->file) {
     dicom_file_destroy(a->file);
   }
-  g_slice_free(struct associated, a);
+  g_free(a);
 }
 
 typedef struct associated associated;
@@ -598,7 +598,7 @@ static bool add_associated(openslide_t *osr,
                            struct dicom_file *f,
                            char **image_type,
                            GError **err) {
-  g_autoptr(associated) a = g_slice_new0(struct associated);
+  g_autoptr(associated) a = g_new0(struct associated, 1);
   a->base.ops = &dicom_associated_ops;
   a->file = f;
 
@@ -633,7 +633,7 @@ static bool add_level(openslide_t *osr,
                       GPtrArray *level_array,
                       struct dicom_file *f,
                       GError **err) {
-  g_autoptr(dicom_level) l = g_slice_new0(struct dicom_level);
+  g_autoptr(dicom_level) l = g_new0(struct dicom_level, 1);
   l->file = f;
 
   // dimensions

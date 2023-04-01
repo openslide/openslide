@@ -365,7 +365,7 @@ static void tiff_directory_destroy(struct tiff_directory *d) {
     return;
   }
   g_hash_table_unref(d->items);
-  g_slice_free(struct tiff_directory, d);
+  g_free(d);
 }
 
 typedef struct tiff_directory tiff_directory;
@@ -378,7 +378,7 @@ static void tiff_item_destroy(gpointer data) {
   g_free(item->sints);
   g_free(item->floats);
   g_free(item->buffer);
-  g_slice_free(struct tiff_item, item);
+  g_free(item);
 }
 
 static struct tiff_directory *read_directory(struct _openslide_file *f,
@@ -430,7 +430,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
 
 
   // initial checks passed, initialize the directory
-  g_autoptr(tiff_directory) d = g_slice_new0(struct tiff_directory);
+  g_autoptr(tiff_directory) d = g_new0(struct tiff_directory, 1);
   d->items = g_hash_table_new_full(g_direct_hash, g_direct_equal,
                                    NULL, tiff_item_destroy);
   d->offset = off;
@@ -450,7 +450,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     //    g_debug(" tag: %d, type: %d, count: %"PRId64, tag, type, count);
 
     // allocate the item
-    struct tiff_item *item = g_slice_new0(struct tiff_item);
+    struct tiff_item *item = g_new0(struct tiff_item, 1);
     item->type = type;
     item->count = count;
     g_hash_table_insert(d->items, GINT_TO_POINTER(tag), item);
@@ -586,7 +586,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   }
 
   // allocate struct
-  g_autoptr(_openslide_tifflike) tl = g_slice_new0(struct _openslide_tifflike);
+  g_autoptr(_openslide_tifflike) tl = g_new0(struct _openslide_tifflike, 1);
   tl->filename = g_strdup(filename);
   tl->big_endian = big_endian;
   tl->directories = g_ptr_array_new();
@@ -678,7 +678,7 @@ void _openslide_tifflike_destroy(struct _openslide_tifflike *tl) {
   g_ptr_array_free(tl->directories, true);
   g_free(tl->filename);
   g_mutex_clear(&tl->value_lock);
-  g_slice_free(struct _openslide_tifflike, tl);
+  g_free(tl);
 }
 
 static struct tiff_item *get_item(struct _openslide_tifflike *tl,

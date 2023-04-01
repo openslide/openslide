@@ -88,7 +88,7 @@ static void gdkpixbuf_ctx_free(struct gdkpixbuf_ctx *ctx) {
     g_object_unref(ctx->loader);
   }
   g_clear_error(&ctx->err);
-  g_slice_free(struct gdkpixbuf_ctx, ctx);
+  g_free(ctx);
 }
 
 typedef struct gdkpixbuf_ctx gdkpixbuf_ctx;
@@ -112,7 +112,7 @@ static bool gdkpixbuf_ctx_check_error(struct gdkpixbuf_ctx *ctx,
 static struct gdkpixbuf_ctx *gdkpixbuf_ctx_new(const char *format,
                                                int32_t w, int32_t h,
                                                GError **err) {
-  g_autoptr(gdkpixbuf_ctx) ctx = g_slice_new0(struct gdkpixbuf_ctx);
+  g_autoptr(gdkpixbuf_ctx) ctx = g_new0(struct gdkpixbuf_ctx, 1);
   ctx->w = w;
   ctx->h = h;
 

@@ -202,7 +202,7 @@ struct mirax_ops_data {
 
 static void image_unref(struct image *image) {
   if (!--image->refcount) {
-    g_slice_free(struct image, image);
+    g_free(image);
   }
 }
 
@@ -212,7 +212,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(image, image_unref)
 static void tile_free(gpointer data) {
   struct tile *tile = data;
   image_unref(tile->image);
-  g_slice_free(struct tile, tile);
+  g_free(tile);
 }
 
 static uint32_t *read_image(openslide_t *osr,
@@ -342,7 +342,7 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
@@ -356,7 +356,7 @@ static void destroy(openslide_t *osr) {
 
   // the ops data
   g_strfreev(data->datafile_paths);
-  g_slice_free(struct mirax_ops_data, data);
+  g_free(data);
 }
 
 static const struct _openslide_ops mirax_ops = {
@@ -569,7 +569,7 @@ static void insert_tile(struct level *l,
   image->refcount++;
 
   // generate tile
-  struct tile *tile = g_slice_new0(struct tile);
+  struct tile *tile = g_new0(struct tile, 1);
   tile->image = image;
   tile->src_x = src_x;
   tile->src_y = src_y;
@@ -827,7 +827,7 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
 	}
 
 	// populate the image structure
-	g_autoptr(image) image = g_slice_new0(struct image);
+	g_autoptr(image) image = g_new0(struct image, 1);
 	image->fileno = fileno;
 	image->start_in_file = offset;
 	image->length = length;
@@ -1683,7 +1683,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     g_new(struct slide_zoom_level_params, zoom_levels);
   int total_concat_exponent = 0;
   for (int i = 0; i < zoom_levels; i++) {
-    struct level *l = g_slice_new0(struct level);
+    struct level *l = g_new0(struct level, 1);
     g_ptr_array_add(level_array, l);
     struct slide_zoom_level_section *hs = slide_zoom_level_sections + i;
     struct slide_zoom_level_params *lp = slide_zoom_level_params + i;
@@ -1854,7 +1854,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set private data
   g_assert(osr->data == NULL);
-  struct mirax_ops_data *data = g_slice_new0(struct mirax_ops_data);
+  struct mirax_ops_data *data = g_new0(struct mirax_ops_data, 1);
   data->datafile_paths = g_steal_pointer(&datafile_paths);
   osr->data = data;
 

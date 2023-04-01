@@ -47,8 +47,7 @@ static struct tile sentinel;
 static void *thread_func(void *data) {
   struct state *state = data;
   struct tile *tile;	
-  uint32_t bufsz = TILE_SIZE * TILE_SIZE * sizeof(uint32_t);
-  uint32_t *buf = g_slice_alloc(bufsz);
+  g_autofree uint32_t *buf = g_malloc(TILE_SIZE * TILE_SIZE * sizeof(uint32_t));
 
   g_async_queue_push(state->completions, &sentinel);
   while (1) {
@@ -61,7 +60,6 @@ static void *thread_func(void *data) {
     g_async_queue_push(state->completions, tile);
   }
   g_async_queue_push(state->completions, &sentinel);
-  g_slice_free1(bufsz, buf);
   return NULL;
 }
 
@@ -114,7 +112,7 @@ int main(int argc, char **argv) {
   for (int64_t y = 0; y < h; y += TILE_SIZE) {
     for (int64_t x = 0; x < w; x += TILE_SIZE) {
       if (priming) {
-        tile = g_slice_new(struct tile);
+        tile = g_new(struct tile, 1);
         priming--;
       } else {
         tile = g_async_queue_pop(state.completions);
@@ -136,7 +134,7 @@ int main(int argc, char **argv) {
     if (tile == &sentinel) {
       threads--;
     } else {
-      g_slice_free(struct tile, tile);
+      g_free(tile);
     }
   }
 

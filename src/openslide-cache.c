@@ -120,10 +120,6 @@ static gboolean key_equal_func(gconstpointer a,
     (c_a->y == c_b->y);
 }
 
-static void hash_destroy_key(gpointer data) {
-  g_slice_free(struct _openslide_cache_key, data);
-}
-
 static void hash_destroy_value(gpointer data) {
   struct _openslide_cache_value *value = data;
 
@@ -138,11 +134,11 @@ static void hash_destroy_value(gpointer data) {
   _openslide_cache_entry_unref(value->entry);
 
   // free the value
-  g_slice_free(struct _openslide_cache_value, value);
+  g_free(value);
 }
 
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes) {
-  openslide_cache_t *cache = g_slice_new0(openslide_cache_t);
+  openslide_cache_t *cache = g_new0(openslide_cache_t, 1);
 
   // init mutex
   g_mutex_init(&cache->mutex);
@@ -153,7 +149,7 @@ openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes) {
   // init hashtable
   cache->hashtable = g_hash_table_new_full(hash_func,
 					   key_equal_func,
-					   hash_destroy_key,
+					   g_free,
 					   hash_destroy_value);
 
   // init refcount
@@ -189,7 +185,7 @@ static void cache_unref(openslide_cache_t *cache) {
   g_mutex_clear(&cache->mutex);
 
   // destroy struct
-  g_slice_free(struct _openslide_cache, cache);
+  g_free(cache);
 }
 
 void _openslide_cache_release(openslide_cache_t *cache) {
@@ -204,7 +200,7 @@ void _openslide_cache_release(openslide_cache_t *cache) {
 
 struct _openslide_cache_binding *_openslide_cache_binding_create(void) {
   struct _openslide_cache_binding *cb =
-    g_slice_new0(struct _openslide_cache_binding);
+    g_new0(struct _openslide_cache_binding, 1);
   g_mutex_init(&cb->mutex);
   cb->cache = _openslide_cache_create(DEFAULT_CACHE_SIZE);
   cb->id = cb->cache->next_binding_id++;
@@ -234,7 +230,7 @@ void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb) {
   g_mutex_unlock(&cb->mutex);
 
   g_mutex_clear(&cb->mutex);
-  g_slice_free(struct _openslide_cache_binding, cb);
+  g_free(cb);
 }
 
 // put and get
@@ -250,7 +246,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 			  struct _openslide_cache_entry **_entry) {
   // always create cache entry for caller's reference
   struct _openslide_cache_entry *entry =
-      g_slice_new(struct _openslide_cache_entry);
+      g_new(struct _openslide_cache_entry, 1);
   // one ref for the caller
   g_atomic_int_set(&entry->refcount, 1);
   entry->data = data;
@@ -276,7 +272,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
   possibly_evict(cache, size_in_bytes); // already checks for wraparound
 
   // create key
-  struct _openslide_cache_key *key = g_slice_new(struct _openslide_cache_key);
+  struct _openslide_cache_key *key = g_new(struct _openslide_cache_key, 1);
   key->binding_id = cb->id;
   key->plane = plane;
   key->x = x;
@@ -284,7 +280,7 @@ void _openslide_cache_put(struct _openslide_cache_binding *cb,
 
   // create value
   struct _openslide_cache_value *value =
-    g_slice_new(struct _openslide_cache_value);
+    g_new(struct _openslide_cache_value, 1);
   value->key = key;
   value->cache = cache;
   value->entry = entry;
@@ -367,7 +363,7 @@ void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry) {
     g_free(entry->data);
 
     // free the entry
-    g_slice_free(struct _openslide_cache_entry, entry);
+    g_free(entry);
 
     //g_debug("free %p", entry);
   }

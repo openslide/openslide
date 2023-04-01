@@ -122,18 +122,18 @@ struct dimension {
 
 static void destroy_area(struct area *area) {
   _openslide_grid_destroy(area->grid);
-  g_slice_free(struct area, area);
+  g_free(area);
 }
 
 static void destroy_level(struct level *l) {
   g_ptr_array_free(l->areas, true);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
   struct leica_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct leica_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
     destroy_level((struct level *) osr->levels[i]);
@@ -279,7 +279,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
 }
 
 static void dimension_free(struct dimension *dimension) {
-  g_slice_free(struct dimension, dimension);
+  g_free(dimension);
 }
 
 static void image_free(struct image *image) {
@@ -290,13 +290,13 @@ static void image_free(struct image *image) {
   g_free(image->illumination_source);
   g_free(image->objective);
   g_free(image->aperture);
-  g_slice_free(struct image, image);
+  g_free(image);
 }
 
 static void collection_free(struct collection *collection) {
   g_ptr_array_free(collection->images, true);
   g_free(collection->barcode);
-  g_slice_free(struct collection, collection);
+  g_free(collection);
 }
 
 typedef struct collection collection;
@@ -405,7 +405,7 @@ static struct collection *parse_xml_description(const char *xml,
   }
 
   // create collection struct
-  g_autoptr(collection) collection = g_slice_new0(struct collection);
+  g_autoptr(collection) collection = g_new0(struct collection, 1);
   collection->images =
     g_ptr_array_new_with_free_func((GDestroyNotify) image_free);
 
@@ -455,7 +455,7 @@ static struct collection *parse_xml_description(const char *xml,
     }
 
     // create image struct
-    struct image *image = g_slice_new0(struct image);
+    struct image *image = g_new0(struct image, 1);
     image->dimensions =
       g_ptr_array_new_with_free_func((GDestroyNotify) dimension_free);
     g_ptr_array_add(collection->images, image);
@@ -503,7 +503,7 @@ static struct collection *parse_xml_description(const char *xml,
         continue;
       }
 
-      struct dimension *dimension = g_slice_new0(struct dimension);
+      struct dimension *dimension = g_new0(struct dimension, 1);
       g_ptr_array_add(image->dimensions, dimension);
 
       PARSE_INT_ATTRIBUTE_OR_RETURN(dimension_node, LEICA_ATTR_IFD,
@@ -622,7 +622,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       struct level *l;
       if (image == first_main_image) {
         // no level yet; create it
-        l = g_slice_new0(struct level);
+        l = g_new0(struct level, 1);
         l->areas =
           g_ptr_array_new_with_free_func((GDestroyNotify) destroy_area);
         l->nm_per_pixel = dimension->nm_per_pixel;
@@ -650,7 +650,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       }
 
       // create area
-      struct area *area = g_slice_new0(struct area);
+      struct area *area = g_new0(struct area, 1);
       struct _openslide_tiff_level *tiffl = &area->tiffl;
       g_ptr_array_add(l->areas, area);
 
@@ -831,7 +831,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   set_region_bounds_props(osr, level0);
 
   // allocate private data
-  struct leica_ops_data *data = g_slice_new0(struct leica_ops_data);
+  struct leica_ops_data *data = g_new0(struct leica_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

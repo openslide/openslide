@@ -79,13 +79,13 @@ struct xml_associated_image {
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
   struct philips_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct philips_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
     destroy_level((struct level *) osr->levels[i]);
@@ -298,7 +298,7 @@ static bool get_xml_associated_image_data(struct _openslide_associated_image *_i
 static void destroy_xml_associated_image(struct _openslide_associated_image *_img) {
   struct xml_associated_image *img = (struct xml_associated_image *) _img;
 
-  g_slice_free(struct xml_associated_image, img);
+  g_free(img);
 }
 
 static const struct _openslide_associated_image_ops philips_xml_associated_ops = {
@@ -333,7 +333,7 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
   }
 
   //g_debug("Adding %s image from XML", name);
-  struct xml_associated_image *img = g_slice_new0(struct xml_associated_image);
+  struct xml_associated_image *img = g_new0(struct xml_associated_image, 1);
   img->base.ops = &philips_xml_associated_ops;
   img->base.w = w;
   img->base.h = h;
@@ -569,7 +569,7 @@ static bool philips_open(openslide_t *osr,
       }
 
       // create level
-      struct level *l = g_slice_new0(struct level);
+      struct level *l = g_new0(struct level, 1);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
       g_ptr_array_add(level_array, l);
 
@@ -648,7 +648,7 @@ static bool philips_open(openslide_t *osr,
                                  "macro", MACRO_DATA_XPATH, NULL);
 
   // allocate private data
-  struct philips_ops_data *data = g_slice_new0(struct philips_ops_data);
+  struct philips_ops_data *data = g_new0(struct philips_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

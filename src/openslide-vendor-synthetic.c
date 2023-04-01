@@ -188,7 +188,7 @@ static bool decode_xml(const void *data, uint32_t len,
 
 static void level_free(struct level *level) {
   _openslide_grid_destroy(level->grid);
-  g_slice_free(struct level, level);
+  g_free(level);
 }
 typedef struct level level;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(level, level_free)
@@ -327,7 +327,7 @@ static bool synthetic_open(openslide_t *osr,
                            struct _openslide_tifflike *tl G_GNUC_UNUSED,
                            struct _openslide_hash *quickhash1,
                            GError **err) {
-  g_autoptr(level) level = g_slice_new0(struct level);
+  g_autoptr(level) level = g_new0(struct level, 1);
   level->grid =
     _openslide_grid_create_tilemap(osr, IMAGE_PIXELS, IMAGE_PIXELS,
                                    read_tile, NULL);
