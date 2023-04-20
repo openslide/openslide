@@ -283,18 +283,18 @@ static void jpeg_level_free(struct jpeg_level *l) {
   }
   g_free(l->jpegs);
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct jpeg_level, l);
+  g_free(l);
 }
 
 static void jpeg_free(struct jpeg *jpeg) {
   g_free(jpeg->filename);
   g_free(jpeg->mcu_starts);
   g_free(jpeg->unreliable_mcu_starts);
-  g_slice_free(struct jpeg, jpeg);
+  g_free(jpeg);
 }
 
 static struct jpeg_setup *jpeg_setup_new(void) {
-  struct jpeg_setup *setup = g_slice_new0(struct jpeg_setup);
+  struct jpeg_setup *setup = g_new0(struct jpeg_setup, 1);
   setup->levels =
     g_ptr_array_new_with_free_func((GDestroyNotify) jpeg_level_free);
   setup->jpegs = g_ptr_array_new_with_free_func((GDestroyNotify) jpeg_free);
@@ -308,7 +308,7 @@ static void jpeg_setup_free(struct jpeg_setup *setup) {
   if (setup->jpegs) {
     g_ptr_array_free(setup->jpegs, true);
   }
-  g_slice_free(struct jpeg_setup, setup);
+  g_free(setup);
 }
 
 typedef struct jpeg_setup jpeg_setup;
@@ -679,16 +679,16 @@ static bool read_jpeg_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
     if (!read_from_jpeg(osr,
                         jp, tileno,
                         l->scale_denom,
-                        box.p, tw, th,
+                        buf, tw, th,
                         err)) {
       return false;
     }
 
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata,
@@ -792,7 +792,7 @@ static void jpeg_do_destroy(openslide_t *osr) {
   g_mutex_clear(&data->restart_marker_cond_mutex);
 
   // the structure
-  g_slice_free(struct hamamatsu_jpeg_ops_data, data);
+  g_free(data);
 }
 
 static const struct _openslide_ops hamamatsu_jpeg_ops = {
@@ -1180,15 +1180,14 @@ static void add_properties(openslide_t *osr,
 static void create_scaled_jpeg_levels(openslide_t *osr,
                                       GPtrArray *levels) {
   g_autoptr(GHashTable) expanded_levels =
-    g_hash_table_new_full(g_int64_hash, g_int64_equal,
-                          _openslide_int64_free,
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
                           (GDestroyNotify) jpeg_level_free);
 
   for (guint i = 0; i < levels->len; i++) {
     struct jpeg_level *l = g_steal_pointer(&levels->pdata[i]);
 
     // add level
-    int64_t *key = g_slice_new(int64_t);
+    int64_t *key = g_new(int64_t, 1);
     *key = l->base.w;
     g_hash_table_insert(expanded_levels, key, l);
 
@@ -1201,7 +1200,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
       }
 
       // create a derived level
-      struct jpeg_level *sd_l = g_slice_new0(struct jpeg_level);
+      struct jpeg_level *sd_l = g_new0(struct jpeg_level, 1);
       sd_l->scale_denom = scale_denom;
 
       sd_l->base.w = l->base.w / scale_denom;
@@ -1228,7 +1227,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
                                                  sd_l->tile_height,
                                                  read_jpeg_tile);
 
-      key = g_slice_new(int64_t);
+      key = g_new(int64_t, 1);
       *key = sd_l->base.w;
       g_hash_table_insert(expanded_levels, key, sd_l);
     }
@@ -1249,7 +1248,7 @@ static void create_scaled_jpeg_levels(openslide_t *osr,
     // move
     g_ptr_array_add(levels, l);
     g_hash_table_steal(expanded_levels, level_keys->data);
-    _openslide_int64_free(level_keys->data);  // key
+    g_free(level_keys->data);  // key
 
     // consume the head and continue
     level_keys = g_list_delete_link(level_keys, level_keys);
@@ -1270,7 +1269,7 @@ static bool init_jpeg_ops(openslide_t *_osr,
   g_autoptr(jpeg_osr) osr = _osr;
   g_assert(osr->data == NULL);
   struct hamamatsu_jpeg_ops_data *data =
-    g_slice_new0(struct hamamatsu_jpeg_ops_data);
+    g_new0(struct hamamatsu_jpeg_ops_data, 1);
   data->jpeg_count = setup->jpegs->len;
   data->all_jpegs = (struct jpeg **)
     g_ptr_array_free(g_steal_pointer(&setup->jpegs), false);
@@ -1335,7 +1334,7 @@ static struct jpeg_level *create_jpeg_level(openslide_t *osr,
                                             struct jpeg **jpegs,
                                             int32_t jpeg_cols,
                                             int32_t jpeg_rows) {
-  struct jpeg_level *l = g_slice_new0(struct jpeg_level);
+  struct jpeg_level *l = g_new0(struct jpeg_level, 1);
 
   // accumulate dimensions
   for (int32_t x = 0; x < jpeg_cols; x++) {
@@ -1385,7 +1384,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 
   // process jpegs
   for (int i = 0; i < num_jpegs; i++) {
-    struct jpeg *jp = g_slice_new0(struct jpeg);
+    struct jpeg *jp = g_new0(struct jpeg, 1);
     g_ptr_array_add(setup->jpegs, jp);
 
     jp->filename = g_strdup(image_filenames[i]);
@@ -1518,7 +1517,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
 static void ngr_level_free(struct ngr_level *l) {
   g_free(l->filename);
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct ngr_level, l);
+  g_free(l);
 }
 
 static void ngr_destroy(openslide_t *osr) {
@@ -1562,16 +1561,16 @@ static bool ngr_read_tile(openslide_t *osr,
     }
 
     // alloc and read
-    g_auto(_openslide_slice) buf_box = _openslide_slice_alloc(tw * th * 6);
-    if (_openslide_fread(f, buf_box.p, buf_box.len) != buf_box.len) {
+    uint64_t len = tw * th * 6;
+    g_autofree uint16_t *buf = g_malloc(len);
+    if (_openslide_fread(f, buf, len) != len) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read file %s", l->filename);
       return false;
     }
 
     // got the data, now convert to 8-bit xRGB
-    tiledata = g_slice_alloc(tilesize);
-    uint16_t *buf = buf_box.p;
+    tiledata = g_malloc(tilesize);
     for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -1640,7 +1639,7 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
 
   // open files
   for (int i = 0; i < num_levels; i++) {
-    struct ngr_level *l = g_slice_new0(struct ngr_level);
+    struct ngr_level *l = g_new0(struct ngr_level, 1);
     g_ptr_array_add(level_array, l);
 
     l->filename = g_strdup(image_filenames[i]);
@@ -2208,7 +2207,7 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       }
 
       // init jpeg
-      struct jpeg *jp = g_slice_new0(struct jpeg);
+      struct jpeg *jp = g_new0(struct jpeg, 1);
       g_ptr_array_add(setup->jpegs, jp);
       jp->filename = g_strdup(filename);
       jp->start_in_file = start_in_file;

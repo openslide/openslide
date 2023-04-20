@@ -88,7 +88,7 @@ static void gdkpixbuf_ctx_free(struct gdkpixbuf_ctx *ctx) {
     g_object_unref(ctx->loader);
   }
   g_clear_error(&ctx->err);
-  g_slice_free(struct gdkpixbuf_ctx, ctx);
+  g_free(ctx);
 }
 
 typedef struct gdkpixbuf_ctx gdkpixbuf_ctx;
@@ -112,7 +112,7 @@ static bool gdkpixbuf_ctx_check_error(struct gdkpixbuf_ctx *ctx,
 static struct gdkpixbuf_ctx *gdkpixbuf_ctx_new(const char *format,
                                                int32_t w, int32_t h,
                                                GError **err) {
-  g_autoptr(gdkpixbuf_ctx) ctx = g_slice_new0(struct gdkpixbuf_ctx);
+  g_autoptr(gdkpixbuf_ctx) ctx = g_new0(struct gdkpixbuf_ctx, 1);
   ctx->w = w;
   ctx->h = h;
 
@@ -140,15 +140,15 @@ static bool gdkpixbuf_read(const char *format,
   }
 
   // read data
-  g_auto(_openslide_slice) box = _openslide_slice_alloc(BUFSIZE);
+  g_autofree void *buf = g_malloc(BUFSIZE);
   while (length) {
-    size_t count = read_callback(box.p, callback_data, MIN(length, box.len));
+    size_t count = read_callback(buf, callback_data, MIN(length, BUFSIZE));
     if (!count) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Short read loading pixbuf");
       return false;
     }
-    if (!gdk_pixbuf_loader_write(ctx->loader, box.p, count, err)) {
+    if (!gdk_pixbuf_loader_write(ctx->loader, buf, count, err)) {
       gdkpixbuf_ctx_check_error(ctx, err);
       return false;
     }

@@ -288,7 +288,7 @@ static void dicom_file_destroy(struct dicom_file *f) {
   dcm_bot_destroy(f->bot);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
-  g_slice_free(struct dicom_file, f);
+  g_free(f);
 }
 
 typedef struct dicom_file dicom_file;
@@ -349,7 +349,7 @@ static bool verify_tag_str(DcmDataSet *dataset,
 }
 
 static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
-  g_autoptr(dicom_file) f = g_slice_new0(struct dicom_file);
+  g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
 
   f->filename = g_strdup(filename);
   f->filehandle = dicom_open_openslide_vfs(filename, err);
@@ -389,7 +389,7 @@ static void level_destroy(struct dicom_level *l) {
   if (l->file) {
     dicom_file_destroy(l->file);
   }
-  g_slice_free(struct dicom_level, l);
+  g_free(l);
 }
 
 typedef struct dicom_level dicom_level;
@@ -421,8 +421,7 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box =
-      _openslide_slice_alloc(l->base.tile_w * l->base.tile_h * 4);
+    g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
     uint32_t frame_number = 1 + tile_col + l->tiles_across * tile_row;
 
     g_mutex_lock(&l->file->lock);
@@ -453,14 +452,14 @@ static bool read_tile(openslide_t *osr,
     print_frame(frame);
 
     if (!_openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                       box.p,
+                                       buf,
                                        l->base.tile_w, l->base.tile_h,
                                        err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_clip_tile(box.p,
+    if (!_openslide_clip_tile(buf,
                               l->base.tile_w, l->base.tile_h,
                               l->base.w - tile_col * l->base.tile_w,
                               l->base.h - tile_row * l->base.tile_h,
@@ -469,7 +468,7 @@ static bool read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata, l->base.tile_w * l->base.tile_h * 4,
@@ -578,7 +577,7 @@ static void _associated_destroy(struct associated *a) {
   if (a->file) {
     dicom_file_destroy(a->file);
   }
-  g_slice_free(struct associated, a);
+  g_free(a);
 }
 
 typedef struct associated associated;
@@ -599,7 +598,7 @@ static bool add_associated(openslide_t *osr,
                            struct dicom_file *f,
                            char **image_type,
                            GError **err) {
-  g_autoptr(associated) a = g_slice_new0(struct associated);
+  g_autoptr(associated) a = g_new0(struct associated, 1);
   a->base.ops = &dicom_associated_ops;
   a->file = f;
 
@@ -634,7 +633,7 @@ static bool add_level(openslide_t *osr,
                       GPtrArray *level_array,
                       struct dicom_file *f,
                       GError **err) {
-  g_autoptr(dicom_level) l = g_slice_new0(struct dicom_level);
+  g_autoptr(dicom_level) l = g_new0(struct dicom_level, 1);
   l->file = f;
 
   // dimensions

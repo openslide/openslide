@@ -120,7 +120,7 @@ static void *verify_pixman_works(void *arg G_GNUC_UNUSED) {
 }
 
 static openslide_t *create_osr(void) {
-  openslide_t *osr = g_slice_new0(openslide_t);
+  openslide_t *osr = g_new0(openslide_t, 1);
   osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
                                           g_free, g_free);
   osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
@@ -376,7 +376,7 @@ void openslide_close(openslide_t *osr) {
 
   g_free(g_atomic_pointer_get(&osr->error));
 
-  g_slice_free(openslide_t, osr);
+  g_free(osr);
 }
 
 

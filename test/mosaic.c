@@ -78,7 +78,7 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
   if (osr) {
     error = g_strdup(openslide_get_error(osr));
     if (!error) {
-      uint32_t *buf = g_slice_alloc(TILE_WIDTH * TILE_HEIGHT * 4);
+      g_autofree uint32_t *buf = g_malloc(TILE_WIDTH * TILE_HEIGHT * 4);
       openslide_read_region(osr, buf, x, y, level, TILE_WIDTH, TILE_HEIGHT);
       error = g_strdup(openslide_get_error(osr));
       if (!error) {
@@ -97,7 +97,6 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
         cairo_surface_destroy(surface);
         cairo_paint(cr);
       }
-      g_slice_free1(TILE_WIDTH * TILE_HEIGHT * 4, buf);
     }
   } else {
     error = g_strdup("File not recognized");

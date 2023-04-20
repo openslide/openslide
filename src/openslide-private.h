@@ -138,9 +138,6 @@ extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
 
-/* GHashTable utils */
-void _openslide_int64_free(gpointer data);
-
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err);
@@ -171,22 +168,6 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           int64_t tile_w, int64_t tile_h,
                           int64_t clip_w, int64_t clip_h,
                           GError **err);
-
-
-// Slice allocator wrapper for g_auto
-struct _openslide_slice {
-  void *p;
-  gsize len;
-};
-
-struct _openslide_slice _openslide_slice_alloc(gsize len);
-
-void *_openslide_slice_steal(struct _openslide_slice *box);
-
-void _openslide_slice_free(struct _openslide_slice *box);
-
-typedef struct _openslide_slice _openslide_slice;
-G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_slice, _openslide_slice_free)
 
 
 // File handling

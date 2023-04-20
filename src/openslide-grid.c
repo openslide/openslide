@@ -367,7 +367,7 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
 static void simple_destroy(struct _openslide_grid *_grid) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  g_slice_free(struct simple_grid, grid);
+  g_free(grid);
 }
 
 static const struct grid_ops simple_grid_ops = {
@@ -382,7 +382,7 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int32_t tile_w,
                                                       int32_t tile_h,
                                                       _openslide_grid_simple_read_fn read_tile) {
-  struct simple_grid *grid = g_slice_new0(struct simple_grid);
+  struct simple_grid *grid = g_new0(struct simple_grid, 1);
   grid->base.osr = osr;
   grid->base.ops = &simple_grid_ops;
   grid->base.tile_advance_x = tile_w;
@@ -414,7 +414,7 @@ static void tilemap_tile_hash_destroy_value(gpointer data) {
   if (tile->grid->destroy_tile && tile->data) {
     tile->grid->destroy_tile(tile->data);
   }
-  g_slice_free(struct tilemap_tile, tile);
+  g_free(tile);
 }
 
 static void tilemap_get_bounds(struct _openslide_grid *_grid,
@@ -514,7 +514,7 @@ static void tilemap_destroy(struct _openslide_grid *_grid) {
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
 
   g_hash_table_destroy(grid->tiles);
-  g_slice_free(struct tilemap_grid, grid);
+  g_free(grid);
 }
 
 static const struct grid_ops tilemap_grid_ops = {
@@ -531,7 +531,7 @@ void _openslide_grid_tilemap_add_tile(struct _openslide_grid *_grid,
   struct tilemap_grid *grid = (struct tilemap_grid *) _grid;
   g_assert(grid->base.ops == &tilemap_grid_ops);
 
-  struct tilemap_tile *tile = g_slice_new0(struct tilemap_tile);
+  struct tilemap_tile *tile = g_new0(struct tilemap_tile, 1);
   tile->grid = grid;
   tile->col = col;
   tile->row = row;
@@ -583,7 +583,7 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_y,
                                                        _openslide_grid_tilemap_read_fn read_tile,
                                                        GDestroyNotify destroy_tile) {
-  struct tilemap_grid *grid = g_slice_new0(struct tilemap_grid);
+  struct tilemap_grid *grid = g_new0(struct tilemap_grid, 1);
   grid->base.osr = osr;
   grid->base.ops = &tilemap_grid_ops;
   grid->base.tile_advance_x = tile_advance_x;
@@ -622,7 +622,7 @@ static gboolean range_bin_address_hash_key_equal(gconstpointer a,
 }
 
 static void range_bin_address_free(void *data) {
-  g_slice_free(struct range_bin_address, data);
+  g_free(data);
 }
 
 static void range_ptr_array_free(void *data) {
@@ -757,10 +757,10 @@ static void range_destroy(struct _openslide_grid *_grid) {
     if (grid->destroy_tile && tile->data) {
       grid->destroy_tile(tile->data);
     }
-    g_slice_free(struct range_tile, tile);
+    g_free(tile);
   }
   g_ptr_array_free(grid->tiles, true);
-  g_slice_free(struct range_grid, grid);
+  g_free(grid);
 }
 
 static const struct grid_ops range_grid_ops = {
@@ -777,7 +777,7 @@ void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
   g_assert(grid->base.ops == &range_grid_ops);
   g_assert(grid->bins_init);
 
-  struct range_tile *tile = g_slice_new0(struct range_tile);
+  struct range_tile *tile = g_new0(struct range_tile, 1);
   tile->id = grid->tiles->len;
   tile->data = data;
   tile->x = x;
@@ -796,8 +796,7 @@ void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
       GPtrArray *bin = g_hash_table_lookup(grid->bins_init, &addr);
       if (!bin) {
         bin = g_ptr_array_new();
-        struct range_bin_address *addr2 =
-          g_slice_new(struct range_bin_address);
+        struct range_bin_address *addr2 = g_new(struct range_bin_address, 1);
         addr2->col = addr.col;
         addr2->row = addr.row;
         g_hash_table_insert(grid->bins_init, addr2, bin);
@@ -844,7 +843,7 @@ struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
                                                      int typical_tile_height,
                                                      _openslide_grid_range_read_fn read_tile,
                                                      GDestroyNotify destroy_tile) {
-  struct range_grid *grid = g_slice_new0(struct range_grid);
+  struct range_grid *grid = g_new0(struct range_grid, 1);
   grid->base.osr = osr;
   grid->base.ops = &range_grid_ops;
   grid->base.tile_advance_x = NAN;  // unused

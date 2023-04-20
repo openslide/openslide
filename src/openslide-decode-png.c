@@ -35,7 +35,6 @@ struct png_ctx {
   png_struct *png;
   png_info *info;
   png_byte **rows;
-  int64_t h;
   jmp_buf env;
   GError *err;
 };
@@ -54,8 +53,8 @@ static void error_callback(png_struct *png, const char *message) {
 
 static void png_ctx_free(struct png_ctx *ctx) {
   png_destroy_read_struct(&ctx->png, &ctx->info, NULL);
-  g_slice_free1(ctx->h * sizeof(*ctx->rows), ctx->rows);
-  g_slice_free(struct png_ctx, ctx);
+  g_free(ctx->rows);
+  g_free(ctx);
 }
 
 // volatile pointer, to ensure clang doesn't incorrectly optimize field
@@ -68,11 +67,10 @@ G_DEFINE_AUTO_CLEANUP_FREE_FUNC(png_ctx, png_ctx_free, NULL)
 static struct png_ctx *png_ctx_new(uint32_t *dest,
                                    int64_t w, int64_t h,
                                    GError **err) {
-  g_auto(png_ctx) ctx = g_slice_new0(struct png_ctx);
+  g_auto(png_ctx) ctx = g_new0(struct png_ctx, 1);
 
   // allocate row pointers
-  ctx->rows = g_slice_alloc(h * sizeof(*ctx->rows));
-  ctx->h = h;
+  ctx->rows = g_malloc(h * sizeof(*ctx->rows));
   for (int64_t y = 0; y < h; y++) {
     ctx->rows[y] = (png_byte *) &dest[y * w];
   }

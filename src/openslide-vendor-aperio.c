@@ -61,7 +61,7 @@ static void destroy_level(struct level *l) {
     g_hash_table_destroy(l->missing_tiles);
   }
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
@@ -72,7 +72,7 @@ static void destroy(openslide_t *osr) {
 
   struct aperio_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct aperio_ops_data, data);
+  g_free(data);
 }
 
 static bool render_missing_tile(struct level *l,
@@ -188,20 +188,20 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
-    if (!decode_tile(l, tiff, box.p, tile_col, tile_row, err)) {
+    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    if (!decode_tile(l, tiff, buf, tile_col, tile_row, err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_tiff_clip_tile(tiffl, box.p,
+    if (!_openslide_tiff_clip_tile(tiffl, buf,
                                    tile_col, tile_row,
                                    err)) {
       return false;
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
 			 tiledata, tw * th * 4,
 			 &cache_entry);
@@ -437,7 +437,7 @@ static bool aperio_open(openslide_t *osr,
     // for aperio, the tiled directories are the ones we want
     if (TIFFIsTiled(ct.tiff)) {
       //g_debug("tiled directory: %d", dir);
-      struct level *l = g_slice_new0(struct level);
+      struct level *l = g_new0(struct level, 1);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
       if (level_array->len) {
         l->prev = level_array->pdata[level_array->len - 1];
@@ -525,7 +525,7 @@ static bool aperio_open(openslide_t *osr,
   }
 
   // allocate private data
-  struct aperio_ops_data *data = g_slice_new0(struct aperio_ops_data);
+  struct aperio_ops_data *data = g_new0(struct aperio_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

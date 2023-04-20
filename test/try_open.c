@@ -172,10 +172,9 @@ static void check_regions(openslide_t *osr) {
     int64_t w = g_ascii_strtoll(args[3], NULL, 10);
     int64_t h = g_ascii_strtoll(args[4], NULL, 10);
 
-    uint32_t *buf = g_slice_alloc(w * h * 4);
+    g_autofree uint32_t *buf = g_malloc(w * h * 4);
     openslide_read_region(osr, buf, x, y, level, w, h);
     check_error(osr);
-    g_slice_free1(w * h * 4, buf);
   }
 }
 

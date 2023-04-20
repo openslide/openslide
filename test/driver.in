@@ -164,7 +164,6 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
     if extra_checks:
         env.update(
             G_DEBUG='gc-friendly',
-            G_SLICE='always-malloc',
             MALLOC_CHECK_='1',
         )
     args = [os.path.join(testdir, test), slidefile] + args
@@ -179,10 +178,6 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
             # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
             JSIMD_FORCENONE='1',
         )
-    elif extra_checks:
-        # debug-blocks retains pointers to freed slices, so don't use it
-        # with Valgrind
-        env['G_SLICE'] += ',debug-blocks'
     return subprocess.Popen(args, env=env, **kwargs)
 
 

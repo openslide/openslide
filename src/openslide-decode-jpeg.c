@@ -65,7 +65,7 @@ struct _openslide_jpeg_decompress {
   struct jpeg_decompress_struct cinfo;
   struct openslide_jpeg_error_mgr jerr;
   JSAMPROW rows[MAX_SAMP_FACTOR];
-  gsize allocated_row_size;
+  bool allocated;
 };
 
 struct associated_image {
@@ -134,7 +134,8 @@ static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
 // the caller must assign the struct _openslide_jpeg_decompress * before
 // calling setjmp() so that nothing will be clobbered by a longjmp()
 struct _openslide_jpeg_decompress *_openslide_jpeg_decompress_create(struct jpeg_decompress_struct **out_cinfo) {
-  struct _openslide_jpeg_decompress *dc = g_slice_new0(struct _openslide_jpeg_decompress);
+  struct _openslide_jpeg_decompress *dc =
+    g_new0(struct _openslide_jpeg_decompress, 1);
   *out_cinfo = &dc->cinfo;
   return dc;
 }
@@ -207,10 +208,11 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
     // decode into temporary buffer, then reformat
 
     // allocate scanline buffers
-    dc->allocated_row_size = sizeof(JSAMPLE) * cinfo->output_width *
-                             cinfo->output_components;
+    gsize allocated_row_size = sizeof(JSAMPLE) * cinfo->output_width *
+                               cinfo->output_components;
+    dc->allocated = true;
     for (int i = 0; i < cinfo->rec_outbuf_height; i++) {
-      dc->rows[i] = g_slice_alloc(dc->allocated_row_size);
+      dc->rows[i] = g_malloc(allocated_row_size);
     }
 
     // decompress
@@ -248,12 +250,12 @@ void _openslide_jpeg_propagate_error(GError **err,
 void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc) {
   jpeg_destroy_decompress(&dc->cinfo);
   g_assert(dc->jerr.err == NULL);
-  if (dc->allocated_row_size) {
+  if (dc->allocated) {
     for (uint32_t row = 0; row < G_N_ELEMENTS(dc->rows); row++) {
-      g_slice_free1(dc->allocated_row_size, dc->rows[row]);
+      g_free(dc->rows[row]);
     }
   }
-  g_slice_free(struct _openslide_jpeg_decompress, dc);
+  g_free(dc);
 }
 
 static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
@@ -407,7 +409,7 @@ static void destroy_associated_image(struct _openslide_associated_image *_img) {
   struct associated_image *img = (struct associated_image *) _img;
 
   g_free(img->filename);
-  g_slice_free(struct associated_image, img);
+  g_free(img);
 }
 
 static const struct _openslide_associated_image_ops jpeg_associated_ops = {
@@ -426,7 +428,7 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
     return false;
   }
 
-  struct associated_image *img = g_slice_new0(struct associated_image);
+  struct associated_image *img = g_new0(struct associated_image, 1);
   img->base.ops = &jpeg_associated_ops;
   img->base.w = w;
   img->base.h = h;

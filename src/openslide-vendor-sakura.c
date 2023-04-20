@@ -162,14 +162,14 @@ static bool sakura_detect(const char *filename,
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
   struct sakura_ops_data *data = osr->data;
   g_free(data->filename);
   g_free(data->data_sql);
-  g_slice_free(struct sakura_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
     destroy_level((struct level *) osr->levels[i]);
@@ -297,31 +297,28 @@ static bool read_image(uint32_t *tiledata,
                        int32_t tile_size,
                        sqlite3_stmt *stmt,
                        GError **err) {
-  g_auto(_openslide_slice) red_channel =
-    _openslide_slice_alloc(tile_size * tile_size);
-  g_auto(_openslide_slice) green_channel =
-    _openslide_slice_alloc(tile_size * tile_size);
-  g_auto(_openslide_slice) blue_channel =
-    _openslide_slice_alloc(tile_size * tile_size);
+  g_autofree uint8_t *red_channel = g_malloc(tile_size * tile_size);
+  g_autofree uint8_t *green_channel = g_malloc(tile_size * tile_size);
+  g_autofree uint8_t *blue_channel = g_malloc(tile_size * tile_size);
 
-  if (!read_channel(red_channel.p, tile_col, tile_row, downsample,
+  if (!read_channel(red_channel, tile_col, tile_row, downsample,
                     INDEX_RED, focal_plane, tile_size, stmt, err)) {
     return false;
   }
-  if (!read_channel(green_channel.p, tile_col, tile_row, downsample,
+  if (!read_channel(green_channel, tile_col, tile_row, downsample,
                     INDEX_GREEN, focal_plane, tile_size, stmt, err)) {
     return false;
   }
-  if (!read_channel(blue_channel.p, tile_col, tile_row, downsample,
+  if (!read_channel(blue_channel, tile_col, tile_row, downsample,
                     INDEX_BLUE, focal_plane, tile_size, stmt, err)) {
     return false;
   }
 
   for (int32_t i = 0; i < tile_size * tile_size; i++) {
     tiledata[i] = 0xff000000 |
-                  (((uint8_t *) red_channel.p)[i] << 16) |
-                  (((uint8_t *) green_channel.p)[i] << 8) |
-                  ((uint8_t *) blue_channel.p)[i];
+                  (red_channel[i] << 16) |
+                  (green_channel[i] << 8) |
+                  blue_channel[i];
   }
 
   return true;
@@ -345,11 +342,10 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box =
-      _openslide_slice_alloc(tile_size * tile_size * 4);
+    g_autofree uint32_t *buf = g_malloc(tile_size * tile_size * 4);
 
     // read tile
-    if (!read_image(box.p, tile_col, tile_row, l->base.downsample,
+    if (!read_image(buf, tile_col, tile_row, l->base.downsample,
                     data->focal_plane, tile_size, stmt, &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
                           OPENSLIDE_ERROR_NO_VALUE)) {
@@ -363,7 +359,7 @@ static bool read_tile(openslide_t *osr,
     }
 
     // clip, if necessary
-    if (!_openslide_clip_tile(box.p,
+    if (!_openslide_clip_tile(buf,
                               tile_size, tile_size,
                               l->base.w - tile_col * tile_size,
                               l->base.h - tile_row * tile_size,
@@ -372,7 +368,7 @@ static bool read_tile(openslide_t *osr,
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
 			 level, tile_col, tile_row,
 			 tiledata, tile_size * tile_size * 4,
@@ -447,7 +443,7 @@ static void destroy_associated_image(struct _openslide_associated_image *_img) {
 
   g_free(img->filename);
   g_free(img->data_sql);
-  g_slice_free(struct associated_image, img);
+  g_free(img);
 }
 
 static const struct _openslide_associated_image_ops sakura_associated_ops = {
@@ -482,7 +478,7 @@ static bool add_associated_image(openslide_t *osr,
   }
 
   // create struct
-  struct associated_image *img = g_slice_new0(struct associated_image);
+  struct associated_image *img = g_new0(struct associated_image, 1);
   img->base.ops = &sakura_associated_ops;
   img->base.w = w;
   img->base.h = h;
@@ -833,7 +829,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
         return false;
       }
 
-      l = g_slice_new0(struct level);
+      l = g_new0(struct level, 1);
       l->base.downsample = downsample;
       l->base.w = image_width / downsample;
       l->base.h = image_height / downsample;
@@ -908,7 +904,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   compute_quickhash1(quickhash1, db, unique_table_name, quickhash_tileids);
 
   // build ops data
-  struct sakura_ops_data *data = g_slice_new0(struct sakura_ops_data);
+  struct sakura_ops_data *data = g_new0(struct sakura_ops_data, 1);
   data->filename = g_strdup(filename);
   data->data_sql =
     g_strdup_printf("SELECT data FROM %s WHERE id=?", unique_table_name);

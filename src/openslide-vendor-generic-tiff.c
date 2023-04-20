@@ -48,7 +48,7 @@ struct level {
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 typedef struct level level;
@@ -57,7 +57,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(level, destroy_level)
 static void destroy(openslide_t *osr) {
   struct generic_tiff_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct generic_tiff_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
     destroy_level((struct level *) osr->levels[i]);
@@ -85,22 +85,22 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                   box.p, tile_col, tile_row,
+                                   buf, tile_col, tile_row,
                                    err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_tiff_clip_tile(tiffl, box.p,
+    if (!_openslide_tiff_clip_tile(tiffl, buf,
                                    tile_col, tile_row,
                                    err)) {
       return false;
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
                          tiledata, tw * th * 4,
                          &cache_entry);
@@ -222,7 +222,7 @@ static bool generic_tiff_open(openslide_t *osr,
     }
 
     // create level
-    g_autoptr(level) l = g_slice_new0(struct level);
+    g_autoptr(level) l = g_new0(struct level, 1);
     struct _openslide_tiff_level *tiffl = &l->tiffl;
     if (!_openslide_tiff_level_init(ct.tiff,
                                     TIFFCurrentDirectory(ct.tiff),
@@ -255,8 +255,7 @@ static bool generic_tiff_open(openslide_t *osr,
   }
 
   // allocate private data
-  struct generic_tiff_ops_data *data =
-    g_slice_new0(struct generic_tiff_ops_data);
+  struct generic_tiff_ops_data *data = g_new0(struct generic_tiff_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

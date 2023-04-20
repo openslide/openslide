@@ -54,7 +54,7 @@ struct level {
 
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+  g_free(l);
 }
 
 static void destroy(openslide_t *osr) {
@@ -65,7 +65,7 @@ static void destroy(openslide_t *osr) {
 
   struct trestle_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct trestle_ops_data, data);
+  g_free(data);
 }
 
 static bool read_tile(openslide_t *osr,
@@ -89,22 +89,22 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_auto(_openslide_slice) box = _openslide_slice_alloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                   box.p, tile_col, tile_row,
+                                   buf, tile_col, tile_row,
                                    err)) {
       return false;
     }
 
     // clip, if necessary
-    if (!_openslide_tiff_clip_tile(tiffl, box.p,
+    if (!_openslide_tiff_clip_tile(tiffl, buf,
                                    tile_col, tile_row,
                                    err)) {
       return false;
     }
 
     // put it in the cache
-    tiledata = _openslide_slice_steal(&box);
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
                          tiledata, tw * th * 4,
                          &cache_entry);
@@ -304,7 +304,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
       return false;
     }
 
-    struct level *l = g_slice_new0(struct level);
+    struct level *l = g_new0(struct level, 1);
     struct _openslide_tiff_level *tiffl = &l->tiffl;
     g_ptr_array_add(level_array, l);
 
@@ -374,7 +374,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   }
 
   // create ops data
-  struct trestle_ops_data *data = g_slice_new0(struct trestle_ops_data);
+  struct trestle_ops_data *data = g_new0(struct trestle_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data

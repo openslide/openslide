@@ -33,7 +33,7 @@ struct _openslide_hash {
 };
 
 struct _openslide_hash *_openslide_hash_quickhash1_create(void) {
-  struct _openslide_hash *hash = g_slice_new(struct _openslide_hash);
+  struct _openslide_hash *hash = g_new(struct _openslide_hash, 1);
   hash->checksum = g_checksum_new(G_CHECKSUM_SHA256);
   hash->enabled = true;
 
@@ -123,5 +123,5 @@ const char *_openslide_hash_get_string(struct _openslide_hash *hash) {
 
 void _openslide_hash_destroy(struct _openslide_hash *hash) {
   g_checksum_free(hash->checksum);
-  g_slice_free(struct _openslide_hash, hash);
+  g_free(hash);
 }
