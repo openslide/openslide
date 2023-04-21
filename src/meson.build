@@ -67,6 +67,8 @@ openslide_sources = [
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
   'openslide-vendor-philips-tiff.c',
+  'openslide-vendor-philips.c',
+  'openslide-vendor-philips-isyntax.c',
   'openslide-vendor-sakura.c',
   'openslide-vendor-synthetic.c',
   'openslide-vendor-trestle.c',
@@ -79,7 +81,7 @@ libopenslide = library(
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
   gnu_symbol_visibility : visibility,
-  include_directories : config_h_include,
+  include_directories : [config_h_include, 'libisyntax/src/isyntax', 'libisyntax/src/platform', 'libisyntax/src/third_party', 'libisyntax/src/utils', 'libisyntax/src'],
   dependencies : [
     glib_dep,
     gio_dep,
@@ -96,6 +98,7 @@ libopenslide = library(
     zlib_dep,
     zstd_dep,
     libm_dep,
+    dependency('threads'),
   ],
   install : true,
 )

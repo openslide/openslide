@@ -37,7 +37,8 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
 
 /* the associated image structure */
-struct _openslide_associated_image {
+struct _openslide_associated_image
+{
   const struct _openslide_associated_image_ops *ops;
 
   int64_t w;
@@ -48,7 +49,8 @@ struct _openslide_associated_image {
 };
 
 /* associated image operations */
-struct _openslide_associated_image_ops {
+struct _openslide_associated_image_ops
+{
   // must fail if stored width or height doesn't match the image
   bool (*get_argb_data)(struct _openslide_associated_image *img,
                         uint32_t *dest,
@@ -60,18 +62,19 @@ struct _openslide_associated_image_ops {
 };
 
 /* the main structure */
-struct _openslide {
+struct _openslide
+{
   const struct _openslide_ops *ops;
   struct _openslide_level **levels;
   void *data;
   int32_t level_count;
 
   // associated images
-  GHashTable *associated_images;  // created automatically
+  GHashTable *associated_images;       // created automatically
   const char **associated_image_names; // filled in automatically from hashtable
 
   // metadata
-  GHashTable *properties; // created automatically
+  GHashTable *properties;      // created automatically
   const char **property_names; // filled in automatically from hashtable
 
   // the size in bytes of the ICC profile, or 0 for no profile available
@@ -84,8 +87,9 @@ struct _openslide {
   gpointer error; // must use g_atomic_pointer!
 };
 
-struct _openslide_level {
-  double downsample;  // zero value is filled in automatically from dimensions
+struct _openslide_level
+{
+  double downsample; // zero value is filled in automatically from dimensions
 
   int64_t w;
   int64_t h;
@@ -97,7 +101,8 @@ struct _openslide_level {
 };
 
 /* the function pointer structure for backends */
-struct _openslide_ops {
+struct _openslide_ops
+{
   bool (*paint_region)(openslide_t *osr, cairo_t *cr,
                        int64_t x, int64_t y,
                        struct _openslide_level *level,
@@ -126,7 +131,8 @@ struct _openslide_tifflike;
  * Suggested data to hash:
  * easily available image metadata + raw compressed lowest resolution image
  */
-struct _openslide_format {
+struct _openslide_format
+{
   const char *name;
   const char *vendor;
   bool (*detect)(const char *filename, struct _openslide_tifflike *tl,
@@ -144,6 +150,8 @@ extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips_tiff;
+extern const struct _openslide_format _openslide_format_philips;
+extern const struct _openslide_format _openslide_format_philips_isyntax;
 extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
@@ -195,7 +203,6 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           int64_t tile_w, int64_t tile_h,
                           int64_t clip_w, int64_t clip_h,
                           GError **err);
-
 
 // File handling
 struct _openslide_file;
@@ -298,17 +305,15 @@ void _openslide_grid_draw_tile_info(cairo_t *cr, const char *fmt, ...) G_GNUC_PR
 
 void _openslide_grid_destroy(struct _openslide_grid *grid);
 
-
 /* Bounds properties helper */
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
                                            struct _openslide_grid *grid);
-
 
 /* Cache */
 struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
-#define DEFAULT_CACHE_SIZE (1024*1024*32)
+#define DEFAULT_CACHE_SIZE (1024 * 1024 * 32)
 
 // create/release
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes);
@@ -325,7 +330,7 @@ void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb);
 
 // put and get
 void _openslide_cache_put(struct _openslide_cache_binding *cb,
-                          void *plane,  // coordinate plane (level or grid)
+                          void *plane, // coordinate plane (level or grid)
                           int64_t x,
                           int64_t y,
                           void *data,
@@ -345,9 +350,9 @@ typedef struct _openslide_cache_entry _openslide_cache_entry;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_cache_entry,
                               _openslide_cache_entry_unref)
 
-
 /* Internal error propagation */
-enum OpenSlideError {
+enum OpenSlideError
+{
   // generic failure
   OPENSLIDE_ERROR_FAILED,
   // cairo error
@@ -361,7 +366,8 @@ GQuark _openslide_error_quark(void);
 bool _openslide_check_cairo_status(cairo_t *cr, GError **err);
 
 /* Debug flags */
-enum _openslide_debug_flag {
+enum _openslide_debug_flag
+{
   OPENSLIDE_DEBUG_DECODING,
   OPENSLIDE_DEBUG_DETECTION,
   OPENSLIDE_DEBUG_JPEG_MARKERS,
@@ -377,11 +383,11 @@ void _openslide_debug_init(void);
 bool _openslide_debug(enum _openslide_debug_flag flag);
 
 #define _openslide_performance_warn(...) \
-      _openslide_performance_warn_once(NULL, __VA_ARGS__)
+  _openslide_performance_warn_once(NULL, __VA_ARGS__)
 
 void _openslide_performance_warn_once(gint *warned_flag,
                                       const char *str, ...)
-                                      G_GNUC_PRINTF(2, 3);
+    G_GNUC_PRINTF(2, 3);
 
 // private properties, for now
 #define _OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT "openslide.level-count"
