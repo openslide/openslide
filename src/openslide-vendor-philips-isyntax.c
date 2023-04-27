@@ -316,6 +316,11 @@ static bool philips_isyntax_open(openslide_t *osr,
     // LOG_VAR("%f", levels[i].origin_offset.y);
     // LOG_VAR("%d", (int)levels[i].is_fully_loaded);
   }
+
+  // TODO(avirodov): Would filename hashing be sufficient? Not sure what the hash is used for.
+  // no quickhash yet; disable
+  _openslide_hash_disable(quickhash1);
+
   osr->data = data;
   osr->level_count = level_array->len;
   osr->levels = (struct _openslide_level **) g_ptr_array_free(g_steal_pointer(&level_array), false);
