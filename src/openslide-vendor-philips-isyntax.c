@@ -16,7 +16,6 @@
  *  <http://www.gnu.org/licenses/>.
 */
 
-#include <assert.h>
 #include <math.h>
 #include "libisyntax.h"
 
@@ -26,8 +25,8 @@
 #define LOG(msg, ...) g_debug(msg, ##__VA_ARGS__)
 #define LOG_VAR(fmt, var) g_debug("%s: %s=" fmt "\n", __FUNCTION__, #var, var)
 
-// TODO(avirodov): better error handling. OpenSlide provides an error handling framework, should use it.
-#define ASSERT_OK(_libisyntax_expression) assert(_libisyntax_expression == LIBISYNTAX_OK);
+// TODO(avirodov): this is now used only for cache functions, which will be removed shortly from libisyntax.
+#define ASSERT_LIBISYNTAX_OK(_libisyntax_expression) g_assert(_libisyntax_expression == LIBISYNTAX_OK);
 
 struct philips_isyntax_level {
   struct _openslide_level base;
@@ -81,7 +80,7 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
                                       int64_t tile_col,
                                       int64_t tile_row,
                                       void *arg G_GNUC_UNUSED,
-                                      GError **err G_GNUC_UNUSED) {
+                                      GError **err) {
   struct philips_isyntax_t *data = osr->data;
   isyntax_t *isyntax = data->isyntax;
 
@@ -97,8 +96,12 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache, pi_level, tile_col, tile_row, &cache_entry);
   if (!tiledata) {
     int scale = libisyntax_level_get_scale(pi_level->isyntax_level);
-    ASSERT_OK(libisyntax_tile_read(isyntax, data->cache->cache, scale, tile_col, tile_row, &tiledata));
-
+    isyntax_error_t result = libisyntax_tile_read(isyntax, data->cache->cache, scale, tile_col, tile_row, &tiledata);
+    if (result != LIBISYNTAX_OK) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "libisyntax_tile_read failed with isyntax_error_t=%d", result);
+      return false;
+    }
     _openslide_cache_put(osr->cache, pi_level, tile_col, tile_row, tiledata, tw * th * 4, &cache_entry);
   }
 
@@ -128,13 +131,13 @@ static bool philips_isyntax_detect(const char *filename,
   LOG_VAR("%p", tl);
   // reject TIFFs
   if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Is a TIFF file");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Is a TIFF file, not isyntax file.");
     return false;
   }
 
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Failed to open the file");
+    // Error was set by _openslide_fopen, nothing to add here.
     return false;
   }
 
@@ -244,12 +247,13 @@ static bool philips_isyntax_open(openslide_t *osr,
       // will need to have allocator per size. Alternatively, implement allocator freeing after
       // all tiles have been freed, and track isyntax_t per tile so we can access allocator.
       philips_isyntax_global_cache_ptr = g_new(struct philips_isyntax_cache_t, 1);
-      ASSERT_OK(libisyntax_cache_create("global_cache_list", cache_size, &philips_isyntax_global_cache_ptr->cache));
+      ASSERT_LIBISYNTAX_OK(libisyntax_cache_create("global_cache_list", cache_size,
+                                                   &philips_isyntax_global_cache_ptr->cache));
     }
     data->cache = philips_isyntax_global_cache_ptr;
     g_mutex_unlock(&static_open_mutex);
   } else {
-    ASSERT_OK(libisyntax_cache_create("cache_list", cache_size, &data->cache->cache));
+    ASSERT_LIBISYNTAX_OK(libisyntax_cache_create("cache_list", cache_size, &data->cache->cache));
   }
   // Link the cache (local or global) to the isyntax file.
   libisyntax_cache_inject(data->cache->cache, data->isyntax);
