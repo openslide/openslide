@@ -116,10 +116,12 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   //    w CAIRO_OPERATOR_DEST_OVER,
   // SATURATE takes ~12sec to read a dummy slide (forcing all tiles to not exist), OVER & DEST_OVER take 3.5 sec
   // for same setup. Selecting OVER as the Cairo's default operator, the three outputs are identical.
-  cairo_operator_t current_cairo_operator = cairo_get_operator(cr);
-  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+  // TODO(avirodov): Let's re-enable this, x3-x4 speedup would be nice for isyntax.
+  //   https://github.com/openslide/openslide/issues/440
+  // cairo_operator_t current_cairo_operator = cairo_get_operator(cr);
+  // cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
   cairo_paint(cr);
-  cairo_set_operator(cr, current_cairo_operator);
+  // cairo_set_operator(cr, current_cairo_operator);
   return true;
 }
 
