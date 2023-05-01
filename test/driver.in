@@ -49,7 +49,10 @@ from urllib.parse import urljoin
 import yaml
 from zipfile import ZipFile
 
-TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
+TESTDATA_URL = os.getenv(
+    'OPENSLIDE_TESTDATA_URL',
+    'https://openslide.cs.cmu.edu/download/openslide-testdata/'
+)
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
