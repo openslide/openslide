@@ -2,5 +2,5 @@
 # NOTE: temporary fork for now
 # https://github.com/openslide/openslide-winbuild/issues/82
 url = https://github.com/jcupitt/libdicom.git
-revision = 2f3c8ff54ab7238f7aa4faba96ae41752d505769
+revision = ab7fe006b3b096875d8d2f93f46789067c2e21c9
 depth = 1

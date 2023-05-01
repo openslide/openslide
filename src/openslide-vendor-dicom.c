@@ -131,9 +131,9 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFrame, dcm_frame_destroy)
 static void dicom_propagate_error(GError **err, DcmError *dcm_error) {
   g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "libdicom %s: %s - %s",
-              dcm_error_code_str(dcm_error_code(dcm_error)),
-              dcm_error_summary(dcm_error),
-              dcm_error_message(dcm_error));
+              dcm_error_code_str(dcm_error_get_code(dcm_error)),
+              dcm_error_get_summary(dcm_error),
+              dcm_error_get_message(dcm_error));
   dcm_error_clear(&dcm_error);
 }
 
