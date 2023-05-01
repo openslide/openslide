@@ -49,7 +49,10 @@ from urllib.parse import urljoin
 import yaml
 from zipfile import ZipFile
 
-TESTDATA_URL = 'https://openslide.cs.cmu.edu/download/openslide-testdata/'
+TESTDATA_URL = os.getenv(
+    'OPENSLIDE_TESTDATA_URL',
+    'https://openslide.cs.cmu.edu/download/openslide-testdata/'
+)
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
@@ -808,6 +811,7 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
     upload it to an S3 bucket, and record its URL in the source tree.'''
     for testname in _list_tests():
         _unpack_one(testname)
+    _fetch_for_mosaic()
 
     print('Running tests...')
     exclude_tests = []
@@ -1096,13 +1100,17 @@ def sanitize(pattern='*'):
             sys.exit(1)
 
 
-def _mosaic(outfile, pristinedir=PRISTINE):
-    '''Produce a mosaic image of slide data from various formats.'''
+def _fetch_for_mosaic():
+    '''Fetch pristine slides needed for building the mosaic.'''
     cfg = RawConfigParser()
     cfg.optionxform = str
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
+
+
+def _mosaic(outfile, pristinedir=PRISTINE):
+    '''Produce a mosaic image of slide data from various formats.'''
     subprocess.check_call([os.path.join('@BUILDDIR@', 'mosaic'),
             pristinedir, MOSAICLIST, outfile])
 
@@ -1114,6 +1122,7 @@ def mosaic(outfile):
         pristinedir = os.path.join(FROZEN, '_pristine')
     else:
         pristinedir = PRISTINE
+        _fetch_for_mosaic()
     _mosaic(outfile, pristinedir)
 
 
