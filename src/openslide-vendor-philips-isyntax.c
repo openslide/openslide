@@ -96,16 +96,21 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache, pi_level, tile_col, tile_row, &cache_entry);
   if (!tiledata) {
     int scale = libisyntax_level_get_scale(pi_level->isyntax_level);
-    isyntax_error_t result = libisyntax_tile_read(isyntax, data->cache->cache, scale, tile_col, tile_row, &tiledata);
+    g_autofree uint32_t *buffer = g_malloc(tw * th * 4);
+    isyntax_error_t result = libisyntax_tile_read(isyntax, data->cache->cache, scale, tile_col, tile_row, buffer,
+                                                  LIBISYNTAX_PIXEL_FORMAT_BGRA);
     if (result != LIBISYNTAX_OK) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "libisyntax_tile_read failed with isyntax_error_t=%d", result);
       return false;
     }
+    tiledata = g_steal_pointer(&buffer);
     _openslide_cache_put(osr->cache, pi_level, tile_col, tile_row, tiledata, tw * th * 4, &cache_entry);
   }
 
   // draw it
+  // TODO(avirodov): it seems we get pixels in BGRA from libisyntax and give them here in ARGB. It works, but not sure
+  //   why. Maybe libisyntax definition is incorrect, or uint32_t* vs unsigned char* - but shouldn't matter?
   g_autoptr(cairo_surface_t) surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
                                                                            CAIRO_FORMAT_ARGB32, tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
@@ -195,18 +200,7 @@ static bool philips_isyntax_open(openslide_t *osr,
                                  struct _openslide_tifflike *tl G_GNUC_UNUSED,
                                  struct _openslide_hash *quickhash1 G_GNUC_UNUSED,
                                  GError **err) {
-  // Do not allow multithreading in opening.
-  // https://docs.gtk.org/glib/method.Mutex.init.html:
-  //   "It is not necessary to initialize a mutex that has been statically allocated."
-  static GMutex static_open_mutex;
-  g_mutex_lock(&static_open_mutex);
-  static bool threadmemory_initialized = false;
-  if (!threadmemory_initialized) {
-    // TODO(avirodov): review libisyntax_init() thread safety, if thread safe, remove the mutex here.
-    libisyntax_init();
-    threadmemory_initialized = true;
-  }
-  g_mutex_unlock(&static_open_mutex);
+  libisyntax_init();
   LOG("Opening file %s", filename);
 
   struct philips_isyntax_t *data = g_new(struct philips_isyntax_t, 1);
@@ -243,6 +237,9 @@ static bool philips_isyntax_open(openslide_t *osr,
       printf("philips_isyntax_open is_global_cache=%d cache_size=%d sizeof_structs=%'lld\n", (int)is_global_cache, cache_size, memory_count);
   } */
   if (is_global_cache) {
+    // https://docs.gtk.org/glib/method.Mutex.init.html:
+    //   "It is not necessary to initialize a mutex that has been statically allocated."
+    static GMutex static_open_mutex;
     g_mutex_lock(&static_open_mutex);
     if (philips_isyntax_global_cache_ptr == NULL) {
       // Note: this requires that all opened files have the same block size. If that is not true, we
