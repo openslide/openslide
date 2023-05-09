@@ -45,6 +45,15 @@ struct philips_isyntax_t {
   struct philips_isyntax_cache_t *cache;
 };
 
+struct philips_isyntax_associated_image {
+  struct _openslide_associated_image base;
+  uint32_t* pixels_buffer;
+};
+
+enum associated_image_t {
+  IMAGE_LABEL, IMAGE_MACRO
+};
+
 // Global cache, shared between all opened files (if enabled). Thread-safe initialization in open().
 struct philips_isyntax_cache_t *philips_isyntax_global_cache_ptr = NULL;
 
@@ -189,11 +198,59 @@ const struct _openslide_ops philips_isyntax_ops = {
         .destroy = philips_isyntax_destroy,
 };
 
+static bool get_associated_image_data(struct _openslide_associated_image *_img,
+                                      uint32_t *dest,
+                                      GError **err) {
+  struct philips_isyntax_associated_image *img = (struct xml_associated_image *) _img;
+  memcpy(dest, img->pixels_buffer, img->base.w * img->base.h * 4);
+  return true;
+}
+
+static void destroy_associated_image(struct _openslide_associated_image *_img) {
+  struct philips_isyntax_associated_image *img = (struct xml_associated_image *) _img;
+  g_free(img);
+}
+const struct _openslide_associated_image_ops philips_isyntax_associated_image_ops = {
+        .get_argb_data = get_associated_image_data,
+        .destroy = destroy_associated_image
+};
+
 static void add_double_property(openslide_t *osr,
                                 const char *property_name,
                                 double value) {
   g_hash_table_insert(osr->properties, g_strdup(property_name), _openslide_format_double(value));
 }
+
+static isyntax_error_t maybe_add_associated_image(openslide_t *osr, isyntax_t *isyntax, const char* name,
+                                                  enum associated_image_t image_type) {
+  int32_t w;
+  int32_t h;
+  uint32_t* pixels_buffer;
+  isyntax_error_t result;
+
+  // TODO(avirodov): here we decode the images even if the user never asks for them (typical ML usecase). We will need
+  //  to change the libisyntax api to avoid doing reading/decoding at this stage. However, we may not have
+  //  width/height without decode.
+  switch (image_type) {
+    case IMAGE_LABEL:
+      result = libisyntax_read_label_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
+      break;
+    case IMAGE_MACRO:
+      result = libisyntax_read_macro_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
+      break;
+  }
+
+  if (result != LIBISYNTAX_OK) { return result; }
+
+  struct philips_isyntax_associated_image *img = g_new0(struct philips_isyntax_associated_image, 1);
+  img->base.ops = &philips_isyntax_associated_image_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->pixels_buffer = pixels_buffer;
+
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
+}
+
 
 static bool philips_isyntax_open(openslide_t *osr,
                                  const char *filename,
@@ -317,6 +374,10 @@ static bool philips_isyntax_open(openslide_t *osr,
   // TODO(avirodov): Would filename hashing be sufficient? Not sure what the hash is used for.
   // no quickhash yet; disable
   _openslide_hash_disable(quickhash1);
+
+  // Add associated images. Errors are non-fatal (ignored).
+  maybe_add_associated_image(osr, data->isyntax, "label", IMAGE_LABEL);
+  maybe_add_associated_image(osr, data->isyntax, "macro", IMAGE_MACRO);
 
   osr->data = data;
   osr->level_count = level_array->len;
