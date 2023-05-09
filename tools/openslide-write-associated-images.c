@@ -149,7 +149,7 @@ int main (int argc, char **argv) {
     int64_t w;
     int64_t h;
     openslide_get_associated_image_dimensions(osr, associated_image_name, &w, &h);
-    printf("Dimensions: %ld, %ld\n", w, h);
+    printf("Dimensions: %"PRId64", %"PRId64"\n", w, h);
 
     g_autofree uint32_t *buffer = g_malloc(w * h * 4);
     openslide_read_associated_image(osr, associated_image_name, buffer);
