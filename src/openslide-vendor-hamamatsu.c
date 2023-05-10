@@ -2376,6 +2376,13 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                 jp->start_in_file + unreliable_mcu_starts_low_bytes[tile] + (unreliable_mcu_starts_high_bytes[tile] << 32);
               //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile] + (unreliable_mcu_starts_high_bytes[tile] << 32));
             }
+          } else if (unreliable_mcu_starts_low_bytes) {
+            jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
+            for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+              jp->unreliable_mcu_starts[tile] =
+                jp->start_in_file + unreliable_mcu_starts_low_bytes[tile];
+              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
+            }
           } else {
             //g_debug("failed to load MCU starts for directory %"PRId64, dir);
           }
