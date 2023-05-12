@@ -119,16 +119,6 @@ static void *verify_pixman_works(void *arg G_GNUC_UNUSED) {
   return GINT_TO_POINTER(dest[8 * 16 + 8] != 0);
 }
 
-static openslide_t *create_osr(void) {
-  openslide_t *osr = g_new0(openslide_t, 1);
-  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
-                                          g_free, g_free);
-  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
-                                                 g_free,
-                                                 destroy_associated_image);
-  return osr;
-}
-
 static const struct _openslide_format *detect_format(const char *filename,
                                                      struct _openslide_tifflike **tl_OUT) {
   GError *tmp_err = NULL;
@@ -171,13 +161,8 @@ static bool open_backend(openslide_t *osr,
                          const struct _openslide_format *format,
                          const char *filename,
                          struct _openslide_tifflike *tl,
-                         struct _openslide_hash **quickhash1_OUT,
+                         struct _openslide_hash *quickhash1,
                          GError **err) {
-  g_autoptr(_openslide_hash) quickhash1 = NULL;
-  if (quickhash1_OUT) {
-    quickhash1 = _openslide_hash_quickhash1_create();
-  }
-
   if (!format->open(osr, filename, tl, quickhash1, err)) {
     if (err && !*err) {
       // error-handling bug in open function
@@ -193,11 +178,6 @@ static bool open_backend(openslide_t *osr,
     g_warning("%s opener succeeded but set error", format->name);
     return false;
   }
-
-  if (quickhash1_OUT) {
-    *quickhash1_OUT = g_steal_pointer(&quickhash1);
-  }
-
   return true;
 }
 
@@ -210,22 +190,6 @@ const char *openslide_detect_vendor(const char *filename) {
   }
   return format->vendor;
 }
-
-bool openslide_can_open(const char *filename) {
-  g_assert(openslide_was_dynamically_loaded);
-
-  // detect format
-  g_autoptr(_openslide_tifflike) tl = NULL;
-  const struct _openslide_format *format = detect_format(filename, &tl);
-  if (!format) {
-    return false;
-  }
-
-  // try opening
-  g_autoptr(openslide_t) osr = create_osr();
-  return open_backend(osr, format, filename, tl, NULL, NULL);
-}
-
 
 static int cmpstring(const void *p1, const void *p2) {
   return strcmp(* (char * const *) p1, * (char * const *) p2);
@@ -251,7 +215,12 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // alloc memory
-  g_autoptr(openslide_t) osr = create_osr();
+  g_autoptr(openslide_t) osr = g_new0(openslide_t, 1);
+  osr->properties = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                          g_free, g_free);
+  osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                                 g_free,
+                                                 destroy_associated_image);
 
   // refuse to run on unpatched pixman 0.38.x
   static GOnce pixman_once = G_ONCE_INIT;
@@ -265,9 +234,9 @@ openslide_t *openslide_open(const char *filename) {
   }
 
   // open backend
-  g_autoptr(_openslide_hash) quickhash1 = NULL;
+  g_autoptr(_openslide_hash) quickhash1 = _openslide_hash_quickhash1_create();
   GError *tmp_err = NULL;
-  if (!open_backend(osr, format, filename, tl, &quickhash1, &tmp_err)) {
+  if (!open_backend(osr, format, filename, tl, quickhash1, &tmp_err)) {
     // failed to read slide
     _openslide_propagate_error(osr, tmp_err);
     return g_steal_pointer(&osr);
@@ -402,21 +371,6 @@ void openslide_get_level_dimensions(openslide_t *osr, int32_t level,
   *h = osr->levels[level]->h;
 }
 
-void openslide_get_layer0_dimensions(openslide_t *osr,
-                                     int64_t *w, int64_t *h) {
-  openslide_get_level0_dimensions(osr, w, h);
-}
-
-void openslide_get_layer_dimensions(openslide_t *osr, int32_t level,
-                                    int64_t *w, int64_t *h) {
-  openslide_get_level_dimensions(osr, level, w, h);
-}
-
-
-const char *openslide_get_comment(openslide_t *osr) {
-  return openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_COMMENT);
-}
-
 
 int32_t openslide_get_level_count(openslide_t *osr) {
   if (openslide_get_error(osr)) {
@@ -424,10 +378,6 @@ int32_t openslide_get_level_count(openslide_t *osr) {
   }
 
   return osr->level_count;
-}
-
-int32_t openslide_get_layer_count(openslide_t *osr) {
-  return openslide_get_level_count(osr);
 }
 
 
@@ -453,11 +403,6 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
   return osr->level_count - 1;
 }
 
-int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
-						double downsample) {
-  return openslide_get_best_level_for_downsample(osr, downsample);
-}
-
 
 double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
   if (openslide_get_error(osr) || !level_in_range(osr, level)) {
@@ -467,25 +412,6 @@ double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
   return osr->levels[level]->downsample;
 }
 
-double openslide_get_layer_downsample(openslide_t *osr, int32_t level) {
-  return openslide_get_level_downsample(osr, level);
-}
-
-
-int openslide_give_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
-				 int64_t x G_GNUC_UNUSED,
-				 int64_t y G_GNUC_UNUSED,
-				 int32_t level G_GNUC_UNUSED,
-				 int64_t w G_GNUC_UNUSED,
-				 int64_t h G_GNUC_UNUSED) {
-  g_warning("openslide_give_prefetch_hint has never been implemented and should not be called");
-  return 0;
-}
-
-void openslide_cancel_prefetch_hint(openslide_t *osr G_GNUC_UNUSED,
-				    int prefetch_id G_GNUC_UNUSED) {
-  g_warning("openslide_cancel_prefetch_hint has never been implemented and should not be called");
-}
 
 static bool read_region_area(openslide_t *osr,
                              uint32_t *dest, int64_t stride,
@@ -655,18 +581,20 @@ void openslide_read_associated_image(openslide_t *osr,
   struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
 								name);
   if (img) {
-    // this function is documented to do nothing on failure, so we need an
-    // extra memcpy
     size_t pixels = img->w * img->h;
-    g_autofree uint32_t *buf = g_new(uint32_t, pixels);
+    g_autofree uint32_t *tmp_buf = NULL;
+    if (!dest) {
+      // undocumented special case for testing
+      tmp_buf = g_new(uint32_t, pixels);
+    }
 
     GError *tmp_err = NULL;
-    if (img->ops->get_argb_data(img, buf, &tmp_err)) {
-      if (dest) {
-        memcpy(dest, buf, pixels * sizeof(uint32_t));
-      }
-    } else {
+    if (!img->ops->get_argb_data(img, dest ? dest : tmp_buf, &tmp_err)) {
       _openslide_propagate_error(osr, tmp_err);
+      if (dest) {
+        // ensure we don't return a partial result
+        memset(dest, 0, pixels * sizeof(uint32_t));
+      }
     }
   }
 }

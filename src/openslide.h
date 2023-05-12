@@ -440,7 +440,10 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * with a whole slide image. @p dest must be a valid pointer to enough
  * memory to hold the image, at least (width * height * 4) bytes in
  * length.  Get the width and height with
- * openslide_get_associated_image_dimensions(). This function does nothing
+ * openslide_get_associated_image_dimensions().
+ *
+ * If an error occurs or has occurred, then the memory pointed to by @p dest
+ * will be cleared. In versions prior to 4.0.0, this function did nothing
  * if an error occurred.
  *
  * For more information about processing pre-multiplied pixel data, see
@@ -474,7 +477,7 @@ void openslide_read_associated_image(openslide_t *osr,
  *
  * @param capacity The capacity of the cache, in bytes.
  * @return A new cache.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 openslide_cache_t *openslide_cache_create(size_t capacity);
@@ -485,7 +488,7 @@ openslide_cache_t *openslide_cache_create(size_t capacity);
  *
  * @param osr The OpenSlide object.
  * @param cache The cache to attach.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache);
@@ -496,7 +499,7 @@ void openslide_set_cache(openslide_t *osr, openslide_cache_t *cache);
  * object is closed.
  *
  * @param cache The cache to release.
- * @since 3.5.0
+ * @since 4.0.0
  */
 OPENSLIDE_PUBLIC()
 void openslide_cache_release(openslide_cache_t *cache);
@@ -519,135 +522,6 @@ OPENSLIDE_PUBLIC()
 const char *openslide_get_version(void);
 
 //@}
-
-/**
- * @name Deprecated Functions
- * Functions that will be removed in the next major release.
- *
- * Before version 3.3.0, OpenSlide used the term "layer" to refer to a
- * slide level.  Many of these functions use the older terminology.
- */
-//@{
-
-/**
- * Return whether openslide_open() will succeed.
- *
- * This function returns @p true if openslide_open() will return a valid
- * @ref openslide_t, or @p false if it will return NULL or an
- * @ref openslide_t in error state.  As such, there's no reason to use it;
- * just call openslide_open().  For a less-expensive test that provides
- * weaker guarantees, see openslide_detect_vendor().
- *
- * Before version 3.4.0, this function could be slightly faster than calling
- * openslide_open(), but it could also erroneously return @p true in some
- * cases where openslide_open() would fail.
- *
- * @param filename The filename to check.  On Windows, this must be in UTF-8.
- * @return If openslide_open() will succeed.
- * @deprecated Use openslide_detect_vendor() to efficiently check whether
- *             a slide file is recognized by OpenSlide, or just call
- *             openslide_open().
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_detect_vendor or openslide_open)
-bool openslide_can_open(const char *filename);
-
-
-/**
- * Get the number of levels in the whole slide image.
- *
- * @param osr The OpenSlide object.
- * @return The number of levels, or -1 if an error occurred.
- * @deprecated Use openslide_get_level_count() instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_level_count)
-int32_t openslide_get_layer_count(openslide_t *osr);
-
-
-/**
- * Get the dimensions of level 0 (the largest level). Exactly
- * equivalent to calling openslide_get_level_dimensions(osr, 0, w, h).
- *
- * @param osr The OpenSlide object.
- * @param[out] w The width of the image, or -1 if an error occurred.
- * @param[out] h The height of the image, or -1 if an error occurred.
- * @deprecated Use openslide_get_level0_dimensions() instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_level0_dimensions)
-void openslide_get_layer0_dimensions(openslide_t *osr, int64_t *w, int64_t *h);
-
-
-/**
- * Get the dimensions of a level.
- *
- * @param osr The OpenSlide object.
- * @param level The desired level.
- * @param[out] w The width of the image, or -1 if an error occurred
- *               or the level was out of range.
- * @param[out] h The height of the image, or -1 if an error occurred
- *               or the level was out of range.
- * @deprecated Use openslide_get_level_dimensions() instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_level_dimensions)
-void openslide_get_layer_dimensions(openslide_t *osr, int32_t level,
-				    int64_t *w, int64_t *h);
-
-
-/**
- * Get the downsampling factor of a given level.
- *
- * @param osr The OpenSlide object.
- * @param level The desired level.
- * @return The downsampling factor for this level, or -1.0 if an error occurred
- *         or the level was out of range.
- * @deprecated Use openslide_get_level_downsample() instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_level_downsample)
-double openslide_get_layer_downsample(openslide_t *osr, int32_t level);
-
-
-/**
- * Get the best level to use for displaying the given downsample.
- *
- * @param osr The OpenSlide object.
- * @param downsample The downsample factor.
- * @return The level identifier, or -1 if an error occurred.
- * @deprecated Use openslide_get_best_level_for_downsample() instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_best_level_for_downsample)
-int32_t openslide_get_best_layer_for_downsample(openslide_t *osr,
-						double downsample);
-
-/**
- * Get the comment (if any) for this image. Exactly equivalent to calling
- * openslide_get_property_value() with #OPENSLIDE_PROPERTY_NAME_COMMENT.
- *
- * @param osr The OpenSlide object.
- * @return The comment for this image, or NULL if an error occurred.
- * @deprecated Call openslide_get_property_value() with
- *             #OPENSLIDE_PROPERTY_NAME_COMMENT instead.
- */
-OPENSLIDE_PUBLIC()
-OPENSLIDE_DEPRECATED_FOR(openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_COMMENT))
-const char *openslide_get_comment(openslide_t *osr);
-
-//@}
-
-#ifndef OPENSLIDE_SIMPLIFY_HEADERS
-// these are meant to throw compile- and link-time errors,
-// since the functions they replace were never implemented
-int _openslide_give_prefetch_hint_UNIMPLEMENTED(void);
-void _openslide_cancel_prefetch_hint_UNIMPLEMENTED(void);
-#define openslide_give_prefetch_hint(osr, x, y, level, w, h)	\
-  _openslide_give_prefetch_hint_UNIMPLEMENTED(-1);
-#define openslide_cancel_prefetch_hint(osr, prefetch_id)	\
-  _openslide_cancel_prefetch_hint_UNIMPLEMENTED(-1)
-#endif
 
 /**
  * @mainpage OpenSlide
