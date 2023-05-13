@@ -498,11 +498,9 @@ void openslide_read_region(openslide_t *osr,
 
   // Break the work into smaller pieces if the region is large, because:
   // 1. Cairo will not allow surfaces larger than 32767 pixels on a side.
-  // 2. cairo_push_group() creates an intermediate surface backed by a
+  // 2. cairo_image_surface_create_for_data() creates a surface backed by a
   //    pixman_image_t, and Pixman requires that every byte of that image
   //    be addressable in 31 bits.
-  // 3. We would like to constrain the intermediate surface to a reasonable
-  //    amount of RAM.
   const int64_t d = 4096;
   double ds = openslide_get_level_downsample(osr, level);
   for (int64_t row = 0; row < (h + d - 1) / d; row++) {
