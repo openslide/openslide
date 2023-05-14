@@ -67,11 +67,24 @@ openslide_sources = [
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
   'openslide-vendor-philips.c',
+  'openslide-vendor-philips-isyntax.c',
   'openslide-vendor-sakura.c',
   'openslide-vendor-synthetic.c',
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
-]
+  'libisyntax/src/libisyntax.c',
+  'libisyntax/src/isyntax/isyntax.c',
+  'libisyntax/src/isyntax/isyntax_reader.c',
+  'libisyntax/src/platform/platform.c',
+  'libisyntax/src/platform/linux_platform.c',
+  'libisyntax/src/platform/linux_utils.c',
+  'libisyntax/src/platform/work_queue.c',
+  'libisyntax/src/utils/timerutils.c',
+  'libisyntax/src/third_party/yxml.c',
+  'libisyntax/src/utils/timerutils.c',
+  'libisyntax/src/utils/block_allocator.c',
+  'libisyntax/src/utils/benaphore.c',
+ ]
 if dicom_dep.found()
   openslide_sources += 'openslide-vendor-dicom.c'
 endif
@@ -80,7 +93,7 @@ libopenslide = library('openslide',
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
   gnu_symbol_visibility : visibility,
-  include_directories : config_h_include,
+  include_directories : [config_h_include, 'libisyntax/src/isyntax', 'libisyntax/src/platform', 'libisyntax/src/third_party', 'libisyntax/src/utils', 'libisyntax/src'],
   dependencies : [
     glib_dep,
     gio_dep,
@@ -96,6 +109,7 @@ libopenslide = library('openslide',
     png_dep,
     zlib_dep,
     libm_dep,
+    dependency('threads'),
   ],
   install : true,
 )

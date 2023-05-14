@@ -1,0 +1,67 @@
+.\"
+.\" OpenSlide, a library for reading whole slide image files
+.\"
+.\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023 Alexandr Virodov
+.\" All rights reserved.
+.\"
+.\" OpenSlide is free software: you can redistribute it and/or modify
+.\" it under the terms of the GNU Lesser General Public License as
+.\" published by the Free Software Foundation, version 2.1.
+.\"
+.\" OpenSlide is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+.\" GNU Lesser General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU Lesser General Public
+.\" License along with OpenSlide. If not, see
+.\" <http://www.gnu.org/licenses/>.
+.\"
+
+
+.\" See man-pages(7) for formatting conventions.
+
+
+.TH OPENSLIDE-WRITE-ASSOCIATED-IMAGES 1 2023-05-09 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+
+.mso www.tmac
+
+.SH NAME
+openslide-write-associated-images \- Query or write associated images  of a virtual slide.
+
+.SH SYNOPSIS
+.BR "openslide-write-associated-images " [ --help "] [" --version ]
+.I slide-file - to list associated images.
+.I slide-file associated_image output.png - to write an associated image.
+
+.SH DESCRIPTION
+Query a list of associated images, or write a single associated image to a PNG file.
+
+.SH OPTIONS
+.TP
+.B --help
+Display usage summary.
+
+.TP
+.B --version
+Display version and copyright information.
+
+.SH EXIT STATUS
+.B openslide-write-associated-images
+returns 0 on success, 1 if an error occurred, or 2 if the arguments are
+invalid.
+
+.SH COPYRIGHT
+Copyright \(co 2007-2023 Carnegie Mellon University and others
+
+OpenSlide is free software: you can redistribute it and/or modify it under
+the terms of the
+.URL http://gnu.org/licenses/lgpl-2.1.html "GNU Lesser General Public License, version 2.1" .
+
+OpenSlide comes with NO WARRANTY, to the extent permitted by law.  See the
+GNU Lesser General Public License for more details.
+
+.SH SEE ALSO
+.BR openslide-quickhash1sum (1),
+.BR openslide-show-properties (1)

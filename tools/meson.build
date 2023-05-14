@@ -8,6 +8,7 @@ tools = [
   ['openslide-quickhash1sum', tools_deps],
   ['openslide-show-properties', tools_deps],
   ['openslide-write-png', [tools_deps, png_dep]],
+  ['openslide-write-associated-images', [tools_deps, png_dep]],
 ]
 foreach t : tools
   executable(
