@@ -431,6 +431,41 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 }
 
+static bool decode_frame(struct dicom_file *file, int64_t frame_number,
+                         uint32_t *dest, int64_t w, int64_t h,
+                         GError **err) {
+  g_mutex_lock(&file->lock);
+  DcmError *dcm_error = NULL;
+  g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
+                                                        file->filehandle,
+                                                        file->metadata,
+                                                        file->bot,
+                                                        frame_number);
+  g_mutex_unlock(&file->lock);
+
+  if (!frame) {
+    dicom_propagate_error(err, dcm_error);
+    return false;
+  }
+
+  const void *frame_value = dcm_frame_get_value(frame);
+  uint32_t frame_length = dcm_frame_get_length(frame);
+  uint32_t frame_width = dcm_frame_get_columns(frame);
+  uint32_t frame_height = dcm_frame_get_rows(frame);
+  if (frame_width != w || frame_height != h) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unexpected image size: %ux%u != %"PRId64"x%"PRId64,
+                frame_width, frame_height, w, h);
+    return false;
+  }
+
+  print_file(file);
+  print_frame(frame);
+
+  return _openslide_jpeg_decode_buffer(frame_value, frame_length,
+                                       dest, w, h, err);
+}
+
 static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
                       struct _openslide_level *level,
@@ -461,38 +496,9 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
-
-    g_mutex_lock(&l->file->lock);
-    DcmError *dcm_error = NULL;
-    g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
-                                                          l->file->filehandle,
-                                                          l->file->metadata,
-                                                          l->file->bot,
-                                                          frame_number);
-    g_mutex_unlock(&l->file->lock);
-
-    if (frame == NULL) {
-      dicom_propagate_error(err, dcm_error);
-      return false;
-    }
-
-    const char *frame_value = dcm_frame_get_value(frame);
-    uint32_t frame_length = dcm_frame_get_length(frame);
-    uint32_t tile_width = dcm_frame_get_columns(frame);
-    uint32_t tile_height = dcm_frame_get_rows(frame);
-    if (tile_width != l->base.tile_w || tile_height != l->base.tile_h) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected tile size: %ux%u != %"PRId64"x%"PRId64,
-                  tile_width, tile_height, l->base.tile_w, l->base.tile_h);
-      return false;
-    }
-
-    print_frame(frame);
-
-    if (!_openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                       buf,
-                                       l->base.tile_w, l->base.tile_h,
-                                       err)) {
+    if (!decode_frame(l->file, frame_number,
+                      buf, l->base.tile_w, l->base.tile_h,
+                      err)) {
       return false;
     }
 
@@ -578,37 +584,7 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
                                      uint32_t *dest,
                                      GError **err) {
   struct associated *a = (struct associated *) img;
-
-  g_mutex_lock(&a->file->lock);
-  DcmError *dcm_error = NULL;
-  g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
-                                                        a->file->filehandle,
-                                                        a->file->metadata,
-                                                        a->file->bot,
-                                                        1);
-  g_mutex_unlock(&a->file->lock);
-
-  if (frame == NULL) {
-    dicom_propagate_error(err, dcm_error);
-    return false;
-  }
-
-  uint32_t w = dcm_frame_get_columns(frame);
-  uint32_t h = dcm_frame_get_rows(frame);
-  if (w != a->base.w || h != a->base.h) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected image size: %ux%u != %"PRId64"x%"PRId64,
-                w, h, a->base.w, a->base.h);
-    return false;
-  }
-
-  print_frame(frame);
-
-  return _openslide_jpeg_decode_buffer(dcm_frame_get_value(frame),
-                                       dcm_frame_get_length(frame),
-                                       dest,
-                                       a->base.w, a->base.h,
-                                       err);
+  return decode_frame(a->file, 1, dest, a->base.w, a->base.h, err);
 }
 
 static void _associated_destroy(struct associated *a) {
