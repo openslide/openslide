@@ -61,7 +61,7 @@ static const char MAIN_IMAGE_XPATH[] = SCANNED_IMAGE_XPATH("WSI");
 static const char LABEL_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("LABELIMAGE");
 static const char MACRO_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("MACROIMAGE");
 
-struct philips_ops_data {
+struct philips_tiff_ops_data {
   struct _openslide_tiffcache *tc;
 };
 
@@ -83,7 +83,7 @@ static void destroy_level(struct level *l) {
 }
 
 static void destroy(openslide_t *osr) {
-  struct philips_ops_data *data = osr->data;
+  struct philips_tiff_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
   g_free(data);
 
@@ -164,7 +164,7 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                          struct _openslide_level *level,
                          int32_t w, int32_t h,
                          GError **err) {
-  struct philips_ops_data *data = osr->data;
+  struct philips_tiff_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
   g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
@@ -179,14 +179,14 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                                       err);
 }
 
-static const struct _openslide_ops philips_ops = {
+static const struct _openslide_ops philips_tiff_ops = {
   .paint_region = paint_region,
   .destroy = destroy,
 };
 
-static bool philips_detect(const char *filename G_GNUC_UNUSED,
-                           struct _openslide_tifflike *tl,
-                           GError **err) {
+static bool philips_tiff_detect(const char *filename G_GNUC_UNUSED,
+                                struct _openslide_tifflike *tl,
+                                GError **err) {
   // ensure we have a TIFF
   if (!tl) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -301,7 +301,7 @@ static void destroy_xml_associated_image(struct _openslide_associated_image *_im
   g_free(img);
 }
 
-static const struct _openslide_associated_image_ops philips_xml_associated_ops = {
+static const struct _openslide_associated_image_ops philips_tiff_xml_associated_ops = {
   .get_argb_data = get_xml_associated_image_data,
   .destroy = destroy_xml_associated_image,
 };
@@ -334,7 +334,7 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
 
   //g_debug("Adding %s image from XML", name);
   struct xml_associated_image *img = g_new0(struct xml_associated_image, 1);
-  img->base.ops = &philips_xml_associated_ops;
+  img->base.ops = &philips_tiff_xml_associated_ops;
   img->base.w = w;
   img->base.h = h;
   img->tc = tc;
@@ -504,11 +504,11 @@ static bool verify_main_image_count(xmlDoc *doc, GError **err) {
   return true;
 }
 
-static bool philips_open(openslide_t *osr,
-                         const char *filename,
-                         struct _openslide_tifflike *tl,
-                         struct _openslide_hash *quickhash1,
-                         GError **err) {
+static bool philips_tiff_open(openslide_t *osr,
+                              const char *filename,
+                              struct _openslide_tifflike *tl,
+                              struct _openslide_hash *quickhash1,
+                              GError **err) {
   // open TIFF
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
@@ -648,7 +648,7 @@ static bool philips_open(openslide_t *osr,
                                  "macro", MACRO_DATA_XPATH, NULL);
 
   // allocate private data
-  struct philips_ops_data *data = g_new0(struct philips_ops_data, 1);
+  struct philips_tiff_ops_data *data = g_new0(struct philips_tiff_ops_data, 1);
   data->tc = g_steal_pointer(&tc);
 
   // store osr data
@@ -658,14 +658,14 @@ static bool philips_open(openslide_t *osr,
   osr->levels = (struct _openslide_level **)
     g_ptr_array_free(g_steal_pointer(&level_array), false);
   osr->data = data;
-  osr->ops = &philips_ops;
+  osr->ops = &philips_tiff_ops;
 
   return true;
 }
 
-const struct _openslide_format _openslide_format_philips = {
-  .name = "philips",
+const struct _openslide_format _openslide_format_philips_tiff = {
+  .name = "philips-tiff",
   .vendor = "philips",
-  .detect = philips_detect,
-  .open = philips_open,
+  .detect = philips_tiff_detect,
+  .open = philips_tiff_open,
 };
