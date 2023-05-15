@@ -470,9 +470,9 @@ static bool read_tile(openslide_t *osr,
     // put it in the cache
     tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
-			 level, tile_col, tile_row,
-			 tiledata, l->base.tile_w * l->base.tile_h * 4,
-			 &cache_entry);
+                         level, tile_col, tile_row,
+                         tiledata, l->base.tile_w * l->base.tile_h * 4,
+                         &cache_entry);
   }
 
   // draw it
