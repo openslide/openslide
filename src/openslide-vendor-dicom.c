@@ -313,6 +313,27 @@ static bool get_tag_str(DcmDataSet *dataset,
          dcm_element_get_value_string(NULL, element, index, result);
 }
 
+static bool get_tag_seq(DcmDataSet *dataset,
+                        const char *keyword,
+                        DcmSequence **result) {
+  uint32_t tag = dcm_dict_tag_from_keyword(keyword);
+  DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
+  return element &&
+         dcm_element_get_value_sequence(NULL, element, result);
+}
+
+static bool get_tag_seq_item(DcmDataSet *dataset,
+                             const char *keyword,
+                             uint32_t index,
+                             DcmDataSet **result) {
+  DcmSequence *seq;
+  if (!get_tag_seq(dataset, keyword, &seq)) {
+    return false;
+  }
+  *result = dcm_sequence_get(NULL, seq, index);
+  return *result != NULL;
+}
+
 static char **get_tag_strv(DcmDataSet *dataset,
                            const char *keyword,
                            int length) {
