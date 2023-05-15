@@ -132,7 +132,7 @@ extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
-extern const struct _openslide_format _openslide_format_philips;
+extern const struct _openslide_format _openslide_format_philips_tiff;
 extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
