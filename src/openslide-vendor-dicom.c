@@ -61,6 +61,8 @@ struct dicom_level {
   double pixel_spacing_y;
   double objective_lens_power;
 
+  int64_t *frame_position;
+
   struct dicom_file *file;
 };
 
@@ -133,6 +135,10 @@ static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
+static const char DimensionOrganizationType[] = "DimensionOrganizationType";
+static const char PerFrameFunctionalGroupsSequence[] = "PerFrameFunctionalGroupsSequence";
+static const char FrameContentSequence[] = "FrameContentSequence";
+static const char DimensionIndexValues[] = "DimensionIndexValues";
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
@@ -153,6 +159,7 @@ static void print_level(struct dicom_level *l) {
   debug("  grid = %p", l->grid);
   debug("  tiles_across = %" PRId64, l->tiles_across);
   debug("  tiles_down = %" PRId64, l->tiles_down);
+  debug("  frame_position = %p", l->frame_position);
 }
 
 static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
@@ -346,6 +353,7 @@ static void level_destroy(struct dicom_level *l) {
   if (l->file) {
     dicom_file_destroy(l->file);
   }
+  g_free(l->frame_position);
   g_free(l);
 }
 
@@ -372,6 +380,16 @@ static bool read_tile(openslide_t *osr,
   debug("read_tile level:");
   print_level(l);
 
+  int64_t frame_index = tile_col + l->tiles_across * tile_row;
+  int64_t frame_number = frame_index + 1;
+  if (l->frame_position) {
+    frame_number = l->frame_position[frame_index];
+    if (frame_number == -1) {
+      // missing tile
+      return true;
+    }
+  }
+
   // cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
@@ -379,7 +397,6 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
-    uint32_t frame_number = 1 + tile_col + l->tiles_across * tile_row;
 
     g_mutex_lock(&l->file->lock);
     DcmError *dcm_error = NULL;
@@ -627,6 +644,84 @@ static bool add_level(openslide_t *osr,
                                           l->tiles_across, l->tiles_down,
                                           l->base.tile_w, l->base.tile_h,
                                           read_tile);
+
+  // organization
+  const char *type;
+  if (!get_tag_str(f->metadata, DimensionOrganizationType, 0, &type)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Missing DimensionOrganizationType");
+    return false;
+  }
+  if (g_str_equal(type, "TILED_FULL")) {
+    // used by eg. 3dhistech ... frames are in row-major order and we
+    // can simply use the BOT
+  } else if (g_str_equal(type, "3D") || g_str_equal(type, "TILED_SPARSE")) {
+    // used by eg. leica ... we need to read the position of every tile
+    l->frame_position = g_new(int64_t, l->tiles_across * l->tiles_down);
+    for (int64_t frame_number = 0;
+         frame_number < l->tiles_across * l->tiles_down;
+         frame_number++) {
+      l->frame_position[frame_number] = -1;
+    }
+
+    DcmSequence *per_frame_functional_groups_seq;
+    if (!get_tag_seq(f->metadata, PerFrameFunctionalGroupsSequence,
+                     &per_frame_functional_groups_seq)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Missing PerFrameFunctionalGroupsSequence");
+      return false;
+    }
+
+    uint32_t n_items = dcm_sequence_count(per_frame_functional_groups_seq);
+    for (uint32_t i = 0; i < n_items; i++) {
+      DcmError *dcm_error = NULL;
+      DcmDataSet *per_frame_functional_group =
+        dcm_sequence_get(&dcm_error, per_frame_functional_groups_seq, i);
+      if (!per_frame_functional_group) {
+        dicom_propagate_error(err, dcm_error);
+        return false;
+      }
+
+      DcmDataSet *dimension_index_vals;
+      if (!get_tag_seq_item(per_frame_functional_group,
+                            FrameContentSequence, 0,
+                            &dimension_index_vals)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Missing FrameContentSequence");
+        return false;
+      }
+
+      uint32_t tag = dcm_dict_tag_from_keyword(DimensionIndexValues);
+      int64_t col, row;
+      DcmElement *values =
+        dcm_dataset_get(&dcm_error, dimension_index_vals, tag);
+      if (!values ||
+          !dcm_element_get_value_integer(&dcm_error, values, 0, &col) ||
+          !dcm_element_get_value_integer(&dcm_error, values, 1, &row)) {
+        dicom_propagate_error(err, dcm_error);
+        return false;
+      }
+
+      // DICOM uses 1-based indexing, we want 0 based
+      // frame number i is the tile at (col, row)
+      if (col < 1 || row < 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Invalid frame position (%"PRId64", %"PRId64")", col, row);
+        return false;
+      }
+      int64_t frame_index = (col - 1) + (row - 1) * l->tiles_across;
+      if (l->frame_position[frame_index] != -1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Duplicate frame (%"PRId64", %"PRId64")", col, row);
+        return false;
+      }
+      l->frame_position[frame_index] = i + 1;
+    }
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported DimensionOrganisationType");
+    return false;
+  }
 
   // add
   g_ptr_array_add(level_array, g_steal_pointer(&l));
