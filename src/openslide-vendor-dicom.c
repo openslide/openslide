@@ -41,6 +41,11 @@
 #define debug(...)
 #endif
 
+enum image_format {
+  FORMAT_JPEG,
+  FORMAT_RGB,
+};
+
 struct dicom_file {
   char *filename;
 
@@ -48,6 +53,7 @@ struct dicom_file {
   DcmFilehandle *filehandle;
   DcmDataSet *metadata;
   DcmBOT *bot;
+  enum image_format format;
 };
 
 struct dicom_level {
@@ -133,6 +139,7 @@ static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
+static const char LossyImageCompression[] = "LossyImageCompression";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
 static const char DimensionOrganizationType[] = "DimensionOrganizationType";
@@ -367,6 +374,15 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 }
 
+static void rgb_to_cairo(const uint8_t *rgb, uint32_t *dest,
+                         int64_t width, int64_t height) {
+  int64_t n_pixels = width * height;
+  for (int64_t i = 0; i < n_pixels; i++) {
+    dest[i] = 0xff000000 | rgb[0] << 16 | rgb[1] << 8 | rgb[2];
+    rgb += 3;
+  }
+}
+
 static bool decode_frame(struct dicom_file *file, int64_t frame_number,
                          uint32_t *dest, int64_t w, int64_t h,
                          GError **err) {
@@ -398,8 +414,19 @@ static bool decode_frame(struct dicom_file *file, int64_t frame_number,
   print_file(file);
   print_frame(frame);
 
-  return _openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                       dest, w, h, err);
+  switch (file->format) {
+  case FORMAT_JPEG:
+    return _openslide_jpeg_decode_buffer(frame_value, frame_length,
+                                         dest, w, h, err);
+  case FORMAT_RGB:
+    if (frame_length != w * h * 3) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "RGB frame length %u != %"PRIu64, frame_length, w * h * 3);
+      return false;
+    }
+    rgb_to_cairo(frame_value, dest, w, h);
+  }
+  return true;
 }
 
 static bool read_tile(openslide_t *osr,
@@ -542,6 +569,38 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .get_argb_data = associated_get_argb_data,
   .destroy = associated_destroy,
 };
+
+static bool get_format(DcmDataSet *metadata, enum image_format *format,
+                       GError **err) {
+  if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      // JPEG can be YCbCr or RGB
+      (verify_tag_str(metadata, PhotometricInterpretation, "YBR_FULL_422") ||
+       verify_tag_str(metadata, PhotometricInterpretation, "RGB")) &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
+    *format = FORMAT_JPEG;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "00")) {
+    *format = FORMAT_RGB;
+    return true;
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported frame format");
+    return false;
+  }
+}
 
 // unconditionally takes ownership of dicom_file
 static bool add_associated(openslide_t *osr,
@@ -725,17 +784,8 @@ static bool maybe_add_file(openslide_t *osr,
     return true;
   }
 
-  // try to check we can decode the image data
-  if (!verify_tag_int(f->metadata, SamplesPerPixel, 3) ||
-      !verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") ||
-      !verify_tag_int(f->metadata, PlanarConfiguration, 0) ||
-      !verify_tag_int(f->metadata, BitsAllocated, 8) ||
-      !verify_tag_int(f->metadata, BitsStored, 8) ||
-      !verify_tag_int(f->metadata, HighBit, 7) ||
-      !verify_tag_int(f->metadata, PixelRepresentation, 0) ||
-      !verify_tag_str(f->metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported frame format");
+  // check the image format
+  if (!get_format(f->metadata, &f->format, err)) {
     return false;
   }
 
