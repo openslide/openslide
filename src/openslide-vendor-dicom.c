@@ -30,6 +30,7 @@
 #include "openslide-hash.h"
 
 #include <glib.h>
+#include <math.h>
 
 #include <dicom/dicom.h>
 
@@ -54,6 +55,10 @@ struct dicom_level {
 
   int64_t tiles_across;
   int64_t tiles_down;
+
+  double pixel_spacing_x;
+  double pixel_spacing_y;
+  double objective_lens_power;
 
   struct dicom_file *file;
 };
@@ -115,6 +120,9 @@ static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char Columns[] = "Columns";
 static const char Rows[] = "Rows";
+static const char SharedFunctionalGroupsSequence[] = "SharedFunctionalGroupsSequence";
+static const char PixelMeasuresSequence[] = "PixelMeasuresSequence";
+static const char PixelSpacing[] = "PixelSpacing";
 static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char PhotometricInterpretation[] = "PhotometricInterpretation";
 static const char PlanarConfiguration[] = "PlanarConfiguration";
@@ -123,6 +131,7 @@ static const char BitsStored[] = "BitsStored";
 static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
+static const char ObjectiveLensPower[] = "ObjectiveLensPower";
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFilehandle, dcm_filehandle_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmDataSet, dcm_dataset_destroy)
@@ -313,6 +322,43 @@ static bool get_tag_str(DcmDataSet *dataset,
          dcm_element_get_value_string(NULL, element, index, result);
 }
 
+static bool get_tag_decimal_str(DcmDataSet *dataset,
+                                const char *keyword,
+                                int index,
+                                double *result) {
+  const char *value_ptr;
+  if (!get_tag_str(dataset, keyword, index, &value_ptr)) {
+    return false;
+  }
+  const double value = _openslide_parse_double(value_ptr);
+  if (isnan(value)) {
+    return false;
+  }
+  *result = value;
+  return true;
+}
+
+static bool get_tag_seq(DcmDataSet *dataset,
+                        const char *keyword,
+                        DcmSequence **result) {
+  uint32_t tag = dcm_dict_tag_from_keyword(keyword);
+  DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
+  return element &&
+         dcm_element_get_value_sequence(NULL, element, result);
+}
+
+static bool get_tag_seq_item(DcmDataSet *dataset,
+                             const char *keyword,
+                             uint32_t index,
+                             DcmDataSet **result) {
+  DcmSequence *seq;
+  if (!get_tag_seq(dataset, keyword, &seq)) {
+    return false;
+  }
+  *result = dcm_sequence_get(NULL, seq, index);
+  return *result != NULL;
+}
+
 static char **get_tag_strv(DcmDataSet *dataset,
                            const char *keyword,
                            int length) {
@@ -470,9 +516,9 @@ static bool read_tile(openslide_t *osr,
     // put it in the cache
     tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache,
-			 level, tile_col, tile_row,
-			 tiledata, l->base.tile_w * l->base.tile_h * 4,
-			 &cache_entry);
+                         level, tile_col, tile_row,
+                         tiledata, l->base.tile_w * l->base.tile_h * 4,
+                         &cache_entry);
   }
 
   // draw it
@@ -648,6 +694,23 @@ static bool add_level(openslide_t *osr,
   l->tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
   l->tiles_down = (l->base.h / l->base.tile_h) + !!(l->base.h % l->base.tile_h);
 
+  // read PixelSpacing to expose as the mpp settings, if present
+  DcmDataSet *shared_functional_group;
+  DcmDataSet *pixel_measures;
+  if (get_tag_seq_item(f->metadata,
+                       SharedFunctionalGroupsSequence,
+                       0,
+                       &shared_functional_group) &&
+      get_tag_seq_item(shared_functional_group,
+                       PixelMeasuresSequence,
+                       0,
+                       &pixel_measures)) {
+    get_tag_decimal_str(pixel_measures, PixelSpacing, 0, &l->pixel_spacing_x);
+    get_tag_decimal_str(pixel_measures, PixelSpacing, 1, &l->pixel_spacing_y);
+  }
+  // objective power
+  get_tag_decimal_str(f->metadata, ObjectiveLensPower, 0, &l->objective_lens_power);
+
   // grid
   l->grid = _openslide_grid_create_simple(osr,
                                           l->tiles_across, l->tiles_down,
@@ -712,6 +775,23 @@ static bool maybe_add_file(openslide_t *osr,
     return add_level(osr, level_array, g_steal_pointer(&f), err);
   } else {
     return add_associated(osr, g_steal_pointer(&f), image_type, err);
+  }
+}
+
+static void add_properties(openslide_t *osr, struct dicom_level *level0) {
+  // pixel spacing is in mm, so convert to microns
+  if (level0->pixel_spacing_x && level0->pixel_spacing_y) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                        _openslide_format_double(1000.0 * level0->pixel_spacing_x));
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                        _openslide_format_double(1000.0 * level0->pixel_spacing_y));
+  }
+  if (level0->objective_lens_power) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                        _openslide_format_double(level0->objective_lens_power));
   }
 }
 
@@ -807,6 +887,8 @@ static bool dicom_open(openslide_t *osr,
     struct dicom_level *l = (struct dicom_level *) level_array->pdata[i];
     print_level(l);
   }
+
+  add_properties(osr, level_array->pdata[0]);
 
   // no quickhash yet; disable
   _openslide_hash_disable(quickhash1);
