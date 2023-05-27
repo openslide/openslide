@@ -26,6 +26,7 @@
  */
 
 #include "openslide-private.h"
+#include "openslide-decode-dicom.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-hash.h"
 
@@ -133,26 +134,6 @@ static const char PixelRepresentation[] = "PixelRepresentation";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFilehandle, dcm_filehandle_destroy)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmDataSet, dcm_dataset_destroy)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFrame, dcm_frame_destroy)
-
-static void dicom_propagate_error(GError **err, DcmError *dcm_error) {
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-              "libdicom %s: %s - %s",
-              dcm_error_code_str(dcm_error_get_code(dcm_error)),
-              dcm_error_get_summary(dcm_error),
-              dcm_error_get_message(dcm_error));
-  dcm_error_clear(&dcm_error);
-}
-
-static void gerror_propagate_error(DcmError **dcm_error, GError *err) {
-  dcm_error_set(dcm_error, DCM_ERROR_CODE_INVALID,
-                g_quark_to_string(err->domain),
-                "%s", err->message);
-  g_error_free(err);
-}
-
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
   debug("  filename = %s", f->filename);
@@ -194,76 +175,6 @@ static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
         dcm_frame_get_transfer_syntax_uid(frame));
 }
 
-static void *dicom_openslide_vfs_open(DcmError **dcm_error, void *client) {
-  const char *filename = (const char *) client;
-
-  GError *err = NULL;
-  struct _openslide_file *file = _openslide_fopen(filename, &err);
-  if (!file) {
-    gerror_propagate_error(dcm_error, err);
-    return NULL;
-  }
-
-  return file;
-}
-
-static int dicom_openslide_vfs_close(DcmError **dcm_error G_GNUC_UNUSED,
-                                     void *data) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
-  _openslide_fclose(file);
-  return 0;
-}
-
-static int64_t dicom_openslide_vfs_read(DcmError **dcm_error G_GNUC_UNUSED,
-                                        void *data,
-                                        char *buffer,
-                                        int64_t length) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
-  // openslide VFS has no error return for read()
-  return _openslide_fread(file, buffer, length);
-}
-
-static int64_t dicom_openslide_vfs_seek(DcmError **dcm_error,
-                                        void *data,
-                                        int64_t offset,
-                                        int whence) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
-
-  GError *err = NULL;
-  if (!_openslide_fseek(file, offset, whence, &err)) {
-    gerror_propagate_error(dcm_error, err);
-    return -1;
-  }
-
-  // libdicom uses lseek(2) semantics, so it must always return the new file
-  // pointer
-  off_t new_position = _openslide_ftell(file, &err);
-  if (new_position < 0) {
-    gerror_propagate_error(dcm_error, err);
-  }
-
-  return new_position;
-}
-
-static const DcmIO dicom_io_funcs = {
-  .open = dicom_openslide_vfs_open,
-  .close = dicom_openslide_vfs_close,
-  .read = dicom_openslide_vfs_read,
-  .seek = dicom_openslide_vfs_seek,
-};
-
-static DcmFilehandle *dicom_open_openslide_vfs(const char *filename,
-                                               GError **err) {
-  DcmError *dcm_error = NULL;
-  DcmFilehandle *result =
-    dcm_filehandle_create(&dcm_error, &dicom_io_funcs, (void *) filename);
-  if (!result) {
-    dicom_propagate_error(err, dcm_error);
-    return NULL;
-  }
-  return result;
-}
-
 static bool dicom_detect(const char *filename,
                          struct _openslide_tifflike *tl,
                          GError **err) {
@@ -275,7 +186,7 @@ static bool dicom_detect(const char *filename,
   }
 
   // should be able to open as a DICOM
-  g_autoptr(DcmFilehandle) filehandle = dicom_open_openslide_vfs(filename, err);
+  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
   if (!filehandle) {
     return false;
   }
@@ -284,7 +195,7 @@ static bool dicom_detect(const char *filename,
   g_autoptr(DcmDataSet) meta =
     dcm_filehandle_read_file_meta(&dcm_error, filehandle);
   if (!meta) {
-    dicom_propagate_error(err, dcm_error);
+    _openslide_dicom_propagate_error(err, dcm_error);
     return false;
   }
 
@@ -398,7 +309,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
   g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
 
   f->filename = g_strdup(filename);
-  f->filehandle = dicom_open_openslide_vfs(filename, err);
+  f->filehandle = _openslide_dicom_open(filename, err);
   if (!f->filehandle) {
     return NULL;
   }
@@ -409,7 +320,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
   g_autoptr(DcmDataSet) meta =
     dcm_filehandle_read_file_meta(&dcm_error, f->filehandle);
   if (!meta) {
-    dicom_propagate_error(err, dcm_error);
+    _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
   }
 
@@ -423,7 +334,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
 
   f->metadata = dcm_filehandle_read_metadata(&dcm_error, f->filehandle);
   if (!f->metadata) {
-    dicom_propagate_error(err, dcm_error);
+    _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
   }
 
@@ -480,7 +391,7 @@ static bool read_tile(openslide_t *osr,
     g_mutex_unlock(&l->file->lock);
 
     if (frame == NULL) {
-      dicom_propagate_error(err, dcm_error);
+      _openslide_dicom_propagate_error(err, dcm_error);
       return false;
     }
 
@@ -597,7 +508,7 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
   g_mutex_unlock(&a->file->lock);
 
   if (frame == NULL) {
-    dicom_propagate_error(err, dcm_error);
+    _openslide_dicom_propagate_error(err, dcm_error);
     return false;
   }
 
@@ -764,7 +675,7 @@ static bool maybe_add_file(openslide_t *osr,
     DcmError *dcm_error = NULL;
     f->bot = dcm_filehandle_build_bot(&dcm_error, f->filehandle, f->metadata);
     if (!f->bot) {
-      dicom_propagate_error(err, dcm_error);
+      _openslide_dicom_propagate_error(err, dcm_error);
       g_prefix_error(err, "Building BOT: ");
       return false;
     }
