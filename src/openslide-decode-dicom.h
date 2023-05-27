@@ -29,6 +29,7 @@
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFilehandle, dcm_filehandle_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmDataSet, dcm_dataset_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmBOT, dcm_bot_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFrame, dcm_frame_destroy)
 
 DcmFilehandle *_openslide_dicom_open(const char *filename, GError **err);
