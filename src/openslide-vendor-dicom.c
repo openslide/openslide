@@ -41,6 +41,11 @@
 #define debug(...)
 #endif
 
+enum image_format {
+  FORMAT_JPEG,
+  FORMAT_RGB,
+};
+
 struct dicom_file {
   char *filename;
 
@@ -48,6 +53,7 @@ struct dicom_file {
   DcmFilehandle *filehandle;
   DcmDataSet *metadata;
   DcmBOT *bot;
+  enum image_format format;
 };
 
 struct dicom_level {
@@ -60,6 +66,8 @@ struct dicom_level {
   double pixel_spacing_x;
   double pixel_spacing_y;
   double objective_lens_power;
+
+  int64_t *frame_position;
 
   struct dicom_file *file;
 };
@@ -131,8 +139,13 @@ static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
+static const char LossyImageCompression[] = "LossyImageCompression";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
+static const char DimensionOrganizationType[] = "DimensionOrganizationType";
+static const char PerFrameFunctionalGroupsSequence[] = "PerFrameFunctionalGroupsSequence";
+static const char FrameContentSequence[] = "FrameContentSequence";
+static const char DimensionIndexValues[] = "DimensionIndexValues";
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
@@ -153,6 +166,7 @@ static void print_level(struct dicom_level *l) {
   debug("  grid = %p", l->grid);
   debug("  tiles_across = %" PRId64, l->tiles_across);
   debug("  tiles_down = %" PRId64, l->tiles_down);
+  debug("  frame_position = %p", l->frame_position);
 }
 
 static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
@@ -346,6 +360,7 @@ static void level_destroy(struct dicom_level *l) {
   if (l->file) {
     dicom_file_destroy(l->file);
   }
+  g_free(l->frame_position);
   g_free(l);
 }
 
@@ -357,6 +372,61 @@ static void destroy(openslide_t *osr) {
     level_destroy((struct dicom_level *) osr->levels[i]);
   }
   g_free(osr->levels);
+}
+
+static void rgb_to_cairo(const uint8_t *rgb, uint32_t *dest,
+                         int64_t width, int64_t height) {
+  int64_t n_pixels = width * height;
+  for (int64_t i = 0; i < n_pixels; i++) {
+    dest[i] = 0xff000000 | rgb[0] << 16 | rgb[1] << 8 | rgb[2];
+    rgb += 3;
+  }
+}
+
+static bool decode_frame(struct dicom_file *file, int64_t frame_number,
+                         uint32_t *dest, int64_t w, int64_t h,
+                         GError **err) {
+  g_mutex_lock(&file->lock);
+  DcmError *dcm_error = NULL;
+  g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
+                                                        file->filehandle,
+                                                        file->metadata,
+                                                        file->bot,
+                                                        frame_number);
+  g_mutex_unlock(&file->lock);
+
+  if (!frame) {
+    _openslide_dicom_propagate_error(err, dcm_error);
+    return false;
+  }
+
+  const void *frame_value = dcm_frame_get_value(frame);
+  uint32_t frame_length = dcm_frame_get_length(frame);
+  uint32_t frame_width = dcm_frame_get_columns(frame);
+  uint32_t frame_height = dcm_frame_get_rows(frame);
+  if (frame_width != w || frame_height != h) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unexpected image size: %ux%u != %"PRId64"x%"PRId64,
+                frame_width, frame_height, w, h);
+    return false;
+  }
+
+  print_file(file);
+  print_frame(frame);
+
+  switch (file->format) {
+  case FORMAT_JPEG:
+    return _openslide_jpeg_decode_buffer(frame_value, frame_length,
+                                         dest, w, h, err);
+  case FORMAT_RGB:
+    if (frame_length != w * h * 3) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "RGB frame length %u != %"PRIu64, frame_length, w * h * 3);
+      return false;
+    }
+    rgb_to_cairo(frame_value, dest, w, h);
+  }
+  return true;
 }
 
 static bool read_tile(openslide_t *osr,
@@ -372,6 +442,16 @@ static bool read_tile(openslide_t *osr,
   debug("read_tile level:");
   print_level(l);
 
+  int64_t frame_index = tile_col + l->tiles_across * tile_row;
+  int64_t frame_number = frame_index + 1;
+  if (l->frame_position) {
+    frame_number = l->frame_position[frame_index];
+    if (frame_number == -1) {
+      // missing tile
+      return true;
+    }
+  }
+
   // cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
@@ -379,39 +459,9 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
-    uint32_t frame_number = 1 + tile_col + l->tiles_across * tile_row;
-
-    g_mutex_lock(&l->file->lock);
-    DcmError *dcm_error = NULL;
-    g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
-                                                          l->file->filehandle,
-                                                          l->file->metadata,
-                                                          l->file->bot,
-                                                          frame_number);
-    g_mutex_unlock(&l->file->lock);
-
-    if (frame == NULL) {
-      _openslide_dicom_propagate_error(err, dcm_error);
-      return false;
-    }
-
-    const char *frame_value = dcm_frame_get_value(frame);
-    uint32_t frame_length = dcm_frame_get_length(frame);
-    uint32_t tile_width = dcm_frame_get_columns(frame);
-    uint32_t tile_height = dcm_frame_get_rows(frame);
-    if (tile_width != l->base.tile_w || tile_height != l->base.tile_h) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected tile size: %ux%u != %"PRId64"x%"PRId64,
-                  tile_width, tile_height, l->base.tile_w, l->base.tile_h);
-      return false;
-    }
-
-    print_frame(frame);
-
-    if (!_openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                       buf,
-                                       l->base.tile_w, l->base.tile_h,
-                                       err)) {
+    if (!decode_frame(l->file, frame_number,
+                      buf, l->base.tile_w, l->base.tile_h,
+                      err)) {
       return false;
     }
 
@@ -440,6 +490,7 @@ static bool read_tile(openslide_t *osr,
                                         l->base.tile_w * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
+  _openslide_grid_draw_tile_info(cr, "%"PRId64, frame_number);
 
   return true;
 }
@@ -497,37 +548,7 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
                                      uint32_t *dest,
                                      GError **err) {
   struct associated *a = (struct associated *) img;
-
-  g_mutex_lock(&a->file->lock);
-  DcmError *dcm_error = NULL;
-  g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
-                                                        a->file->filehandle,
-                                                        a->file->metadata,
-                                                        a->file->bot,
-                                                        1);
-  g_mutex_unlock(&a->file->lock);
-
-  if (frame == NULL) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    return false;
-  }
-
-  uint32_t w = dcm_frame_get_columns(frame);
-  uint32_t h = dcm_frame_get_rows(frame);
-  if (w != a->base.w || h != a->base.h) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unexpected image size: %ux%u != %"PRId64"x%"PRId64,
-                w, h, a->base.w, a->base.h);
-    return false;
-  }
-
-  print_frame(frame);
-
-  return _openslide_jpeg_decode_buffer(dcm_frame_get_value(frame),
-                                       dcm_frame_get_length(frame),
-                                       dest,
-                                       a->base.w, a->base.h,
-                                       err);
+  return decode_frame(a->file, 1, dest, a->base.w, a->base.h, err);
 }
 
 static void _associated_destroy(struct associated *a) {
@@ -549,6 +570,38 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .get_argb_data = associated_get_argb_data,
   .destroy = associated_destroy,
 };
+
+static bool get_format(DcmDataSet *metadata, enum image_format *format,
+                       GError **err) {
+  if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      // JPEG can be YCbCr or RGB
+      (verify_tag_str(metadata, PhotometricInterpretation, "YBR_FULL_422") ||
+       verify_tag_str(metadata, PhotometricInterpretation, "RGB")) &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
+    *format = FORMAT_JPEG;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "00")) {
+    *format = FORMAT_RGB;
+    return true;
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported frame format");
+    return false;
+  }
+}
 
 // unconditionally takes ownership of dicom_file
 static bool add_associated(openslide_t *osr,
@@ -628,6 +681,84 @@ static bool add_level(openslide_t *osr,
                                           l->base.tile_w, l->base.tile_h,
                                           read_tile);
 
+  // organization
+  const char *type;
+  if (!get_tag_str(f->metadata, DimensionOrganizationType, 0, &type)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Missing DimensionOrganizationType");
+    return false;
+  }
+  if (g_str_equal(type, "TILED_FULL")) {
+    // used by eg. 3dhistech ... frames are in row-major order and we
+    // can simply use the BOT
+  } else if (g_str_equal(type, "3D") || g_str_equal(type, "TILED_SPARSE")) {
+    // used by eg. leica ... we need to read the position of every tile
+    l->frame_position = g_new(int64_t, l->tiles_across * l->tiles_down);
+    for (int64_t frame_number = 0;
+         frame_number < l->tiles_across * l->tiles_down;
+         frame_number++) {
+      l->frame_position[frame_number] = -1;
+    }
+
+    DcmSequence *per_frame_functional_groups_seq;
+    if (!get_tag_seq(f->metadata, PerFrameFunctionalGroupsSequence,
+                     &per_frame_functional_groups_seq)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Missing PerFrameFunctionalGroupsSequence");
+      return false;
+    }
+
+    uint32_t n_items = dcm_sequence_count(per_frame_functional_groups_seq);
+    for (uint32_t i = 0; i < n_items; i++) {
+      DcmError *dcm_error = NULL;
+      DcmDataSet *per_frame_functional_group =
+        dcm_sequence_get(&dcm_error, per_frame_functional_groups_seq, i);
+      if (!per_frame_functional_group) {
+        _openslide_dicom_propagate_error(err, dcm_error);
+        return false;
+      }
+
+      DcmDataSet *dimension_index_vals;
+      if (!get_tag_seq_item(per_frame_functional_group,
+                            FrameContentSequence, 0,
+                            &dimension_index_vals)) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Missing FrameContentSequence");
+        return false;
+      }
+
+      uint32_t tag = dcm_dict_tag_from_keyword(DimensionIndexValues);
+      int64_t col, row;
+      DcmElement *values =
+        dcm_dataset_get(&dcm_error, dimension_index_vals, tag);
+      if (!values ||
+          !dcm_element_get_value_integer(&dcm_error, values, 0, &col) ||
+          !dcm_element_get_value_integer(&dcm_error, values, 1, &row)) {
+        _openslide_dicom_propagate_error(err, dcm_error);
+        return false;
+      }
+
+      // DICOM uses 1-based indexing, we want 0 based
+      // frame number i is the tile at (col, row)
+      if (col < 1 || row < 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Invalid frame position (%"PRId64", %"PRId64")", col, row);
+        return false;
+      }
+      int64_t frame_index = (col - 1) + (row - 1) * l->tiles_across;
+      if (l->frame_position[frame_index] != -1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Duplicate frame (%"PRId64", %"PRId64")", col, row);
+        return false;
+      }
+      l->frame_position[frame_index] = i + 1;
+    }
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported DimensionOrganisationType");
+    return false;
+  }
+
   // add
   g_ptr_array_add(level_array, g_steal_pointer(&l));
   return true;
@@ -654,17 +785,8 @@ static bool maybe_add_file(openslide_t *osr,
     return true;
   }
 
-  // try to check we can decode the image data
-  if (!verify_tag_int(f->metadata, SamplesPerPixel, 3) ||
-      !verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") ||
-      !verify_tag_int(f->metadata, PlanarConfiguration, 0) ||
-      !verify_tag_int(f->metadata, BitsAllocated, 8) ||
-      !verify_tag_int(f->metadata, BitsStored, 8) ||
-      !verify_tag_int(f->metadata, HighBit, 7) ||
-      !verify_tag_int(f->metadata, PixelRepresentation, 0) ||
-      !verify_tag_str(f->metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported frame format");
+  // check the image format
+  if (!get_format(f->metadata, &f->format, err)) {
     return false;
   }
 
