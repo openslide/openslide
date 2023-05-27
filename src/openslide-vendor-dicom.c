@@ -490,6 +490,7 @@ static bool read_tile(openslide_t *osr,
                                         l->base.tile_w * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
+  _openslide_grid_draw_tile_info(cr, "%"PRId64, frame_number);
 
   return true;
 }
