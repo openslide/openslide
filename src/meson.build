@@ -73,7 +73,10 @@ openslide_sources = [
   'openslide-vendor-ventana.c',
 ]
 if dicom_dep.found()
-  openslide_sources += 'openslide-vendor-dicom.c'
+  openslide_sources += [
+    'openslide-decode-dicom.c',
+    'openslide-vendor-dicom.c',
+  ]
 endif
 libopenslide = library('openslide',
   openslide_sources,
