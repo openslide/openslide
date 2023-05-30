@@ -24,6 +24,7 @@
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
+#include "slidetool.h"
 
 static bool process(const char *file) {
   g_autoptr(openslide_t) osr = openslide_open(file);
@@ -48,7 +49,7 @@ static const struct common_usage_info usage_info = {
   "Print OpenSlide quickhash-1 (256-bit) checksums.",
 };
 
-int main (int argc, char **argv) {
+int do_quickhash1sum(int argc, char **argv) {
   common_parse_commandline(&usage_info, &argc, &argv);
   if (argc < 2) {
     common_usage(&usage_info);

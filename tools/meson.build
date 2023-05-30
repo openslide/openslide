@@ -1,26 +1,55 @@
-tools_deps = [
-  openslide_dep,
-  openslide_common_dep,
-  glib_dep,
-]
-
-tools = [
-  ['openslide-quickhash1sum', tools_deps],
-  ['openslide-show-properties', tools_deps],
-  ['openslide-write-png', [tools_deps, png_dep]],
-]
-foreach t : tools
+if meson.version().version_compare('>=0.61') and host_machine.system() != 'windows'
+  # build one binary and symlink the others to it
+  tools_binaries = ['openslide-show-properties']
+  symlink_targets = [
+    'openslide-quickhash1sum',
+    'openslide-write-png',
+  ]
+  foreach target : symlink_targets
+    install_symlink(
+      target,
+      install_dir : get_option('bindir'),
+      install_tag : 'bin',
+      pointing_to : 'openslide-show-properties',
+    )
+  endforeach
+else
+  tools_binaries = [
+    'openslide-quickhash1sum',
+    'openslide-show-properties',
+    'openslide-write-png',
+  ]
+endif
+foreach target : tools_binaries
   executable(
-    t[0],
-    t[0] + '.c',
-    dependencies : t[1],
+    target,
+    [
+      'openslide-quickhash1sum.c',
+      'openslide-show-properties.c',
+      'openslide-write-png.c',
+      'slidetool.c',
+    ],
+    dependencies : [
+      openslide_dep,
+      openslide_common_dep,
+      glib_dep,
+      png_dep,
+    ],
     install : true,
     install_tag : 'bin',
   )
+endforeach
+
+mans = [
+  'openslide-quickhash1sum',
+  'openslide-show-properties',
+  'openslide-write-png'
+]
+foreach m : mans
   install_man(
     configure_file(
-      input : t[0] + '.1.in',
-      output : t[0] + '.1',
+      input : m + '.1.in',
+      output : m + '.1',
       configuration : versions,
     )
   )

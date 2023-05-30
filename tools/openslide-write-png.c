@@ -21,6 +21,7 @@
 
 #include "openslide.h"
 #include "openslide-common.h"
+#include "slidetool.h"
 
 #include <png.h>
 #include <inttypes.h>
@@ -149,7 +150,7 @@ static const struct common_usage_info usage_info = {
   "Write a region of a virtual slide to a PNG.",
 };
 
-int main (int argc, char **argv) {
+int do_write_png(int argc, char **argv) {
   common_parse_commandline(&usage_info, &argc, &argv);
   if (argc != 8) {
     common_usage(&usage_info);
