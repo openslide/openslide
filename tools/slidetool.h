@@ -22,6 +22,14 @@
 #ifndef OPENSLIDE_SLIDETOOL_H_
 #define OPENSLIDE_SLIDETOOL_H_
 
+struct command {
+  const char *parameter_string;
+  const char *summary;
+};
+
+void parse_commandline(const struct command *cmd, int *argc, char ***argv);
+void usage(const struct command *cmd);
+
 int do_quickhash1sum(int argc, char **argv);
 int do_show_properties(int argc, char **argv);
 int do_write_png(int argc, char **argv);

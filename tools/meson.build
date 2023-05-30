@@ -29,6 +29,7 @@ foreach target : tools_binaries
       'openslide-write-png.c',
       'slidetool.c',
     ],
+    include_directories : config_h_include,
     dependencies : [
       openslide_dep,
       openslide_common_dep,

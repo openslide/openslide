@@ -55,15 +55,15 @@ static bool process(const char *file, int successes, int total) {
 }
 
 
-static const struct common_usage_info usage_info = {
+static const struct command cmd = {
   "FILE...",
   "Print OpenSlide properties for a slide.",
 };
 
 int do_show_properties(int argc, char **argv) {
-  common_parse_commandline(&usage_info, &argc, &argv);
+  parse_commandline(&cmd, &argc, &argv);
   if (argc < 2) {
-    common_usage(&usage_info);
+    usage(&cmd);
   }
 
   int successes = 0;
