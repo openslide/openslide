@@ -144,26 +144,16 @@ static void write_png(openslide_t *osr, FILE *f,
   png_destroy_write_struct(&png_ptr, &info_ptr);
 }
 
-
-static const struct command cmd = {
-  "slide x y level width height output.png",
-  "Write a region of a virtual slide to a PNG.",
-};
-
-int do_write_png(int argc, char **argv) {
-  parse_commandline(&cmd, &argc, &argv);
-  if (argc != 8) {
-    usage(&cmd);
-  }
-
+static int do_write_png(int narg, char **args) {
   // get args
-  const char *slide = argv[1];
-  int64_t x = g_ascii_strtoll(argv[2], NULL, 10);
-  int64_t y = g_ascii_strtoll(argv[3], NULL, 10);
-  int32_t level = strtol(argv[4], NULL, 10);
-  int64_t width = g_ascii_strtoll(argv[5], NULL, 10);
-  int64_t height = g_ascii_strtoll(argv[6], NULL, 10);
-  const char *output = argv[7];
+  g_assert(narg == 7);
+  const char *slide = args[0];
+  int64_t x = g_ascii_strtoll(args[1], NULL, 10);
+  int64_t y = g_ascii_strtoll(args[2], NULL, 10);
+  int32_t level = strtol(args[3], NULL, 10);
+  int64_t width = g_ascii_strtoll(args[4], NULL, 10);
+  int64_t height = g_ascii_strtoll(args[5], NULL, 10);
+  const char *output = args[6];
 
   // open slide
   g_autoptr(openslide_t) osr = openslide_open(slide);
@@ -198,3 +188,11 @@ int do_write_png(int argc, char **argv) {
 
   return 0;
 }
+
+const struct command write_png_cmd = {
+  .parameter_string = "slide x y level width height output.png",
+  .summary = "Write a region of a virtual slide to a PNG.",
+  .min_positional = 7,
+  .max_positional = 7,
+  .handler = do_write_png,
+};

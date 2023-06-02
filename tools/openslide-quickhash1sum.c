@@ -43,24 +43,19 @@ static bool process(const char *file) {
   return true;
 }
 
-
-static const struct command cmd = {
-  "FILE...",
-  "Print OpenSlide quickhash-1 (256-bit) checksums.",
-};
-
-int do_quickhash1sum(int argc, char **argv) {
-  parse_commandline(&cmd, &argc, &argv);
-  if (argc < 2) {
-    usage(&cmd);
-  }
-
+static int do_quickhash1sum(int narg, char **args) {
   int ret = 0;
-  for (int i = 1; i < argc; i++) {
-    if (!process(argv[i])) {
+  for (int i = 0; i < narg; i++) {
+    if (!process(args[i])) {
       ret = 1;
     }
   }
-
   return ret;
 }
+
+const struct command quickhash1sum_cmd = {
+  .parameter_string = "FILE...",
+  .summary = "Print OpenSlide quickhash-1 (256-bit) checksums.",
+  .min_positional = 1,
+  .handler = do_quickhash1sum,
+};

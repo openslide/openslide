@@ -55,7 +55,7 @@ static GOptionContext *make_option_context(const struct command *cmd) {
   return octx;
 }
 
-void usage(const struct command *cmd) {
+static void usage(const struct command *cmd) {
   g_autoptr(GOptionContext) octx = make_option_context(cmd);
 
   g_autofree gchar *help = g_option_context_get_help(octx, true, NULL);
@@ -64,7 +64,7 @@ void usage(const struct command *cmd) {
   exit(2);
 }
 
-void parse_commandline(const struct command *cmd, int *argc, char ***argv) {
+static void parse_cmdline(const struct command *cmd, int *argc, char ***argv) {
   GError *err = NULL;
 
   g_autoptr(GOptionContext) octx = make_option_context(cmd);
@@ -111,11 +111,22 @@ int main(int argc, char **argv) {
   // properly handle Unicode arguments on Windows; set prgname
   common_fix_argv(&argc, &argv);
   g_autofree char *cmd_name = get_progname();
+  const struct command *cmd = &show_properties_cmd;
   if (g_str_equal(cmd_name, "openslide-quickhash1sum")) {
-    return do_quickhash1sum(argc, argv);
+    cmd = &quickhash1sum_cmd;
   } else if (g_str_equal(cmd_name, "openslide-write-png")) {
-    return do_write_png(argc, argv);
-  } else {
-    return do_show_properties(argc, argv);
+    cmd = &write_png_cmd;
   }
+
+  parse_cmdline(cmd, &argc, &argv);
+  // drop argv[0]
+  argc--;
+  argv++;
+  if (cmd->min_positional && argc < cmd->min_positional) {
+    usage(cmd);
+  }
+  if (cmd->max_positional && argc > cmd->max_positional) {
+    usage(cmd);
+  }
+  return cmd->handler(argc, argv);
 }

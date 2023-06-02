@@ -54,24 +54,19 @@ static bool process(const char *file, int successes, int total) {
   return true;
 }
 
-
-static const struct command cmd = {
-  "FILE...",
-  "Print OpenSlide properties for a slide.",
-};
-
-int do_show_properties(int argc, char **argv) {
-  parse_commandline(&cmd, &argc, &argv);
-  if (argc < 2) {
-    usage(&cmd);
-  }
-
+static int do_show_properties(int narg, char **args) {
   int successes = 0;
-  for (int i = 1; i < argc; i++) {
-    if (process(argv[i], successes, argc - 1)) {
+  for (int i = 0; i < narg; i++) {
+    if (process(args[i], successes, narg)) {
       successes++;
     }
   }
-
-  return successes != argc - 1;
+  return successes != narg;
 }
+
+const struct command show_properties_cmd = {
+  .parameter_string = "FILE...",
+  .summary = "Print OpenSlide properties for a slide.",
+  .min_positional = 1,
+  .handler = do_show_properties,
+};

@@ -25,13 +25,13 @@
 struct command {
   const char *parameter_string;
   const char *summary;
+  int min_positional;
+  int max_positional;
+  int (*handler)(int narg, char **args);
 };
 
-void parse_commandline(const struct command *cmd, int *argc, char ***argv);
-void usage(const struct command *cmd);
-
-int do_quickhash1sum(int argc, char **argv);
-int do_show_properties(int argc, char **argv);
-int do_write_png(int argc, char **argv);
+extern const struct command quickhash1sum_cmd;
+extern const struct command show_properties_cmd;
+extern const struct command write_png_cmd;
 
 #endif
