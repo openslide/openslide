@@ -130,36 +130,24 @@ static void write_png(openslide_t *osr, FILE *f,
     // un-premultiply alpha and pack into expected format
     for (int32_t i = 0; i < w * lines; i++) {
       uint32_t p = dest[i];
-      uint8_t *p8 = (uint8_t *) (dest + i);
 
-      uint8_t a = (p >> 24) & 0xFF;
-      uint8_t r = (p >> 16) & 0xFF;
-      uint8_t g = (p >> 8) & 0xFF;
-      uint8_t b = p & 0xFF;
-
+      uint8_t a = p >> 24;
       switch (a) {
       case 0:
-        r = 0;
-        b = 0;
-        g = 0;
+        dest[i] = 0;
         break;
 
       case 255:
-        // no action
+        dest[i] = GUINT32_TO_BE(p << 8 | p >> 24);
         break;
 
       default:
-        r = (r * 255 + a / 2) / a;
-        g = (g * 255 + a / 2) / a;
-        b = (b * 255 + a / 2) / a;
-        break;
+        ; // make compiler happy
+        uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
+        uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
+        uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
+        dest[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
       }
-
-      // write back
-      p8[0] = r;
-      p8[1] = g;
-      p8[2] = b;
-      p8[3] = a;
     }
 
     for (int32_t i = 0; i < lines; i++) {
