@@ -34,6 +34,7 @@
 
 static const char SOFTWARE[] = "Software";
 static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
+static const uint32_t BUFSIZE = 16 << 20;
 
 #define ENSURE_NONNEG(i) \
   if (i < 0) {                        \
@@ -111,13 +112,15 @@ static void write_png(openslide_t *osr, FILE *f,
   // start writing
   png_write_info(png_ptr, info_ptr);
 
-  g_autofree uint32_t *dest = g_malloc(w * 4);
+  const int32_t lines_at_a_time = MAX(BUFSIZE / (w * 4), 1);
+  g_autofree uint32_t *dest = g_malloc(lines_at_a_time * w * 4);
   int32_t lines_to_draw = h;
   double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;
   while (lines_to_draw) {
+    const int32_t lines = MIN(lines_at_a_time, lines_to_draw);
     openslide_read_region(osr, dest,
-                          x, yy * ds, level, w, 1);
+                          x, yy * ds, level, w, lines);
 
     const char *err = openslide_get_error(osr);
     if (err) {
@@ -125,7 +128,7 @@ static void write_png(openslide_t *osr, FILE *f,
     }
 
     // un-premultiply alpha and pack into expected format
-    for (int i = 0; i < w; i++) {
+    for (int32_t i = 0; i < w * lines; i++) {
       uint32_t p = dest[i];
       uint8_t *p8 = (uint8_t *) (dest + i);
 
@@ -159,9 +162,11 @@ static void write_png(openslide_t *osr, FILE *f,
       p8[3] = a;
     }
 
-    png_write_row(png_ptr, (png_bytep) dest);
-    yy++;
-    lines_to_draw--;
+    for (int32_t i = 0; i < lines; i++) {
+      png_write_row(png_ptr, (png_bytep) &dest[w * i]);
+    }
+    yy += lines;
+    lines_to_draw -= lines;
   }
 
   // end
