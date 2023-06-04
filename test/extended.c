@@ -44,12 +44,9 @@ static void test_image_fetch(openslide_t *osr,
   for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
     openslide_read_region(osr, buf, x, y, level, w, h);
   }
-
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
-                x, y, w, h, err);
-  }
+  common_fail_on_error(osr,
+                       "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                       x, y, w, h);
 }
 
 #if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
@@ -220,10 +217,7 @@ int main(int argc, char **argv) {
   if (!osr) {
     common_fail("Couldn't open %s", path);
   }
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Open failed: %s", err);
-  }
+  common_fail_on_error(osr, "Open failed");
   openslide_close(osr);
 
   osr = openslide_open(path);
