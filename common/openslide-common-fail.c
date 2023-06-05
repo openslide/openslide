@@ -33,3 +33,15 @@ void common_fail(const char *fmt, ...) {
   va_end(ap);
   exit(1);
 }
+
+void common_fail_on_error(openslide_t *osr, const char *fmt, ...) {
+  const char *err = openslide_get_error(osr);
+  if (err != NULL) {
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, ": %s\n", err);
+    va_end(ap);
+    exit(1);
+  }
+}

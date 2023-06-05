@@ -44,12 +44,9 @@ static void test_image_fetch(openslide_t *osr,
   for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
     openslide_read_region(osr, buf, x, y, level, w, h);
   }
-
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
-                x, y, w, h, err);
-  }
+  common_fail_on_error(osr,
+                       "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                       x, y, w, h);
 }
 
 #if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
@@ -220,10 +217,7 @@ int main(int argc, char **argv) {
   if (!osr) {
     common_fail("Couldn't open %s", path);
   }
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Open failed: %s", err);
-  }
+  common_fail_on_error(osr, "Open failed");
   openslide_close(osr);
 
   osr = openslide_open(path);
@@ -233,12 +227,14 @@ int main(int argc, char **argv) {
 
   int64_t w, h;
   openslide_get_level0_dimensions(osr, &w, &h);
+  common_fail_on_error(osr, "Getting level 0 dimensions failed");
 
   int32_t levels = openslide_get_level_count(osr);
   for (int32_t i = -1; i < levels + 1; i++) {
     int64_t ww, hh;
     openslide_get_level_dimensions(osr, i, &ww, &hh);
     openslide_get_level_downsample(osr, i);
+    common_fail_on_error(osr, "Querying level %d failed", i);
   }
 
   openslide_get_best_level_for_downsample(osr, 0.8);
@@ -253,12 +249,15 @@ int main(int argc, char **argv) {
   openslide_get_best_level_for_downsample(osr, 100);
   openslide_get_best_level_for_downsample(osr, 1000);
   openslide_get_best_level_for_downsample(osr, 10000);
+  common_fail_on_error(osr, "Getting best level for downsample failed");
 
   // NULL buffer
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
+  common_fail_on_error(osr, "Reading NULL buffer failed");
 
   // empty region
   openslide_read_region(osr, NULL, 0, 0, 0, 0, 0);
+  common_fail_on_error(osr, "Reading null region failed");
 
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
@@ -267,10 +266,12 @@ int main(int argc, char **argv) {
     openslide_get_property_value(osr, name);
     property_names++;
   }
+  common_fail_on_error(osr, "Reading properties failed");
 
   // read associated images
   const char * const *associated_image_names =
     openslide_get_associated_image_names(osr);
+  common_fail_on_error(osr, "Listing associated images failed");
   while (*associated_image_names) {
     int64_t w, h;
     const char *name = *associated_image_names;
@@ -279,6 +280,7 @@ int main(int argc, char **argv) {
     g_autofree uint32_t *buf = g_new(uint32_t, w * h);
     openslide_read_associated_image(osr, name, buf);
 
+    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
     associated_image_names++;
   }
 
