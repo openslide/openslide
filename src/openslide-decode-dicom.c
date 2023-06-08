@@ -24,6 +24,12 @@
 #include "openslide-private.h"
 #include "openslide-decode-dicom.h"
 
+// implements DcmIO
+struct _dicom_io {
+  DcmIOMethods *methods;
+  struct _openslide_file *file;
+};
+
 void _openslide_dicom_propagate_error(GError **err, DcmError *dcm_error) {
   g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
               "libdicom %s: %s - %s",
@@ -40,45 +46,49 @@ static void propagate_gerror(DcmError **dcm_error, GError *err) {
   g_error_free(err);
 }
 
-static void *vfs_open(DcmError **dcm_error, void *client) {
+static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
   const char *filename = (const char *) client;
+  struct _dicom_io *dio = g_new(struct _dicom_io, 1);
 
   GError *err = NULL;
-  struct _openslide_file *file = _openslide_fopen(filename, &err);
-  if (!file) {
+  dio->file = _openslide_fopen(filename, &err);
+  if (!dio->file) {
+    g_free(dio);
     propagate_gerror(dcm_error, err);
     return NULL;
   }
 
-  return file;
+  return (DcmIO *) dio;
 }
 
-static int vfs_close(DcmError **dcm_error G_GNUC_UNUSED, void *data) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
-  _openslide_fclose(file);
-  return 0;
+static void vfs_close(DcmIO *io) {
+  struct _dicom_io *dio = (struct _dicom_io *) io;
+
+  _openslide_fclose(dio->file);
+  g_free(dio);
 }
 
-static int64_t vfs_read(DcmError **dcm_error G_GNUC_UNUSED, void *data,
+static int64_t vfs_read(DcmError **dcm_error G_GNUC_UNUSED, DcmIO *io,
                         char *buffer, int64_t length) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
+  struct _dicom_io *dio = (struct _dicom_io *) io;
+
   // openslide VFS has no error return for read()
-  return _openslide_fread(file, buffer, length);
+  return _openslide_fread(dio->file, buffer, length);
 }
 
-static int64_t vfs_seek(DcmError **dcm_error, void *data,
+static int64_t vfs_seek(DcmError **dcm_error, DcmIO *io,
                         int64_t offset, int whence) {
-  struct _openslide_file *file = (struct _openslide_file *) data;
+  struct _dicom_io *dio = (struct _dicom_io *) io;
 
   GError *err = NULL;
-  if (!_openslide_fseek(file, offset, whence, &err)) {
+  if (!_openslide_fseek(dio->file, offset, whence, &err)) {
     propagate_gerror(dcm_error, err);
     return -1;
   }
 
   // libdicom uses lseek(2) semantics, so it must always return the new file
   // pointer
-  off_t new_position = _openslide_ftell(file, &err);
+  off_t new_position = _openslide_ftell(dio->file, &err);
   if (new_position < 0) {
     propagate_gerror(dcm_error, err);
   }
@@ -86,7 +96,7 @@ static int64_t vfs_seek(DcmError **dcm_error, void *data,
   return new_position;
 }
 
-static const DcmIO io_funcs = {
+static const DcmIOMethods dicom_open_methods = {
   .open = vfs_open,
   .close = vfs_close,
   .read = vfs_read,
@@ -94,12 +104,20 @@ static const DcmIO io_funcs = {
 };
 
 DcmFilehandle *_openslide_dicom_open(const char *filename, GError **err) {
+
   DcmError *dcm_error = NULL;
-  DcmFilehandle *result =
-    dcm_filehandle_create(&dcm_error, &io_funcs, (void *) filename);
-  if (!result) {
+  DcmIO *io = dcm_io_create(&dcm_error, &dicom_open_methods, (void *) filename);
+  if (!io) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
   }
-  return result;
+
+  DcmFilehandle *filehandle = dcm_filehandle_create(&dcm_error, io);
+  if (!filehandle) {
+    _openslide_dicom_propagate_error(err, dcm_error);
+    dcm_io_close(io);
+    return NULL;
+  }
+
+  return filehandle;
 }

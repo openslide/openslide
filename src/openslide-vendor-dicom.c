@@ -52,7 +52,6 @@ struct dicom_file {
   GMutex lock;
   DcmFilehandle *filehandle;
   DcmDataSet *metadata;
-  DcmBOT *bot;
   enum image_format format;
 };
 
@@ -60,14 +59,9 @@ struct dicom_level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
-  int64_t tiles_across;
-  int64_t tiles_down;
-
   double pixel_spacing_x;
   double pixel_spacing_y;
   double objective_lens_power;
-
-  int64_t *frame_position;
 
   struct dicom_file *file;
 };
@@ -142,17 +136,12 @@ static const char PixelRepresentation[] = "PixelRepresentation";
 static const char LossyImageCompression[] = "LossyImageCompression";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
-static const char DimensionOrganizationType[] = "DimensionOrganizationType";
-static const char PerFrameFunctionalGroupsSequence[] = "PerFrameFunctionalGroupsSequence";
-static const char FrameContentSequence[] = "FrameContentSequence";
-static const char DimensionIndexValues[] = "DimensionIndexValues";
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
   debug("  filename = %s", f->filename);
   debug("  filehandle = %p", f->filehandle);
   debug("  metadata = %p", f->metadata);
-  debug("  bot = %p", f->bot);
 }
 
 static void print_level(struct dicom_level *l) {
@@ -164,9 +153,6 @@ static void print_level(struct dicom_level *l) {
   debug("  base.tile_w = %" PRId64, l->base.tile_w);
   debug("  base.tile_h = %" PRId64, l->base.tile_h);
   debug("  grid = %p", l->grid);
-  debug("  tiles_across = %" PRId64, l->tiles_across);
-  debug("  tiles_down = %" PRId64, l->tiles_down);
-  debug("  frame_position = %p", l->frame_position);
 }
 
 static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
@@ -219,7 +205,6 @@ static bool dicom_detect(const char *filename,
 static void dicom_file_destroy(struct dicom_file *f) {
   dcm_filehandle_destroy(f->filehandle);
   dcm_dataset_destroy(f->metadata);
-  dcm_bot_destroy(f->bot);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
   g_free(f);
@@ -360,7 +345,6 @@ static void level_destroy(struct dicom_level *l) {
   if (l->file) {
     dicom_file_destroy(l->file);
   }
-  g_free(l->frame_position);
   g_free(l);
 }
 
@@ -383,16 +367,16 @@ static void rgb_to_cairo(const uint8_t *rgb, uint32_t *dest,
   }
 }
 
-static bool decode_frame(struct dicom_file *file, int64_t frame_number,
+static bool decode_frame(struct dicom_file *file, 
+                         int64_t tile_col, int64_t tile_row,
                          uint32_t *dest, int64_t w, int64_t h,
                          GError **err) {
   g_mutex_lock(&file->lock);
   DcmError *dcm_error = NULL;
-  g_autoptr(DcmFrame) frame = dcm_filehandle_read_frame(&dcm_error,
-                                                        file->filehandle,
-                                                        file->metadata,
-                                                        file->bot,
-                                                        frame_number);
+  g_autoptr(DcmFrame) frame = 
+      dcm_filehandle_read_frame_position(&dcm_error,
+                                         file->filehandle,
+                                         tile_col, tile_row);
   g_mutex_unlock(&file->lock);
 
   if (!frame) {
@@ -442,16 +426,6 @@ static bool read_tile(openslide_t *osr,
   debug("read_tile level:");
   print_level(l);
 
-  int64_t frame_index = tile_col + l->tiles_across * tile_row;
-  int64_t frame_number = frame_index + 1;
-  if (l->frame_position) {
-    frame_number = l->frame_position[frame_index];
-    if (frame_number == -1) {
-      // missing tile
-      return true;
-    }
-  }
-
   // cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
@@ -459,7 +433,7 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
-    if (!decode_frame(l->file, frame_number,
+    if (!decode_frame(l->file, tile_col, tile_row,
                       buf, l->base.tile_w, l->base.tile_h,
                       err)) {
       return false;
@@ -490,7 +464,6 @@ static bool read_tile(openslide_t *osr,
                                         l->base.tile_w * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
-  _openslide_grid_draw_tile_info(cr, "%"PRId64, frame_number);
 
   return true;
 }
@@ -548,7 +521,7 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
                                      uint32_t *dest,
                                      GError **err) {
   struct associated *a = (struct associated *) img;
-  return decode_frame(a->file, 1, dest, a->base.w, a->base.h, err);
+  return decode_frame(a->file, 0, 0, dest, a->base.w, a->base.h, err);
 }
 
 static void _associated_destroy(struct associated *a) {
@@ -655,8 +628,6 @@ static bool add_level(openslide_t *osr,
                 "Couldn't read level dimensions");
     return false;
   }
-  l->tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
-  l->tiles_down = (l->base.h / l->base.tile_h) + !!(l->base.h % l->base.tile_h);
 
   // read PixelSpacing to expose as the mpp settings, if present
   DcmDataSet *shared_functional_group;
@@ -672,92 +643,17 @@ static bool add_level(openslide_t *osr,
     get_tag_decimal_str(pixel_measures, PixelSpacing, 0, &l->pixel_spacing_x);
     get_tag_decimal_str(pixel_measures, PixelSpacing, 1, &l->pixel_spacing_y);
   }
+
   // objective power
   get_tag_decimal_str(f->metadata, ObjectiveLensPower, 0, &l->objective_lens_power);
 
   // grid
+  int64_t tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
+  int64_t tiles_down = (l->base.h / l->base.tile_h) + !!(l->base.h % l->base.tile_h);
   l->grid = _openslide_grid_create_simple(osr,
-                                          l->tiles_across, l->tiles_down,
+                                          tiles_across, tiles_down,
                                           l->base.tile_w, l->base.tile_h,
                                           read_tile);
-
-  // organization
-  const char *type;
-  if (!get_tag_str(f->metadata, DimensionOrganizationType, 0, &type)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Missing DimensionOrganizationType");
-    return false;
-  }
-  if (g_str_equal(type, "TILED_FULL")) {
-    // used by eg. 3dhistech ... frames are in row-major order and we
-    // can simply use the BOT
-  } else if (g_str_equal(type, "3D") || g_str_equal(type, "TILED_SPARSE")) {
-    // used by eg. leica ... we need to read the position of every tile
-    l->frame_position = g_new(int64_t, l->tiles_across * l->tiles_down);
-    for (int64_t frame_number = 0;
-         frame_number < l->tiles_across * l->tiles_down;
-         frame_number++) {
-      l->frame_position[frame_number] = -1;
-    }
-
-    DcmSequence *per_frame_functional_groups_seq;
-    if (!get_tag_seq(f->metadata, PerFrameFunctionalGroupsSequence,
-                     &per_frame_functional_groups_seq)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Missing PerFrameFunctionalGroupsSequence");
-      return false;
-    }
-
-    uint32_t n_items = dcm_sequence_count(per_frame_functional_groups_seq);
-    for (uint32_t i = 0; i < n_items; i++) {
-      DcmError *dcm_error = NULL;
-      DcmDataSet *per_frame_functional_group =
-        dcm_sequence_get(&dcm_error, per_frame_functional_groups_seq, i);
-      if (!per_frame_functional_group) {
-        _openslide_dicom_propagate_error(err, dcm_error);
-        return false;
-      }
-
-      DcmDataSet *dimension_index_vals;
-      if (!get_tag_seq_item(per_frame_functional_group,
-                            FrameContentSequence, 0,
-                            &dimension_index_vals)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Missing FrameContentSequence");
-        return false;
-      }
-
-      uint32_t tag = dcm_dict_tag_from_keyword(DimensionIndexValues);
-      int64_t col, row;
-      DcmElement *values =
-        dcm_dataset_get(&dcm_error, dimension_index_vals, tag);
-      if (!values ||
-          !dcm_element_get_value_integer(&dcm_error, values, 0, &col) ||
-          !dcm_element_get_value_integer(&dcm_error, values, 1, &row)) {
-        _openslide_dicom_propagate_error(err, dcm_error);
-        return false;
-      }
-
-      // DICOM uses 1-based indexing, we want 0 based
-      // frame number i is the tile at (col, row)
-      if (col < 1 || row < 1) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Invalid frame position (%"PRId64", %"PRId64")", col, row);
-        return false;
-      }
-      int64_t frame_index = (col - 1) + (row - 1) * l->tiles_across;
-      if (l->frame_position[frame_index] != -1) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Duplicate frame (%"PRId64", %"PRId64")", col, row);
-        return false;
-      }
-      l->frame_position[frame_index] = i + 1;
-    }
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported DimensionOrganisationType");
-    return false;
-  }
 
   // add
   g_ptr_array_add(level_array, g_steal_pointer(&l));
@@ -788,19 +684,6 @@ static bool maybe_add_file(openslide_t *osr,
   // check the image format
   if (!get_format(f->metadata, &f->format, err)) {
     return false;
-  }
-
-  // read BOT
-  f->bot = dcm_filehandle_read_bot(NULL, f->filehandle, f->metadata);
-  if (!f->bot) {
-    // unable to read BOT, try to build it instead
-    DcmError *dcm_error = NULL;
-    f->bot = dcm_filehandle_build_bot(&dcm_error, f->filehandle, f->metadata);
-    if (!f->bot) {
-      _openslide_dicom_propagate_error(err, dcm_error);
-      g_prefix_error(err, "Building BOT: ");
-      return false;
-    }
   }
 
   // add

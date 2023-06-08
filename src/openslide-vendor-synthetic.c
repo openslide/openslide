@@ -118,20 +118,15 @@ static bool decode_dicom(const void *data, uint32_t len,
   }
 
   // read Data Set metadata and frame
+  // this will pull the rest of the header in, so _read_frame() will work
   g_autoptr(DcmDataSet) metadata = dcm_filehandle_read_metadata(&dcm_error, fh);
   if (!metadata) {
     _openslide_dicom_propagate_error(err, dcm_error);
     g_prefix_error(err, "Reading metadata: ");
     return false;
   }
-  g_autoptr(DcmBOT) bot = dcm_filehandle_read_bot(&dcm_error, fh, metadata);
-  if (!bot) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    g_prefix_error(err, "Reading BOT: ");
-    return false;
-  }
   g_autoptr(DcmFrame) frame =
-    dcm_filehandle_read_frame(&dcm_error, fh, metadata, bot, 1);
+    dcm_filehandle_read_frame(&dcm_error, fh, 1);
   if (!frame) {
     _openslide_dicom_propagate_error(err, dcm_error);
     g_prefix_error(err, "Reading frame: ");
