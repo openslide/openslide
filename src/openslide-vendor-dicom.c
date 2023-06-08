@@ -135,6 +135,7 @@ static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
 static const char LossyImageCompression[] = "LossyImageCompression";
 static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
+static const char OpticalPathSequence[] = "OpticalPathSequence";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
@@ -645,7 +646,10 @@ static bool add_level(openslide_t *osr,
   }
 
   // objective power
-  get_tag_decimal_str(f->metadata, ObjectiveLensPower, 0, &l->objective_lens_power);
+  DcmDataSet *optical_path;
+  if (get_tag_seq_item(f->metadata, OpticalPathSequence, 0, &optical_path)) {
+    get_tag_decimal_str(optical_path, ObjectiveLensPower, 0, &l->objective_lens_power);
+  }
 
   // grid
   int64_t tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
