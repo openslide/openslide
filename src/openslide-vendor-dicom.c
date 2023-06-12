@@ -177,16 +177,10 @@ static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
 }
 
 static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                          GError **err) {
-  // reject TIFFs
-  if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Is a TIFF file");
-    return false;
-  }
-
-  // should be able to open as a DICOM
+  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
+  // tifflike files
   g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
   if (!filehandle) {
     return false;
