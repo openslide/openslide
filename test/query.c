@@ -19,12 +19,13 @@
  *
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
 
-static gboolean query_vendor = FALSE;
+static gboolean query_vendor = false;
 
 static GOptionEntry options[] = {
   {"vendor", 'n', 0, G_OPTION_ARG_NONE, &query_vendor,
@@ -36,16 +37,14 @@ int main(int argc, char **argv) {
   GError *tmp_err = NULL;
 
   // Parse arguments
-  GOptionContext *ctx =
+  g_autoptr(GOptionContext) ctx =
     g_option_context_new("SLIDE - retrieve information about a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
   if (!common_parse_options(ctx, &argc, &argv, &tmp_err)) {
     fprintf(stderr, "%s\n", tmp_err->message);
     g_clear_error(&tmp_err);
-    g_option_context_free(ctx);
     return 2;
   }
-  g_option_context_free(ctx);
   if (argc != 2) {
     fprintf(stderr, "No slide specified\n");
     return 2;

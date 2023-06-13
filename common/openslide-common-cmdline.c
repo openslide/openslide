@@ -30,7 +30,7 @@
 
 static const char *version_format = "%s " SUFFIXED_VERSION ", "
 "using OpenSlide %s\n"
-"Copyright (C) 2007-2016 Carnegie Mellon University and others\n"
+"Copyright (C) 2007-2023 Carnegie Mellon University and others\n"
 "\n"
 "OpenSlide is free software: you can redistribute it and/or modify it under\n"
 "the terms of the GNU Lesser General Public License, version 2.1.\n"
@@ -63,7 +63,7 @@ static void free_argv(void) {
 
 void common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
-#ifdef G_OS_WIN32
+#ifdef _WIN32
     fixed_argv = g_win32_get_command_line();
 #else
     fixed_argv = g_strdupv(*argv);
@@ -88,9 +88,8 @@ void common_parse_commandline(const struct common_usage_info *info,
                               int *argc, char ***argv) {
   GError *err = NULL;
 
-  GOptionContext *octx = make_option_context(info);
+  g_autoptr(GOptionContext) octx = make_option_context(info);
   common_parse_options(octx, argc, argv, &err);
-  g_option_context_free(octx);
 
   if (err) {
     fprintf(stderr, "%s: %s\n\n", g_get_prgname(), err->message);
@@ -116,12 +115,10 @@ void common_parse_commandline(const struct common_usage_info *info,
 }
 
 void common_usage(const struct common_usage_info *info) {
-  GOptionContext *octx = make_option_context(info);
+  g_autoptr(GOptionContext) octx = make_option_context(info);
 
-  gchar *help = g_option_context_get_help(octx, TRUE, NULL);
+  g_autofree gchar *help = g_option_context_get_help(octx, true, NULL);
   fprintf(stderr, "%s", help);
-  g_free(help);
 
-  g_option_context_free(octx);
   exit(2);
 }

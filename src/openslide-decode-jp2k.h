@@ -34,7 +34,7 @@ enum _openslide_jp2k_colorspace {
 
 bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    int32_t w, int32_t h,
-                                   void *data, int32_t datalen,
+                                   const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
 

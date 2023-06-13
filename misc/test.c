@@ -36,8 +36,6 @@
 #include <sys/time.h>
 
 #include <glib.h>
-#include <cairo.h>
-#include <cairo-pdf.h>
 
 #include <math.h>
 
@@ -200,41 +198,6 @@ static void test_vertical_walk(openslide_t *osr,
 
   free(buf);
 }
-
-static void test_pdf(openslide_t *osr, const char *filename) {
-  printf("test_pdf: %s\n", filename);
-  cairo_surface_t *pdf = cairo_pdf_surface_create(filename, 0, 0);
-  cairo_t *cr = cairo_create(pdf);
-  cairo_rotate(cr, M_PI_4);
-
-  for (int i = 0; i < openslide_get_level_count(osr); i++) {
-    int64_t orig_w, orig_h;
-    openslide_get_level_dimensions(osr, i, &orig_w, &orig_h);
-    int64_t w = MIN(orig_w, 2000);
-    int64_t h = MIN(orig_h, 2000);
-
-    printf(" level %d (%"PRId64"x%"PRId64").", i, w, h);
-    fflush(stdout);
-
-    cairo_pdf_surface_set_size(pdf, w, h);
-    printf(".");
-    fflush(stdout);
-
-    cairo_set_source_rgb(cr, 0.0, 0.0, 1.0);
-    cairo_paint(cr);
-
-    openslide_cairo_read_region(osr, cr, (orig_w - w) / 2, (orig_h - h) / 2, i, w, h);
-    printf(".");
-    fflush(stdout);
-
-    cairo_show_page(cr);
-    printf(" done\n");
-  }
-
-  cairo_surface_destroy(pdf);
-  cairo_destroy(cr);
-  printf(" done with pdf\n");
-}
 */
 
 int main(int argc, char **argv) {
@@ -303,16 +266,6 @@ int main(int argc, char **argv) {
   // test empty dest
   uint32_t* item = 0;
   openslide_read_region(osr, item, 0, 0, 0, 0, 0);
-
-  /*
-  // test empty surface
-  cairo_surface_t *surface =
-    cairo_image_surface_create(CAIRO_FORMAT_RGB24, 0, 0);
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
-  openslide_cairo_read_region(osr, cr, 0, 0, 0, 1000, 1000);
-  cairo_destroy(cr);
-  */
 
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
@@ -393,8 +346,6 @@ int main(int argc, char **argv) {
     int64_t y = g_ascii_strtoll(bounds_y, NULL, 10);
     test_image_fetch(osr, "test8", x, y, 200, 200, skip);
   }
-
-  //  test_pdf(osr, "test0.pdf");
 
 #ifdef HAVE_VALGRIND
   CALLGRIND_STOP_INSTRUMENTATION;

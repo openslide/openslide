@@ -27,8 +27,6 @@
  *
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-tiff.h"
@@ -63,7 +61,7 @@ static const char MAIN_IMAGE_XPATH[] = SCANNED_IMAGE_XPATH("WSI");
 static const char LABEL_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("LABELIMAGE");
 static const char MACRO_DATA_XPATH[] = ASSOCIATED_IMAGE_DATA_XPATH("MACROIMAGE");
 
-struct philips_ops_data {
+struct philips_tiff_ops_data {
   struct _openslide_tiffcache *tc;
 };
 
@@ -79,15 +77,18 @@ struct xml_associated_image {
   const char *xpath;  // static string; do not free
 };
 
+static void destroy_level(struct level *l) {
+  _openslide_grid_destroy(l->grid);
+  g_free(l);
+}
+
 static void destroy(openslide_t *osr) {
-  struct philips_ops_data *data = osr->data;
+  struct philips_tiff_ops_data *data = osr->data;
   _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct philips_ops_data, data);
+  g_free(data);
 
   for (int32_t i = 0; i < osr->level_count; i++) {
-    struct level *l = (struct level *) osr->levels[i];
-    _openslide_grid_destroy(l->grid);
-    g_slice_free(struct level, l);
+    destroy_level((struct level *) osr->levels[i]);
   }
   g_free(osr->levels);
 }
@@ -107,7 +108,7 @@ static bool read_tile(openslide_t *osr,
   int64_t th = tiffl->tile_h;
 
   // cache
-  struct _openslide_cache_entry *cache_entry;
+  g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
@@ -119,48 +120,41 @@ static bool read_tile(openslide_t *osr,
                                             &is_missing, err)) {
       return false;
     }
-
     if (is_missing) {
-      // fill with transparent
-      tiledata = g_slice_alloc0(tw * th * 4);
+      // nothing to draw
+      return true;
+    }
 
-    } else {
-      tiledata = g_slice_alloc(tw * th * 4);
-      if (!_openslide_tiff_read_tile(tiffl, tiff,
-                                     tiledata, tile_col, tile_row,
-                                     err)) {
-        g_slice_free1(tw * th * 4, tiledata);
-        return false;
-      }
+    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    if (!_openslide_tiff_read_tile(tiffl, tiff,
+                                   buf, tile_col, tile_row,
+                                   err)) {
+      return false;
+    }
 
-      // clip, if necessary
-      if (!_openslide_clip_tile(tiledata,
-                                tw, th,
-                                l->base.w - tile_col * tw,
-                                l->base.h - tile_row * th,
-                                err)) {
-        g_slice_free1(tw * th * 4, tiledata);
-        return false;
-      }
+    // clip, if necessary
+    if (!_openslide_clip_tile(buf,
+                              tw, th,
+                              l->base.w - tile_col * tw,
+                              l->base.h - tile_row * th,
+                              err)) {
+      return false;
     }
 
     // put it in the cache
+    tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache, level, tile_col, tile_row,
                          tiledata, tw * th * 4,
                          &cache_entry);
   }
 
   // draw it
-  cairo_surface_t *surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
-                                                                 CAIRO_FORMAT_ARGB32,
-                                                                 tw, th,
-                                                                 tw * 4);
+  g_autoptr(cairo_surface_t) surface =
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
-  cairo_surface_destroy(surface);
   cairo_paint(cr);
-
-  // done with the cache entry, release it
-  _openslide_cache_entry_unref(cache_entry);
 
   return true;
 }
@@ -170,32 +164,29 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                          struct _openslide_level *level,
                          int32_t w, int32_t h,
                          GError **err) {
-  struct philips_ops_data *data = osr->data;
+  struct philips_tiff_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  TIFF *tiff = _openslide_tiffcache_get(data->tc, err);
-  if (tiff == NULL) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (ct.tiff == NULL) {
     return false;
   }
 
-  bool success = _openslide_grid_paint_region(l->grid, cr, tiff,
-                                              x / l->base.downsample,
-                                              y / l->base.downsample,
-                                              level, w, h,
-                                              err);
-  _openslide_tiffcache_put(data->tc, tiff);
-
-  return success;
+  return _openslide_grid_paint_region(l->grid, cr, ct.tiff,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h,
+                                      err);
 }
 
-static const struct _openslide_ops philips_ops = {
+static const struct _openslide_ops philips_tiff_ops = {
   .paint_region = paint_region,
   .destroy = destroy,
 };
 
-static bool philips_detect(const char *filename G_GNUC_UNUSED,
-                           struct _openslide_tifflike *tl,
-                           GError **err) {
+static bool philips_tiff_detect(const char *filename G_GNUC_UNUSED,
+                                struct _openslide_tifflike *tl,
+                                GError **err) {
   // ensure we have a TIFF
   if (!tl) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -224,7 +215,7 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // try to parse the XML
-  xmlDoc *doc = _openslide_xml_parse(image_desc, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
     return false;
   }
@@ -234,22 +225,17 @@ static bool philips_detect(const char *filename G_GNUC_UNUSED,
   if (xmlStrcmp(root->name, BAD_CAST XML_ROOT)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Root tag not %s", XML_ROOT);
-    xmlFreeDoc(doc);
     return false;
   }
 
   // check root tag type
-  xmlChar *type = xmlGetProp(root, BAD_CAST XML_ROOT_TYPE_ATTR);
+  g_autoptr(xmlChar) type = xmlGetProp(root, BAD_CAST XML_ROOT_TYPE_ATTR);
   if (!type || xmlStrcmp(type, BAD_CAST XML_ROOT_TYPE_VALUE)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Root %s not \"%s\"", XML_ROOT_TYPE_ATTR, XML_ROOT_TYPE_VALUE);
-    xmlFree(type);
-    xmlFreeDoc(doc);
     return false;
   }
-  xmlFree(type);
 
-  xmlFreeDoc(doc);
   return true;
 }
 
@@ -272,61 +258,50 @@ static bool get_compressed_xml_associated_image_data(xmlDoc *doc,
                                                      void **out_data,
                                                      gsize *out_len,
                                                      GError **err) {
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
-  if (b64_data) {
-    *out_data = g_base64_decode(b64_data, out_len);
-  } else {
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autofree char *b64_data = _openslide_xml_xpath_get_string(ctx, xpath);
+  if (!b64_data) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read associated image data");
+    return false;
   }
-  g_free(b64_data);
-  xmlXPathFreeContext(ctx);
-  return b64_data != NULL;
+  *out_data = g_base64_decode(b64_data, out_len);
+  return true;
 }
 
 static bool get_xml_associated_image_data(struct _openslide_associated_image *_img,
                                           uint32_t *dest,
                                           GError **err) {
   struct xml_associated_image *img = (struct xml_associated_image *) _img;
-  void *data = NULL;
-  bool success = false;
 
-  TIFF *tiff = _openslide_tiffcache_get(img->tc, err);
-  if (!tiff) {
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(img->tc, err);
+  if (!ct.tiff) {
     return false;
   }
 
-  xmlDoc *doc = parse_xml(tiff, err);
+  g_autoptr(xmlDoc) doc = parse_xml(ct.tiff, err);
   if (!doc) {
-    goto DONE;
+    return false;
   }
 
+  g_autofree void *data = NULL;
   gsize len;
   if (!get_compressed_xml_associated_image_data(doc, img->xpath,
                                                 &data, &len, err)) {
-    goto DONE;
+    return false;
   }
 
-  success = _openslide_jpeg_decode_buffer(data, len, dest,
-                                          img->base.w, img->base.h, err);
-
-DONE:
-  g_free(data);
-  if (doc) {
-    xmlFreeDoc(doc);
-  }
-  _openslide_tiffcache_put(img->tc, tiff);
-  return success;
+  return _openslide_jpeg_decode_buffer(data, len, dest,
+                                       img->base.w, img->base.h, err);
 }
 
 static void destroy_xml_associated_image(struct _openslide_associated_image *_img) {
   struct xml_associated_image *img = (struct xml_associated_image *) _img;
 
-  g_slice_free(struct xml_associated_image, img);
+  g_free(img);
 }
 
-static const struct _openslide_associated_image_ops philips_xml_associated_ops = {
+static const struct _openslide_associated_image_ops philips_tiff_xml_associated_ops = {
   .get_argb_data = get_xml_associated_image_data,
   .destroy = destroy_xml_associated_image,
 };
@@ -343,7 +318,7 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
     return true;
   }
 
-  void *data;
+  g_autofree void *data = NULL;
   gsize len;
   if (!get_compressed_xml_associated_image_data(doc, xpath,
                                                 &data, &len, err)) {
@@ -352,17 +327,14 @@ static bool maybe_add_xml_associated_image(openslide_t *osr,
   }
 
   int32_t w, h;
-  bool success =
-    _openslide_jpeg_decode_buffer_dimensions(data, len, &w, &h, err);
-  g_free(data);
-  if (!success) {
+  if (!_openslide_jpeg_decode_buffer_dimensions(data, len, &w, &h, err)) {
     g_prefix_error(err, "Can't decode %s associated image: ", name);
     return false;
   }
 
   //g_debug("Adding %s image from XML", name);
-  struct xml_associated_image *img = g_slice_new0(struct xml_associated_image);
-  img->base.ops = &philips_xml_associated_ops;
+  struct xml_associated_image *img = g_new0(struct xml_associated_image, 1);
+  img->base.ops = &philips_tiff_xml_associated_ops;
   img->base.w = w;
   img->base.h = h;
   img->tc = tc;
@@ -382,27 +354,25 @@ static void add_properties_from_array(openslide_t *osr,
                                       xmlXPathContext *ctx,
                                       const char *prefix,
                                       xmlNode *node) {
-  xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+  g_autoptr(xmlChar) name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
   ctx->node = node;
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, "Array/DataObject");
+  g_autoptr(xmlXPathObject) result =
+    _openslide_xml_xpath_eval(ctx, "Array/DataObject");
   for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
     ctx->node = result->nodesetval->nodeTab[i];
-    char *sub_prefix = g_strdup_printf("%s.%s[%d]", prefix, name, i);
+    g_autofree char *sub_prefix = g_strdup_printf("%s.%s[%d]", prefix, name, i);
     add_properties(osr, ctx, sub_prefix, "Attribute");
-    g_free(sub_prefix);
   }
-  xmlXPathFreeObject(result);
-  xmlFree(name);
 }
 
 static void add_properties(openslide_t *osr,
                            xmlXPathContext *ctx,
                            const char *prefix,
                            const char *xpath) {
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, xpath);
+  g_autoptr(xmlXPathObject) result = _openslide_xml_xpath_eval(ctx, xpath);
   for (int i = 0; result && i < result->nodesetval->nodeNr; i++) {
     xmlNode *node = result->nodesetval->nodeTab[i];
-    xmlChar *name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
+    g_autoptr(xmlChar) name = xmlGetProp(node, BAD_CAST XML_NAME_ATTR);
 
     if (name) {
       if (!xmlStrcmp(name, BAD_CAST XML_SCANNED_IMAGES_NAME)) {
@@ -418,26 +388,22 @@ static void add_properties(openslide_t *osr,
 
       } else if (!xmlFirstElementChild(node)) {
         // Add value
-        xmlChar *value = xmlNodeGetContent(node);
+        g_autoptr(xmlChar) value = xmlNodeGetContent(node);
         if (value) {
           g_hash_table_insert(osr->properties,
                               g_strdup_printf("%s.%s", prefix, (char *) name),
                               g_strdup((char *) value));
         }
-        xmlFree(value);
       }
     }
-    xmlFree(name);
   }
-  xmlXPathFreeObject(result);
 }
 
 // returns *w and *h in mm
 static bool parse_pixel_spacing(const char *spacing,
                                 double *w, double *h,
                                 GError **err) {
-  bool success = false;
-  char **spacings = g_strsplit(spacing, " ", 0);
+  g_auto(GStrv) spacings = g_strsplit(spacing, " ", 0);
   if (g_strv_length(spacings) == 2) {
     for (int i = 0; i < 2; i++) {
       // strip quotes
@@ -446,14 +412,13 @@ static bool parse_pixel_spacing(const char *spacing,
     // row spacing, then column spacing
     *w = _openslide_parse_double(spacings[1]);
     *h = _openslide_parse_double(spacings[0]);
-    success = !isnan(*w) && !isnan(*h);
+    if (!isnan(*w) && !isnan(*h)) {
+      return true;
+    }
   }
-  g_strfreev(spacings);
-  if (!success) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't parse pixel spacing");
-  }
-  return success;
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+              "Couldn't parse pixel spacing");
+  return false;
 }
 
 static void add_mpp_properties(openslide_t *osr) {
@@ -476,11 +441,9 @@ static bool fix_level_dimensions(struct level **levels,
                                  int32_t level_count,
                                  xmlDoc *doc,
                                  GError **err) {
-  bool success = false;
-
   // query pixel spacings
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  xmlXPathObject *result =
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathObject) result =
     _openslide_xml_xpath_eval(ctx,
                               "/DataObject"
                               "/Attribute[@Name='PIM_DP_SCANNED_IMAGES']"
@@ -495,20 +458,19 @@ static bool fix_level_dimensions(struct level **levels,
   if (!result || result->nodesetval->nodeNr != level_count) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't get level downsamples");
-    goto DONE;
+    return false;
   }
 
   // walk levels
   double l0_w = 0;
   double l0_h = 0;
   for (int32_t i = 0; i < level_count; i++) {
-    xmlChar *spacing = xmlNodeGetContent(result->nodesetval->nodeTab[i]);
+    g_autoptr(xmlChar) spacing =
+      xmlNodeGetContent(result->nodesetval->nodeTab[i]);
     double w, h;
-    bool ok = parse_pixel_spacing((const char *) spacing, &w, &h, err);
-    xmlFree(spacing);
-    if (!ok) {
+    if (!parse_pixel_spacing((const char *) spacing, &w, &h, err)) {
       g_prefix_error(err, "Level %d: ", i);
-      goto DONE;
+      return false;
     }
 
     if (i == 0) {
@@ -526,20 +488,14 @@ static bool fix_level_dimensions(struct level **levels,
     }
   }
 
-  success = true;
-
-DONE:
-  xmlXPathFreeObject(result);
-  xmlXPathFreeContext(ctx);
-  return success;
+  return true;
 }
 
 static bool verify_main_image_count(xmlDoc *doc, GError **err) {
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
-  xmlXPathObject *result = _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathObject) result =
+    _openslide_xml_xpath_eval(ctx, MAIN_IMAGE_XPATH);
   int count = result ? result->nodesetval->nodeNr : 0;
-  xmlXPathFreeObject(result);
-  xmlXPathFreeContext(ctx);
   if (count != 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Expected one WSI image, found %d", count);
@@ -548,80 +504,79 @@ static bool verify_main_image_count(xmlDoc *doc, GError **err) {
   return true;
 }
 
-static bool philips_open(openslide_t *osr,
-                         const char *filename,
-                         struct _openslide_tifflike *tl,
-                         struct _openslide_hash *quickhash1,
-                         GError **err) {
-  GPtrArray *level_array = g_ptr_array_new();
-  xmlDoc *doc = NULL;
-  bool success = false;
-
+static bool philips_tiff_open(openslide_t *osr,
+                              const char *filename,
+                              struct _openslide_tifflike *tl,
+                              struct _openslide_hash *quickhash1,
+                              GError **err) {
   // open TIFF
-  struct _openslide_tiffcache *tc = _openslide_tiffcache_create(filename);
-  TIFF *tiff = _openslide_tiffcache_get(tc, err);
-  if (!tiff) {
-    goto FAIL;
+  g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
+  if (!ct.tiff) {
+    return false;
   }
 
   // parse XML document
-  doc = parse_xml(tiff, err);
+  g_autoptr(xmlDoc) doc = parse_xml(ct.tiff, err);
   if (doc == NULL) {
-    goto FAIL;
+    return false;
   }
 
   // ensure there is only one WSI DPScannedImage in the XML
   if (!verify_main_image_count(doc, err)) {
-    goto FAIL;
+    return false;
   }
 
   // create levels
+  g_autoptr(GPtrArray) level_array =
+    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
   struct level *prev_l = NULL;
   do {
     // get directory
-    tdir_t dir = TIFFCurrentDirectory(tiff);
+    tdir_t dir = TIFFCurrentDirectory(ct.tiff);
 
     // get ImageDescription
     const char *image_desc;
-    if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
       image_desc = NULL;
     }
 
-    if (TIFFIsTiled(tiff)) {
+    if (TIFFIsTiled(ct.tiff)) {
       // pyramid level
 
       // confirm it is either the first image, or reduced-resolution
       if (prev_l) {
         uint32_t subfiletype;
-        if (!TIFFGetField(tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
+        if (!TIFFGetField(ct.tiff, TIFFTAG_SUBFILETYPE, &subfiletype) ||
             !(subfiletype & FILETYPE_REDUCEDIMAGE)) {
           g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                       "Directory %d is not reduced-resolution", dir);
-          goto FAIL;
+          return false;
         }
       }
 
       // verify that we can read this compression
       uint16_t compression;
-      if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
+      if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Can't read compression scheme");
-        goto FAIL;
+        return false;
       };
       if (!TIFFIsCODECConfigured(compression)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unsupported TIFF compression: %u", compression);
-        goto FAIL;
+        return false;
       }
 
       // create level
-      struct level *l = g_slice_new0(struct level);
+      struct level *l = g_new0(struct level, 1);
       struct _openslide_tiff_level *tiffl = &l->tiffl;
-      if (!_openslide_tiff_level_init(tiff, dir,
+      g_ptr_array_add(level_array, l);
+
+      if (!_openslide_tiff_level_init(ct.tiff, dir,
                                       (struct _openslide_level *) l, tiffl,
                                       err)) {
-        g_slice_free(struct level, l);
-        goto FAIL;
+        return false;
       }
       l->grid = _openslide_grid_create_simple(osr,
                                               tiffl->tiles_across,
@@ -630,16 +585,13 @@ static bool philips_open(openslide_t *osr,
                                               tiffl->tile_h,
                                               read_tile);
 
-      // add to array
-      g_ptr_array_add(level_array, l);
-
       // verify that levels are sorted by size
       if (prev_l &&
           (tiffl->image_w > prev_l->tiffl.image_w ||
            tiffl->image_h > prev_l->tiffl.image_h)) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected dimensions for directory %d", dir);
-        goto FAIL;
+        return false;
       }
       prev_l = l;
 
@@ -648,7 +600,7 @@ static bool philips_open(openslide_t *osr,
       // label
       //g_debug("Adding label image from directory %d", dir);
       if (!_openslide_tiff_add_associated_image(osr, "label", tc, dir, err)) {
-        goto FAIL;
+        return false;
       }
 
     } else if (image_desc &&
@@ -656,17 +608,17 @@ static bool philips_open(openslide_t *osr,
       // macro image
       //g_debug("Adding macro image from directory %d", dir);
       if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, err)) {
-        goto FAIL;
+        return false;
       }
     }
-  } while (TIFFReadDirectory(tiff));
+  } while (TIFFReadDirectory(ct.tiff));
 
   // override level dimensions and downsamples to work around incorrect
   // level dimensions in the metadata
   if (!fix_level_dimensions((struct level **) level_array->pdata,
                             level_array->len,
                             doc, err)) {
-    goto FAIL;
+    return false;
   }
 
   // set hash and properties
@@ -676,7 +628,7 @@ static bool philips_open(openslide_t *osr,
                                                     top_level->tiffl.dir,
                                                     0,
                                                     err)) {
-    goto FAIL;
+    return false;
   }
 
   // keep the XML document out of the properties
@@ -684,10 +636,9 @@ static bool philips_open(openslide_t *osr,
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 
   // add properties from XML
-  xmlXPathContext *ctx = _openslide_xml_xpath_create(doc);
+  g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
   add_properties(osr, ctx, "philips", "/DataObject/Attribute");
   add_mpp_properties(osr);
-  xmlXPathFreeContext(ctx);
 
   // add associated images from XML
   // errors are non-fatal
@@ -696,56 +647,25 @@ static bool philips_open(openslide_t *osr,
   maybe_add_xml_associated_image(osr, tc, doc,
                                  "macro", MACRO_DATA_XPATH, NULL);
 
-  // unwrap level array
-  int32_t level_count = level_array->len;
-  struct level **levels =
-    (struct level **) g_ptr_array_free(level_array, false);
-  level_array = NULL;
-
   // allocate private data
-  struct philips_ops_data *data = g_slice_new0(struct philips_ops_data);
+  struct philips_tiff_ops_data *data = g_new0(struct philips_tiff_ops_data, 1);
+  data->tc = g_steal_pointer(&tc);
 
   // store osr data
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
-  osr->levels = (struct _openslide_level **) levels;
-  osr->level_count = level_count;
+  osr->level_count = level_array->len;
+  osr->levels = (struct _openslide_level **)
+    g_ptr_array_free(g_steal_pointer(&level_array), false);
   osr->data = data;
-  osr->ops = &philips_ops;
+  osr->ops = &philips_tiff_ops;
 
-  // put TIFF handle and store tiffcache reference
-  _openslide_tiffcache_put(tc, tiff);
-  data->tc = tc;
-
-  // done
-  success = true;
-  goto DONE;
-
-FAIL:
-  // free the level array
-  if (level_array) {
-    for (uint32_t n = 0; n < level_array->len; n++) {
-      struct level *l = level_array->pdata[n];
-      _openslide_grid_destroy(l->grid);
-      g_slice_free(struct level, l);
-    }
-    g_ptr_array_free(level_array, true);
-  }
-  // free TIFF
-  _openslide_tiffcache_put(tc, tiff);
-  _openslide_tiffcache_destroy(tc);
-
-DONE:
-  // free XML
-  if (doc) {
-    xmlFreeDoc(doc);
-  }
-  return success;
+  return true;
 }
 
-const struct _openslide_format _openslide_format_philips = {
-  .name = "philips",
+const struct _openslide_format _openslide_format_philips_tiff = {
+  .name = "philips-tiff",
   .vendor = "philips",
-  .detect = philips_detect,
-  .open = philips_open,
+  .detect = philips_tiff_detect,
+  .open = philips_tiff_open,
 };

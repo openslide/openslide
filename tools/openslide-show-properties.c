@@ -19,26 +19,26 @@
  *
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
 
-static gboolean process(const char *file, int successes, int total) {
-  openslide_t *osr = openslide_open(file);
+static bool process(const char *file, int successes, int total) {
+  g_autoptr(openslide_t) osr = openslide_open(file);
   if (osr == NULL) {
     fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
 	    g_get_prgname(), file);
     fflush(stderr);
-    return FALSE;
+    return false;
   }
 
   const char *err = openslide_get_error(osr);
   if (err) {
     fprintf(stderr, "%s: %s: %s\n", g_get_prgname(), file, err);
     fflush(stderr);
-    openslide_close(osr);
-    return FALSE;
+    return false;
   }
 
   // print header
@@ -60,8 +60,7 @@ static gboolean process(const char *file, int successes, int total) {
     property_names++;
   }
 
-  openslide_close(osr);
-  return TRUE;
+  return true;
 }
 
 

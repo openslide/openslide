@@ -1,7 +1,7 @@
 base: Mirax/CMU-1.zip
 # Unanchored regex: the error could have various prefixes depending on which
-# nonhier record is read first
-error: Cannot seek to nonhier record pointer [0-9]+$
+# nonhier record is read first, and suffixes depending on strerror
+error: "Cannot seek to nonhier record pointer [0-9]+:"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

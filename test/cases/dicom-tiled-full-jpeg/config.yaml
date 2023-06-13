@@ -1,0 +1,8 @@
+base: DICOM/3DHISTECH-1.zip
+slide: 000004.dcm
+success: true
+vendor: dicom
+primary: true
+requires: [dicom]
+properties:
+  openslide.vendor: dicom

@@ -18,8 +18,6 @@
  * This file is basically copied from libjpeg-turbo-1.3.0.
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 
@@ -32,11 +30,11 @@
 /* Expanded data source object for stdio input */
 
 typedef struct {
-  struct jpeg_source_mgr pub;	/* public fields */
+  struct jpeg_source_mgr pub;		/* public fields */
 
-  FILE * infile;		/* source stream */
-  JOCTET * buffer;		/* start of buffer */
-  boolean start_of_file;	/* have we gotten any data yet? */
+  struct _openslide_file * infile;	/* source stream */
+  JOCTET * buffer;			/* start of buffer */
+  boolean start_of_file;		/* have we gotten any data yet? */
 } my_source_mgr;
 
 typedef my_source_mgr * my_src_ptr;
@@ -104,7 +102,7 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo)
   my_src_ptr src = (my_src_ptr) cinfo->src;
   size_t nbytes;
 
-  nbytes = fread(src->buffer, 1, INPUT_BUF_SIZE, src->infile);
+  nbytes = _openslide_fread(src->infile, src->buffer, INPUT_BUF_SIZE);
 
   if (nbytes <= 0) {
     if (src->start_of_file)	/* Treat empty input file as fatal error */
@@ -208,7 +206,8 @@ static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
  * for closing it after finishing decompression.
  */
 
-void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo, FILE * infile)
+void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo,
+                                struct _openslide_file * infile)
 {
   my_src_ptr src;
 

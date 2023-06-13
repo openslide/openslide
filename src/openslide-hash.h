@@ -22,8 +22,6 @@
 #ifndef OPENSLIDE_OPENSLIDE_HASH_H_
 #define OPENSLIDE_OPENSLIDE_HASH_H_
 
-#include <config.h>
-
 #include "openslide.h"
 
 #include <stdbool.h>
@@ -55,5 +53,8 @@ const char *_openslide_hash_get_string(struct _openslide_hash *hash);
 
 // destructor
 void _openslide_hash_destroy(struct _openslide_hash *hash);
+
+typedef struct _openslide_hash _openslide_hash;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_hash, _openslide_hash_destroy)
 
 #endif

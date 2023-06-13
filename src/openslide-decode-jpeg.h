@@ -22,12 +22,7 @@
 #ifndef OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
 #define OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
 
-// jconfig.h redefines HAVE_STDLIB_H if libjpeg was not built with Autoconf
-#undef HAVE_STDLIB_H
 #include <jpeglib.h>
-#undef HAVE_STDLIB_H
-#include <config.h>  // fix damage
-
 #include <stdio.h>
 #include <stdint.h>
 #include <glib.h>
@@ -68,7 +63,8 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
  * So we need to compile all our freading into the OpenSlide DLL directly.
  */
-void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo, FILE *infile);
+void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo,
+                               struct _openslide_file *infile);
 
 /*
  * Some libjpegs don't provide mem_src, so we have our own copy.
@@ -96,5 +92,13 @@ void _openslide_jpeg_propagate_error(GError **err,
                                      struct _openslide_jpeg_decompress *dc);
 
 void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc);
+
+// volatile pointer, to ensure clang doesn't incorrectly optimize field
+// accesses after setjmp() returns again in the function allocating the struct
+// https://github.com/llvm/llvm-project/issues/57110
+typedef struct _openslide_jpeg_decompress * volatile _openslide_jpeg_decompress;
+G_DEFINE_AUTO_CLEANUP_FREE_FUNC(_openslide_jpeg_decompress,
+                                _openslide_jpeg_decompress_destroy,
+                                NULL)
 
 #endif

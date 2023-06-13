@@ -1,7 +1,9 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2014 Carnegie Mellon University
+ *  Copyright (c) 2007-2015 Carnegie Mellon University
+ *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2022-2023 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -19,25 +21,17 @@
  *
  */
 
-#define _WIN32_WINNT 0x0600
+#ifndef OPENSLIDE_OPENSLIDE_DECODE_DICOM_H_
+#define OPENSLIDE_OPENSLIDE_DECODE_DICOM_H_
 
-#include <stdio.h>
-#include <windows.h>
+#include <glib.h>
+#include <dicom/dicom.h>
 
-// avoid warning about missing prototype
-int wmain(int argc, wchar_t **argv);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFilehandle, dcm_filehandle_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmDataSet, dcm_dataset_destroy)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(DcmFrame, dcm_frame_destroy)
 
-int wmain(int argc, wchar_t **argv) {
-  if (argc != 3) {
-    fwprintf(stderr, L"Usage: %s <src> <dst>\n", argv[0]);
-    return 1;
-  }
+DcmFilehandle *_openslide_dicom_open(const char *filename, GError **err);
+void _openslide_dicom_propagate_error(GError **err, DcmError *dcm_error);
 
-  const wchar_t *src = argv[1];
-  const wchar_t *dst = argv[2];
-  if (!CreateSymbolicLink(dst, src, 0)) {
-    fprintf(stderr, "Failed with error %lu\n", GetLastError());
-    return 1;
-  }
-  return 0;
-}
+#endif

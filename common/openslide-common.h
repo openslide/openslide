@@ -24,6 +24,11 @@
 
 #include <stdbool.h>
 #include <glib.h>
+#include <openslide.h>
+
+#ifdef OPENSLIDE_PUBLIC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
+#endif
 
 // cmdline
 
@@ -46,6 +51,7 @@ void common_usage(const struct common_usage_info *info) G_GNUC_NORETURN;
 // fail
 
 void common_fail(const char *fmt, ...) G_GNUC_NORETURN;
+void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 // fd
 

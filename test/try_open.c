@@ -21,6 +21,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -28,6 +29,11 @@
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
+#include "config.h"
+
+#ifdef HAVE_VALGRIND
+#include <valgrind.h>
+#endif
 
 #define MAX_FDS 128
 #define TIME_ITERATIONS 5
@@ -37,7 +43,7 @@ static gchar **prop_checks;
 static gchar **region_checks;
 static gboolean time_check;
 
-static gboolean have_error = FALSE;
+static bool have_error = false;
 
 static void fail(const char *str, ...) {
   va_list ap;
@@ -47,7 +53,7 @@ static void fail(const char *str, ...) {
     vfprintf(stderr, str, ap);
     fprintf(stderr, "\n");
     va_end(ap);
-    have_error = TRUE;
+    have_error = true;
   }
 }
 
@@ -55,7 +61,7 @@ static void print_log(const gchar *domain G_GNUC_UNUSED,
                       GLogLevelFlags level G_GNUC_UNUSED,
                       const gchar *message, void *data G_GNUC_UNUSED) {
   fprintf(stderr, "[log] %s\n", message);
-  have_error = TRUE;
+  have_error = true;
 }
 
 static void check_error(openslide_t *osr) {
@@ -63,6 +69,14 @@ static void check_error(openslide_t *osr) {
   if (error != NULL) {
     fail("%s", error);
   }
+}
+
+static bool in_valgrind(void) {
+#ifdef HAVE_VALGRIND
+  return RUNNING_ON_VALGRIND;
+#else
+  return false;
+#endif
 }
 
 #define CHECK_RET(call, result)			\
@@ -118,10 +132,9 @@ static void check_api_failures(openslide_t *osr) {
 
 static void check_props(openslide_t *osr) {
   for (gchar **check = prop_checks; !have_error && check && *check; check++) {
-    gchar **args = g_strsplit(*check, "=", 2);
+    g_auto(GStrv) args = g_strsplit(*check, "=", 2);
     if (g_strv_length(args) != 2) {
       fail("Invalid property check: %s", *check);
-      g_strfreev(args);
       return;
     }
     gchar *key = args[0];
@@ -142,17 +155,15 @@ static void check_props(openslide_t *osr) {
         fail("Property %s is %s; should be %s", key, value, expected_value);
       }
     }
-    g_strfreev(args);
   }
 }
 
 static void check_regions(openslide_t *osr) {
   for (gchar **check = region_checks; !have_error && check && *check;
        check++) {
-    gchar **args = g_strsplit(*check, " ", 5);
+    g_auto(GStrv) args = g_strsplit(*check, " ", 5);
     if (g_strv_length(args) != 5) {
       fail("Invalid region check: %s", *check);
-      g_strfreev(args);
       return;
     }
     int64_t x = g_ascii_strtoll(args[0], NULL, 10);
@@ -160,12 +171,10 @@ static void check_regions(openslide_t *osr) {
     int32_t level = g_ascii_strtoll(args[2], NULL, 10);
     int64_t w = g_ascii_strtoll(args[3], NULL, 10);
     int64_t h = g_ascii_strtoll(args[4], NULL, 10);
-    g_strfreev(args);
 
-    uint32_t *buf = g_slice_alloc(w * h * 4);
+    g_autofree uint32_t *buf = g_malloc(w * h * 4);
     openslide_read_region(osr, buf, x, y, level, w, h);
     check_error(osr);
-    g_slice_free1(w * h * 4, buf);
   }
 }
 
@@ -185,16 +194,14 @@ int main(int argc, char **argv) {
   GError *tmp_err = NULL;
 
   // Parse arguments
-  GOptionContext *ctx =
+  g_autoptr(GOptionContext) ctx =
     g_option_context_new("SLIDE - try opening a slide file");
   g_option_context_add_main_entries(ctx, options, NULL);
   if (!common_parse_options(ctx, &argc, &argv, &tmp_err)) {
     fail("%s", tmp_err->message);
     g_clear_error(&tmp_err);
-    g_option_context_free(ctx);
     return 2;
   }
-  g_option_context_free(ctx);
   if (argc != 2) {
     fail("No slide specified");
     return 2;
@@ -202,7 +209,7 @@ int main(int argc, char **argv) {
   const char *filename = argv[1];
 
   // Record preexisting file descriptors
-  GHashTable *fds = g_hash_table_new(g_direct_hash, g_direct_equal);
+  g_autoptr(GHashTable) fds = g_hash_table_new(g_direct_hash, g_direct_equal);
   for (int i = 0; i < MAX_FDS; i++) {
     struct stat st;
     if (!fstat(i, &st)) {
@@ -210,7 +217,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  g_log_set_handler("Openslide", (GLogLevelFlags)
+  g_log_set_handler("OpenSlide", (GLogLevelFlags)
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
       print_log, NULL);
 
@@ -240,7 +247,7 @@ int main(int argc, char **argv) {
     }
   } else if (!have_error) {
     // openslide_open returned NULL but logged nothing
-    have_error = TRUE;
+    have_error = true;
   }
 
   if (osr != NULL) {
@@ -255,21 +262,23 @@ int main(int argc, char **argv) {
   // Check for file descriptor leaks
   for (int i = 0; i < MAX_FDS; i++) {
     if (!g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
-      char *path = common_get_fd_path(i);
+      g_autofree char *path = common_get_fd_path(i);
       if (path != NULL) {
+        if (in_valgrind() && g_str_has_prefix(path, "pipe:")) {
+          // valgrind likes to open pipes
+          continue;
+        }
         // leaked
         fprintf(stderr, "Leaked file descriptor to %s\n", path);
-        have_error = TRUE;
-        g_free(path);
+        have_error = true;
       }
     }
   }
-  g_hash_table_destroy(fds);
 
   // Do timing run.  The earlier openslide_open() doesn't count because
   // it reads the slide data into the page cache.
   if (time_check && !have_error) {
-    GTimer *timer = NULL;
+    g_autoptr(GTimer) timer = NULL;
 
     // Average of TIME_ITERATIONS runs
     for (int i = 0; i < TIME_ITERATIONS; i++) {
@@ -299,7 +308,6 @@ int main(int argc, char **argv) {
       printf("%d ms\n",
              (int) (1000 * g_timer_elapsed(timer, NULL) / TIME_ITERATIONS));
     }
-    g_timer_destroy(timer);
   }
 
   return have_error ? 1 : 0;

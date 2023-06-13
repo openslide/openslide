@@ -51,7 +51,7 @@ returns 0 on success, 1 if a slide file could not be read, or 2 if the
 arguments are invalid.
 
 .SH COPYRIGHT
-Copyright \(co 2007-2012 Carnegie Mellon University and others
+Copyright \(co 2007-2023 Carnegie Mellon University and others
 
 OpenSlide is free software: you can redistribute it and/or modify it under
 the terms of the

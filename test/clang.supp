@@ -1,0 +1,16 @@
+# clang sanitizer suppressions
+# https://clang.llvm.org/docs/SanitizerSpecialCaseList.html
+
+[cfi-icall]
+# indirect function calls into libraries compiled without instrumentation
+fun:jpeg_random_access_src
+fun:my_output_message
+fun:_openslide_jpeg_mem_src
+fun:_openslide_jpeg_stdio_src
+fun:_openslide_xml_char_free
+
+[unsigned-integer-overflow]
+# unsigned overflow isn't UB but we check for it, and ignore cases where
+# it's intentional
+fun:fix_offset_ndpi
+fun:tilemap_tile_hash_func
