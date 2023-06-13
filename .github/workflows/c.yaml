@@ -30,8 +30,10 @@ jobs:
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
-            container: debian:stable
+            container: debian:11
             ignore-cloexec-leaks: ignore CLOEXEC leaks
+          - os: ubuntu-latest
+            container: debian:12
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
