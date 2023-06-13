@@ -345,6 +345,10 @@ void openslide_close(openslide_t *osr) {
 
   g_free(g_atomic_pointer_get(&osr->error));
 
+  if (osr->icc_profile) {
+    g_free(osr->icc_profile);
+  }
+
   g_free(osr);
 }
 
@@ -539,6 +543,18 @@ const char *openslide_get_property_value(openslide_t *osr, const char *name) {
   }
 
   return g_hash_table_lookup(osr->properties, name);
+}
+
+const char *openslide_read_icc_profile(openslide_t *osr, uint64_t *len) {
+  if (openslide_get_error(osr)) {
+    return NULL;
+  }
+
+  if (len) {
+    *len = osr->icc_profile_length;
+  }
+
+  return osr->icc_profile;
 }
 
 const char * const *openslide_get_associated_image_names(openslide_t *osr) {

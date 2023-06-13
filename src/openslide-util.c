@@ -335,3 +335,19 @@ void _openslide_performance_warn_once(gint *warned_flag,
     }
   }
 }
+
+void _openslide_set_icc_profile(openslide_t *osr,
+                                const char *icc_profile,
+                                int64_t icc_profile_length) {
+  if (osr->icc_profile) {
+    g_free(osr->icc_profile);
+    osr->icc_profile = NULL;
+    osr->icc_profile_length = 0;
+  }
+
+  if (icc_profile) {
+    osr->icc_profile = g_malloc(icc_profile_length);
+    memcpy(osr->icc_profile, icc_profile, icc_profile_length);
+    osr->icc_profile_length = icc_profile_length;
+  }
+}

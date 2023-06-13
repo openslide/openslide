@@ -1132,5 +1132,15 @@ bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
   // load TIFF properties
   store_and_hash_properties(tl, property_dir, osr, quickhash1);
 
+  // attach ICC profile, if any
+  struct tiff_item *item = get_item(tl, property_dir, TIFFTAG_ICCPROFILE);
+  if (item) {
+    const char *icc_profile = _openslide_tifflike_get_buffer(tl, property_dir, TIFFTAG_ICCPROFILE, err);
+    if (icc_profile == NULL) {
+      return false;
+    }
+    _openslide_set_icc_profile(osr, icc_profile, item->count);
+  }
+
   return true;
 }
