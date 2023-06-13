@@ -388,6 +388,22 @@ const char * const *openslide_get_property_names(openslide_t *osr);
 OPENSLIDE_PUBLIC()
 const char *openslide_get_property_value(openslide_t *osr, const char *name);
 
+/**
+ * Get the value of the ICC profile.
+ *
+ * This function returns a pointer to openslide's internal copy of the ICC
+ * profile associated with this image, or NULL if no profile is found.
+ *
+ * The return value remains valid as long as osr is valid. A copy should
+ * be made of this memory area if it needs to be valid after osr is closed.
+ *
+ * @param osr The OpenSlide object.
+ * @param len If non-NULL, return the length in bytes of the profile.
+ * @return A pointer to the ICC profile, or NULL if no profile is found.
+ */
+OPENSLIDE_PUBLIC()
+const char *openslide_read_icc_profile(openslide_t *osr, uint64_t *len);
+
 //@}
 
 /**

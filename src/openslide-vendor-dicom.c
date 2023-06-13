@@ -122,6 +122,7 @@ static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char VLWholeSlideMicroscopyImageStorage[] =
   "1.2.840.10008.5.1.4.1.1.77.1.6";
 static const char ImageType[] = "ImageType";
+static const char ICCProfile[] = "ICCProfile";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
@@ -231,6 +232,21 @@ static bool get_tag_str(DcmDataSet *dataset,
   DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
   return element &&
          dcm_element_get_value_string(NULL, element, index, result);
+}
+
+static bool get_tag_binary(DcmDataSet *dataset,
+                           const char *keyword,
+                           const char **result,
+                           int64_t *length) {
+  uint32_t tag = dcm_dict_tag_from_keyword(keyword);
+  DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
+  if (!element) {
+    return false;
+  }
+  if (length) {
+    *length = dcm_element_get_length(element);
+  }
+  return dcm_element_get_value_binary(NULL, element, result);
 }
 
 static bool get_tag_decimal_str(DcmDataSet *dataset,
@@ -367,13 +383,13 @@ static void rgb_to_cairo(const uint8_t *rgb, uint32_t *dest,
   }
 }
 
-static bool decode_frame(struct dicom_file *file, 
+static bool decode_frame(struct dicom_file *file,
                          int64_t tile_col, int64_t tile_row,
                          uint32_t *dest, int64_t w, int64_t h,
                          GError **err) {
   g_mutex_lock(&file->lock);
   DcmError *dcm_error = NULL;
-  g_autoptr(DcmFrame) frame = 
+  g_autoptr(DcmFrame) frame =
       dcm_filehandle_read_frame_position(&dcm_error,
                                          file->filehandle,
                                          tile_col, tile_row);
@@ -960,6 +976,17 @@ static bool dicom_open(openslide_t *osr,
 
   // no quickhash yet; disable
   _openslide_hash_disable(quickhash1);
+
+  // attach a copy of the icc profile from the main image
+  const char *icc_profile;
+  int64_t icc_profile_length;
+  struct dicom_level *l = (struct dicom_level *) level_array->pdata[0];
+  DcmDataSet *optical_path;
+  if (get_tag_seq_item(l->file->metadata, OpticalPathSequence, 0, &optical_path) &&
+      get_tag_binary(optical_path,
+                     ICCProfile, &icc_profile, &icc_profile_length)) {
+    _openslide_set_icc_profile(osr, icc_profile, icc_profile_length);
+  }
 
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
