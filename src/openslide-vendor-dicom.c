@@ -91,12 +91,17 @@ struct allowed_types {
 static const char *const ORIGINAL_TYPES[] = {
   "ORIGINAL", "PRIMARY", "VOLUME", "NONE", NULL
 };
+// if the image has been re-encoded during conversion to DICOM
+static const char *const DERIVED_ORIGINAL_TYPES[] = {
+  "DERIVED", "PRIMARY", "VOLUME", "NONE", NULL
+};
 static const char *const RESAMPLED_TYPES[] = {
   "DERIVED", "PRIMARY", "VOLUME", "RESAMPLED", NULL
 };
 static const char *const *const LEVEL_TYPE_STRINGS[] = {
   ORIGINAL_TYPES,
-  RESAMPLED_TYPES
+  DERIVED_ORIGINAL_TYPES,
+  RESAMPLED_TYPES,
 };
 
 static const struct allowed_types LEVEL_TYPES = {
@@ -110,12 +115,20 @@ static const char OVERVIEW_TYPE[] = "OVERVIEW";
 static const char *const LABEL_TYPES[] = {
   "ORIGINAL", "PRIMARY", LABEL_TYPE, "NONE", NULL
 };
+static const char *const DERIVED_LABEL_TYPES[] = {
+  "DERIVED", "PRIMARY", LABEL_TYPE, "NONE", NULL
+};
 static const char *const OVERVIEW_TYPES[] = {
   "ORIGINAL", "PRIMARY", OVERVIEW_TYPE, "NONE", NULL
 };
+static const char *const DERIVED_OVERVIEW_TYPES[] = {
+  "DERIVED", "PRIMARY", OVERVIEW_TYPE, "NONE", NULL
+};
 static const char *const *const ASSOCIATED_TYPE_STRINGS[] = {
   LABEL_TYPES,
-  OVERVIEW_TYPES
+  DERIVED_LABEL_TYPES,
+  OVERVIEW_TYPES,
+  DERIVED_OVERVIEW_TYPES,
 };
 static const struct allowed_types ASSOCIATED_TYPES = {
   ASSOCIATED_TYPE_STRINGS,
@@ -166,11 +179,12 @@ static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("  filehandle = %p", f->filehandle);
   debug("  file_meta = %p", f->file_meta);
   debug("  metadata = %p", f->metadata);
+  debug("  format = %d", f->format);
 }
 
 static void print_level(struct dicom_level *l) {
-  debug("level:" );
   print_file(l->file);
+  debug("level:" );
   debug("  base.downsample = %g", l->base.downsample);
   debug("  base.w = %" PRId64, l->base.w);
   debug("  base.h = %" PRId64, l->base.h);
@@ -612,6 +626,9 @@ static bool add_associated(openslide_t *osr,
     // is_type() let something unexpected through
     g_assert_not_reached();
   }
+
+  debug("add_associated: %s\n", name);
+  print_file(f);
 
   // add
   g_hash_table_insert(osr->associated_images,
