@@ -28,6 +28,7 @@
 #include "openslide-private.h"
 #include "openslide-decode-dicom.h"
 #include "openslide-decode-jpeg.h"
+#include "openslide-decode-jp2k.h"
 #include "openslide-hash.h"
 
 #include <glib.h>
@@ -43,6 +44,8 @@
 
 enum image_format {
   FORMAT_JPEG,
+  FORMAT_JPEG2000_RGB,
+  FORMAT_JPEG2000_YCBCR,
   FORMAT_RGB,
 };
 
@@ -179,16 +182,10 @@ static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
 }
 
 static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                          GError **err) {
-  // reject TIFFs
-  if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Is a TIFF file");
-    return false;
-  }
-
-  // should be able to open as a DICOM
+  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
+  // tifflike files
   g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
   if (!filehandle) {
     return false;
@@ -405,6 +402,16 @@ static bool decode_frame(struct dicom_file *file,
   case FORMAT_JPEG:
     return _openslide_jpeg_decode_buffer(frame_value, frame_length,
                                          dest, w, h, err);
+  case FORMAT_JPEG2000_RGB:
+    return _openslide_jp2k_decode_buffer(dest, w, h,
+                                         frame_value, frame_length,
+                                         OPENSLIDE_JP2K_RGB,
+                                         err);
+  case FORMAT_JPEG2000_YCBCR:
+    return _openslide_jp2k_decode_buffer(dest, w, h,
+                                         frame_value, frame_length,
+                                         OPENSLIDE_JP2K_YCBCR,
+                                         err);
   case FORMAT_RGB:
     if (frame_length != w * h * 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -561,6 +568,30 @@ static bool get_format(DcmDataSet *metadata, enum image_format *format,
       verify_tag_str(metadata, LossyImageCompression, "01") &&
       verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
     *format = FORMAT_JPEG;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      // jpeg2000 lossy (irreversible) only, lossless seems too hard to get
+      // reasonable samples for
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
+    *format = FORMAT_JPEG2000_RGB;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "YBR_ICT") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
+    *format = FORMAT_JPEG2000_YCBCR;
     return true;
   } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
       verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&

@@ -1,0 +1,8 @@
+base: DICOM/CMU-1-JP2K-33005.zip
+slide: DCM_0.dcm
+success: true
+vendor: dicom
+primary: true
+requires: [dicom]
+properties:
+  openslide.vendor: dicom
