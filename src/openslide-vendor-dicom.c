@@ -44,8 +44,7 @@
 
 enum image_format {
   FORMAT_JPEG,
-  FORMAT_JPEG2000_RGB,
-  FORMAT_JPEG2000_YCBCR,
+  FORMAT_JPEG2000,
   FORMAT_RGB,
 };
 
@@ -57,6 +56,7 @@ struct dicom_file {
   DcmDataSet *file_meta;
   DcmDataSet *metadata;
   enum image_format format;
+  enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
 
 struct dicom_level {
@@ -73,6 +73,12 @@ struct dicom_level {
 struct associated {
   struct _openslide_associated_image base;
   struct dicom_file *file;
+};
+
+// map transfer syntax uids to the image formats we support
+struct syntax_format {
+  const char *syntax;
+  enum image_format format;
 };
 
 // a set of allowed image types for a class of image
@@ -137,10 +143,22 @@ static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char HighBit[] = "HighBit";
 static const char PixelRepresentation[] = "PixelRepresentation";
-static const char LossyImageCompression[] = "LossyImageCompression";
-static const char LossyImageCompressionMethod[] = "LossyImageCompressionMethod";
 static const char OpticalPathSequence[] = "OpticalPathSequence";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
+
+// the transfer syntaxes we support, and the format we use to decode pixels
+static struct syntax_format supported_syntax_formats[] = {
+    // simple uncompressed array
+    { "1.2.840.10008.1.2.1", FORMAT_RGB },
+
+    // jpeg baseline, we don't handle lossless or 12 bit
+    { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
+
+    // lossless and lossy jp2k
+    // we separate RGB and YCbCr with other tags
+    { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
+    { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
+};
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
@@ -305,6 +323,19 @@ static bool verify_tag_str(DcmDataSet *dataset,
          g_str_equal(value, expected_value);
 }
 
+static bool get_format(const char *syntax, enum image_format *format,
+                       GError **err) {
+  for (uint64_t i = 0; i < G_N_ELEMENTS(supported_syntax_formats); i++) {
+    if (g_str_equal(syntax, supported_syntax_formats[i].syntax)) {
+      *format = supported_syntax_formats[i].format;
+      return true;
+    }
+  }
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+              "Unsupported transfer syntax");
+  return false;
+}
+
 static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
   g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
 
@@ -328,6 +359,11 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
       !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a WSI DICOM");
+    return NULL;
+  }
+
+  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle), 
+                  &f->format, err)) {
     return NULL;
   }
 
@@ -367,13 +403,13 @@ static void rgb_to_cairo(const uint8_t *rgb, uint32_t *dest,
   }
 }
 
-static bool decode_frame(struct dicom_file *file, 
+static bool decode_frame(struct dicom_file *file,
                          int64_t tile_col, int64_t tile_row,
                          uint32_t *dest, int64_t w, int64_t h,
                          GError **err) {
   g_mutex_lock(&file->lock);
   DcmError *dcm_error = NULL;
-  g_autoptr(DcmFrame) frame = 
+  g_autoptr(DcmFrame) frame =
       dcm_filehandle_read_frame_position(&dcm_error,
                                          file->filehandle,
                                          tile_col, tile_row);
@@ -402,15 +438,10 @@ static bool decode_frame(struct dicom_file *file,
   case FORMAT_JPEG:
     return _openslide_jpeg_decode_buffer(frame_value, frame_length,
                                          dest, w, h, err);
-  case FORMAT_JPEG2000_RGB:
+  case FORMAT_JPEG2000:
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
-                                         OPENSLIDE_JP2K_RGB,
-                                         err);
-  case FORMAT_JPEG2000_YCBCR:
-    return _openslide_jp2k_decode_buffer(dest, w, h,
-                                         frame_value, frame_length,
-                                         OPENSLIDE_JP2K_YCBCR,
+                                         file->jp2k_colorspace,
                                          err);
   case FORMAT_RGB:
     if (frame_length != w * h * 3) {
@@ -554,62 +585,6 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .destroy = associated_destroy,
 };
 
-static bool get_format(DcmDataSet *metadata, enum image_format *format,
-                       GError **err) {
-  if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
-      // JPEG can be YCbCr or RGB
-      (verify_tag_str(metadata, PhotometricInterpretation, "YBR_FULL_422") ||
-       verify_tag_str(metadata, PhotometricInterpretation, "RGB")) &&
-      verify_tag_int(metadata, PlanarConfiguration, 0) &&
-      verify_tag_int(metadata, BitsAllocated, 8) &&
-      verify_tag_int(metadata, BitsStored, 8) &&
-      verify_tag_int(metadata, HighBit, 7) &&
-      verify_tag_int(metadata, PixelRepresentation, 0) &&
-      verify_tag_str(metadata, LossyImageCompression, "01") &&
-      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_10918_1")) {
-    *format = FORMAT_JPEG;
-    return true;
-  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
-      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
-      verify_tag_int(metadata, PlanarConfiguration, 0) &&
-      verify_tag_int(metadata, BitsAllocated, 8) &&
-      verify_tag_int(metadata, BitsStored, 8) &&
-      verify_tag_int(metadata, HighBit, 7) &&
-      verify_tag_int(metadata, PixelRepresentation, 0) &&
-      verify_tag_str(metadata, LossyImageCompression, "01") &&
-      // jpeg2000 lossy (irreversible) only, lossless seems too hard to get
-      // reasonable samples for
-      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
-    *format = FORMAT_JPEG2000_RGB;
-    return true;
-  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
-      verify_tag_str(metadata, PhotometricInterpretation, "YBR_ICT") &&
-      verify_tag_int(metadata, PlanarConfiguration, 0) &&
-      verify_tag_int(metadata, BitsAllocated, 8) &&
-      verify_tag_int(metadata, BitsStored, 8) &&
-      verify_tag_int(metadata, HighBit, 7) &&
-      verify_tag_int(metadata, PixelRepresentation, 0) &&
-      verify_tag_str(metadata, LossyImageCompression, "01") &&
-      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
-    *format = FORMAT_JPEG2000_YCBCR;
-    return true;
-  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
-      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
-      verify_tag_int(metadata, PlanarConfiguration, 0) &&
-      verify_tag_int(metadata, BitsAllocated, 8) &&
-      verify_tag_int(metadata, BitsStored, 8) &&
-      verify_tag_int(metadata, HighBit, 7) &&
-      verify_tag_int(metadata, PixelRepresentation, 0) &&
-      verify_tag_str(metadata, LossyImageCompression, "00")) {
-    *format = FORMAT_RGB;
-    return true;
-  } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported frame format");
-    return false;
-  }
-}
-
 // unconditionally takes ownership of dicom_file
 static bool add_associated(openslide_t *osr,
                            struct dicom_file *f,
@@ -718,9 +693,39 @@ static bool maybe_add_file(openslide_t *osr,
     return true;
   }
 
-  // check the image format
-  if (!get_format(f->metadata, &f->format, err)) {
+  // check the other image format tags
+  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0) ||
+      !verify_tag_int(f->metadata, BitsAllocated, 8) ||
+      !verify_tag_int(f->metadata, BitsStored, 8) ||
+      !verify_tag_int(f->metadata, HighBit, 7) ||
+      !verify_tag_int(f->metadata, SamplesPerPixel, 3) ||
+      !verify_tag_int(f->metadata, PixelRepresentation, 0)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported image format");
     return false;
+  }
+  switch (f->format) {
+  case FORMAT_JPEG2000:
+    if (verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_ICT")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
+    } else if (verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unsupported JPEG 2000 image format");
+      return false;
+    }
+    break;
+  case FORMAT_JPEG:
+    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") &&
+        !verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unsupported JPEG image format");
+      return false;
+    }
+    break;
+  default:
+    break;
   }
 
   // add
@@ -828,8 +833,8 @@ static bool add_properties_element(const DcmElement *element,
         char *value = get_element_value_as_string(element, index);
         if (value) {
           g_hash_table_insert(iter->osr->properties,
-                              g_strdup_printf("%s.%s[%u]", 
-                                              iter->prefix, 
+                              g_strdup_printf("%s.%s[%u]",
+                                              iter->prefix,
                                               keyword,
                                               index),
                               value);
