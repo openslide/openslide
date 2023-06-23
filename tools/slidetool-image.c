@@ -46,9 +46,59 @@ static const uint32_t BUFSIZE = 16 << 20;
     common_fail(#i " must be positive"); \
   }
 
+static void setup_png(png_structp png_ptr, png_infop info_ptr,
+                      FILE *f, int32_t w, int32_t h) {
+  png_init_io(png_ptr, f);
+
+  png_set_IHDR(png_ptr, info_ptr, w, h, 8,
+               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_DEFAULT,
+               PNG_FILTER_TYPE_DEFAULT);
+
+  png_text text_ptr[1];
+  memset(text_ptr, 0, sizeof text_ptr);
+  text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
+  g_autofree char *key = g_strdup(SOFTWARE);
+  text_ptr[0].key = key;
+  g_autofree char *text = g_strdup(OPENSLIDE);
+  text_ptr[0].text = text;
+  text_ptr[0].text_length = strlen(text);
+  png_set_text(png_ptr, info_ptr, text_ptr, 1);
+}
+
+static void write_lines_png(png_structp png_ptr, uint32_t *buf,
+                            int32_t w, int32_t h) {
+  // un-premultiply alpha and pack into expected format, modifying buf
+  for (int32_t i = 0; i < w * h; i++) {
+    uint32_t p = buf[i];
+
+    uint8_t a = p >> 24;
+    switch (a) {
+    case 0:
+      buf[i] = 0;
+      break;
+
+    case 255:
+      buf[i] = GUINT32_TO_BE(p << 8 | p >> 24);
+      break;
+
+    default:
+      ; // make compiler happy
+      uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
+      uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
+      uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
+      buf[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
+    }
+  }
+
+  for (int32_t i = 0; i < h; i++) {
+    png_write_row(png_ptr, (png_bytep) &buf[w * i]);
+  }
+}
+
 static void write_png(openslide_t *osr, FILE *f,
                       int64_t x, int64_t y, int32_t level,
-                      int32_t w, const int32_t h) {
+                      int32_t w, int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
                                                 NULL, NULL, NULL);
   if (!png_ptr) {
@@ -64,24 +114,7 @@ static void write_png(openslide_t *osr, FILE *f,
     common_fail("Error writing PNG");
   }
 
-  png_init_io(png_ptr, f);
-
-  png_set_IHDR(png_ptr, info_ptr, w, h, 8,
-               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-               PNG_COMPRESSION_TYPE_DEFAULT,
-               PNG_FILTER_TYPE_DEFAULT);
-
-  // text
-  png_text text_ptr[1];
-  memset(text_ptr, 0, sizeof text_ptr);
-  text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
-  g_autofree char *key = g_strdup(SOFTWARE);
-  text_ptr[0].key = key;
-  g_autofree char *text = g_strdup(OPENSLIDE);
-  text_ptr[0].text = text;
-  text_ptr[0].text_length = strlen(text);
-
-  png_set_text(png_ptr, info_ptr, text_ptr, 1);
+  setup_png(png_ptr, info_ptr, f, w, h);
 
   // background
   const char *bgcolor =
@@ -109,32 +142,8 @@ static void write_png(openslide_t *osr, FILE *f,
 
     common_fail_on_error(osr, "Reading region");
 
-    // un-premultiply alpha and pack into expected format
-    for (int32_t i = 0; i < w * lines; i++) {
-      uint32_t p = dest[i];
+    write_lines_png(png_ptr, dest, w, lines);
 
-      uint8_t a = p >> 24;
-      switch (a) {
-      case 0:
-        dest[i] = 0;
-        break;
-
-      case 255:
-        dest[i] = GUINT32_TO_BE(p << 8 | p >> 24);
-        break;
-
-      default:
-        ; // make compiler happy
-        uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
-        uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
-        uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
-        dest[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
-      }
-    }
-
-    for (int32_t i = 0; i < lines; i++) {
-      png_write_row(png_ptr, (png_bytep) &dest[w * i]);
-    }
     yy += lines;
     lines_to_draw -= lines;
   }
