@@ -190,7 +190,7 @@ static int do_write_png(int narg, char **args) {
 }
 
 const struct command write_png_cmd = {
-  .parameter_string = "slide x y level width height output.png",
+  .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
   .summary = "Write a region of a virtual slide to a PNG.",
   .options = legacy_opts,
   .min_positional = 7,

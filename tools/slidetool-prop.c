@@ -92,7 +92,7 @@ static int do_quickhash1sum(int narg, char **args) {
 }
 
 const struct command show_properties_cmd = {
-  .parameter_string = "FILE...",
+  .parameter_string = "<FILE...>",
   .summary = "Print OpenSlide properties for a slide.",
   .options = legacy_opts,
   .min_positional = 1,
@@ -100,7 +100,7 @@ const struct command show_properties_cmd = {
 };
 
 const struct command quickhash1sum_cmd = {
-  .parameter_string = "FILE...",
+  .parameter_string = "<FILE...>",
   .summary = "Print OpenSlide quickhash-1 (256-bit) checksums.",
   .options = legacy_opts,
   .min_positional = 1,
