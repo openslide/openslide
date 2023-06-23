@@ -67,6 +67,7 @@ static int do_show_properties(int narg, char **args) {
 const struct command show_properties_cmd = {
   .parameter_string = "FILE...",
   .summary = "Print OpenSlide properties for a slide.",
+  .options = legacy_opts,
   .min_positional = 1,
   .handler = do_show_properties,
 };

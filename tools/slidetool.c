@@ -42,7 +42,8 @@ static const char *version_format = "%s " SUFFIXED_VERSION ", "
 
 static gboolean show_version;
 
-static const GOptionEntry options[] = {
+// legacy commands are frozen; do not extend
+const GOptionEntry legacy_opts[] = {
   {"version", 0, 0, G_OPTION_ARG_NONE, &show_version, "Show version", NULL},
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
@@ -58,7 +59,7 @@ static int invoke_cmdline(const struct command *cmd, int argc, char **argv) {
 
   g_autoptr(GOptionContext) octx = g_option_context_new(cmd->parameter_string);
   g_option_context_set_summary(octx, cmd->summary);
-  g_option_context_add_main_entries(octx, options, NULL);
+  g_option_context_add_main_entries(octx, cmd->options, NULL);
   common_parse_options(octx, &argc, &argv, &err);
 
   if (err) {

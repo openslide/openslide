@@ -56,6 +56,7 @@ static int do_quickhash1sum(int narg, char **args) {
 const struct command quickhash1sum_cmd = {
   .parameter_string = "FILE...",
   .summary = "Print OpenSlide quickhash-1 (256-bit) checksums.",
+  .options = legacy_opts,
   .min_positional = 1,
   .handler = do_quickhash1sum,
 };

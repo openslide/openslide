@@ -25,10 +25,13 @@
 struct command {
   const char *parameter_string;
   const char *summary;
+  const GOptionEntry *options;
   int min_positional;
   int max_positional;
   int (*handler)(int narg, char **args);
 };
+
+extern const GOptionEntry legacy_opts[];
 
 extern const struct command quickhash1sum_cmd;
 extern const struct command show_properties_cmd;
