@@ -33,6 +33,9 @@ slidetool \- Retrieve data from whole slide images
 .SH SYNOPSIS
 .BR "slidetool " [ --help "] [" --version ]
 .br
+.B slidetool prop get
+.IR "property file" ...
+.br
 .BR "slidetool prop list" " [" --names ]
 .IR file ...
 .br
@@ -47,13 +50,16 @@ slidetool \- Retrieve data from whole slide images
 uses OpenSlide to retrieve data from whole slide images,
 also known as virtual slide files.
 
-.SS slidetool prop list
-Print OpenSlide properties for one or more slides.
+.SS slidetool prop get
+Print a single OpenSlide property value for one or more slides.
 Properties are individual pieces of textual metadata about the slide.
 Properties prefixed with
 .I openslide.
 are defined by OpenSlide;
 others are defined by the individual slide format.
+
+.SS slidetool prop list
+Print all OpenSlide properties for one or more slides.
 
 .SS slidetool quickhash1
 Print OpenSlide

@@ -29,6 +29,27 @@
 
 static gboolean names_only;
 
+static bool get_prop(const char *file, const char *name, int total) {
+  g_autoptr(openslide_t) osr = openslide_open(file);
+  if (common_warn_on_error(osr, "%s", file)) {
+    return false;
+  }
+
+  const char *value = openslide_get_property_value(osr, name);
+  if (!value) {
+    common_warn("%s: %s: No such property", file, name);
+    return false;
+  }
+
+  if (total > 1) {
+    printf("%s: %s\n", file, value);
+  } else {
+    printf("%s\n", value);
+  }
+
+  return true;
+}
+
 static bool list_props(const char *file, int successes, int total,
                        bool values) {
   g_autoptr(openslide_t) osr = openslide_open(file);
@@ -70,6 +91,17 @@ static int do_show_properties(int narg, char **args) {
     }
   }
   return successes != narg;
+}
+
+static int do_prop_get(int narg, char **args) {
+  int ret = 0;
+  g_assert(narg > 1);
+  for (int i = 1; i < narg; i++) {
+    if (!get_prop(args[i], args[0], narg - 1)) {
+      ret = 1;
+    }
+  }
+  return ret;
 }
 
 static int do_prop_list(int narg, char **args) {
@@ -123,6 +155,14 @@ static const GOptionEntry prop_list_opts[] = {
 };
 
 static const struct command prop_subcmds[] = {
+  {
+    .name = "get",
+    .parameter_string = "<PROPERTY> <FILE...>",
+    .summary = "Get a slide property",
+    .description = "Print an OpenSlide property value for a slide.",
+    .min_positional = 2,
+    .handler = do_prop_get,
+  },
   {
     .name = "list",
     .parameter_string = "<FILE...>",
