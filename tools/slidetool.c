@@ -50,6 +50,9 @@ const GOptionEntry legacy_opts[] = {
 
 static const struct command root_subcmds[] = {
   {
+    .command = &assoc_cmd,
+  },
+  {
     .command = &prop_cmd,
   },
   {

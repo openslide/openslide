@@ -33,6 +33,9 @@ slidetool \- Retrieve data from whole slide images
 .SH SYNOPSIS
 .BR "slidetool " [ --help "] [" --version ]
 .br
+.B slidetool assoc list
+.IR file ...
+.br
 .B slidetool prop get
 .IR "property file" ...
 .br
@@ -49,6 +52,11 @@ slidetool \- Retrieve data from whole slide images
 .B slidetool
 uses OpenSlide to retrieve data from whole slide images,
 also known as virtual slide files.
+
+.SS slidetool assoc list
+List associated images for one or more slides.
+Associated images are small non-pyramidal images containing
+additional information about the slide, such as its label.
 
 .SS slidetool prop get
 Print a single OpenSlide property value for one or more slides.

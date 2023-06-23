@@ -203,6 +203,39 @@ static int do_region_read(int narg, char **args) {
   return write_region_png(slide, x, y, level, width, height, output);
 }
 
+static bool assoc_list(const char *file, int successes, int total) {
+  g_autoptr(openslide_t) osr = openslide_open(file);
+  if (common_warn_on_error(osr, "%s", file)) {
+    return false;
+  }
+
+  // print header
+  if (successes > 0) {
+    printf("\n");
+  }
+  if (total > 1) {
+    // format inspired by head(1)/tail(1)
+    printf("==> %s <==\n", file);
+  }
+
+  const char * const *names = openslide_get_associated_image_names(osr);
+  while (*names) {
+    printf("%s\n", *names);
+    names++;
+  }
+  return true;
+}
+
+static int do_assoc_list(int narg, char **args) {
+  int successes = 0;
+  for (int i = 0; i < narg; i++) {
+    if (assoc_list(args[i], successes, narg)) {
+      successes++;
+    }
+  }
+  return successes != narg;
+}
+
 const struct command write_png_cmd = {
   .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
   .description = "Write a region of a virtual slide to a PNG.",
@@ -229,4 +262,21 @@ const struct command region_cmd = {
   .name = "region",
   .summary = "Commands related to slide regions",
   .subcommands = region_subcmds,
+};
+
+static const struct command assoc_subcmds[] = {
+  {
+    .name = "list",
+    .parameter_string = "<FILE...>",
+    .summary = "List associated images for a slide",
+    .min_positional = 1,
+    .handler = do_assoc_list,
+  },
+  {}
+};
+
+const struct command assoc_cmd = {
+  .name = "assoc",
+  .summary = "Commands related to associated images",
+  .subcommands = assoc_subcmds,
 };
