@@ -21,7 +21,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <glib.h>
 #include "openslide.h"
@@ -48,49 +47,53 @@ static const GOptionEntry options[] = {
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
-static GOptionContext *make_option_context(const struct command *cmd) {
-  GOptionContext *octx = g_option_context_new(cmd->parameter_string);
-  g_option_context_set_summary(octx, cmd->summary);
-  g_option_context_add_main_entries(octx, options, NULL);
-  return octx;
-}
-
-static void usage(const struct command *cmd) {
-  g_autoptr(GOptionContext) octx = make_option_context(cmd);
-
+static int usage(GOptionContext *octx) {
   g_autofree gchar *help = g_option_context_get_help(octx, true, NULL);
   fprintf(stderr, "%s", help);
-
-  exit(2);
+  return 2;
 }
 
-static void parse_cmdline(const struct command *cmd, int *argc, char ***argv) {
+static int invoke_cmdline(const struct command *cmd, int argc, char **argv) {
   GError *err = NULL;
 
-  g_autoptr(GOptionContext) octx = make_option_context(cmd);
-  common_parse_options(octx, argc, argv, &err);
+  g_autoptr(GOptionContext) octx = g_option_context_new(cmd->parameter_string);
+  g_option_context_set_summary(octx, cmd->summary);
+  g_option_context_add_main_entries(octx, options, NULL);
+  common_parse_options(octx, &argc, &argv, &err);
 
   if (err) {
     common_warn("%s\n", err->message);
     g_error_free(err);
-    usage(cmd);
+    return usage(octx);
+  }
 
-  } else if (show_version) {
+  if (show_version) {
     fprintf(stderr, version_format, g_get_prgname(), openslide_get_version());
-    exit(0);
+    return 0;
   }
 
   // Remove "--" arguments; g_option_context_parse() doesn't
-  for (int i = 0; i < *argc; i++) {
-    if (!strcmp((*argv)[i], "--")) {
-      free((*argv)[i]);
-      for (int j = i + 1; j <= *argc; j++) {
-        (*argv)[j - 1] = (*argv)[j];
+  for (int i = 0; i < argc; i++) {
+    if (g_str_equal(argv[i], "--")) {
+      g_free(argv[i]);
+      for (int j = i + 1; j <= argc; j++) {
+        argv[j - 1] = argv[j];
       }
-      --*argc;
+      --argc;
       --i;
     }
   }
+
+  // drop argv[0]
+  argc--;
+  argv++;
+  if (cmd->min_positional && argc < cmd->min_positional) {
+    return usage(octx);
+  }
+  if (cmd->max_positional && argc > cmd->max_positional) {
+    return usage(octx);
+  }
+  return cmd->handler(argc, argv);
 }
 
 static char *get_progname(void) {
@@ -117,16 +120,5 @@ int main(int argc, char **argv) {
   } else if (g_str_equal(cmd_name, "openslide-write-png")) {
     cmd = &write_png_cmd;
   }
-
-  parse_cmdline(cmd, &argc, &argv);
-  // drop argv[0]
-  argc--;
-  argv++;
-  if (cmd->min_positional && argc < cmd->min_positional) {
-    usage(cmd);
-  }
-  if (cmd->max_positional && argc > cmd->max_positional) {
-    usage(cmd);
-  }
-  return cmd->handler(argc, argv);
+  return invoke_cmdline(cmd, argc, argv);
 }
