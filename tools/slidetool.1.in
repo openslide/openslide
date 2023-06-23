@@ -36,6 +36,9 @@ slidetool \- Retrieve data from whole slide images
 .B slidetool assoc list
 .IR file ...
 .br
+.B slidetool assoc read
+.IR "file name" " [" output-file ]
+.br
 .B slidetool prop get
 .IR "property file" ...
 .br
@@ -57,6 +60,14 @@ also known as virtual slide files.
 List associated images for one or more slides.
 Associated images are small non-pyramidal images containing
 additional information about the slide, such as its label.
+
+.SS slidetool assoc read
+Write the associated image with the specified
+.I name
+to a PNG image.
+If
+.I output-file
+is not specified, the image will be written to standard output.
 
 .SS slidetool prop get
 Print a single OpenSlide property value for one or more slides.

@@ -245,6 +245,63 @@ static int do_assoc_list(int narg, char **args) {
   return successes != narg;
 }
 
+static void assoc_read(openslide_t *osr, const char *image, FILE *f,
+                       int32_t w, int32_t h) {
+  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
+                                                NULL, NULL, NULL);
+  if (!png_ptr) {
+    common_fail("Could not initialize PNG");
+  }
+
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  if (!info_ptr) {
+    common_fail("Could not initialize PNG");
+  }
+
+  if (setjmp(png_jmpbuf(png_ptr))) {
+    common_fail("Error writing PNG");
+  }
+
+  setup_png(png_ptr, info_ptr, f, w, h);
+
+  // start writing
+  png_write_info(png_ptr, info_ptr);
+
+  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  openslide_read_associated_image(osr, image, dest);
+  common_fail_on_error(osr, "Reading associated image");
+
+  write_lines_png(png_ptr, dest, w, h);
+
+  // end
+  png_write_end(png_ptr, info_ptr);
+  png_destroy_write_struct(&png_ptr, &info_ptr);
+}
+
+static int do_assoc_read(int narg, char **args) {
+  // get args
+  g_assert(narg >= 2);
+  const char *slide = args[0];
+  const char *image = args[1];
+  const char *outfile = narg >= 3 ? args[2] : NULL;
+
+  // open slide
+  g_autoptr(openslide_t) osr = openslide_open(slide);
+  common_fail_on_error(osr, "%s", slide);
+
+  int64_t w = -1, h;
+  openslide_get_associated_image_dimensions(osr, image, &w, &h);
+  if (w == -1) {
+    common_fail("%s: %s: No such associated image", slide, image);
+  }
+
+  // write output file
+  g_auto(output) out = open_output(outfile);
+  assoc_read(osr, image, out.fp, w, h);
+
+  return 0;
+}
+
 const struct command write_png_cmd = {
   .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
   .description = "Write a region of a virtual slide to a PNG.",
@@ -280,6 +337,14 @@ static const struct command assoc_subcmds[] = {
     .summary = "List associated images for a slide",
     .min_positional = 1,
     .handler = do_assoc_list,
+  },
+  {
+    .name = "read",
+    .parameter_string = "<FILE> <NAME> [OUTPUT-PNG]",
+    .summary = "Write an associated image to a PNG",
+    .min_positional = 2,
+    .max_positional = 3,
+    .handler = do_assoc_read,
   },
   {}
 };
