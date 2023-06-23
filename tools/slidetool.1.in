@@ -2,6 +2,7 @@
 .\" OpenSlide, a library for reading whole slide image files
 .\"
 .\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023      Benjamin Gilbert
 .\" All rights reserved.
 .\"
 .\" OpenSlide is free software: you can redistribute it and/or modify
@@ -22,33 +23,20 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-WRITE-PNG 1 2012-02-24 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH SLIDETOOL 1 2023-07-12 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
 .SH NAME
-openslide-write-png \- Write a region of a virtual slide to a PNG
+slidetool \- Retrieve data from whole slide images
 
 .SH SYNOPSIS
-.BR "openslide-write-png " [ --help "] [" --version ]
-.I slide-file x y level width height output-file
+.BR "slidetool " [ --help "] [" --version ]
 
 .SH DESCRIPTION
-Write a region of the specified
-.I level
-of a virtual slide to a PNG image.
-.I x
-and
-.I y
-are pixel coordinates in level 0, the highest-resolution slide level.
-.I width
-and
-.I height
-are pixel dimensions in the specified
-.IR level .
-
-The dimensions of each level of a slide can be obtained with
-.BR openslide-show-properties (1).
+.B slidetool
+uses OpenSlide to retrieve data from whole slide images,
+also known as virtual slide files.
 
 .SH OPTIONS
 .TP
@@ -60,8 +48,8 @@ Display usage summary.
 Display version and copyright information.
 
 .SH EXIT STATUS
-.B openslide-write-png
-returns 0 on success, 1 if an error occurred,
+.B slidetool
+returns 0 on success, 1 if a slide file could not be read,
 or 2 if the arguments are invalid.
 
 .SH COPYRIGHT
@@ -77,4 +65,4 @@ See the GNU Lesser General Public License for more details.
 .SH SEE ALSO
 .BR openslide-quickhash1sum (1),
 .BR openslide-show-properties (1),
-.BR slidetool (1)
+.BR openslide-write-png (1)

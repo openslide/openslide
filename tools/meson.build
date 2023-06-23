@@ -1,8 +1,9 @@
 if meson.version().version_compare('>=0.61') and host_machine.system() != 'windows'
-  # build one binary and symlink the others to it
-  tools_binaries = ['openslide-show-properties']
+  # build slidetool and symlink the other tools to it
+  tools_binaries = ['slidetool']
   symlink_targets = [
     'openslide-quickhash1sum',
+    'openslide-show-properties',
     'openslide-write-png',
   ]
   foreach target : symlink_targets
@@ -10,7 +11,7 @@ if meson.version().version_compare('>=0.61') and host_machine.system() != 'windo
       target,
       install_dir : get_option('bindir'),
       install_tag : 'bin',
-      pointing_to : 'openslide-show-properties',
+      pointing_to : 'slidetool',
     )
   endforeach
 else
@@ -18,6 +19,7 @@ else
     'openslide-quickhash1sum',
     'openslide-show-properties',
     'openslide-write-png',
+    'slidetool',
   ]
 endif
 foreach target : tools_binaries
@@ -44,7 +46,8 @@ endforeach
 mans = [
   'openslide-quickhash1sum',
   'openslide-show-properties',
-  'openslide-write-png'
+  'openslide-write-png',
+  'slidetool',
 ]
 foreach m : mans
   install_man(

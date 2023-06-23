@@ -62,4 +62,5 @@ See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
 .BR openslide-quickhash1sum (1),
-.BR openslide-write-png (1)
+.BR openslide-write-png (1),
+.BR slidetool (1)

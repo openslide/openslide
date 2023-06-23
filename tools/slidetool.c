@@ -48,6 +48,16 @@ const GOptionEntry legacy_opts[] = {
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
+static const GOptionEntry root_opts[] = {
+  {"version", 0, 0, G_OPTION_ARG_NONE, &show_version, "Show version", NULL},
+  {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
+};
+
+static const struct command root_cmd = {
+  .summary = "Retrieve data from whole slide images.",
+  .options = root_opts,
+};
+
 static int usage(GOptionContext *octx) {
   g_autofree gchar *help = g_option_context_get_help(octx, true, NULL);
   fprintf(stderr, "%s", help);
@@ -94,6 +104,9 @@ static int invoke_cmdline(const struct command *cmd, int argc, char **argv) {
   if (cmd->max_positional && argc > cmd->max_positional) {
     return usage(octx);
   }
+  if (!cmd->handler) {
+    return usage(octx);
+  }
   return cmd->handler(argc, argv);
 }
 
@@ -115,9 +128,11 @@ int main(int argc, char **argv) {
   // properly handle Unicode arguments on Windows; set prgname
   common_fix_argv(&argc, &argv);
   g_autofree char *cmd_name = get_progname();
-  const struct command *cmd = &show_properties_cmd;
+  const struct command *cmd = &root_cmd;
   if (g_str_equal(cmd_name, "openslide-quickhash1sum")) {
     cmd = &quickhash1sum_cmd;
+  } else if (g_str_equal(cmd_name, "openslide-show-properties")) {
+    cmd = &show_properties_cmd;
   } else if (g_str_equal(cmd_name, "openslide-write-png")) {
     cmd = &write_png_cmd;
   }
