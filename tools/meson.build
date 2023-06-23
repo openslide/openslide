@@ -26,10 +26,9 @@ foreach target : tools_binaries
   executable(
     target,
     [
-      'openslide-quickhash1sum.c',
-      'openslide-show-properties.c',
-      'openslide-write-png.c',
       'slidetool.c',
+      'slidetool-image.c',
+      'slidetool-prop.c',
     ],
     include_directories : config_h_include,
     dependencies : [
