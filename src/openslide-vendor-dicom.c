@@ -112,6 +112,7 @@ static const struct allowed_types LEVEL_TYPES = {
 // the ImageTypes we allow for associated images
 static const char LABEL_TYPE[] = "LABEL";
 static const char OVERVIEW_TYPE[] = "OVERVIEW";
+static const char THUMBNAIL_TYPE[] = "THUMBNAIL";
 static const char *const LABEL_TYPES[] = {
   "ORIGINAL", "PRIMARY", LABEL_TYPE, "NONE", NULL
 };
@@ -124,11 +125,19 @@ static const char *const OVERVIEW_TYPES[] = {
 static const char *const DERIVED_OVERVIEW_TYPES[] = {
   "DERIVED", "PRIMARY", OVERVIEW_TYPE, "NONE", NULL
 };
+static const char *const THUMBNAIL_TYPES[] = {
+  "ORIGINAL", "PRIMARY", THUMBNAIL_TYPE, "RESAMPLED", NULL
+};
+static const char *const DERIVED_THUMBNAIL_TYPES[] = {
+  "DERIVED", "PRIMARY", THUMBNAIL_TYPE, "RESAMPLED", NULL
+};
 static const char *const *const ASSOCIATED_TYPE_STRINGS[] = {
   LABEL_TYPES,
   DERIVED_LABEL_TYPES,
   OVERVIEW_TYPES,
   DERIVED_OVERVIEW_TYPES,
+  THUMBNAIL_TYPES,
+  DERIVED_THUMBNAIL_TYPES,
 };
 static const struct allowed_types ASSOCIATED_TYPES = {
   ASSOCIATED_TYPE_STRINGS,
@@ -622,6 +631,8 @@ static bool add_associated(openslide_t *osr,
     name = "label";
   } else if (g_str_equal(image_type[2], OVERVIEW_TYPE)) {
     name = "macro";
+  } else if (g_str_equal(image_type[2], THUMBNAIL_TYPE)) {
+    name = "thumbnail";
   } else {
     // is_type() let something unexpected through
     g_assert_not_reached();
