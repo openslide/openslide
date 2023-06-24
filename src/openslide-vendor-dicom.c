@@ -390,7 +390,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  f->metadata = dcm_filehandle_read_metadata(&dcm_error, f->filehandle);
+  f->metadata = dcm_filehandle_read_metadata(&dcm_error, f->filehandle, NULL);
   if (!f->metadata) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
