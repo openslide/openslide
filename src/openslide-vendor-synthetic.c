@@ -119,7 +119,8 @@ static bool decode_dicom(const void *data, uint32_t len,
 
   // read Data Set metadata and frame
   // this will pull the rest of the header in, so _read_frame() will work
-  g_autoptr(DcmDataSet) metadata = dcm_filehandle_read_metadata(&dcm_error, fh);
+  g_autoptr(DcmDataSet) metadata =
+    dcm_filehandle_read_metadata(&dcm_error, fh, NULL);
   if (!metadata) {
     _openslide_dicom_propagate_error(err, dcm_error);
     g_prefix_error(err, "Reading metadata: ");
