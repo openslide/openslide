@@ -53,8 +53,8 @@ struct dicom_file {
 
   GMutex lock;
   DcmFilehandle *filehandle;
-  DcmDataSet *file_meta;
-  DcmDataSet *metadata;
+  const DcmDataSet *file_meta;
+  const DcmDataSet *metadata;
   enum image_format format;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
@@ -233,9 +233,7 @@ static bool dicom_detect(const char *filename,
   }
 
   DcmError *dcm_error = NULL;
-  g_autoptr(DcmDataSet) meta =
-    dcm_filehandle_read_file_meta(&dcm_error, filehandle);
-  if (!meta) {
+  if (!dcm_filehandle_get_file_meta(&dcm_error, filehandle)) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return false;
   }
@@ -245,8 +243,6 @@ static bool dicom_detect(const char *filename,
 
 static void dicom_file_destroy(struct dicom_file *f) {
   dcm_filehandle_destroy(f->filehandle);
-  dcm_dataset_destroy(f->file_meta);
-  dcm_dataset_destroy(f->metadata);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
   g_free(f);
@@ -255,7 +251,7 @@ static void dicom_file_destroy(struct dicom_file *f) {
 typedef struct dicom_file dicom_file;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(dicom_file, dicom_file_destroy)
 
-static bool get_tag_int(DcmDataSet *dataset,
+static bool get_tag_int(const DcmDataSet *dataset,
                         const char *keyword,
                         int64_t *result) {
   uint32_t tag = dcm_dict_tag_from_keyword(keyword);
@@ -264,7 +260,7 @@ static bool get_tag_int(DcmDataSet *dataset,
          dcm_element_get_value_integer(NULL, element, 0, result);
 }
 
-static bool get_tag_str(DcmDataSet *dataset,
+static bool get_tag_str(const DcmDataSet *dataset,
                         const char *keyword,
                         int index,
                         const char **result) {
@@ -274,7 +270,7 @@ static bool get_tag_str(DcmDataSet *dataset,
          dcm_element_get_value_string(NULL, element, index, result);
 }
 
-static bool get_tag_decimal_str(DcmDataSet *dataset,
+static bool get_tag_decimal_str(const DcmDataSet *dataset,
                                 const char *keyword,
                                 int index,
                                 double *result) {
@@ -290,7 +286,7 @@ static bool get_tag_decimal_str(DcmDataSet *dataset,
   return true;
 }
 
-static bool get_tag_seq(DcmDataSet *dataset,
+static bool get_tag_seq(const DcmDataSet *dataset,
                         const char *keyword,
                         DcmSequence **result) {
   uint32_t tag = dcm_dict_tag_from_keyword(keyword);
@@ -299,7 +295,7 @@ static bool get_tag_seq(DcmDataSet *dataset,
          dcm_element_get_value_sequence(NULL, element, result);
 }
 
-static bool get_tag_seq_item(DcmDataSet *dataset,
+static bool get_tag_seq_item(const DcmDataSet *dataset,
                              const char *keyword,
                              uint32_t index,
                              DcmDataSet **result) {
@@ -311,7 +307,7 @@ static bool get_tag_seq_item(DcmDataSet *dataset,
   return *result != NULL;
 }
 
-static char **get_tag_strv(DcmDataSet *dataset,
+static char **get_tag_strv(const DcmDataSet *dataset,
                            const char *keyword,
                            int length) {
   g_auto(GStrv) a = g_new0(char *, length + 1);
@@ -330,7 +326,7 @@ static char **get_tag_strv(DcmDataSet *dataset,
   return g_steal_pointer(&a);
 }
 
-static bool verify_tag_int(DcmDataSet *dataset,
+static bool verify_tag_int(const DcmDataSet *dataset,
                            const char *keyword,
                            int64_t expected_value) {
   int64_t value;
@@ -338,7 +334,7 @@ static bool verify_tag_int(DcmDataSet *dataset,
          value == expected_value;
 }
 
-static bool verify_tag_str(DcmDataSet *dataset,
+static bool verify_tag_str(const DcmDataSet *dataset,
                            const char *keyword,
                            const char *expected_value) {
   const char *value;
@@ -371,7 +367,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
   g_mutex_init(&f->lock);
 
   DcmError *dcm_error = NULL;
-  f->file_meta = dcm_filehandle_read_file_meta(&dcm_error, f->filehandle);
+  f->file_meta = dcm_filehandle_get_file_meta(&dcm_error, f->filehandle);
   if (!f->file_meta) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
@@ -390,7 +386,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  f->metadata = dcm_filehandle_read_metadata(&dcm_error, f->filehandle, NULL);
+  f->metadata = dcm_filehandle_get_metadata(&dcm_error, f->filehandle);
   if (!f->metadata) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
