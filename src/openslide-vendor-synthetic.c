@@ -91,7 +91,7 @@ static bool decode_dicom(const void *data, uint32_t len,
   }
 
   // read File Meta Information and check the media storage SOP
-  g_autoptr(DcmDataSet) meta = dcm_filehandle_read_file_meta(&dcm_error, fh);
+  const DcmDataSet *meta = dcm_filehandle_get_file_meta(&dcm_error, fh);
   if (!meta) {
     _openslide_dicom_propagate_error(err, dcm_error);
     g_prefix_error(err, "Reading File Meta Information: ");
@@ -117,15 +117,7 @@ static bool decode_dicom(const void *data, uint32_t len,
     return false;
   }
 
-  // read Data Set metadata and frame
-  // this will pull the rest of the header in, so _read_frame() will work
-  g_autoptr(DcmDataSet) metadata =
-    dcm_filehandle_read_metadata(&dcm_error, fh, NULL);
-  if (!metadata) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    g_prefix_error(err, "Reading metadata: ");
-    return false;
-  }
+  // read frame
   g_autoptr(DcmFrame) frame =
     dcm_filehandle_read_frame(&dcm_error, fh, 1);
   if (!frame) {
