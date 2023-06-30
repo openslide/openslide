@@ -34,7 +34,7 @@ openslide-show-properties \- Print OpenSlide properties for a slide
 .IR slide ...
 
 .SH DESCRIPTION
-Print OpenSlide properties for a virtual slide file.
+Print OpenSlide properties for one or more virtual slide files.
 
 .SH OPTIONS
 .TP
