@@ -48,14 +48,28 @@ const GOptionEntry legacy_opts[] = {
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
+static const struct command root_subcmds[] = {
+  {
+    .command = &prop_cmd,
+  },
+  {
+    .command = &quickhash1_cmd,
+  },
+  {
+    .command = &region_cmd,
+  },
+  {}
+};
+
 static const GOptionEntry root_opts[] = {
   {"version", 0, 0, G_OPTION_ARG_NONE, &show_version, "Show version", NULL},
   {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
 };
 
 static const struct command root_cmd = {
-  .summary = "Retrieve data from whole slide images.",
+  .description = "Retrieve data from whole slide images.",
   .options = root_opts,
+  .subcommands = root_subcmds,
 };
 
 static int usage(GOptionContext *octx) {
@@ -64,14 +78,43 @@ static int usage(GOptionContext *octx) {
   return 2;
 }
 
-static int invoke_cmdline(const struct command *cmd, int argc, char **argv) {
+static const struct command *canonicalize(const struct command *cmd) {
+  while (cmd->command) {
+    cmd = cmd->command;
+  }
+  return cmd;
+}
+
+static int invoke_cmdline(const struct command *cmd, char *parents,
+                          int argc, char **argv) {
   GError *err = NULL;
 
-  g_autoptr(GOptionContext) octx = g_option_context_new(cmd->parameter_string);
-  g_option_context_set_summary(octx, cmd->summary);
-  g_option_context_add_main_entries(octx, cmd->options, NULL);
-  common_parse_options(octx, &argc, &argv, &err);
+  g_autofree char *param_str =
+    g_strdup_printf("%s%s", parents,
+                    cmd->parameter_string ? cmd->parameter_string : "");
+  g_autoptr(GOptionContext) octx = g_option_context_new(param_str);
+  if (cmd->options) {
+    g_option_context_add_main_entries(octx, cmd->options, NULL);
+  }
+  g_autoptr(GString) summary = g_string_new(cmd->description);
+  if (!cmd->description) {
+    g_string_append_printf(summary, "%s.", cmd->summary);
+  }
+  if (cmd->subcommands) {
+    g_string_append(summary, "\n\nSubcommands:");
+    for (const struct command *subcmd_ = cmd->subcommands;
+         canonicalize(subcmd_)->name; subcmd_++) {
+      const struct command *subcmd = canonicalize(subcmd_);
+      g_string_append_printf(summary, "\n  %-16s %s",
+                             subcmd->name, subcmd->summary);
+    }
+    // stop at first non-option argument so we can invoke the subcommand
+    // handler
+    g_option_context_set_strict_posix(octx, true);
+  }
+  g_option_context_set_summary(octx, summary->str);
 
+  common_parse_options(octx, &argc, &argv, &err);
   if (err) {
     common_warn("%s\n", err->message);
     g_error_free(err);
@@ -83,31 +126,53 @@ static int invoke_cmdline(const struct command *cmd, int argc, char **argv) {
     return 0;
   }
 
-  // Remove "--" arguments; g_option_context_parse() doesn't
-  for (int i = 0; i < argc; i++) {
-    if (g_str_equal(argv[i], "--")) {
-      g_free(argv[i]);
-      for (int j = i + 1; j <= argc; j++) {
-        argv[j - 1] = argv[j];
-      }
-      --argc;
-      --i;
+  if (cmd->subcommands) {
+    if (argc < 2) {
+      return usage(octx);
     }
+    for (const struct command *subcmd_ = cmd->subcommands;
+         canonicalize(subcmd_)->name; subcmd_++) {
+      const struct command *subcmd = canonicalize(subcmd_);
+      if (g_str_equal(subcmd->name, argv[1])) {
+        g_autofree char *new_parents =
+          g_strdup_printf("%s%s ", parents, argv[1]);
+        g_free(argv[1]);
+        // argc + 1 so we also move trailing NULL
+        for (int i = 2; i < argc + 1; i++) {
+          argv[i - 1] = argv[i];
+        }
+        return invoke_cmdline(subcmd, new_parents, argc - 1, argv);
+      }
+    }
+    return usage(octx);
   }
 
-  // drop argv[0]
-  argc--;
-  argv++;
-  if (cmd->min_positional && argc < cmd->min_positional) {
-    return usage(octx);
+  if (cmd->handler) {
+    // Remove "--" arguments; g_option_context_parse() doesn't
+    for (int i = 0; i < argc; i++) {
+      if (g_str_equal(argv[i], "--")) {
+        g_free(argv[i]);
+        for (int j = i + 1; j <= argc; j++) {
+          argv[j - 1] = argv[j];
+        }
+        --argc;
+        --i;
+      }
+    }
+
+    // drop argv[0]
+    argc--;
+    argv++;
+    if (cmd->min_positional && argc < cmd->min_positional) {
+      return usage(octx);
+    }
+    if (cmd->max_positional && argc > cmd->max_positional) {
+      return usage(octx);
+    }
+    return cmd->handler(argc, argv);
   }
-  if (cmd->max_positional && argc > cmd->max_positional) {
-    return usage(octx);
-  }
-  if (!cmd->handler) {
-    return usage(octx);
-  }
-  return cmd->handler(argc, argv);
+
+  g_assert_not_reached();
 }
 
 static char *get_progname(void) {
@@ -136,5 +201,5 @@ int main(int argc, char **argv) {
   } else if (g_str_equal(cmd_name, "openslide-write-png")) {
     cmd = &write_png_cmd;
   }
-  return invoke_cmdline(cmd, argc, argv);
+  return invoke_cmdline(cmd, "", argc, argv);
 }

@@ -32,11 +32,62 @@ slidetool \- Retrieve data from whole slide images
 
 .SH SYNOPSIS
 .BR "slidetool " [ --help "] [" --version ]
+.br
+.B slidetool prop list
+.IR file ...
+.br
+.B slidetool quickhash1
+.IR file ...
+.br
+.B slidetool region read
+.I file x y level width height output-file
 
 .SH DESCRIPTION
 .B slidetool
 uses OpenSlide to retrieve data from whole slide images,
 also known as virtual slide files.
+
+.SS slidetool prop list
+Print OpenSlide properties for one or more slides.
+Properties are individual pieces of textual metadata about the slide.
+Properties prefixed with
+.I openslide.
+are defined by OpenSlide;
+others are defined by the individual slide format.
+
+.SS slidetool quickhash1
+Print OpenSlide
+.I quickhash-1
+checksums for one or more slides, in a format similar to
+.BR sha256sum (1).
+.PP
+.I quickhash-1
+is a non-cryptographic, 256-bit hash of a subset of a slide's data.
+It uniquely identifies a particular slide,
+but cannot be used to detect corruption or modification of the slide file.
+.PP
+.I quickhash-1
+is not defined for all slide files supported by OpenSlide.
+If a slide does not have a
+.IR quickhash-1 ,
+"No quickhash-1 available" will be printed.
+
+.SS slidetool region read
+Write a region of the specified
+.I level
+of a slide to a PNG image.
+.I x
+and
+.I y
+are pixel coordinates in level 0, the highest-resolution slide level.
+.I width
+and
+.I height
+are pixel dimensions in the specified
+.IR level .
+
+The dimensions of each level of a slide can be obtained with
+.BR "slidetool prop list" .
 
 .SH OPTIONS
 .TP
@@ -65,4 +116,5 @@ See the GNU Lesser General Public License for more details.
 .SH SEE ALSO
 .BR openslide-quickhash1sum (1),
 .BR openslide-show-properties (1),
-.BR openslide-write-png (1)
+.BR openslide-write-png (1),
+.BR sha256sum (1)

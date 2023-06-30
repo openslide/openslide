@@ -23,15 +23,28 @@
 #define OPENSLIDE_SLIDETOOL_H_
 
 struct command {
+  // subcommand name
+  const char *name;
+  // description of positional parameters
   const char *parameter_string;
+  // short description for subcommand list
   const char *summary;
+  // long description for help
+  const char *description;
   const GOptionEntry *options;
+  const struct command *subcommands;
+  // replace the current command with this one
+  const struct command *command;
   int min_positional;
   int max_positional;
   int (*handler)(int narg, char **args);
 };
 
 extern const GOptionEntry legacy_opts[];
+
+extern const struct command prop_cmd;
+extern const struct command quickhash1_cmd;
+extern const struct command region_cmd;
 
 extern const struct command quickhash1sum_cmd;
 extern const struct command show_properties_cmd;

@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2012 Carnegie Mellon University
+ *  Copyright (c) 2023      Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -191,9 +192,28 @@ static int do_write_png(int narg, char **args) {
 
 const struct command write_png_cmd = {
   .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
-  .summary = "Write a region of a virtual slide to a PNG.",
+  .description = "Write a region of a virtual slide to a PNG.",
   .options = legacy_opts,
   .min_positional = 7,
   .max_positional = 7,
   .handler = do_write_png,
+};
+
+static const struct command region_subcmds[] = {
+  {
+    .name = "read",
+    .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
+    .summary = "Write a virtual slide region to a PNG",
+    .description = "Write a region of a virtual slide to a PNG.",
+    .min_positional = 7,
+    .max_positional = 7,
+    .handler = do_write_png,
+  },
+  {}
+};
+
+const struct command region_cmd = {
+  .name = "region",
+  .summary = "Commands related to slide regions",
+  .subcommands = region_subcmds,
 };

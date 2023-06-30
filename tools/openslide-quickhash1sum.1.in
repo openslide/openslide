@@ -2,6 +2,7 @@
 .\" OpenSlide, a library for reading whole slide image files
 .\"
 .\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023      Benjamin Gilbert
 .\" All rights reserved.
 .\"
 .\" OpenSlide is free software: you can redistribute it and/or modify
@@ -22,7 +23,7 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-QUICKHASH1SUM 1 2012-02-24 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH OPENSLIDE-QUICKHASH1SUM 1 2023-06-30 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
@@ -59,6 +60,14 @@ returns 0 on success, 1 if a
 .I quickhash-1
 could not be calculated, or 2 if the arguments are invalid.
 
+.SH NOTES
+.B openslide-quickhash1sum
+is a legacy command and no new features will be added.
+Its replacement is the
+.B quickhash1
+subcommand of
+.BR slidetool (1).
+
 .SH BUGS
 .I quickhash-1
 is not defined for all slide files supported by OpenSlide.
@@ -77,7 +86,5 @@ OpenSlide comes with NO WARRANTY, to the extent permitted by law.
 See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
-.BR openslide-show-properties (1),
-.BR openslide-write-png (1),
 .BR sha256sum (1),
 .BR slidetool (1)
