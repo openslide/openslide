@@ -28,6 +28,7 @@
 #include "openslide-private.h"
 #include "openslide-decode-dicom.h"
 #include "openslide-decode-jpeg.h"
+#include "openslide-decode-jp2k.h"
 #include "openslide-hash.h"
 
 #include <glib.h>
@@ -43,6 +44,8 @@
 
 enum image_format {
   FORMAT_JPEG,
+  FORMAT_JPEG2000_RGB,
+  FORMAT_JPEG2000_YCBCR,
   FORMAT_RGB,
 };
 
@@ -51,6 +54,7 @@ struct dicom_file {
 
   GMutex lock;
   DcmFilehandle *filehandle;
+  DcmDataSet *file_meta;
   DcmDataSet *metadata;
   enum image_format format;
 };
@@ -143,6 +147,7 @@ static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
   debug("file:" );
   debug("  filename = %s", f->filename);
   debug("  filehandle = %p", f->filehandle);
+  debug("  file_meta = %p", f->file_meta);
   debug("  metadata = %p", f->metadata);
 }
 
@@ -178,16 +183,10 @@ static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
 }
 
 static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
                          GError **err) {
-  // reject TIFFs
-  if (tl) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Is a TIFF file");
-    return false;
-  }
-
-  // should be able to open as a DICOM
+  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
+  // tifflike files
   g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
   if (!filehandle) {
     return false;
@@ -206,6 +205,7 @@ static bool dicom_detect(const char *filename,
 
 static void dicom_file_destroy(struct dicom_file *f) {
   dcm_filehandle_destroy(f->filehandle);
+  dcm_dataset_destroy(f->file_meta);
   dcm_dataset_destroy(f->metadata);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
@@ -333,15 +333,14 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
   g_mutex_init(&f->lock);
 
   DcmError *dcm_error = NULL;
-  g_autoptr(DcmDataSet) meta =
-    dcm_filehandle_read_file_meta(&dcm_error, f->filehandle);
-  if (!meta) {
+  f->file_meta = dcm_filehandle_read_file_meta(&dcm_error, f->filehandle);
+  if (!f->file_meta) {
     _openslide_dicom_propagate_error(err, dcm_error);
     return NULL;
   }
 
   const char *sop;
-  if (!get_tag_str(meta, MediaStorageSOPClassUID, 0, &sop) ||
+  if (!get_tag_str(f->file_meta, MediaStorageSOPClassUID, 0, &sop) ||
       !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a WSI DICOM");
@@ -419,6 +418,16 @@ static bool decode_frame(struct dicom_file *file,
   case FORMAT_JPEG:
     return _openslide_jpeg_decode_buffer(frame_value, frame_length,
                                          dest, w, h, err);
+  case FORMAT_JPEG2000_RGB:
+    return _openslide_jp2k_decode_buffer(dest, w, h,
+                                         frame_value, frame_length,
+                                         OPENSLIDE_JP2K_RGB,
+                                         err);
+  case FORMAT_JPEG2000_YCBCR:
+    return _openslide_jp2k_decode_buffer(dest, w, h,
+                                         frame_value, frame_length,
+                                         OPENSLIDE_JP2K_YCBCR,
+                                         err);
   case FORMAT_RGB:
     if (frame_length != w * h * 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -583,6 +592,30 @@ static bool get_format(DcmDataSet *metadata, enum image_format *format,
       verify_tag_int(metadata, BitsStored, 8) &&
       verify_tag_int(metadata, HighBit, 7) &&
       verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      // jpeg2000 lossy (irreversible) only, lossless seems too hard to get
+      // reasonable samples for
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
+    *format = FORMAT_JPEG2000_RGB;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "YBR_ICT") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
+      verify_tag_str(metadata, LossyImageCompression, "01") &&
+      verify_tag_str(metadata, LossyImageCompressionMethod, "ISO_15444_1")) {
+    *format = FORMAT_JPEG2000_YCBCR;
+    return true;
+  } else if (verify_tag_int(metadata, SamplesPerPixel, 3) &&
+      verify_tag_str(metadata, PhotometricInterpretation, "RGB") &&
+      verify_tag_int(metadata, PlanarConfiguration, 0) &&
+      verify_tag_int(metadata, BitsAllocated, 8) &&
+      verify_tag_int(metadata, BitsStored, 8) &&
+      verify_tag_int(metadata, HighBit, 7) &&
+      verify_tag_int(metadata, PixelRepresentation, 0) &&
       verify_tag_str(metadata, LossyImageCompression, "00")) {
     *format = FORMAT_RGB;
     return true;
@@ -714,6 +747,116 @@ static bool maybe_add_file(openslide_t *osr,
   }
 }
 
+struct property_iterate {
+  openslide_t *osr;
+  const char *prefix;
+  bool first;
+};
+
+static bool add_properties_element(const DcmElement *element,
+                                   void *client);
+
+static bool add_properties_dataset(const DcmDataSet *dataset,
+                                   uint32_t index,
+                                   void *client) {
+  struct property_iterate *iter = (struct property_iterate *) client;
+  g_autofree char *new_prefix = iter->first ?
+      g_strdup(iter->prefix) :
+      g_strdup_printf("%s[%u]", iter->prefix, index);
+  struct property_iterate new_iter = { iter->osr, new_prefix, false };
+  return dcm_dataset_foreach(dataset, add_properties_element, &new_iter);
+}
+
+static char *get_element_value_as_string(const DcmElement *element, int index) {
+  DcmVR vr = dcm_element_get_vr(element);
+  DcmVRClass klass = dcm_dict_vr_class(vr);
+
+  const char *str;
+  double d;
+  int64_t i64;
+
+  switch (klass) {
+  case DCM_CLASS_STRING_MULTI:
+  case DCM_CLASS_STRING_SINGLE:
+    if (dcm_element_get_value_string(NULL, element, index, &str)) {
+      return g_strdup(str);
+    }
+    break;
+
+  case DCM_CLASS_NUMERIC_DECIMAL:
+    if (dcm_element_get_value_decimal(NULL, element, index, &d)) {
+      return _openslide_format_double(d);
+    }
+    break;
+
+  case DCM_CLASS_NUMERIC_INTEGER:
+    if (dcm_element_get_value_integer(NULL, element, index, &i64)) {
+      if (vr == DCM_VR_UV) {
+        return g_strdup_printf("%"PRIu64, i64);
+      } else {
+        return g_strdup_printf("%"PRId64, i64);
+      }
+    }
+    break;
+
+  case DCM_CLASS_BINARY:
+  default:
+    break;
+  }
+
+  return NULL;
+}
+
+static bool add_properties_element(const DcmElement *element,
+                                   void *client) {
+  struct property_iterate *iter = (struct property_iterate *) client;
+  DcmVR vr = dcm_element_get_vr(element);
+  uint32_t tag = dcm_element_get_tag(element);
+  const char *keyword = dcm_dict_keyword_from_tag(tag);
+  DcmVRClass klass = dcm_dict_vr_class(vr);
+
+  // ignore unknown tags
+  if (!keyword) {
+    return true;
+  }
+
+  if (klass == DCM_CLASS_SEQUENCE) {
+    DcmSequence *seq;
+    if (dcm_element_get_value_sequence(NULL, element, &seq)) {
+      g_autofree char *new_prefix = g_strdup_printf("%s.%s",
+                                                    iter->prefix,
+                                                    keyword);
+      struct property_iterate new_iter = { iter->osr, new_prefix, false };
+      dcm_sequence_foreach(seq, add_properties_dataset, &new_iter);
+    }
+  } else {
+    uint32_t vm = dcm_element_get_vm(element);
+
+    if (vm == 1) {
+      char *value = get_element_value_as_string(element, 0);
+      if (value) {
+        g_hash_table_insert(iter->osr->properties,
+                            g_strdup_printf("%s.%s", iter->prefix, keyword),
+                            value);
+      }
+    } else {
+      for (uint32_t index = 0; index < vm; index++) {
+        char *value = get_element_value_as_string(element, index);
+        if (value) {
+          g_hash_table_insert(iter->osr->properties,
+                              g_strdup_printf("%s.%s[%u]", 
+                                              iter->prefix, 
+                                              keyword,
+                                              index),
+                              value);
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 static void add_properties(openslide_t *osr, struct dicom_level *level0) {
   // pixel spacing is in mm, so convert to microns
   if (level0->pixel_spacing_x && level0->pixel_spacing_y) {
@@ -729,6 +872,11 @@ static void add_properties(openslide_t *osr, struct dicom_level *level0) {
                         g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
                         _openslide_format_double(level0->objective_lens_power));
   }
+
+  // add all dicom elements
+  struct property_iterate iter = { osr, "dicom", true };
+  add_properties_dataset(level0->file->file_meta, 0, &iter);
+  add_properties_dataset(level0->file->metadata, 0, &iter);
 }
 
 static gint compare_level_width(const void *a, const void *b) {
