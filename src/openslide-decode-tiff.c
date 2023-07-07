@@ -483,6 +483,54 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
   return ret;
 }
 
+bool _openslide_tiff_get_icc_profile_size(struct _openslide_tiff_level *tiffl,
+                                          TIFF *tiff,
+                                          int64_t *icc_profile_size,
+                                          GError **err) {
+  // set directory
+  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+
+  // get profile
+  void *data;
+  uint32_t data_len;
+  if (TIFFGetField(tiff, TIFFTAG_ICCPROFILE, &data_len, &data)) {
+    *icc_profile_size = data_len;
+  } else {
+    // 0 means no profile available
+    *icc_profile_size = 0;
+  }
+
+  return true;
+}
+
+bool _openslide_tiff_read_icc_profile(openslide_t *osr,
+                                      struct _openslide_tiff_level *tiffl,
+                                      TIFF *tiff,
+                                      void *dest,
+                                      GError **err) {
+  // set directory
+  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+
+  // get profile
+  uint32_t data_len;
+  void *data;
+  if (!TIFFGetField(tiff, TIFFTAG_ICCPROFILE, &data_len, &data)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No ICC profile");
+    return false;
+  }
+
+  // copy to output
+  if (data_len != osr->icc_profile_size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "ICC profile size changed");
+    return false;
+  }
+  memcpy(dest, data, data_len);
+
+  return true;
+}
+
 static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
   struct tiff_file_handle *hdl = th;
 

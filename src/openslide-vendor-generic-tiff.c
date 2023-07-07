@@ -137,8 +137,21 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
                                       err);
 }
 
+static bool read_icc_profile(openslide_t *osr, void *dest, GError **err) {
+  struct level *l = (struct level *) osr->levels[0];
+  struct generic_tiff_ops_data *data = osr->data;
+
+  g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(data->tc, err);
+  if (!ct.tiff) {
+    return false;
+  }
+
+  return _openslide_tiff_read_icc_profile(osr, &l->tiffl, ct.tiff, dest, err);
+}
+
 static const struct _openslide_ops generic_tiff_ops = {
   .paint_region = paint_region,
+  .read_icc_profile = read_icc_profile,
   .destroy = destroy,
 };
 
@@ -251,6 +264,15 @@ static bool generic_tiff_open(openslide_t *osr,
                                                     top_level->tiffl.dir,
                                                     0,
                                                     err)) {
+    return false;
+  }
+
+  // get icc profile size, if present
+  struct level *base_level = level_array->pdata[0];
+  if (!_openslide_tiff_get_icc_profile_size(&base_level->tiffl,
+                                            ct.tiff,
+                                            &osr->icc_profile_size,
+                                            err)) {
     return false;
   }
 

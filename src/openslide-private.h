@@ -68,6 +68,9 @@ struct _openslide {
   GHashTable *properties; // created automatically
   const char **property_names; // filled in automatically from hashtable
 
+  // the size in bytes of the ICC profile, or 0 for no profile available
+  int64_t icc_profile_size;
+
   // cache
   struct _openslide_cache_binding *cache;
 
@@ -94,6 +97,7 @@ struct _openslide_ops {
                        struct _openslide_level *level,
                        int32_t w, int32_t h,
                        GError **err);
+  bool (*read_icc_profile)(openslide_t *osr, void *dest, GError **err);
   void (*destroy)(openslide_t *osr);
 };
 
