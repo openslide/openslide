@@ -569,27 +569,32 @@ void openslide_get_associated_image_dimensions(openslide_t *osr, const char *nam
 void openslide_read_associated_image(openslide_t *osr,
 				     const char *name,
 				     uint32_t *dest) {
+  struct _openslide_associated_image *img =
+    g_hash_table_lookup(osr->associated_images, name);
+  if (!img) {
+    return;
+  }
+  size_t pixels = img->w * img->h;
+
   if (openslide_get_error(osr)) {
+    if (dest) {
+      memset(dest, 0, pixels * sizeof(uint32_t));
+    }
     return;
   }
 
-  struct _openslide_associated_image *img = g_hash_table_lookup(osr->associated_images,
-								name);
-  if (img) {
-    size_t pixels = img->w * img->h;
-    g_autofree uint32_t *tmp_buf = NULL;
-    if (!dest) {
-      // undocumented special case for testing
-      tmp_buf = g_new(uint32_t, pixels);
-    }
+  g_autofree uint32_t *tmp_buf = NULL;
+  if (!dest) {
+    // undocumented special case for testing
+    tmp_buf = g_new(uint32_t, pixels);
+  }
 
-    GError *tmp_err = NULL;
-    if (!img->ops->get_argb_data(img, dest ? dest : tmp_buf, &tmp_err)) {
-      _openslide_propagate_error(osr, tmp_err);
-      if (dest) {
-        // ensure we don't return a partial result
-        memset(dest, 0, pixels * sizeof(uint32_t));
-      }
+  GError *tmp_err = NULL;
+  if (!img->ops->get_argb_data(img, dest ? dest : tmp_buf, &tmp_err)) {
+    _openslide_propagate_error(osr, tmp_err);
+    if (dest) {
+      // ensure we don't return a partial result
+      memset(dest, 0, pixels * sizeof(uint32_t));
     }
   }
 }
