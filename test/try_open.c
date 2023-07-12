@@ -126,8 +126,6 @@ static void check_api_failures(openslide_t *osr) {
             -1, -1);
 
   openslide_read_region(osr, NULL, 0, 0, 0, 10, 10);
-  openslide_read_associated_image(osr, "label", NULL);
-  openslide_read_associated_image(osr, "macro", NULL);
 }
 
 static void check_props(openslide_t *osr) {

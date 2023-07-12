@@ -577,25 +577,15 @@ void openslide_read_associated_image(openslide_t *osr,
   size_t pixels = img->w * img->h;
 
   if (openslide_get_error(osr)) {
-    if (dest) {
-      memset(dest, 0, pixels * sizeof(uint32_t));
-    }
+    memset(dest, 0, pixels * sizeof(uint32_t));
     return;
   }
 
-  g_autofree uint32_t *tmp_buf = NULL;
-  if (!dest) {
-    // undocumented special case for testing
-    tmp_buf = g_new(uint32_t, pixels);
-  }
-
   GError *tmp_err = NULL;
-  if (!img->ops->get_argb_data(img, dest ? dest : tmp_buf, &tmp_err)) {
+  if (!img->ops->get_argb_data(img, dest, &tmp_err)) {
     _openslide_propagate_error(osr, tmp_err);
-    if (dest) {
-      // ensure we don't return a partial result
-      memset(dest, 0, pixels * sizeof(uint32_t));
-    }
+    // ensure we don't return a partial result
+    memset(dest, 0, pixels * sizeof(uint32_t));
   }
 }
 
