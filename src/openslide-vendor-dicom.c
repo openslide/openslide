@@ -172,6 +172,7 @@ static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SharedFunctionalGroupsSequence[] =
     "SharedFunctionalGroupsSequence";
+static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char VLWholeSlideMicroscopyImageStorage[] =
@@ -613,6 +614,33 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .destroy = associated_destroy,
 };
 
+// error if two files have different SOP instance UIDs
+// if we discover two files with the same purpose (e.g. two label images)
+// and their UIDs are the same, it's a simple file duplication and we can
+// ignore it ... if the UIDs are different, then something unexpected has
+// happened and we must fail
+static bool ensure_sop_instance_uids_equal(struct dicom_file *f1,
+                                           struct dicom_file *f2,
+                                           GError **err) {
+  const char *f1_sop;
+  const char *f2_sop;
+  if (!get_tag_str(f1->metadata, SOPInstanceUID, 0, &f1_sop) ||
+      !get_tag_str(f2->metadata, SOPInstanceUID, 0, &f2_sop)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read SOPInstanceUID");
+    return false;
+  }
+
+  if (!g_str_equal(f1_sop, f2_sop)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Slide contains unexpected image (%s vs. %s)",
+                f1_sop, f2_sop);
+    return false;
+  }
+
+  return true;
+}
+
 // unconditionally takes ownership of dicom_file
 static bool add_associated(openslide_t *osr,
                            struct dicom_file *f,
@@ -646,11 +674,31 @@ static bool add_associated(openslide_t *osr,
   debug("add_associated: %s\n", name);
   print_file(f);
 
+  // if we've seen this associated image type before and the SOP instance
+  // UIDs match, someone duplicated a file; ignore it.  otherwise there's
+  // something we don't understand about this slide and we must fail
+  struct associated *previous =
+    g_hash_table_lookup(osr->associated_images, name);
+  if (previous) {
+    return ensure_sop_instance_uids_equal(f, previous->file, err);
+  }
+
   // add
   g_hash_table_insert(osr->associated_images,
                       g_strdup(name),
                       g_steal_pointer(&a));
   return true;
+}
+
+static struct dicom_level *find_level_by_dimensions(GPtrArray *level_array,
+                                                    int64_t w, int64_t h) {
+  for (guint i = 0; i < level_array->len; i++) {
+    struct dicom_level *l = (struct dicom_level *) level_array->pdata[i];
+    if (l->base.w == w && l->base.h == h) {
+      return l;
+    }
+  }
+  return NULL;
 }
 
 // unconditionally takes ownership of dicom_file
@@ -699,6 +747,15 @@ static bool add_level(openslide_t *osr,
                                           tiles_across, tiles_down,
                                           l->base.tile_w, l->base.tile_h,
                                           read_tile);
+
+  // is this level already there?  if the SOP instance UIDs match, someone
+  // duplicated a file; ignore it.  otherwise there's something about this
+  // slide we don't understand and we must fail
+  struct dicom_level *previous =
+    find_level_by_dimensions(level_array, l->base.w, l->base.h);
+  if (previous) {
+    return ensure_sop_instance_uids_equal(f, previous->file, err);
+  }
 
   // add
   g_ptr_array_add(level_array, g_steal_pointer(&l));
