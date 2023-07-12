@@ -154,27 +154,28 @@ static const struct allowed_types ASSOCIATED_TYPES = {
 
 /* The DICOM UIDs and fields we check.
  */
-static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
-static const char VLWholeSlideMicroscopyImageStorage[] =
-  "1.2.840.10008.5.1.4.1.1.77.1.6";
-static const char ImageType[] = "ImageType";
-static const char SeriesInstanceUID[] = "SeriesInstanceUID";
-static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
-static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
-static const char Columns[] = "Columns";
-static const char Rows[] = "Rows";
-static const char SharedFunctionalGroupsSequence[] = "SharedFunctionalGroupsSequence";
-static const char PixelMeasuresSequence[] = "PixelMeasuresSequence";
-static const char PixelSpacing[] = "PixelSpacing";
-static const char SamplesPerPixel[] = "SamplesPerPixel";
-static const char PhotometricInterpretation[] = "PhotometricInterpretation";
-static const char PlanarConfiguration[] = "PlanarConfiguration";
 static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
+static const char Columns[] = "Columns";
 static const char HighBit[] = "HighBit";
-static const char PixelRepresentation[] = "PixelRepresentation";
-static const char OpticalPathSequence[] = "OpticalPathSequence";
+static const char ImageType[] = "ImageType";
+static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
+static const char OpticalPathSequence[] = "OpticalPathSequence";
+static const char PhotometricInterpretation[] = "PhotometricInterpretation";
+static const char PixelMeasuresSequence[] = "PixelMeasuresSequence";
+static const char PixelRepresentation[] = "PixelRepresentation";
+static const char PixelSpacing[] = "PixelSpacing";
+static const char PlanarConfiguration[] = "PlanarConfiguration";
+static const char Rows[] = "Rows";
+static const char SamplesPerPixel[] = "SamplesPerPixel";
+static const char SeriesInstanceUID[] = "SeriesInstanceUID";
+static const char SharedFunctionalGroupsSequence[] =
+    "SharedFunctionalGroupsSequence";
+static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
+static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
+static const char VLWholeSlideMicroscopyImageStorage[] =
+    "1.2.840.10008.5.1.4.1.1.77.1.6";
 
 // the transfer syntaxes we support, and the format we use to decode pixels
 static struct syntax_format supported_syntax_formats[] = {
