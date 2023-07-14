@@ -171,25 +171,25 @@ static const char Rows[] = "Rows";
 static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SharedFunctionalGroupsSequence[] =
-    "SharedFunctionalGroupsSequence";
+  "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char VLWholeSlideMicroscopyImageStorage[] =
-    "1.2.840.10008.5.1.4.1.1.77.1.6";
+  "1.2.840.10008.5.1.4.1.1.77.1.6";
 
 // the transfer syntaxes we support, and the format we use to decode pixels
 static struct syntax_format supported_syntax_formats[] = {
-    // simple uncompressed array
-    { "1.2.840.10008.1.2.1", FORMAT_RGB },
+  // simple uncompressed array
+  { "1.2.840.10008.1.2.1", FORMAT_RGB },
 
-    // jpeg baseline, we don't handle lossless or 12 bit
-    { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
+  // jpeg baseline, we don't handle lossless or 12 bit
+  { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
 
-    // lossless and lossy jp2k
-    // we separate RGB and YCbCr with other tags
-    { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
-    { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
+  // lossless and lossy jp2k
+  // we separate RGB and YCbCr with other tags
+  { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
+  { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
@@ -391,7 +391,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle), 
+  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle),
                   &f->format, err)) {
     return NULL;
   }

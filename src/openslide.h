@@ -373,7 +373,6 @@ const char *openslide_get_error(openslide_t *osr);
 OPENSLIDE_PUBLIC()
 const char * const *openslide_get_property_names(openslide_t *osr);
 
-
 /**
  * Get the value of a single property.
  *

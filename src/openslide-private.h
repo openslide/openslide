@@ -90,10 +90,10 @@ struct _openslide_level {
 /* the function pointer structure for backends */
 struct _openslide_ops {
   bool (*paint_region)(openslide_t *osr, cairo_t *cr,
-		       int64_t x, int64_t y,
-		       struct _openslide_level *level,
-		       int32_t w, int32_t h,
-		       GError **err);
+                       int64_t x, int64_t y,
+                       struct _openslide_level *level,
+                       int32_t w, int32_t h,
+                       GError **err);
   void (*destroy)(openslide_t *osr);
 };
 
@@ -293,18 +293,18 @@ void _openslide_cache_binding_destroy(struct _openslide_cache_binding *cb);
 
 // put and get
 void _openslide_cache_put(struct _openslide_cache_binding *cb,
-			  void *plane,  // coordinate plane (level or grid)
-			  int64_t x,
-			  int64_t y,
-			  void *data,
-			  uint64_t size_in_bytes,
-			  struct _openslide_cache_entry **entry);
+                          void *plane,  // coordinate plane (level or grid)
+                          int64_t x,
+                          int64_t y,
+                          void *data,
+                          uint64_t size_in_bytes,
+                          struct _openslide_cache_entry **entry);
 
 void *_openslide_cache_get(struct _openslide_cache_binding *cb,
-			   void *plane,
-			   int64_t x,
-			   int64_t y,
-			   struct _openslide_cache_entry **entry);
+                           void *plane,
+                           int64_t x,
+                           int64_t y,
+                           struct _openslide_cache_entry **entry);
 
 // value unref
 void _openslide_cache_entry_unref(struct _openslide_cache_entry *entry);
