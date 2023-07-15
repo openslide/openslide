@@ -260,27 +260,6 @@ const char *openslide_get_error(openslide_t *osr);
 //@{
 
 /**
- * The name of the property containing a slide's comment, if any.
- *
- * @since 3.0.0
- */
-#define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
-
-/**
- * The name of the property containing an identification of the vendor.
- *
- * @since 3.0.0
- */
-#define OPENSLIDE_PROPERTY_NAME_VENDOR "openslide.vendor"
-
-/**
- * The name of the property containing the "quickhash-1" sum.
- *
- * @since 3.0.0
- */
-#define OPENSLIDE_PROPERTY_NAME_QUICKHASH1 "openslide.quickhash-1"
-
-/**
  * The name of the property containing a slide's background color, if any.
  * It is represented as an RGB hex triplet.
  *
@@ -289,27 +268,20 @@ const char *openslide_get_error(openslide_t *osr);
 #define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
 
 /**
- * The name of the property containing a slide's objective power, if known.
+ * The name of the property containing the height of the rectangle bounding
+ * the non-empty region of the slide, if available.
  *
- * @since 3.3.0
+ * @since 3.4.0
  */
-#define OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER "openslide.objective-power"
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT "openslide.bounds-height"
 
 /**
- * The name of the property containing the number of microns per pixel in
- * the X dimension of level 0, if known.
+ * The name of the property containing the width of the rectangle bounding
+ * the non-empty region of the slide, if available.
  *
- * @since 3.3.0
+ * @since 3.4.0
  */
-#define OPENSLIDE_PROPERTY_NAME_MPP_X "openslide.mpp-x"
-
-/**
- * The name of the property containing the number of microns per pixel in
- * the Y dimension of level 0, if known.
- *
- * @since 3.3.0
- */
-#define OPENSLIDE_PROPERTY_NAME_MPP_Y "openslide.mpp-y"
+#define OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH "openslide.bounds-width"
 
 /**
  * The name of the property containing the X coordinate of the rectangle
@@ -328,20 +300,49 @@ const char *openslide_get_error(openslide_t *osr);
 #define OPENSLIDE_PROPERTY_NAME_BOUNDS_Y "openslide.bounds-y"
 
 /**
- * The name of the property containing the width of the rectangle bounding
- * the non-empty region of the slide, if available.
+ * The name of the property containing a slide's comment, if any.
  *
- * @since 3.4.0
+ * @since 3.0.0
  */
-#define OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH "openslide.bounds-width"
+#define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
 
 /**
- * The name of the property containing the height of the rectangle bounding
- * the non-empty region of the slide, if available.
+ * The name of the property containing the number of microns per pixel in
+ * the X dimension of level 0, if known.
  *
- * @since 3.4.0
+ * @since 3.3.0
  */
-#define OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT "openslide.bounds-height"
+#define OPENSLIDE_PROPERTY_NAME_MPP_X "openslide.mpp-x"
+
+/**
+ * The name of the property containing the number of microns per pixel in
+ * the Y dimension of level 0, if known.
+ *
+ * @since 3.3.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_MPP_Y "openslide.mpp-y"
+
+/**
+ * The name of the property containing a slide's objective power, if known.
+ *
+ * @since 3.3.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER "openslide.objective-power"
+
+/**
+ * The name of the property containing the "quickhash-1" sum.
+ *
+ * @since 3.0.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_QUICKHASH1 "openslide.quickhash-1"
+
+/**
+ * The name of the property containing an identification of the vendor.
+ *
+ * @since 3.0.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_VENDOR "openslide.vendor"
+
 //@}
 
 /**
