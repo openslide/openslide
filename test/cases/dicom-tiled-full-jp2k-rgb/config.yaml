@@ -5,4 +5,5 @@ vendor: dicom
 primary: true
 requires: [dicom]
 properties:
+  openslide.icc-size: "3144"
   openslide.vendor: dicom
