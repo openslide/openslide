@@ -158,6 +158,7 @@ static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char Columns[] = "Columns";
 static const char HighBit[] = "HighBit";
+static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
 static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char ObjectiveLensPower[] = "ObjectiveLensPower";
@@ -171,25 +172,25 @@ static const char Rows[] = "Rows";
 static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SharedFunctionalGroupsSequence[] =
-    "SharedFunctionalGroupsSequence";
+  "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char VLWholeSlideMicroscopyImageStorage[] =
-    "1.2.840.10008.5.1.4.1.1.77.1.6";
+  "1.2.840.10008.5.1.4.1.1.77.1.6";
 
 // the transfer syntaxes we support, and the format we use to decode pixels
 static struct syntax_format supported_syntax_formats[] = {
-    // simple uncompressed array
-    { "1.2.840.10008.1.2.1", FORMAT_RGB },
+  // simple uncompressed array
+  { "1.2.840.10008.1.2.1", FORMAT_RGB },
 
-    // jpeg baseline, we don't handle lossless or 12 bit
-    { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
+  // jpeg baseline, we don't handle lossless or 12 bit
+  { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
 
-    // lossless and lossy jp2k
-    // we separate RGB and YCbCr with other tags
-    { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
-    { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
+  // lossless and lossy jp2k
+  // we separate RGB and YCbCr with other tags
+  { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
+  { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
 static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
@@ -278,6 +279,24 @@ static bool get_tag_str(const DcmDataSet *dataset,
   DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
   return element &&
          dcm_element_get_value_string(NULL, element, index, result);
+}
+
+static bool get_tag_binary(const DcmDataSet *dataset,
+                           const char *keyword,
+                           const void **result,
+                           int64_t *length) {
+  uint32_t tag = dcm_dict_tag_from_keyword(keyword);
+  DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
+  if (!element) {
+    return false;
+  }
+  if (!dcm_element_get_value_binary(NULL, element, result)) {
+    return false;
+  }
+  if (length) {
+    *length = dcm_element_get_length(element);
+  }
+  return true;
 }
 
 static bool get_tag_decimal_str(const DcmDataSet *dataset,
@@ -391,7 +410,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle), 
+  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle),
                   &f->format, err)) {
     return NULL;
   }
@@ -558,8 +577,43 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                                       err);
 }
 
+static const void *get_icc_profile(struct dicom_level *level, int64_t *len) {
+  const DcmDataSet *metadata = level->file->metadata;
+
+  DcmDataSet *optical_path;
+  const void *icc_profile;
+  if (!get_tag_seq_item(metadata, OpticalPathSequence, 0, &optical_path) ||
+      !get_tag_binary(optical_path, ICCProfile, &icc_profile, len)) {
+    return NULL;
+  }
+
+  return icc_profile;
+}
+
+static bool read_icc_profile(openslide_t *osr, void *dest,
+                             GError **err) {
+  struct dicom_level *l = (struct dicom_level *) osr->levels[0];
+  int64_t icc_profile_size;
+  const void *icc_profile = get_icc_profile(l, &icc_profile_size);
+  if (!icc_profile) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No ICC profile");
+    return false;
+  }
+  if (icc_profile_size != osr->icc_profile_size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "ICC profile size changed");
+    return false;
+  }
+
+  memcpy(dest, icc_profile, icc_profile_size);
+
+  return true;
+}
+
 static const struct _openslide_ops dicom_ops = {
   .paint_region = paint_region,
+  .read_icc_profile = read_icc_profile,
   .destroy = destroy,
 };
 
@@ -1052,6 +1106,8 @@ static bool dicom_open(openslide_t *osr,
   }
 
   add_properties(osr, level_array->pdata[0]);
+
+  (void) get_icc_profile(level_array->pdata[0], &osr->icc_profile_size);
 
   // no quickhash yet; disable
   _openslide_hash_disable(quickhash1);

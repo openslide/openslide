@@ -284,6 +284,14 @@ int main(int argc, char **argv) {
     associated_image_names++;
   }
 
+  // read ICC profile
+  int64_t icc_len = openslide_get_icc_profile_size(osr);
+  if (icc_len >= 0) {
+    g_autofree void *buf = g_malloc(icc_len);
+    openslide_read_icc_profile(osr, buf);
+  }
+  common_fail_on_error(osr, "Reading ICC profile failed");
+
   test_image_fetch(osr, -10, -10, 200, 200);
   test_image_fetch(osr, w/2, h/2, 500, 500);
   test_image_fetch(osr, w - 200, h - 100, 500, 400);
