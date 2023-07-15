@@ -307,6 +307,14 @@ const char *openslide_get_error(openslide_t *osr);
 #define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
 
 /**
+ * The name of the property containing the size of a slide's ICC profile,
+ * if any.
+ *
+ * @since 4.0.0
+ */
+#define OPENSLIDE_PROPERTY_NAME_ICC_SIZE "openslide.icc-size"
+
+/**
  * The name of the property containing the number of microns per pixel in
  * the X dimension of level 0, if known.
  *

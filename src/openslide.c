@@ -282,6 +282,11 @@ openslide_t *openslide_open(const char *filename) {
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),
                       g_strdup(format->vendor));
+  if (osr->icc_profile_size) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_ICC_SIZE),
+                        g_strdup_printf("%"PRId64, osr->icc_profile_size));
+  }
   g_hash_table_insert(osr->properties,
 		      g_strdup(_OPENSLIDE_PROPERTY_NAME_LEVEL_COUNT),
 		      g_strdup_printf("%d", osr->level_count));
