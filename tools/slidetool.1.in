@@ -33,7 +33,7 @@ slidetool \- Retrieve data from whole slide images
 .SH SYNOPSIS
 .BR "slidetool " [ --help "] [" --version ]
 .br
-.B slidetool prop list
+.BR "slidetool prop list" " [" --names ]
 .IR file ...
 .br
 .B slidetool quickhash1
@@ -93,6 +93,12 @@ The dimensions of each level of a slide can be obtained with
 .TP
 .B --help
 Display usage summary.
+
+.TP
+.B --names
+For
+.BR "slidetool prop list" ,
+omit property values.
 
 .TP
 .B --version

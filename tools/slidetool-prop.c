@@ -27,7 +27,10 @@
 #include "openslide-common.h"
 #include "slidetool.h"
 
-static bool list_props(const char *file, int successes, int total) {
+static gboolean names_only;
+
+static bool list_props(const char *file, int successes, int total,
+                       bool values) {
   g_autoptr(openslide_t) osr = openslide_open(file);
   if (common_warn_on_error(osr, "%s", file)) {
     return false;
@@ -46,8 +49,12 @@ static bool list_props(const char *file, int successes, int total) {
   const char * const *property_names = openslide_get_property_names(osr);
   while (*property_names) {
     const char *name = *property_names;
-    const char *value = openslide_get_property_value(osr, name);
-    printf("%s: '%s'\n", name, value);
+    if (values) {
+      const char *value = openslide_get_property_value(osr, name);
+      printf("%s: '%s'\n", name, value);
+    } else {
+      printf("%s\n", name);
+    }
 
     property_names++;
   }
@@ -58,7 +65,7 @@ static bool list_props(const char *file, int successes, int total) {
 static int do_show_properties(int narg, char **args) {
   int successes = 0;
   for (int i = 0; i < narg; i++) {
-    if (list_props(args[i], successes, narg)) {
+    if (list_props(args[i], successes, narg, true)) {
       successes++;
     }
   }
@@ -68,7 +75,7 @@ static int do_show_properties(int narg, char **args) {
 static int do_prop_list(int narg, char **args) {
   int successes = 0;
   for (int i = 0; i < narg; i++) {
-    if (list_props(args[i], successes, narg)) {
+    if (list_props(args[i], successes, narg, !names_only)) {
       successes++;
     }
   }
@@ -110,12 +117,18 @@ const struct command show_properties_cmd = {
   .handler = do_show_properties,
 };
 
+static const GOptionEntry prop_list_opts[] = {
+  {"names", 0, 0, G_OPTION_ARG_NONE, &names_only, "Omit property values", NULL},
+  {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
+};
+
 static const struct command prop_subcmds[] = {
   {
     .name = "list",
     .parameter_string = "<FILE...>",
     .summary = "List slide properties",
     .description = "Print OpenSlide properties for a slide.",
+    .options = prop_list_opts,
     .min_positional = 1,
     .handler = do_prop_list,
   },
