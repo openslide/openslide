@@ -496,9 +496,9 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
  *
  * @param osr The OpenSlide object.
- * @param dest The destination buffer for the ARGB data.
  * @param name The name of the desired associated image. Must be
  *             a valid name as given by openslide_get_associated_image_names().
+ * @param dest The destination buffer for the ARGB data.
  */
 OPENSLIDE_PUBLIC()
 void openslide_read_associated_image(openslide_t *osr,
