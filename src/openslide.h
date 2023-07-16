@@ -178,6 +178,10 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
  * bytes in length. If an error occurs or has occurred, then the memory
  * pointed to by @p dest will be cleared.
  *
+ * The returned pixel data is in the color space of the whole slide image,
+ * which may or may not be sRGB.  You can get the ICC profile for the
+ * slide's color space, if available, with openslide_read_icc_profile().
+ *
  * For more information about processing pre-multiplied pixel data, see
  * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
  *
