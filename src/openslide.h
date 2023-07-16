@@ -202,6 +202,35 @@ void openslide_read_region(openslide_t *osr,
 
 
 /**
+ * Get the size in bytes of the ICC profile for the whole slide image.
+ *
+ * @param osr The OpenSlide object.
+ * @return -1 on error, 0 if no profile is available, otherwise the profile
+ * size in bytes.
+ */
+OPENSLIDE_PUBLIC()
+int64_t openslide_get_icc_profile_size(openslide_t *osr);
+
+
+/**
+ * Copy the ICC profile from a whole slide image.
+ *
+ * This function reads the ICC profile from the slide into the specified
+ * memory location.  @p dest must be a valid pointer to enough memory
+ * to hold the profile.  Get the profile size with
+ * openslide_get_icc_profile_size().
+ *
+ * If an error occurs or has occurred, then the memory pointed to by @p dest
+ * will be cleared.
+ *
+ * @param osr The OpenSlide object.
+ * @param dest The destination buffer for the ICC profile.
+ */
+OPENSLIDE_PUBLIC()
+void openslide_read_icc_profile(openslide_t *osr, void *dest);
+
+
+/**
  * Close an OpenSlide object.
  * No other threads may be using the object.
  * After this function returns, the object cannot be used anymore.
@@ -399,44 +428,6 @@ const char * const *openslide_get_property_names(openslide_t *osr);
  */
 OPENSLIDE_PUBLIC()
 const char *openslide_get_property_value(openslide_t *osr, const char *name);
-
-//@}
-
-/**
- * @name ICC profiles
- * Reading ICC profiles.
- *
- * Some slides contain embedded ICC profiles which can be used to transform
- * pixel colors for display. These functions allow reading ICC profile data.
- */
-//@{
-
-/**
- * Get the size in bytes of the ICC profile for the whole slide image.
- *
- * @param osr The OpenSlide object.
- * @return -1 on error, 0 if no profile is available, otherwise the profile
- * size in bytes.
- */
-OPENSLIDE_PUBLIC()
-int64_t openslide_get_icc_profile_size(openslide_t *osr);
-
-/**
- * Copy the ICC profile from a whole slide image.
- *
- * This function reads the ICC profile from the slide into the specified
- * memory location.  @p dest must be a valid pointer to enough memory
- * to hold the profile.  Get the profile size with
- * openslide_get_icc_profile_size().
- *
- * If an error occurs or has occurred, then the memory pointed to by @p dest
- * will be cleared.
- *
- * @param osr The OpenSlide object.
- * @param dest The destination buffer for the ICC profile.
- */
-OPENSLIDE_PUBLIC()
-void openslide_read_icc_profile(openslide_t *osr, void *dest);
 
 //@}
 
