@@ -40,7 +40,7 @@ slidetool \- Retrieve data from whole slide images
 .IR file ...
 .br
 .B slidetool region read
-.I file x y level width height output-file
+.IR "file x y level width height" " [" output-file ]
 
 .SH DESCRIPTION
 .B slidetool
@@ -85,6 +85,9 @@ and
 .I height
 are pixel dimensions in the specified
 .IR level .
+If
+.I output-file
+is not specified, the image will be written to standard output.
 
 The dimensions of each level of a slide can be obtained with
 .BR "slidetool prop list" .

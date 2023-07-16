@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <setjmp.h>
 
 static const char SOFTWARE[] = "Software";
@@ -145,17 +144,9 @@ static void write_png(openslide_t *osr, FILE *f,
   png_destroy_write_struct(&png_ptr, &info_ptr);
 }
 
-static int do_write_png(int narg, char **args) {
-  // get args
-  g_assert(narg == 7);
-  const char *slide = args[0];
-  int64_t x = g_ascii_strtoll(args[1], NULL, 10);
-  int64_t y = g_ascii_strtoll(args[2], NULL, 10);
-  int32_t level = strtol(args[3], NULL, 10);
-  int64_t width = g_ascii_strtoll(args[4], NULL, 10);
-  int64_t height = g_ascii_strtoll(args[5], NULL, 10);
-  const char *output = args[6];
-
+static int write_region_png(const char *slide, int64_t x, int64_t y,
+                            int32_t level, int64_t width, int64_t height,
+                            const char *outfile) {
   // open slide
   g_autoptr(openslide_t) osr = openslide_open(slide);
 
@@ -177,17 +168,39 @@ static int do_write_png(int narg, char **args) {
     common_fail("height must be <= %d for PNG", INT32_MAX);
   }
 
-  // set up output file
-  FILE *png = fopen(output, "wb");
-  if (!png) {
-    common_fail("Can't open %s for writing: %s", output, strerror(errno));
-  }
-
-  write_png(osr, png, x, y, level, width, height);
-
-  fclose(png);
+  // write output file
+  g_auto(output) out = open_output(outfile);
+  write_png(osr, out.fp, x, y, level, width, height);
 
   return 0;
+}
+
+static int do_write_png(int narg, char **args) {
+  // get args
+  g_assert(narg == 7);
+  const char *slide = args[0];
+  int64_t x = g_ascii_strtoll(args[1], NULL, 10);
+  int64_t y = g_ascii_strtoll(args[2], NULL, 10);
+  int32_t level = strtol(args[3], NULL, 10);
+  int64_t width = g_ascii_strtoll(args[4], NULL, 10);
+  int64_t height = g_ascii_strtoll(args[5], NULL, 10);
+  const char *output = args[6];
+
+  return write_region_png(slide, x, y, level, width, height, output);
+}
+
+static int do_region_read(int narg, char **args) {
+  // get args
+  g_assert(narg >= 6);
+  const char *slide = args[0];
+  int64_t x = g_ascii_strtoll(args[1], NULL, 10);
+  int64_t y = g_ascii_strtoll(args[2], NULL, 10);
+  int32_t level = strtol(args[3], NULL, 10);
+  int64_t width = g_ascii_strtoll(args[4], NULL, 10);
+  int64_t height = g_ascii_strtoll(args[5], NULL, 10);
+  const char *output = narg >= 7 ? args[6] : NULL;
+
+  return write_region_png(slide, x, y, level, width, height, output);
 }
 
 const struct command write_png_cmd = {
@@ -202,12 +215,12 @@ const struct command write_png_cmd = {
 static const struct command region_subcmds[] = {
   {
     .name = "read",
-    .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> <OUTPUT-PNG>",
+    .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> [OUTPUT-PNG]",
     .summary = "Write a virtual slide region to a PNG",
     .description = "Write a region of a virtual slide to a PNG.",
-    .min_positional = 7,
+    .min_positional = 6,
     .max_positional = 7,
-    .handler = do_write_png,
+    .handler = do_region_read,
   },
   {}
 };

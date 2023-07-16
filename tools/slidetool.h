@@ -22,6 +22,9 @@
 #ifndef OPENSLIDE_SLIDETOOL_H_
 #define OPENSLIDE_SLIDETOOL_H_
 
+#include <stdio.h>
+#include <glib.h>
+
 struct command {
   // subcommand name
   const char *name;
@@ -49,5 +52,13 @@ extern const struct command region_cmd;
 extern const struct command quickhash1sum_cmd;
 extern const struct command show_properties_cmd;
 extern const struct command write_png_cmd;
+
+struct output {
+  FILE *fp;
+};
+typedef struct output output;
+struct output open_output(const char *filename);
+void _close_output(struct output *out);
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(output, _close_output);
 
 #endif
