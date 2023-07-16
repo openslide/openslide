@@ -352,6 +352,9 @@ const struct command region_cmd = {
 
 static const struct command assoc_subcmds[] = {
   {
+    .command = &assoc_icc_cmd,
+  },
+  {
     .name = "list",
     .parameter_string = "<FILE...>",
     .summary = "List associated images for a slide",

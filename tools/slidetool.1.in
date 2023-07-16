@@ -33,11 +33,17 @@ slidetool \- Retrieve data from whole slide images
 .SH SYNOPSIS
 .BR "slidetool " [ --help "] [" --version ]
 .br
+.B slidetool assoc icc read
+.IR "file name" " [" output-file ]
+.br
 .B slidetool assoc list
 .IR file ...
 .br
 .B slidetool assoc read
 .IR "file name" " [" output-file ]
+.br
+.B slidetool icc read
+.IR file " [" output-file ]
 .br
 .B slidetool prop get
 .IR "property file" ...
@@ -56,6 +62,12 @@ slidetool \- Retrieve data from whole slide images
 uses OpenSlide to retrieve data from whole slide images,
 also known as virtual slide files.
 
+.SS slidetool assoc icc read
+Write the associated image's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
+
 .SS slidetool assoc list
 List associated images for one or more slides.
 Associated images are small non-pyramidal images containing
@@ -68,6 +80,12 @@ to a PNG image.
 If
 .I output-file
 is not specified, the image will be written to standard output.
+
+.SS slidetool icc read
+Write the slide's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
 
 .SS slidetool prop get
 Print a single OpenSlide property value for one or more slides.

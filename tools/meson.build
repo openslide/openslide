@@ -27,6 +27,7 @@ foreach target : tools_binaries
     target,
     [
       'slidetool.c',
+      'slidetool-icc.c',
       'slidetool-image.c',
       'slidetool-prop.c',
       'slidetool-util.c',
