@@ -34,6 +34,7 @@
 
 static const char SOFTWARE[] = "Software";
 static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
+static const char ICC_PROFILE[] = "ICC";
 static const uint32_t BUFSIZE = 16 << 20;
 
 #define ENSURE_NONNEG(i) \
@@ -125,6 +126,15 @@ static void write_png(openslide_t *osr, FILE *f,
 
     png_color_16 background = { 0, r, g, b, 0 };
     png_set_bKGD(png_ptr, info_ptr, &background);
+  }
+
+  int64_t icc_size = openslide_get_icc_profile_size(osr);
+  if (icc_size > 0) {
+    g_autofree void *icc = g_malloc(icc_size);
+    openslide_read_icc_profile(osr, icc);
+    common_fail_on_error(osr, "Reading ICC profile");
+    png_set_iCCP(png_ptr, info_ptr, ICC_PROFILE, PNG_COMPRESSION_TYPE_BASE,
+                 icc, icc_size);
   }
 
   // start writing
@@ -263,6 +273,16 @@ static void assoc_read(openslide_t *osr, const char *image, FILE *f,
   }
 
   setup_png(png_ptr, info_ptr, f, w, h);
+
+  int64_t icc_size =
+    openslide_get_associated_image_icc_profile_size(osr, image);
+  if (icc_size > 0) {
+    g_autofree void *icc = g_malloc(icc_size);
+    openslide_read_associated_image_icc_profile(osr, image, icc);
+    common_fail_on_error(osr, "Reading ICC profile for %s", image);
+    png_set_iCCP(png_ptr, info_ptr, ICC_PROFILE, PNG_COMPRESSION_TYPE_BASE,
+                 icc, icc_size);
+  }
 
   // start writing
   png_write_info(png_ptr, info_ptr);
