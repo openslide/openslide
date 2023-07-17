@@ -648,6 +648,27 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
   return decode_frame(a->file, 0, 0, dest, a->base.w, a->base.h, err);
 }
 
+static bool associated_read_icc_profile(struct _openslide_associated_image *img,
+                                        void *dest, GError **err) {
+  struct associated *a = (struct associated *) img;
+  int64_t icc_profile_size;
+  const void *icc_profile = get_icc_profile(a->file, &icc_profile_size);
+  if (!icc_profile) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No ICC profile");
+    return false;
+  }
+  if (icc_profile_size != img->icc_profile_size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "ICC profile size changed");
+    return false;
+  }
+
+  memcpy(dest, icc_profile, icc_profile_size);
+
+  return true;
+}
+
 static void _associated_destroy(struct associated *a) {
   if (a->file) {
     dicom_file_destroy(a->file);
@@ -665,6 +686,7 @@ static void associated_destroy(struct _openslide_associated_image *img) {
 
 static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .get_argb_data = associated_get_argb_data,
+  .read_icc_profile = associated_read_icc_profile,
   .destroy = associated_destroy,
 };
 
@@ -711,6 +733,9 @@ static bool add_associated(openslide_t *osr,
                 "Couldn't read associated image dimensions");
     return false;
   }
+
+  // size of ICC profile, if present
+  (void) get_icc_profile(f, &a->base.icc_profile_size);
 
   // associated image name
   char *name;

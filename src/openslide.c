@@ -619,6 +619,45 @@ void openslide_read_associated_image(openslide_t *osr,
   }
 }
 
+int64_t openslide_get_associated_image_icc_profile_size(openslide_t *osr,
+                                                        const char *name) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
+  struct _openslide_associated_image *img =
+    g_hash_table_lookup(osr->associated_images, name);
+  if (!img) {
+    return -1;
+  }
+  return img->icc_profile_size;
+}
+
+void openslide_read_associated_image_icc_profile(openslide_t *osr,
+                                                 const char *name,
+                                                 void *dest) {
+  struct _openslide_associated_image *img =
+    g_hash_table_lookup(osr->associated_images, name);
+  if (!img) {
+    return;
+  }
+
+  if (openslide_get_error(osr)) {
+    memset(dest, 0, img->icc_profile_size);
+    return;
+  }
+  if (!img->icc_profile_size) {
+    return;
+  }
+  g_assert(img->ops->read_icc_profile);
+
+  GError *tmp_err = NULL;
+  if (!img->ops->read_icc_profile(img, dest, &tmp_err)) {
+    _openslide_propagate_error(osr, tmp_err);
+    memset(dest, 0, img->icc_profile_size);
+  }
+}
+
 openslide_cache_t *openslide_cache_create(size_t capacity) {
   return _openslide_cache_create(capacity);
 }

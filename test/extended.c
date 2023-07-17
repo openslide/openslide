@@ -280,6 +280,13 @@ int main(int argc, char **argv) {
     g_autofree uint32_t *buf = g_new(uint32_t, w * h);
     openslide_read_associated_image(osr, name, buf);
 
+    int64_t icc_len =
+      openslide_get_associated_image_icc_profile_size(osr, name);
+    if (icc_len >= 0) {
+      g_autofree void *buf = g_malloc(icc_len);
+      openslide_read_associated_image_icc_profile(osr, name, buf);
+    }
+
     common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
     associated_image_names++;
   }
