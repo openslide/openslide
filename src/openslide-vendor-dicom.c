@@ -577,8 +577,8 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                                       err);
 }
 
-static const void *get_icc_profile(struct dicom_level *level, int64_t *len) {
-  const DcmDataSet *metadata = level->file->metadata;
+static const void *get_icc_profile(struct dicom_file *file, int64_t *len) {
+  const DcmDataSet *metadata = file->metadata;
 
   DcmDataSet *optical_path;
   const void *icc_profile;
@@ -594,7 +594,7 @@ static bool read_icc_profile(openslide_t *osr, void *dest,
                              GError **err) {
   struct dicom_level *l = (struct dicom_level *) osr->levels[0];
   int64_t icc_profile_size;
-  const void *icc_profile = get_icc_profile(l, &icc_profile_size);
+  const void *icc_profile = get_icc_profile(l->file, &icc_profile_size);
   if (!icc_profile) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "No ICC profile");
@@ -1105,9 +1105,10 @@ static bool dicom_open(openslide_t *osr,
     print_level(l);
   }
 
-  add_properties(osr, level_array->pdata[0]);
+  struct dicom_level *level0 = level_array->pdata[0];
+  add_properties(osr, level0);
 
-  (void) get_icc_profile(level_array->pdata[0], &osr->icc_profile_size);
+  (void) get_icc_profile(level0->file, &osr->icc_profile_size);
 
   // no quickhash yet; disable
   _openslide_hash_disable(quickhash1);
