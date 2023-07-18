@@ -44,12 +44,6 @@
 
 #include <dicom/dicom.h>
 
-#if 0
-#define debug(...) g_debug(__VA_ARGS__)
-#else
-#define debug(...)
-#endif
-
 enum image_format {
   FORMAT_JPEG,
   FORMAT_JPEG2000,
@@ -192,46 +186,6 @@ static struct syntax_format supported_syntax_formats[] = {
   { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
-
-static void print_file(struct dicom_file *f G_GNUC_UNUSED) {
-  debug("file:" );
-  debug("  filename = %s", f->filename);
-  debug("  filehandle = %p", f->filehandle);
-  debug("  file_meta = %p", f->file_meta);
-  debug("  metadata = %p", f->metadata);
-  debug("  format = %d", f->format);
-}
-
-static void print_level(struct dicom_level *l) {
-  print_file(l->file);
-  debug("level:" );
-  debug("  base.downsample = %g", l->base.downsample);
-  debug("  base.w = %" PRId64, l->base.w);
-  debug("  base.h = %" PRId64, l->base.h);
-  debug("  base.tile_w = %" PRId64, l->base.tile_w);
-  debug("  base.tile_h = %" PRId64, l->base.tile_h);
-  debug("  grid = %p", l->grid);
-}
-
-static void print_frame(DcmFrame *frame G_GNUC_UNUSED) {
-  debug("value = %p", dcm_frame_get_value(frame));
-  debug("length = %u bytes", dcm_frame_get_length(frame));
-  debug("rows = %u", dcm_frame_get_rows(frame));
-  debug("columns = %u", dcm_frame_get_columns(frame));
-  debug("samples per pixel = %u",
-        dcm_frame_get_samples_per_pixel(frame));
-  debug("bits allocated = %u", dcm_frame_get_bits_allocated(frame));
-  debug("bits stored = %u", dcm_frame_get_bits_stored(frame));
-  debug("high bit = %u", dcm_frame_get_high_bit(frame));
-  debug("pixel representation = %u",
-        dcm_frame_get_pixel_representation(frame));
-  debug("planar configuration = %u",
-        dcm_frame_get_planar_configuration(frame));
-  debug("photometric interpretation = %s",
-        dcm_frame_get_photometric_interpretation(frame));
-  debug("transfer syntax uid = %s",
-        dcm_frame_get_transfer_syntax_uid(frame));
-}
 
 static bool dicom_detect(const char *filename,
                          struct _openslide_tifflike *tl G_GNUC_UNUSED,
@@ -479,9 +433,6 @@ static bool decode_frame(struct dicom_file *file,
     return false;
   }
 
-  print_file(file);
-  print_frame(frame);
-
   switch (file->format) {
   case FORMAT_JPEG:
     return _openslide_jpeg_decode_buffer(frame_value, frame_length,
@@ -509,11 +460,6 @@ static bool read_tile(openslide_t *osr,
                       void *arg G_GNUC_UNUSED,
                       GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
-
-  debug("read_tile: tile_col = %" PRIu64 ", tile_row = %" PRIu64,
-        tile_col, tile_row);
-  debug("read_tile level:");
-  print_level(l);
 
   // cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
@@ -564,11 +510,6 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                          int32_t w, int32_t h,
                          GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
-
-  debug("paint_region: x = %" PRId64 ", y = %" PRId64 ", w = %d, h = %d",
-        x, y, w, h);
-  debug("paint_region level:");
-  print_level(l);
 
   return _openslide_grid_paint_region(l->grid, cr, NULL,
                                       x / l->base.downsample,
@@ -753,9 +694,6 @@ static bool add_associated(openslide_t *osr,
     // is_type() let something unexpected through
     g_assert_not_reached();
   }
-
-  debug("add_associated: %s\n", name);
-  print_file(f);
 
   // if we've seen this associated image type before and the SOP instance
   // UIDs match, someone duplicated a file; ignore it.  otherwise there's
@@ -1093,7 +1031,6 @@ static bool dicom_open(openslide_t *osr,
 
     g_autofree char *path = g_build_filename(dirname, name, NULL);
 
-    debug("trying to open: %s ...", path);
     GError *tmp_err = NULL;
     g_autoptr(dicom_file) f = dicom_file_new(path, &tmp_err);
     if (!f) {
@@ -1127,12 +1064,6 @@ static bool dicom_open(openslide_t *osr,
 
   // sort levels by width
   g_ptr_array_sort(level_array, compare_level_width);
-
-  debug("found levels:");
-  for (guint i = 0; i < level_array->len; i++) {
-    struct dicom_level *l = (struct dicom_level *) level_array->pdata[i];
-    print_level(l);
-  }
 
   struct dicom_level *level0 = level_array->pdata[0];
   add_properties(osr, level0);
