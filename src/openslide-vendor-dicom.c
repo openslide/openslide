@@ -695,25 +695,29 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
 // and their UIDs are the same, it's a simple file duplication and we can
 // ignore it ... if the UIDs are different, then something unexpected has
 // happened and we must fail
-static bool ensure_sop_instance_uids_equal(struct dicom_file *f1,
-                                           struct dicom_file *f2,
+static bool ensure_sop_instance_uids_equal(struct dicom_file *cur,
+                                           struct dicom_file *prev,
                                            GError **err) {
-  const char *f1_sop;
-  const char *f2_sop;
-  if (!get_tag_str(f1->metadata, SOPInstanceUID, 0, &f1_sop) ||
-      !get_tag_str(f2->metadata, SOPInstanceUID, 0, &f2_sop)) {
+  const char *cur_sop;
+  const char *prev_sop;
+  if (!get_tag_str(cur->metadata, SOPInstanceUID, 0, &cur_sop) ||
+      !get_tag_str(prev->metadata, SOPInstanceUID, 0, &prev_sop)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read SOPInstanceUID");
     return false;
   }
 
-  if (!g_str_equal(f1_sop, f2_sop)) {
+  if (!g_str_equal(cur_sop, prev_sop)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Slide contains unexpected image (%s vs. %s)",
-                f1_sop, f2_sop);
+                cur_sop, prev_sop);
     return false;
   }
 
+  if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
+    g_message("opening %s: SOP instance UID %s matches %s",
+              cur->filename, cur_sop, prev->filename);
+  }
   return true;
 }
 
