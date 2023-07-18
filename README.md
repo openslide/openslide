@@ -10,6 +10,7 @@ from multiple vendors.
 OpenSlide can read brightfield whole slide images in [several formats][]:
 
 * [Aperio][] (`.svs`, `.tif`)
+* [DICOM][] (`.dcm`)
 * [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
 * [Leica][] (`.scn`)
 * [MIRAX][] (`.mrxs`)
@@ -24,6 +25,7 @@ associated images such as a slide label and thumbnail.
 
 [several formats]: https://openslide.org/formats/
 [Aperio]: https://openslide.org/formats/aperio/
+[DICOM]: https://openslide.org/formats/dicom/
 [Hamamatsu]: https://openslide.org/formats/hamamatsu/
 [Leica]: https://openslide.org/formats/leica/
 [MIRAX]: https://openslide.org/formats/mirax/
@@ -64,6 +66,7 @@ To build OpenSlide, you will need:
 - cairo &ge; 1.2
 - GDK-PixBuf
 - glib &ge; 2.56
+- libdicom &ge; 1.0 (automatically built if missing)
 - libjpeg
 - libpng
 - libtiff &ge; 4.0
