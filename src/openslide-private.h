@@ -372,6 +372,9 @@ void _openslide_performance_warn_once(gint *warned_flag,
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y "openslide.region[%d].y"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH "openslide.region[%d].width"
 #define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT "openslide.region[%d].height"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_WIDTH "openslide.associated.%s.width"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_HEIGHT "openslide.associated.%s.height"
+#define _OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_ICC_SIZE "openslide.associated.%s.icc-size"
 
 /* Tables */
 // YCbCr -> RGB chroma contributions

@@ -322,8 +322,25 @@ openslide_t *openslide_open(const char *filename) {
     }
   }
 
-  // fill in names
+  // fill in associated image names and set properties
   osr->associated_image_names = strv_from_hashtable_keys(osr->associated_images);
+  for (const char **name = osr->associated_image_names; *name != NULL; name++) {
+    struct _openslide_associated_image *img =
+      g_hash_table_lookup(osr->associated_images, *name);
+    g_hash_table_insert(osr->properties,
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_WIDTH, *name),
+			g_strdup_printf("%"PRId64, img->w));
+    g_hash_table_insert(osr->properties,
+			g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_HEIGHT, *name),
+			g_strdup_printf("%"PRId64, img->h));
+    if (img->icc_profile_size) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_ASSOCIATED_ICC_SIZE, *name),
+                          g_strdup_printf("%"PRId64, img->icc_profile_size));
+    }
+  }
+
+  // fill in property names
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
   // start cache
