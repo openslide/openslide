@@ -42,6 +42,9 @@ struct _openslide_associated_image {
 
   int64_t w;
   int64_t h;
+
+  // the size in bytes of the ICC profile, or 0 for no profile available
+  int64_t icc_profile_size;
 };
 
 /* associated image operations */
@@ -50,6 +53,9 @@ struct _openslide_associated_image_ops {
   bool (*get_argb_data)(struct _openslide_associated_image *img,
                         uint32_t *dest,
                         GError **err);
+  // must fail if img->icc_profile_size doesn't match the profile
+  bool (*read_icc_profile)(struct _openslide_associated_image *img,
+                           void *dest, GError **err);
   void (*destroy)(struct _openslide_associated_image *img);
 };
 
@@ -97,6 +103,7 @@ struct _openslide_ops {
                        struct _openslide_level *level,
                        int32_t w, int32_t h,
                        GError **err);
+  // must fail if osr->icc_profile_size doesn't match the profile
   bool (*read_icc_profile)(openslide_t *osr, void *dest, GError **err);
   void (*destroy)(openslide_t *osr);
 };
