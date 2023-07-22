@@ -36,13 +36,13 @@ static const char SOFTWARE[] = "Software";
 static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
 
 #define ENSURE_NONNEG(i) \
-  if (i < 0) {					\
-    fail(#i " must be non-negative");	\
+  if (i < 0) {                        \
+    fail(#i " must be non-negative"); \
   }
 
 #define ENSURE_POS(i) \
-  if (i <= 0) {					\
-    fail(#i " must be positive");	\
+  if (i <= 0) {                   \
+    fail(#i " must be positive"); \
   }
 
 static void fail(const char *format, ...) G_GNUC_NORETURN;
@@ -61,10 +61,10 @@ static void fail(const char *format, ...) {
 
 
 static void write_png(openslide_t *osr, FILE *f,
-		      int64_t x, int64_t y, int32_t level,
-		      int32_t w, const int32_t h) {
+                      int64_t x, int64_t y, int32_t level,
+                      int32_t w, const int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-						NULL, NULL, NULL);
+                                                NULL, NULL, NULL);
   if (!png_ptr) {
     fail("Could not initialize PNG");
   }
@@ -81,9 +81,9 @@ static void write_png(openslide_t *osr, FILE *f,
   png_init_io(png_ptr, f);
 
   png_set_IHDR(png_ptr, info_ptr, w, h, 8,
-	       PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-	       PNG_COMPRESSION_TYPE_DEFAULT,
-	       PNG_FILTER_TYPE_DEFAULT);
+               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_DEFAULT,
+               PNG_FILTER_TYPE_DEFAULT);
 
   // text
   png_text text_ptr[1];
@@ -117,7 +117,7 @@ static void write_png(openslide_t *osr, FILE *f,
   int32_t yy = y / ds;
   while (lines_to_draw) {
     openslide_read_region(osr, dest,
-			  x, yy * ds, level, w, 1);
+                          x, yy * ds, level, w, 1);
 
     const char *err = openslide_get_error(osr);
     if (err) {
@@ -136,20 +136,20 @@ static void write_png(openslide_t *osr, FILE *f,
 
       switch (a) {
       case 0:
-	r = 0;
-	b = 0;
-	g = 0;
-	break;
+        r = 0;
+        b = 0;
+        g = 0;
+        break;
 
       case 255:
-	// no action
-	break;
+        // no action
+        break;
 
       default:
-	r = (r * 255 + a / 2) / a;
-	g = (g * 255 + a / 2) / a;
-	b = (b * 255 + a / 2) / a;
-	break;
+        r = (r * 255 + a / 2) / a;
+        g = (g * 255 + a / 2) / a;
+        b = (b * 255 + a / 2) / a;
+        break;
       }
 
       // write back
@@ -207,7 +207,7 @@ int main (int argc, char **argv) {
   ENSURE_NONNEG(level);
   if (level > openslide_get_level_count(osr) - 1) {
     fail("level %d out of range (level count %d)",
-	 level, openslide_get_level_count(osr));
+         level, openslide_get_level_count(osr));
   }
   ENSURE_POS(width);
   ENSURE_POS(height);
