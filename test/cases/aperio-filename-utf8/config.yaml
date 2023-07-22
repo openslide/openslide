@@ -1,6 +1,3 @@
-# Disabled pending libtool wrapper exe command-line fix
-# https://bugzilla.redhat.com/show_bug.cgi?id=1124436
-
 base: Aperio/CMU-1.svs
 slide: 我的氣墊船裝滿了鱔魚.svs
 success: true
