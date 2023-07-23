@@ -28,6 +28,7 @@ void common_fail(const char *fmt, ...) {
   va_list ap;
 
   va_start(ap, fmt);
+  fprintf(stderr, "%s: ", g_get_prgname());
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
   va_end(ap);
@@ -39,6 +40,7 @@ void common_fail_on_error(openslide_t *osr, const char *fmt, ...) {
   if (err != NULL) {
     va_list ap;
     va_start(ap, fmt);
+    fprintf(stderr, "%s: ", g_get_prgname());
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, ": %s\n", err);
     va_end(ap);

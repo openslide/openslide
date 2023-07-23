@@ -61,6 +61,14 @@ static void free_argv(void) {
   g_strfreev(fixed_argv);
 }
 
+static gboolean parse_fail(GOptionContext* octx G_GNUC_UNUSED,
+                           GOptionGroup* grp G_GNUC_UNUSED,
+                           gpointer data G_GNUC_UNUSED,
+                           GError** err) {
+  g_set_error(err, G_OPTION_ERROR, G_OPTION_ERROR_FAILED, "boo!");
+  return false;
+}
+
 void common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
 #ifdef _WIN32
@@ -71,6 +79,16 @@ void common_fix_argv(int *argc, char ***argv) {
     *argc = g_strv_length(fixed_argv);
     *argv = fixed_argv;
     atexit(free_argv);
+
+    // Set prgname for g_get_prgname().  g_option_context_parse() has a bunch
+    // of infrastructure to do this, which cannot be called independently.
+    // Call g_option_context_parse() in a way that fails immediately after
+    // setting prgname.
+    g_autoptr(GOptionContext) octx = g_option_context_new(NULL);
+    GOptionGroup *grp = g_option_group_new("", "", "", NULL, NULL);
+    g_option_group_set_parse_hooks(grp, parse_fail, NULL);
+    g_option_context_set_main_group(octx, grp);
+    g_option_context_parse(octx, argc, argv, NULL);
   }
 }
 
