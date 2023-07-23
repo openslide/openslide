@@ -50,7 +50,9 @@ void common_usage(const struct common_usage_info *info) G_GNUC_NORETURN;
 
 // fail
 
+void common_warn(const char *fmt, ...);
 void common_fail(const char *fmt, ...) G_GNUC_NORETURN;
+bool common_warn_on_error(openslide_t *osr, const char *fmt, ...);
 void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 // fd

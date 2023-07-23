@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     return 2;
   }
   if (argc != 2) {
-    fprintf(stderr, "No slide specified\n");
+    common_warn("No slide specified");
     return 2;
   }
   const char *filename = argv[1];

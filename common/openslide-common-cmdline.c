@@ -110,7 +110,7 @@ void common_parse_commandline(const struct common_usage_info *info,
   common_parse_options(octx, argc, argv, &err);
 
   if (err) {
-    fprintf(stderr, "%s: %s\n\n", g_get_prgname(), err->message);
+    common_warn("%s\n", err->message);
     g_error_free(err);
     common_usage(info);
 

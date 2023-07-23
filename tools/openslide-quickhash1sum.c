@@ -28,25 +28,18 @@
 static bool process(const char *file) {
   g_autoptr(openslide_t) osr = openslide_open(file);
   if (osr == NULL) {
-    fprintf(stderr, "%s: %s: Not a file that OpenSlide can recognize\n",
-            g_get_prgname(), file);
-    fflush(stderr);
+    common_warn("%s: Not a file that OpenSlide can recognize", file);
     return false;
   }
 
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    fprintf(stderr, "%s: %s: %s\n", g_get_prgname(), file, err);
-    fflush(stderr);
+  if (common_warn_on_error(osr, "%s", file)) {
     return false;
   }
 
   const char *hash =
     openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_QUICKHASH1);
   if (hash == NULL) {
-    fprintf(stderr, "%s: %s: No quickhash-1 available\n", g_get_prgname(),
-            file);
-    fflush(stderr);
+    common_warn("%s: No quickhash-1 available", file);
     return false;
   }
 

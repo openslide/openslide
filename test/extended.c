@@ -71,7 +71,7 @@ static gpointer cloexec_thread(const gpointer prog) {
         continue;
       }
       if (g_hash_table_lookup(seen, *line) == NULL) {
-        fprintf(stderr, "Exec child received leaked fd to %s\n", *line);
+        common_warn("Exec child received leaked fd to %s", *line);
         g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
       }
     }
