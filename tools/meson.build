@@ -15,6 +15,7 @@ foreach t : tools
     t[0] + '.c',
     dependencies : t[1],
     install : true,
+    install_tag : 'bin',
   )
   install_man(
     configure_file(
