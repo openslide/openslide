@@ -46,8 +46,13 @@ void common_fail(const char *fmt, ...) {
 }
 
 static bool warn_on_error(openslide_t *osr, const char *fmt, va_list ap) {
-  const char *err = openslide_get_error(osr);
-  if (err != NULL) {
+  const char *err;
+  if (osr) {
+    err = openslide_get_error(osr);
+  } else {
+    err = "Not a file that OpenSlide can recognize";
+  }
+  if (err) {
     fprintf(stderr, "%s: ", g_get_prgname());
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, ": %s\n", err);

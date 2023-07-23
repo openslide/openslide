@@ -27,11 +27,6 @@
 
 static bool process(const char *file) {
   g_autoptr(openslide_t) osr = openslide_open(file);
-  if (osr == NULL) {
-    common_warn("%s: Not a file that OpenSlide can recognize", file);
-    return false;
-  }
-
   if (common_warn_on_error(osr, "%s", file)) {
     return false;
   }

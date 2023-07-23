@@ -51,9 +51,6 @@ int main(int argc, char **argv) {
 
   // open
   g_autoptr(openslide_t) osr = openslide_open("");
-  if (osr == NULL) {
-    common_fail("Couldn't open synthetic slide");
-  }
   common_fail_on_error(osr, "Opening synthetic slide");
 
   // read region

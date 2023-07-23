@@ -168,9 +168,6 @@ int main (int argc, char **argv) {
   g_autoptr(openslide_t) osr = openslide_open(slide);
 
   // check errors
-  if (osr == NULL) {
-    common_fail("%s: Not a file that OpenSlide can recognize", slide);
-  }
   common_fail_on_error(osr, "%s", slide);
 
   // validate args

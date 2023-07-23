@@ -45,10 +45,7 @@ int main(int argc, char **argv) {
   int level = atoi(argv[2]);
 
   g_autoptr(openslide_t) osr = openslide_open(path);
-  if (!osr) {
-    common_fail("Couldn't open %s", path);
-  }
-  common_fail_on_error(osr, "Open failed");
+  common_fail_on_error(osr, "Couldn't open %s", path);
   if (level >= openslide_get_level_count(osr)) {
     common_fail("No such level: %d", level);
   }
