@@ -38,11 +38,11 @@ Print OpenSlide
 .I quickhash-1
 checksums for one or more virtual slide files, in a format similar to
 .BR sha256sum (1).
-
+.PP
 .I quickhash-1
 is a non-cryptographic, 256-bit hash of a subset of a slide's data.
-It uniquely identifies a particular virtual slide, but cannot be used to
-detect corruption or modification of the slide file.
+It uniquely identifies a particular virtual slide,
+but cannot be used to detect corruption or modification of the slide file.
 
 .SH OPTIONS
 .TP
@@ -61,20 +61,20 @@ could not be calculated, or 2 if the arguments are invalid.
 
 .SH BUGS
 .I quickhash-1
-is not defined for all slide files supported by OpenSlide.  If a slide
-does not have a
+is not defined for all slide files supported by OpenSlide.
+If a slide does not have a
 .IR quickhash-1 ,
 "No quickhash-1 available" will be printed.
 
 .SH COPYRIGHT
 Copyright \(co 2007-2023 Carnegie Mellon University and others
-
-OpenSlide is free software: you can redistribute it and/or modify it under
-the terms of the
+.PP
+OpenSlide is free software: you can redistribute it and/or modify it
+under the terms of the
 .URL http://gnu.org/licenses/lgpl-2.1.html "GNU Lesser General Public License, version 2.1" .
-
-OpenSlide comes with NO WARRANTY, to the extent permitted by law.  See the
-GNU Lesser General Public License for more details.
+.PP
+OpenSlide comes with NO WARRANTY, to the extent permitted by law.
+See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
 .BR openslide-show-properties (1),

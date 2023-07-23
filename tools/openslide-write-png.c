@@ -25,7 +25,6 @@
 #include <png.h>
 #include <inttypes.h>
 #include <glib.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,56 +33,42 @@
 
 static const char SOFTWARE[] = "Software";
 static const char OPENSLIDE[] = "OpenSlide <https://openslide.org/>";
+static const uint32_t BUFSIZE = 16 << 20;
 
 #define ENSURE_NONNEG(i) \
-  if (i < 0) {					\
-    fail(#i " must be non-negative");	\
+  if (i < 0) {                               \
+    common_fail(#i " must be non-negative"); \
   }
 
 #define ENSURE_POS(i) \
-  if (i <= 0) {					\
-    fail(#i " must be positive");	\
+  if (i <= 0) {                          \
+    common_fail(#i " must be positive"); \
   }
 
-static void fail(const char *format, ...) G_GNUC_NORETURN;
-static void fail(const char *format, ...) {
-  va_list ap;
-
-  va_start(ap, format);
-  char *msg = g_strdup_vprintf(format, ap);
-  va_end(ap);
-
-  fprintf(stderr, "%s: %s\n", g_get_prgname(), msg);
-  fflush(stderr);
-
-  exit(1);
-}
-
-
 static void write_png(openslide_t *osr, FILE *f,
-		      int64_t x, int64_t y, int32_t level,
-		      int32_t w, const int32_t h) {
+                      int64_t x, int64_t y, int32_t level,
+                      int32_t w, const int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-						NULL, NULL, NULL);
+                                                NULL, NULL, NULL);
   if (!png_ptr) {
-    fail("Could not initialize PNG");
+    common_fail("Could not initialize PNG");
   }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
   if (!info_ptr) {
-    fail("Could not initialize PNG");
+    common_fail("Could not initialize PNG");
   }
 
   if (setjmp(png_jmpbuf(png_ptr))) {
-    fail("Error writing PNG");
+    common_fail("Error writing PNG");
   }
 
   png_init_io(png_ptr, f);
 
   png_set_IHDR(png_ptr, info_ptr, w, h, 8,
-	       PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-	       PNG_COMPRESSION_TYPE_DEFAULT,
-	       PNG_FILTER_TYPE_DEFAULT);
+               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_DEFAULT,
+               PNG_FILTER_TYPE_DEFAULT);
 
   // text
   png_text text_ptr[1];
@@ -111,57 +96,46 @@ static void write_png(openslide_t *osr, FILE *f,
   // start writing
   png_write_info(png_ptr, info_ptr);
 
-  g_autofree uint32_t *dest = g_malloc(w * 4);
+  const int32_t lines_at_a_time = MAX(BUFSIZE / (w * 4), 1);
+  g_autofree uint32_t *dest = g_malloc(lines_at_a_time * w * 4);
   int32_t lines_to_draw = h;
   double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;
   while (lines_to_draw) {
+    const int32_t lines = MIN(lines_at_a_time, lines_to_draw);
     openslide_read_region(osr, dest,
-			  x, yy * ds, level, w, 1);
+                          x, yy * ds, level, w, lines);
 
-    const char *err = openslide_get_error(osr);
-    if (err) {
-      fail("%s", err);
-    }
+    common_fail_on_error(osr, "Reading region");
 
     // un-premultiply alpha and pack into expected format
-    for (int i = 0; i < w; i++) {
+    for (int32_t i = 0; i < w * lines; i++) {
       uint32_t p = dest[i];
-      uint8_t *p8 = (uint8_t *) (dest + i);
 
-      uint8_t a = (p >> 24) & 0xFF;
-      uint8_t r = (p >> 16) & 0xFF;
-      uint8_t g = (p >> 8) & 0xFF;
-      uint8_t b = p & 0xFF;
-
+      uint8_t a = p >> 24;
       switch (a) {
       case 0:
-	r = 0;
-	b = 0;
-	g = 0;
-	break;
+        dest[i] = 0;
+        break;
 
       case 255:
-	// no action
-	break;
+        dest[i] = GUINT32_TO_BE(p << 8 | p >> 24);
+        break;
 
       default:
-	r = (r * 255 + a / 2) / a;
-	g = (g * 255 + a / 2) / a;
-	b = (b * 255 + a / 2) / a;
-	break;
+        ; // make compiler happy
+        uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
+        uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
+        uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
+        dest[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
       }
-
-      // write back
-      p8[0] = r;
-      p8[1] = g;
-      p8[2] = b;
-      p8[3] = a;
     }
 
-    png_write_row(png_ptr, (png_bytep) dest);
-    yy++;
-    lines_to_draw--;
+    for (int32_t i = 0; i < lines; i++) {
+      png_write_row(png_ptr, (png_bytep) &dest[w * i]);
+    }
+    yy += lines;
+    lines_to_draw -= lines;
   }
 
   // end
@@ -194,34 +168,27 @@ int main (int argc, char **argv) {
   g_autoptr(openslide_t) osr = openslide_open(slide);
 
   // check errors
-  if (osr == NULL) {
-    fail("%s: Not a file that OpenSlide can recognize", slide);
-  }
-
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    fail("%s: %s", slide, err);
-  }
+  common_fail_on_error(osr, "%s", slide);
 
   // validate args
   ENSURE_NONNEG(level);
   if (level > openslide_get_level_count(osr) - 1) {
-    fail("level %d out of range (level count %d)",
-	 level, openslide_get_level_count(osr));
+    common_fail("level %d out of range (level count %d)",
+                level, openslide_get_level_count(osr));
   }
   ENSURE_POS(width);
   ENSURE_POS(height);
   if (width > INT32_MAX) {
-    fail("width must be <= %d for PNG", INT32_MAX);
+    common_fail("width must be <= %d for PNG", INT32_MAX);
   }
   if (height > INT32_MAX) {
-    fail("height must be <= %d for PNG", INT32_MAX);
+    common_fail("height must be <= %d for PNG", INT32_MAX);
   }
 
   // set up output file
   FILE *png = fopen(output, "wb");
   if (!png) {
-    fail("Can't open %s for writing: %s", output, strerror(errno));
+    common_fail("Can't open %s for writing: %s", output, strerror(errno));
   }
 
   write_png(osr, png, x, y, level, width, height);

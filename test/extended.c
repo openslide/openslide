@@ -71,7 +71,7 @@ static gpointer cloexec_thread(const gpointer prog) {
         continue;
       }
       if (g_hash_table_lookup(seen, *line) == NULL) {
-        fprintf(stderr, "Exec child received leaked fd to %s\n", *line);
+        common_warn("Exec child received leaked fd to %s", *line);
         g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
       }
     }
@@ -214,16 +214,11 @@ int main(int argc, char **argv) {
   }
 
   openslide_t *osr = openslide_open(path);
-  if (!osr) {
-    common_fail("Couldn't open %s", path);
-  }
-  common_fail_on_error(osr, "Open failed");
+  common_fail_on_error(osr, "Couldn't open %s", path);
   openslide_close(osr);
 
   osr = openslide_open(path);
-  if (!osr || openslide_get_error(osr)) {
-    common_fail("Reopen failed");
-  }
+  common_fail_on_error(osr, "Reopen of %s failed", path);
 
   int64_t w, h;
   openslide_get_level0_dimensions(osr, &w, &h);

@@ -30,6 +30,7 @@
 #include "openslide-common.h"
 
 int main(int argc, char **argv) {
+  common_fix_argv(&argc, &argv);
   if (argc < 2 || !g_str_equal(argv[1], "child")) {
     putenv("OPENSLIDE_DEBUG=synthetic");
     // OpenSlide already evaluated debug flags, so we need to rerun
@@ -39,9 +40,7 @@ int main(int argc, char **argv) {
     int status;
     if (!g_spawn_sync(NULL, child_argv, NULL, G_SPAWN_SEARCH_PATH,
                       NULL, NULL, NULL, NULL, &status, &err)) {
-      fprintf(stderr, "Spawning child failed: %s\n", err->message);
-      g_clear_error(&err);
-      return 1;
+      common_fail("Spawning child failed: %s", err->message);
     }
     if (!g_spawn_check_exit_status(status, NULL)) {
       // child already reported the error
@@ -52,24 +51,12 @@ int main(int argc, char **argv) {
 
   // open
   g_autoptr(openslide_t) osr = openslide_open("");
-  if (osr == NULL) {
-    fprintf(stderr, "Couldn't open synthetic slide\n");
-    return 1;
-  }
-  const char *err = openslide_get_error(osr);
-  if (err != NULL) {
-    fprintf(stderr, "Opening synthetic slide: %s\n", err);
-    return 1;
-  }
+  common_fail_on_error(osr, "Opening synthetic slide");
 
   // read region
   g_autofree void *buf = g_malloc(4 * 1000 * 100);
   openslide_read_region(osr, buf, 0, 0, 0, 1000, 100);
-  err = openslide_get_error(osr);
-  if (err != NULL) {
-    fprintf(stderr, "Reading region: %s\n", err);
-    return 1;
-  }
+  common_fail_on_error(osr, "Reading region");
 
   // report tests
   printf("Tested:\n");
