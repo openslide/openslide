@@ -2,6 +2,7 @@
 .\" OpenSlide, a library for reading whole slide image files
 .\"
 .\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023      Benjamin Gilbert
 .\" All rights reserved.
 .\"
 .\" OpenSlide is free software: you can redistribute it and/or modify
@@ -22,7 +23,7 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-WRITE-PNG 1 2012-02-24 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH OPENSLIDE-WRITE-PNG 1 2023-06-30 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
@@ -64,6 +65,14 @@ Display version and copyright information.
 returns 0 on success, 1 if an error occurred,
 or 2 if the arguments are invalid.
 
+.SH NOTES
+.B openslide-write-png
+is a legacy command and no new features will be added.
+Its replacement is the
+.B region read
+subcommand of
+.BR slidetool (1).
+
 .SH COPYRIGHT
 Copyright \(co 2007-2023 Carnegie Mellon University and others
 .PP
@@ -75,5 +84,5 @@ OpenSlide comes with NO WARRANTY, to the extent permitted by law.
 See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
-.BR openslide-quickhash1sum (1),
-.BR openslide-show-properties (1)
+.BR openslide-show-properties (1),
+.BR slidetool (1)

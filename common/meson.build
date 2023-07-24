@@ -7,7 +7,6 @@ openslide_common_sources = [
 openslide_common = static_library(
   'openslide-common',
   openslide_common_sources,
-  include_directories : config_h_include,
   dependencies : [
     openslide_dep,
     glib_dep,
