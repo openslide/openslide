@@ -495,11 +495,7 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
   //g_debug("start tile: %"PRId64" %"PRId64", end tile: %"PRId64" %"PRId64, start_tile_x, start_tile_y, end_tile_x, end_tile_y);
 
   // save
-  g_auto(cairo_state) state G_GNUC_UNUSED = state_save(cr);
-
-  // saturate (3x-5x total slowdown, including JPEG decompression) to avoid
-  // seams
-  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+  g_auto(cairo_matrix) matrix G_GNUC_UNUSED = matrix_save(cr);
 
   // accommodate extra tiles being drawn
   region.start_tile_x -= grid->extra_tiles_left;
@@ -675,12 +671,7 @@ static bool range_paint_region(struct _openslide_grid *_grid,
   g_assert(grid->bins_runtime);
 
   // save
-  g_auto(cairo_state) state G_GNUC_UNUSED = state_save(cr);
   g_auto(cairo_matrix) matrix = matrix_save(cr);
-
-  // saturate (3x-5x total slowdown, including JPEG decompression) to avoid
-  // seams
-  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   // accumulate relevant tiles
   struct range_bin_address addr;

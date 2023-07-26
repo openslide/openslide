@@ -456,6 +456,9 @@ static bool read_region_area(openslide_t *osr,
   // create the cairo context
   g_autoptr(cairo_t) cr = cairo_create(surface);
 
+  // saturate those seams away!
+  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+
   if (level_in_range(osr, level)) {
     struct _openslide_level *l = osr->levels[level];
 
