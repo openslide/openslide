@@ -187,25 +187,6 @@ static struct syntax_format supported_syntax_formats[] = {
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
-static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
-                         GError **err) {
-  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
-  // tifflike files
-  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
-  if (!filehandle) {
-    return false;
-  }
-
-  DcmError *dcm_error = NULL;
-  if (!dcm_filehandle_get_file_meta(&dcm_error, filehandle)) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    return false;
-  }
-
-  return true;
-}
-
 static void dicom_file_destroy(struct dicom_file *f) {
   dcm_filehandle_destroy(f->filehandle);
   g_mutex_clear(&f->lock);
@@ -325,6 +306,17 @@ static bool verify_tag_str(const DcmDataSet *dataset,
          g_str_equal(value, expected_value);
 }
 
+static bool ensure_dicom_wsi(const DcmDataSet *file_meta, GError **err) {
+  const char *sop;
+  if (!get_tag_str(file_meta, MediaStorageSOPClassUID, 0, &sop) ||
+      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a WSI DICOM");
+    return false;
+  }
+  return true;
+}
+
 static bool get_format(const char *syntax, enum image_format *format,
                        GError **err) {
   for (uint64_t i = 0; i < G_N_ELEMENTS(supported_syntax_formats); i++) {
@@ -356,11 +348,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  const char *sop;
-  if (!get_tag_str(f->file_meta, MediaStorageSOPClassUID, 0, &sop) ||
-      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a WSI DICOM");
+  if (!ensure_dicom_wsi(f->file_meta, err)) {
     return NULL;
   }
 
@@ -557,6 +545,31 @@ static const struct _openslide_ops dicom_ops = {
   .read_icc_profile = read_icc_profile,
   .destroy = destroy,
 };
+
+static bool dicom_detect(const char *filename,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                         GError **err) {
+  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
+  // tifflike files
+  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
+  if (!filehandle) {
+    return false;
+  }
+
+  DcmError *dcm_error = NULL;
+  const DcmDataSet *file_meta =
+    dcm_filehandle_get_file_meta(&dcm_error, filehandle);
+  if (!file_meta) {
+    _openslide_dicom_propagate_error(err, dcm_error);
+    return false;
+  }
+
+  if (!ensure_dicom_wsi(file_meta, err)) {
+    return false;
+  }
+
+  return true;
+}
 
 // replace with g_strv_equal() once we have glib 2.60
 static bool strv_equal(const char *const *a, const char *const *b) {
@@ -823,7 +836,7 @@ static bool maybe_add_file(openslide_t *osr,
       f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
     } else {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG 2000 image format");
+                  "Unsupported JPEG 2000 photometric interpretation");
       return false;
     }
     break;
@@ -831,11 +844,16 @@ static bool maybe_add_file(openslide_t *osr,
     if (!verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") &&
         !verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG image format");
+                  "Unsupported JPEG photometric interpretation");
       return false;
     }
     break;
-  default:
+  case FORMAT_RGB:
+    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unsupported RGB photometric interpretation");
+      return false;
+    }
     break;
   }
 
