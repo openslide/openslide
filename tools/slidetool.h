@@ -49,7 +49,6 @@ extern const struct command assoc_cmd;
 extern const struct command assoc_icc_cmd;
 extern const struct command icc_cmd;
 extern const struct command prop_cmd;
-extern const struct command quickhash1_cmd;
 extern const struct command region_cmd;
 extern const struct command slide_cmd;
 

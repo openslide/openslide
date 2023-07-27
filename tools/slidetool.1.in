@@ -51,13 +51,13 @@ slidetool \- Retrieve data from whole slide images
 .BR "slidetool prop list" " [" --names ]
 .IR file ...
 .br
-.B slidetool quickhash1
-.IR file ...
-.br
 .B slidetool region read
 .IR "file x y level width height" " [" output-file ]
 .br
 .B slidetool slide open
+.IR file ...
+.br
+.B slidetool slide quickhash1
 .IR file ...
 .br
 .B slidetool slide vendor
@@ -104,23 +104,6 @@ others are defined by the individual slide format.
 .SS slidetool prop list
 Print all OpenSlide properties for one or more slides.
 
-.SS slidetool quickhash1
-Print OpenSlide
-.I quickhash-1
-checksums for one or more slides, in a format similar to
-.BR sha256sum (1).
-.PP
-.I quickhash-1
-is a non-cryptographic, 256-bit hash of a subset of a slide's data.
-It uniquely identifies a particular slide,
-but cannot be used to detect corruption or modification of the slide file.
-.PP
-.I quickhash-1
-is not defined for all slide files supported by OpenSlide.
-If a slide does not have a
-.IR quickhash-1 ,
-"No quickhash-1 available" will be printed.
-
 .SS slidetool region read
 Write a region of the specified
 .I level
@@ -143,6 +126,23 @@ The dimensions of each level of a slide can be obtained with
 
 .SS slidetool slide open
 Check whether OpenSlide can open one or more slide files.
+
+.SS slidetool slide quickhash1
+Print OpenSlide
+.I quickhash-1
+checksums for one or more slides, in a format similar to
+.BR sha256sum (1).
+.PP
+.I quickhash-1
+is a non-cryptographic, 256-bit hash of a subset of a slide's data.
+It uniquely identifies a particular slide,
+but cannot be used to detect corruption or modification of the slide file.
+.PP
+.I quickhash-1
+is not defined for all slide files supported by OpenSlide.
+If a slide does not have a
+.IR quickhash-1 ,
+"No quickhash-1 available" will be printed.
 
 .SS slidetool slide vendor
 Report the detected OpenSlide vendor name for one or more slide files.

@@ -59,9 +59,6 @@ static const struct command root_subcmds[] = {
     .command = &prop_cmd,
   },
   {
-    .command = &quickhash1_cmd,
-  },
-  {
     .command = &region_cmd,
   },
   {

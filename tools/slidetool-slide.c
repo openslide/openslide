@@ -57,6 +57,41 @@ static int do_vendor(int narg, char **args) {
   return ret;
 }
 
+static bool quickhash1sum(const char *file) {
+  g_autoptr(openslide_t) osr = openslide_open(file);
+  if (common_warn_on_error(osr, "%s", file)) {
+    return false;
+  }
+
+  const char *hash =
+    openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_QUICKHASH1);
+  if (hash == NULL) {
+    common_warn("%s: No quickhash-1 available", file);
+    return false;
+  }
+
+  printf("%s  %s\n", hash, file);
+  return true;
+}
+
+static int do_quickhash1sum(int narg, char **args) {
+  int ret = 0;
+  for (int i = 0; i < narg; i++) {
+    if (!quickhash1sum(args[i])) {
+      ret = 1;
+    }
+  }
+  return ret;
+}
+
+const struct command quickhash1sum_cmd = {
+  .parameter_string = "<FILE...>",
+  .description = "Print OpenSlide quickhash-1 (256-bit) checksums.",
+  .options = legacy_opts,
+  .min_positional = 1,
+  .handler = do_quickhash1sum,
+};
+
 static const struct command slide_subcmds[] = {
   {
     .name = "open",
@@ -65,6 +100,14 @@ static const struct command slide_subcmds[] = {
     .description = "Check whether OpenSlide can open a slide.",
     .min_positional = 1,
     .handler = do_open,
+  },
+  {
+    .name = "quickhash1",
+    .parameter_string = "<FILE...>",
+    .summary = "Print quickhash-1 checksum",
+    .description = "Print OpenSlide quickhash-1 (256-bit) checksums.",
+    .min_positional = 1,
+    .handler = do_quickhash1sum,
   },
   {
     .name = "vendor",
