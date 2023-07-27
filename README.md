@@ -20,7 +20,7 @@ OpenSlide can read brightfield whole slide images in [several formats][]:
 * [Ventana][] (`.bif`, `.tif`)
 * [Generic tiled TIFF][] (`.tif`)
 
-OpenSlide can also provide access to textual metadata, as well as
+OpenSlide can also provide access to ICC profiles, textual metadata, and
 associated images such as a slide label and thumbnail.
 
 [several formats]: https://openslide.org/formats/
