@@ -61,16 +61,16 @@ more details.
 To build OpenSlide, you will need:
 
 - Meson
-- zlib
-- libpng
-- libjpeg
-- libtiff &ge; 4.0
-- OpenJPEG &ge; 2.1
-- GDK-PixBuf
-- libxml2
-- SQLite &ge; 3.14
 - cairo &ge; 1.2
+- GDK-PixBuf
 - glib &ge; 2.56
+- libjpeg
+- libpng
+- libtiff &ge; 4.0
+- libxml2
+- OpenJPEG &ge; 2.1
+- SQLite &ge; 3.14
+- zlib
 
 Then:
 
