@@ -10,6 +10,7 @@ from multiple vendors.
 OpenSlide can read brightfield whole slide images in [several formats][]:
 
 * [Aperio][] (`.svs`, `.tif`)
+* [DICOM][] (`.dcm`)
 * [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
 * [Leica][] (`.scn`)
 * [MIRAX][] (`.mrxs`)
@@ -19,11 +20,12 @@ OpenSlide can read brightfield whole slide images in [several formats][]:
 * [Ventana][] (`.bif`, `.tif`)
 * [Generic tiled TIFF][] (`.tif`)
 
-OpenSlide can also provide access to textual metadata, as well as
+OpenSlide can also provide access to ICC profiles, textual metadata, and
 associated images such as a slide label and thumbnail.
 
 [several formats]: https://openslide.org/formats/
 [Aperio]: https://openslide.org/formats/aperio/
+[DICOM]: https://openslide.org/formats/dicom/
 [Hamamatsu]: https://openslide.org/formats/hamamatsu/
 [Leica]: https://openslide.org/formats/leica/
 [MIRAX]: https://openslide.org/formats/mirax/
@@ -61,16 +63,17 @@ more details.
 To build OpenSlide, you will need:
 
 - Meson
-- zlib
-- libpng
-- libjpeg
-- libtiff &ge; 4.0
-- OpenJPEG &ge; 2.1
-- GDK-PixBuf
-- libxml2
-- SQLite &ge; 3.14
 - cairo &ge; 1.2
+- GDK-PixBuf
 - glib &ge; 2.56
+- libdicom &ge; 1.0 (automatically built if missing)
+- libjpeg
+- libpng
+- libtiff &ge; 4.0
+- libxml2
+- OpenJPEG &ge; 2.1
+- SQLite &ge; 3.14
+- zlib
 
 Then:
 
