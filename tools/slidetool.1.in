@@ -42,14 +42,14 @@ slidetool \- Retrieve data from whole slide images
 .B slidetool assoc read
 .IR "file name" " [" output-file ]
 .br
-.B slidetool icc read
-.IR file " [" output-file ]
-.br
 .B slidetool prop get
 .IR "property file" ...
 .br
 .BR "slidetool prop list" " [" --names ]
 .IR file ...
+.br
+.B slidetool region icc read
+.IR file " [" output-file ]
 .br
 .B slidetool region read
 .IR "file x y level width height" " [" output-file ]
@@ -87,12 +87,6 @@ If
 .I output-file
 is not specified, the image will be written to standard output.
 
-.SS slidetool icc read
-Write the slide's ICC color profile to
-.I output-file
-if specified, and otherwise to standard output.
-If no ICC color profile is available, fail.
-
 .SS slidetool prop get
 Print a single OpenSlide property value for one or more slides.
 Properties are individual pieces of textual metadata about the slide.
@@ -103,6 +97,12 @@ others are defined by the individual slide format.
 
 .SS slidetool prop list
 Print all OpenSlide properties for one or more slides.
+
+.SS slidetool region icc read
+Write the slide's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
 
 .SS slidetool region read
 Write a region of the specified

@@ -53,9 +53,6 @@ static const struct command root_subcmds[] = {
     .command = &assoc_cmd,
   },
   {
-    .command = &icc_cmd,
-  },
-  {
     .command = &prop_cmd,
   },
   {
