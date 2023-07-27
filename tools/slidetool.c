@@ -64,6 +64,9 @@ static const struct command root_subcmds[] = {
   {
     .command = &region_cmd,
   },
+  {
+    .command = &slide_cmd,
+  },
   {}
 };
 

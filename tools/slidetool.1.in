@@ -23,7 +23,7 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH SLIDETOOL 1 2023-07-12 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH SLIDETOOL 1 2023-07-27 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
@@ -56,6 +56,12 @@ slidetool \- Retrieve data from whole slide images
 .br
 .B slidetool region read
 .IR "file x y level width height" " [" output-file ]
+.br
+.B slidetool slide open
+.IR file ...
+.br
+.B slidetool slide vendor
+.IR file ...
 
 .SH DESCRIPTION
 .B slidetool
@@ -134,6 +140,12 @@ is not specified, the image will be written to standard output.
 
 The dimensions of each level of a slide can be obtained with
 .BR "slidetool prop list" .
+
+.SS slidetool slide open
+Check whether OpenSlide can open one or more slide files.
+
+.SS slidetool slide vendor
+Report the detected OpenSlide vendor name for one or more slide files.
 
 .SH OPTIONS
 .TP
