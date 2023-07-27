@@ -836,7 +836,7 @@ static bool maybe_add_file(openslide_t *osr,
       f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
     } else {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG 2000 image format");
+                  "Unsupported JPEG 2000 photometric interpretation");
       return false;
     }
     break;
@@ -844,11 +844,16 @@ static bool maybe_add_file(openslide_t *osr,
     if (!verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") &&
         !verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG image format");
+                  "Unsupported JPEG photometric interpretation");
       return false;
     }
     break;
-  default:
+  case FORMAT_RGB:
+    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unsupported RGB photometric interpretation");
+      return false;
+    }
     break;
   }
 
