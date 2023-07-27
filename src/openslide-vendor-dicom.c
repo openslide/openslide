@@ -306,6 +306,17 @@ static bool verify_tag_str(const DcmDataSet *dataset,
          g_str_equal(value, expected_value);
 }
 
+static bool ensure_dicom_wsi(const DcmDataSet *file_meta, GError **err) {
+  const char *sop;
+  if (!get_tag_str(file_meta, MediaStorageSOPClassUID, 0, &sop) ||
+      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a WSI DICOM");
+    return false;
+  }
+  return true;
+}
+
 static bool get_format(const char *syntax, enum image_format *format,
                        GError **err) {
   for (uint64_t i = 0; i < G_N_ELEMENTS(supported_syntax_formats); i++) {
@@ -337,11 +348,7 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  const char *sop;
-  if (!get_tag_str(f->file_meta, MediaStorageSOPClassUID, 0, &sop) ||
-      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a WSI DICOM");
+  if (!ensure_dicom_wsi(f->file_meta, err)) {
     return NULL;
   }
 
@@ -550,8 +557,14 @@ static bool dicom_detect(const char *filename,
   }
 
   DcmError *dcm_error = NULL;
-  if (!dcm_filehandle_get_file_meta(&dcm_error, filehandle)) {
+  const DcmDataSet *file_meta =
+    dcm_filehandle_get_file_meta(&dcm_error, filehandle);
+  if (!file_meta) {
     _openslide_dicom_propagate_error(err, dcm_error);
+    return false;
+  }
+
+  if (!ensure_dicom_wsi(file_meta, err)) {
     return false;
   }
 
