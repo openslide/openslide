@@ -187,25 +187,6 @@ static struct syntax_format supported_syntax_formats[] = {
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
-static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
-                         GError **err) {
-  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
-  // tifflike files
-  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
-  if (!filehandle) {
-    return false;
-  }
-
-  DcmError *dcm_error = NULL;
-  if (!dcm_filehandle_get_file_meta(&dcm_error, filehandle)) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    return false;
-  }
-
-  return true;
-}
-
 static void dicom_file_destroy(struct dicom_file *f) {
   dcm_filehandle_destroy(f->filehandle);
   g_mutex_clear(&f->lock);
@@ -557,6 +538,25 @@ static const struct _openslide_ops dicom_ops = {
   .read_icc_profile = read_icc_profile,
   .destroy = destroy,
 };
+
+static bool dicom_detect(const char *filename,
+                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                         GError **err) {
+  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
+  // tifflike files
+  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
+  if (!filehandle) {
+    return false;
+  }
+
+  DcmError *dcm_error = NULL;
+  if (!dcm_filehandle_get_file_meta(&dcm_error, filehandle)) {
+    _openslide_dicom_propagate_error(err, dcm_error);
+    return false;
+  }
+
+  return true;
+}
 
 // replace with g_strv_equal() once we have glib 2.60
 static bool strv_equal(const char *const *a, const char *const *b) {
