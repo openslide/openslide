@@ -64,7 +64,7 @@ could not be calculated, or 2 if the arguments are invalid.
 .B openslide-quickhash1sum
 is a legacy command and no new features will be added.
 Its replacement is the
-.B quickhash1
+.B slide quickhash1
 subcommand of
 .BR slidetool (1).
 

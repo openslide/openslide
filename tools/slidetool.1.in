@@ -23,7 +23,7 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH SLIDETOOL 1 2023-07-12 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH SLIDETOOL 1 2023-07-27 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
@@ -42,20 +42,26 @@ slidetool \- Retrieve data from whole slide images
 .B slidetool assoc read
 .IR "file name" " [" output-file ]
 .br
-.B slidetool icc read
-.IR file " [" output-file ]
-.br
 .B slidetool prop get
 .IR "property file" ...
 .br
 .BR "slidetool prop list" " [" --names ]
 .IR file ...
 .br
-.B slidetool quickhash1
-.IR file ...
+.B slidetool region icc read
+.IR file " [" output-file ]
 .br
 .B slidetool region read
 .IR "file x y level width height" " [" output-file ]
+.br
+.B slidetool slide open
+.IR file ...
+.br
+.B slidetool slide quickhash1
+.IR file ...
+.br
+.B slidetool slide vendor
+.IR file ...
 
 .SH DESCRIPTION
 .B slidetool
@@ -81,12 +87,6 @@ If
 .I output-file
 is not specified, the image will be written to standard output.
 
-.SS slidetool icc read
-Write the slide's ICC color profile to
-.I output-file
-if specified, and otherwise to standard output.
-If no ICC color profile is available, fail.
-
 .SS slidetool prop get
 Print a single OpenSlide property value for one or more slides.
 Properties are individual pieces of textual metadata about the slide.
@@ -98,22 +98,11 @@ others are defined by the individual slide format.
 .SS slidetool prop list
 Print all OpenSlide properties for one or more slides.
 
-.SS slidetool quickhash1
-Print OpenSlide
-.I quickhash-1
-checksums for one or more slides, in a format similar to
-.BR sha256sum (1).
-.PP
-.I quickhash-1
-is a non-cryptographic, 256-bit hash of a subset of a slide's data.
-It uniquely identifies a particular slide,
-but cannot be used to detect corruption or modification of the slide file.
-.PP
-.I quickhash-1
-is not defined for all slide files supported by OpenSlide.
-If a slide does not have a
-.IR quickhash-1 ,
-"No quickhash-1 available" will be printed.
+.SS slidetool region icc read
+Write the slide's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
 
 .SS slidetool region read
 Write a region of the specified
@@ -134,6 +123,29 @@ is not specified, the image will be written to standard output.
 
 The dimensions of each level of a slide can be obtained with
 .BR "slidetool prop list" .
+
+.SS slidetool slide open
+Check whether OpenSlide can open one or more slide files.
+
+.SS slidetool slide quickhash1
+Print OpenSlide
+.I quickhash-1
+checksums for one or more slides, in a format similar to
+.BR sha256sum (1).
+.PP
+.I quickhash-1
+is a non-cryptographic, 256-bit hash of a subset of a slide's data.
+It uniquely identifies a particular slide,
+but cannot be used to detect corruption or modification of the slide file.
+.PP
+.I quickhash-1
+is not defined for all slide files supported by OpenSlide.
+If a slide does not have a
+.IR quickhash-1 ,
+"No quickhash-1 available" will be printed.
+
+.SS slidetool slide vendor
+Report the detected OpenSlide vendor name for one or more slide files.
 
 .SH OPTIONS
 .TP

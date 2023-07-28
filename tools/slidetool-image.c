@@ -333,6 +333,9 @@ const struct command write_png_cmd = {
 
 static const struct command region_subcmds[] = {
   {
+    .command = &region_icc_cmd,
+  },
+  {
     .name = "read",
     .parameter_string = "<SLIDE> <X> <Y> <LEVEL> <WIDTH> <HEIGHT> [OUTPUT-PNG]",
     .summary = "Write a virtual slide region to a PNG",

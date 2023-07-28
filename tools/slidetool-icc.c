@@ -80,11 +80,11 @@ static int do_assoc_icc_read(int narg, char **args) {
   return 0;
 }
 
-static const struct command icc_subcmds[] = {
+static const struct command region_icc_subcmds[] = {
   {
     .name = "read",
     .parameter_string = "<FILE> [OUTPUT-FILE]",
-    .summary = "Write an ICC profile to a file",
+    .summary = "Write ICC profile to a file",
     .description = "Copy a slide's ICC profile to a file.",
     .min_positional = 1,
     .max_positional = 2,
@@ -93,10 +93,10 @@ static const struct command icc_subcmds[] = {
   {}
 };
 
-const struct command icc_cmd = {
+const struct command region_icc_cmd = {
   .name = "icc",
-  .summary = "Commands related to ICC profiles",
-  .subcommands = icc_subcmds,
+  .summary = "Commands related to slide region ICC profiles",
+  .subcommands = region_icc_subcmds,
 };
 
 static const struct command assoc_icc_subcmds[] = {
