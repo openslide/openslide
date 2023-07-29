@@ -57,6 +57,7 @@ struct dicom_file {
   DcmFilehandle *filehandle;
   const DcmDataSet *file_meta;
   const DcmDataSet *metadata;
+  const char *slide_id;
   enum image_format format;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
@@ -341,6 +342,12 @@ static struct dicom_file *dicom_file_new(const char *filename,
     if (!f->metadata) {
       _openslide_dicom_propagate_error(err, dcm_error);
       return NULL;
+    }
+
+    if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &f->slide_id)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "SeriesInstanceUID not found");
+      return false;
     }
   }
 
@@ -1007,14 +1014,7 @@ static bool dicom_open(openslide_t *osr,
   if (!start) {
     return false;
   }
-
-  const char *tmp;
-  if (!get_tag_str(start->metadata, SeriesInstanceUID, 0, &tmp)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "SeriesInstanceUID not found");
-    return false;
-  }
-  g_autofree char *slide_id = g_strdup(tmp);
+  g_autofree char *slide_id = g_strdup(start->slide_id);
 
   if (!maybe_add_file(osr, level_array, g_steal_pointer(&start), err)) {
     g_prefix_error(err, "Reading %s: ", filename);
@@ -1041,11 +1041,10 @@ static bool dicom_open(openslide_t *osr,
       continue;
     }
 
-    const char *this_slide_id;
-    if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &this_slide_id) ||
-        !g_str_equal(this_slide_id, slide_id)) {
+    if (!g_str_equal(f->slide_id, slide_id)) {
       if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
-        g_message("opening %s: Series Instance UID %s != %s", path, this_slide_id, slide_id);
+        g_message("opening %s: Series Instance UID %s != %s",
+                  path, f->slide_id, slide_id);
       }
       continue;
     }
