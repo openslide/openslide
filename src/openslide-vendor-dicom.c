@@ -293,10 +293,21 @@ static char **get_tag_strv(const DcmDataSet *dataset,
 
 static bool verify_tag_int(const DcmDataSet *dataset,
                            const char *keyword,
-                           int64_t expected_value) {
+                           int64_t expected_value,
+                           GError **err) {
   int64_t value;
-  return get_tag_int(dataset, keyword, &value) &&
-         value == expected_value;
+  if (!get_tag_int(dataset, keyword, &value)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read %s", keyword);
+    return false;
+  }
+  if (value != expected_value) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Attribute %s value %"PRId64" != %"PRId64,
+                keyword, value, expected_value);
+    return false;
+  }
+  return true;
 }
 
 // Do the initial DICOM detection and return a half-initialized dicom_file.
@@ -799,14 +810,12 @@ static bool maybe_add_file(openslide_t *osr,
   }
 
   // check the other image format tags
-  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0) ||
-      !verify_tag_int(f->metadata, BitsAllocated, 8) ||
-      !verify_tag_int(f->metadata, BitsStored, 8) ||
-      !verify_tag_int(f->metadata, HighBit, 7) ||
-      !verify_tag_int(f->metadata, SamplesPerPixel, 3) ||
-      !verify_tag_int(f->metadata, PixelRepresentation, 0)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported image format");
+  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, err) ||
+      !verify_tag_int(f->metadata, BitsAllocated, 8, err) ||
+      !verify_tag_int(f->metadata, BitsStored, 8, err) ||
+      !verify_tag_int(f->metadata, HighBit, 7, err) ||
+      !verify_tag_int(f->metadata, SamplesPerPixel, 3, err) ||
+      !verify_tag_int(f->metadata, PixelRepresentation, 0, err)) {
     return false;
   }
 
