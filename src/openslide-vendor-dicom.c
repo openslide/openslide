@@ -57,6 +57,7 @@ struct dicom_file {
   DcmFilehandle *filehandle;
   const DcmDataSet *file_meta;
   const DcmDataSet *metadata;
+  const char *slide_id;
   enum image_format format;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
@@ -169,6 +170,7 @@ static const char SharedFunctionalGroupsSequence[] =
   "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
+static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char VLWholeSlideMicroscopyImageStorage[] =
   "1.2.840.10008.5.1.4.1.1.77.1.6";
@@ -292,54 +294,41 @@ static char **get_tag_strv(const DcmDataSet *dataset,
 
 static bool verify_tag_int(const DcmDataSet *dataset,
                            const char *keyword,
-                           int64_t expected_value) {
+                           int64_t expected_value,
+                           bool required,
+                           GError **err) {
   int64_t value;
-  return get_tag_int(dataset, keyword, &value) &&
-         value == expected_value;
-}
-
-static bool verify_tag_str(const DcmDataSet *dataset,
-                           const char *keyword,
-                           const char *expected_value) {
-  const char *value;
-  return get_tag_str(dataset, keyword, 0, &value) &&
-         g_str_equal(value, expected_value);
-}
-
-static bool ensure_dicom_wsi(const DcmDataSet *file_meta, GError **err) {
-  const char *sop;
-  if (!get_tag_str(file_meta, MediaStorageSOPClassUID, 0, &sop) ||
-      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
+  if (!get_tag_int(dataset, keyword, &value)) {
+    if (!required) {
+      return true;
+    }
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a WSI DICOM");
+                "Couldn't read %s", keyword);
+    return false;
+  }
+  if (value != expected_value) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Attribute %s value %"PRId64" != %"PRId64,
+                keyword, value, expected_value);
     return false;
   }
   return true;
 }
 
-static bool get_format(const char *syntax, enum image_format *format,
-                       GError **err) {
-  for (uint64_t i = 0; i < G_N_ELEMENTS(supported_syntax_formats); i++) {
-    if (g_str_equal(syntax, supported_syntax_formats[i].syntax)) {
-      *format = supported_syntax_formats[i].format;
-      return true;
-    }
-  }
-  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-              "Unsupported transfer syntax");
-  return false;
-}
-
-static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
+// Do the initial DICOM detection and return a half-initialized dicom_file.
+// Only do the minimum checks necessary to reject files that are not valid
+// DICOM WSI files.  Allow skipping metadata load for vendor detection.
+// The rest of the initialization will happen in maybe_add_file().
+static struct dicom_file *dicom_file_new(const char *filename,
+                                         bool load_metadata, GError **err) {
   g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
+  g_mutex_init(&f->lock);
 
-  f->filename = g_strdup(filename);
   f->filehandle = _openslide_dicom_open(filename, err);
   if (!f->filehandle) {
     return NULL;
   }
-
-  g_mutex_init(&f->lock);
+  f->filename = g_strdup(filename);
 
   DcmError *dcm_error = NULL;
   f->file_meta = dcm_filehandle_get_file_meta(&dcm_error, f->filehandle);
@@ -348,19 +337,26 @@ static struct dicom_file *dicom_file_new(const char *filename, GError **err) {
     return NULL;
   }
 
-  if (!ensure_dicom_wsi(f->file_meta, err)) {
+  const char *sop;
+  if (!get_tag_str(f->file_meta, MediaStorageSOPClassUID, 0, &sop) ||
+      !g_str_equal(sop, VLWholeSlideMicroscopyImageStorage)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Not a WSI DICOM: class UID %s", sop);
     return NULL;
   }
 
-  if (!get_format(dcm_filehandle_get_transfer_syntax_uid(f->filehandle),
-                  &f->format, err)) {
-    return NULL;
-  }
+  if (load_metadata) {
+    f->metadata = dcm_filehandle_get_metadata(&dcm_error, f->filehandle);
+    if (!f->metadata) {
+      _openslide_dicom_propagate_error(err, dcm_error);
+      return NULL;
+    }
 
-  f->metadata = dcm_filehandle_get_metadata(&dcm_error, f->filehandle);
-  if (!f->metadata) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    return NULL;
+    if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &f->slide_id)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "SeriesInstanceUID not found");
+      return false;
+    }
   }
 
   return g_steal_pointer(&f);
@@ -551,24 +547,8 @@ static bool dicom_detect(const char *filename,
                          GError **err) {
   // some vendors use dual-personality TIFF/DCM files, so we can't just reject
   // tifflike files
-  g_autoptr(DcmFilehandle) filehandle = _openslide_dicom_open(filename, err);
-  if (!filehandle) {
-    return false;
-  }
-
-  DcmError *dcm_error = NULL;
-  const DcmDataSet *file_meta =
-    dcm_filehandle_get_file_meta(&dcm_error, filehandle);
-  if (!file_meta) {
-    _openslide_dicom_propagate_error(err, dcm_error);
-    return false;
-  }
-
-  if (!ensure_dicom_wsi(file_meta, err)) {
-    return false;
-  }
-
-  return true;
+  g_autoptr(dicom_file) f = dicom_file_new(filename, false, err);
+  return f != NULL;
 }
 
 // replace with g_strv_equal() once we have glib 2.60
@@ -802,6 +782,7 @@ static bool maybe_add_file(openslide_t *osr,
                            struct dicom_file *file,
                            GError **err) {
   g_autoptr(dicom_file) f = file;
+  g_assert(f->metadata);
 
   // check ImageType
   g_auto(GStrv) image_type = get_tag_strv(f->metadata, ImageType, 4);
@@ -817,44 +798,64 @@ static bool maybe_add_file(openslide_t *osr,
     return true;
   }
 
-  // check the other image format tags
-  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0) ||
-      !verify_tag_int(f->metadata, BitsAllocated, 8) ||
-      !verify_tag_int(f->metadata, BitsStored, 8) ||
-      !verify_tag_int(f->metadata, HighBit, 7) ||
-      !verify_tag_int(f->metadata, SamplesPerPixel, 3) ||
-      !verify_tag_int(f->metadata, PixelRepresentation, 0)) {
+  // check transfer syntax
+  const char *syntax = dcm_filehandle_get_transfer_syntax_uid(f->filehandle);
+  bool found = false;
+  for (uint64_t i = 0; i < G_N_ELEMENTS(supported_syntax_formats); i++) {
+    if (g_str_equal(syntax, supported_syntax_formats[i].syntax)) {
+      f->format = supported_syntax_formats[i].format;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported image format");
+                "Unsupported transfer syntax %s", syntax);
     return false;
   }
+
+  // check the other image format tags
+  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, true, err) ||
+      !verify_tag_int(f->metadata, BitsAllocated, 8, true, err) ||
+      !verify_tag_int(f->metadata, BitsStored, 8, true, err) ||
+      !verify_tag_int(f->metadata, HighBit, 7, true, err) ||
+      !verify_tag_int(f->metadata, SamplesPerPixel, 3, true, err) ||
+      !verify_tag_int(f->metadata, PixelRepresentation, 0, true, err) ||
+      !verify_tag_int(f->metadata, TotalPixelMatrixFocalPlanes, 1, false, err)) {
+    return false;
+  }
+
+  // check color space
+  const char *photometric;
+  if (!get_tag_str(f->metadata, PhotometricInterpretation, 0, &photometric)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't get PhotometricInterpretation");
+    return false;
+  }
+  found = false;
   switch (f->format) {
   case FORMAT_JPEG2000:
-    if (verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_ICT")) {
+    if (g_str_equal(photometric, "YBR_ICT")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
-    } else if (verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      found = true;
+    } else if (g_str_equal(photometric, "RGB")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
-    } else {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG 2000 photometric interpretation");
-      return false;
+      found = true;
     }
     break;
   case FORMAT_JPEG:
-    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") &&
-        !verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG photometric interpretation");
-      return false;
-    }
+    found = g_str_equal(photometric, "YBR_FULL_422") ||
+            g_str_equal(photometric, "RGB");
     break;
   case FORMAT_RGB:
-    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported RGB photometric interpretation");
-      return false;
-    }
+    found = g_str_equal(photometric, "RGB");
     break;
+  }
+  if (!found) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported photometric interpretation %s for %s",
+                photometric, syntax);
+    return false;
   }
 
   // add
@@ -1021,18 +1022,11 @@ static bool dicom_open(openslide_t *osr,
     g_ptr_array_new_full(10, (GDestroyNotify) level_destroy);
 
   // open the passed-in file and get the slide-id
-  g_autoptr(dicom_file) start = dicom_file_new(filename, err);
+  g_autoptr(dicom_file) start = dicom_file_new(filename, true, err);
   if (!start) {
     return false;
   }
-
-  const char *tmp;
-  if (!get_tag_str(start->metadata, SeriesInstanceUID, 0, &tmp)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "SeriesInstanceUID not found");
-    return false;
-  }
-  g_autofree char *slide_id = g_strdup(tmp);
+  g_autofree char *slide_id = g_strdup(start->slide_id);
 
   if (!maybe_add_file(osr, level_array, g_steal_pointer(&start), err)) {
     g_prefix_error(err, "Reading %s: ", filename);
@@ -1050,7 +1044,7 @@ static bool dicom_open(openslide_t *osr,
     g_autofree char *path = g_build_filename(dirname, name, NULL);
 
     GError *tmp_err = NULL;
-    g_autoptr(dicom_file) f = dicom_file_new(path, &tmp_err);
+    g_autoptr(dicom_file) f = dicom_file_new(path, true, &tmp_err);
     if (!f) {
       if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
         g_message("opening %s: %s", path, tmp_err->message);
@@ -1059,11 +1053,10 @@ static bool dicom_open(openslide_t *osr,
       continue;
     }
 
-    const char *this_slide_id;
-    if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &this_slide_id) ||
-        !g_str_equal(this_slide_id, slide_id)) {
+    if (!g_str_equal(f->slide_id, slide_id)) {
       if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
-        g_message("opening %s: slide ID %s != %s", path, this_slide_id, slide_id);
+        g_message("opening %s: Series Instance UID %s != %s",
+                  path, f->slide_id, slide_id);
       }
       continue;
     }

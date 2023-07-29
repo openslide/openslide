@@ -1,5 +1,6 @@
 base: DICOM/3DHISTECH-1.zip
-slide: 000004.dcm
+# ORIGINAL\PRIMARY\VOLUME\NONE
+slide: 000005.dcm
 success: true
 vendor: dicom
 primary: true
