@@ -299,14 +299,6 @@ static bool verify_tag_int(const DcmDataSet *dataset,
          value == expected_value;
 }
 
-static bool verify_tag_str(const DcmDataSet *dataset,
-                           const char *keyword,
-                           const char *expected_value) {
-  const char *value;
-  return get_tag_str(dataset, keyword, 0, &value) &&
-         g_str_equal(value, expected_value);
-}
-
 // Do the initial DICOM detection and return a half-initialized dicom_file.
 // Only do the minimum checks necessary to reject files that are not valid
 // DICOM WSI files.  Allow skipping metadata load for vendor detection.
@@ -817,33 +809,38 @@ static bool maybe_add_file(openslide_t *osr,
                 "Unsupported image format");
     return false;
   }
+
+  // check color space
+  const char *photometric;
+  if (!get_tag_str(f->metadata, PhotometricInterpretation, 0, &photometric)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't get PhotometricInterpretation");
+    return false;
+  }
+  found = false;
   switch (f->format) {
   case FORMAT_JPEG2000:
-    if (verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_ICT")) {
+    if (g_str_equal(photometric, "YBR_ICT")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
-    } else if (verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
+      found = true;
+    } else if (g_str_equal(photometric, "RGB")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
-    } else {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG 2000 photometric interpretation");
-      return false;
+      found = true;
     }
     break;
   case FORMAT_JPEG:
-    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "YBR_FULL_422") &&
-        !verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported JPEG photometric interpretation");
-      return false;
-    }
+    found = g_str_equal(photometric, "YBR_FULL_422") ||
+            g_str_equal(photometric, "RGB");
     break;
   case FORMAT_RGB:
-    if (!verify_tag_str(f->metadata, PhotometricInterpretation, "RGB")) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unsupported RGB photometric interpretation");
-      return false;
-    }
+    found = g_str_equal(photometric, "RGB");
     break;
+  }
+  if (!found) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported photometric interpretation %s for %s",
+                photometric, syntax);
+    return false;
   }
 
   // add
