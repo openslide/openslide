@@ -1063,7 +1063,7 @@ static bool dicom_open(openslide_t *osr,
     if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &this_slide_id) ||
         !g_str_equal(this_slide_id, slide_id)) {
       if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
-        g_message("opening %s: slide ID %s != %s", path, this_slide_id, slide_id);
+        g_message("opening %s: Series Instance UID %s != %s", path, this_slide_id, slide_id);
       }
       continue;
     }
