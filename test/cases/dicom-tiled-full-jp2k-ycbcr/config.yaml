@@ -1,5 +1,6 @@
 base: DICOM/JP2K-33003-1.zip
-slide: DCM_0.dcm
+# DERIVED\PRIMARY\LABEL\NONE
+slide: DCM_4.dcm
 success: true
 vendor: dicom
 primary: true

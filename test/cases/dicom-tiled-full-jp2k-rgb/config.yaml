@@ -1,4 +1,5 @@
 base: DICOM/CMU-1-JP2K-33005.zip
+# DERIVED\PRIMARY\VOLUME\NONE
 slide: DCM_0.dcm
 success: true
 vendor: dicom
