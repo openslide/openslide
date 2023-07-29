@@ -170,6 +170,7 @@ static const char SharedFunctionalGroupsSequence[] =
   "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
+static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
 static const char VLWholeSlideMicroscopyImageStorage[] =
   "1.2.840.10008.5.1.4.1.1.77.1.6";
@@ -294,9 +295,13 @@ static char **get_tag_strv(const DcmDataSet *dataset,
 static bool verify_tag_int(const DcmDataSet *dataset,
                            const char *keyword,
                            int64_t expected_value,
+                           bool required,
                            GError **err) {
   int64_t value;
   if (!get_tag_int(dataset, keyword, &value)) {
+    if (!required) {
+      return true;
+    }
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read %s", keyword);
     return false;
@@ -810,12 +815,13 @@ static bool maybe_add_file(openslide_t *osr,
   }
 
   // check the other image format tags
-  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, err) ||
-      !verify_tag_int(f->metadata, BitsAllocated, 8, err) ||
-      !verify_tag_int(f->metadata, BitsStored, 8, err) ||
-      !verify_tag_int(f->metadata, HighBit, 7, err) ||
-      !verify_tag_int(f->metadata, SamplesPerPixel, 3, err) ||
-      !verify_tag_int(f->metadata, PixelRepresentation, 0, err)) {
+  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, true, err) ||
+      !verify_tag_int(f->metadata, BitsAllocated, 8, true, err) ||
+      !verify_tag_int(f->metadata, BitsStored, 8, true, err) ||
+      !verify_tag_int(f->metadata, HighBit, 7, true, err) ||
+      !verify_tag_int(f->metadata, SamplesPerPixel, 3, true, err) ||
+      !verify_tag_int(f->metadata, PixelRepresentation, 0, true, err) ||
+      !verify_tag_int(f->metadata, TotalPixelMatrixFocalPlanes, 1, false, err)) {
     return false;
   }
 
