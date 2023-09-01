@@ -330,9 +330,9 @@ static bool populate_item(struct _openslide_tifflike *tl,
   }
 
   uint64_t count = item->count;
-  int32_t value_size = get_value_size(item->type, &count);
+  uint32_t value_size = get_value_size(item->type, &count);
   g_assert(value_size);
-  ssize_t len = value_size * count;
+  size_t len = value_size * count;
 
   g_autofree void *buf = g_try_malloc(len);
   if (buf == NULL) {
@@ -341,12 +341,12 @@ static bool populate_item(struct _openslide_tifflike *tl,
     return false;
   }
 
-  //g_debug("reading tiff value: len: %"PRId64", offset %"PRIu64, len, item->offset);
+  //g_debug("reading tiff value: len: %"PRIu64", offset %"PRIu64, len, item->offset);
   if (!_openslide_fseek(f, item->offset, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek to read TIFF value: ");
     return false;
   }
-  if (_openslide_fread(f, buf, len) != (size_t) len) {
+  if (_openslide_fread(f, buf, len) != len) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read TIFF value");
     return false;
