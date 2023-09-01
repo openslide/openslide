@@ -23,26 +23,6 @@
 #define OPENSLIDE_OPENSLIDE_FEATURES_H_
 
 
-#ifndef __cplusplus
-#  ifdef _MSC_VER
-#    ifndef bool
-#      define bool unsigned char
-#    endif
-#    ifndef true
-#      define true 1
-#    endif
-#    ifndef false
-#      define false 0
-#    endif
-#    ifndef __bool_true_false_are_defined
-#      define __bool_true_false_are_defined 1
-#    endif
-#  else
-#    include <stdbool.h>
-#  endif
-#endif
-
-
 // for exporting from shared libraries or DLLs
 #if defined _WIN32
 #  ifdef _OPENSLIDE_BUILDING_DLL
