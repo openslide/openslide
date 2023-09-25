@@ -1,6 +1,4 @@
 [wrap-git]
-# NOTE: temporary fork for now
-# https://github.com/openslide/openslide-winbuild/issues/82
-url = https://github.com/jcupitt/libdicom.git
-revision = 2632133fd49a9ca6df7141b1b09b3f1094ff21a9
+url = https://github.com/ImagingDataCommons/libdicom.git
+revision = v1.0-rc1
 depth = 1

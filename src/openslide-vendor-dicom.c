@@ -346,7 +346,7 @@ static struct dicom_file *dicom_file_new(const char *filename,
   }
 
   if (load_metadata) {
-    f->metadata = dcm_filehandle_get_metadata(&dcm_error, f->filehandle);
+    f->metadata = dcm_filehandle_get_metadata_subset(&dcm_error, f->filehandle);
     if (!f->metadata) {
       _openslide_dicom_propagate_error(err, dcm_error);
       return NULL;
@@ -895,20 +895,20 @@ static char *get_element_value_as_string(const DcmElement *element, int index) {
   int64_t i64;
 
   switch (klass) {
-  case DCM_CLASS_STRING_MULTI:
-  case DCM_CLASS_STRING_SINGLE:
+  case DCM_VR_CLASS_STRING_MULTI:
+  case DCM_VR_CLASS_STRING_SINGLE:
     if (dcm_element_get_value_string(NULL, element, index, &str)) {
       return g_strdup(str);
     }
     break;
 
-  case DCM_CLASS_NUMERIC_DECIMAL:
+  case DCM_VR_CLASS_NUMERIC_DECIMAL:
     if (dcm_element_get_value_decimal(NULL, element, index, &d)) {
       return _openslide_format_double(d);
     }
     break;
 
-  case DCM_CLASS_NUMERIC_INTEGER:
+  case DCM_VR_CLASS_NUMERIC_INTEGER:
     if (dcm_element_get_value_integer(NULL, element, index, &i64)) {
       if (vr == DCM_VR_UV) {
         return g_strdup_printf("%"PRIu64, i64);
@@ -918,7 +918,7 @@ static char *get_element_value_as_string(const DcmElement *element, int index) {
     }
     break;
 
-  case DCM_CLASS_BINARY:
+  case DCM_VR_CLASS_BINARY:
   default:
     break;
   }
@@ -939,7 +939,7 @@ static bool add_properties_element(const DcmElement *element,
     return true;
   }
 
-  if (klass == DCM_CLASS_SEQUENCE) {
+  if (klass == DCM_VR_CLASS_SEQUENCE) {
     DcmSequence *seq;
     if (dcm_element_get_value_sequence(NULL, element, &seq)) {
       g_autofree char *new_prefix = g_strdup_printf("%s.%s",
