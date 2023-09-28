@@ -1,4 +1,12 @@
-[wrap-git]
-url = https://github.com/ImagingDataCommons/libdicom.git
-revision = v1.0-rc1
-depth = 1
+# not from wrapdb
+
+[wrap-file]
+directory = libdicom-1.0.0-rc2
+
+source_url = https://github.com/ImagingDataCommons/libdicom/releases/download/v1.0-rc2/libdicom-1.0.0-rc2.tar.xz
+source_filename = libdicom-1.0.0-rc2.tar.xz
+source_hash = 0fd44774037f36e4bf275f1fd9ee4e2b50af4cf0fbbc7ba1a56f0bdff67d1d58
+
+[provide]
+dependency_names = libdicom
+program_names = dcm-dump, dcm-getframe
