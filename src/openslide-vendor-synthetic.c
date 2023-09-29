@@ -32,6 +32,7 @@
 #include <config.h>
 
 #include "openslide-private.h"
+#include "openslide-decode-dicom.h"
 #include "openslide-decode-gdkpixbuf.h"
 #include "openslide-decode-jp2k.h"
 #include "openslide-decode-jpeg.h"
@@ -44,10 +45,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
-
-#ifdef HAVE_LIBDICOM
-#include "openslide-decode-dicom.h"
-#endif
 
 #define IMAGE_PIXELS 16
 #define IMAGE_BUFSIZE (4 * IMAGE_PIXELS * IMAGE_PIXELS)
@@ -76,7 +73,6 @@ static bool decode_bmp(const void *data, uint32_t len,
                                             IMAGE_PIXELS, IMAGE_PIXELS, err);
 }
 
-#ifdef HAVE_LIBDICOM
 static bool decode_dicom(const void *data, uint32_t len,
                          uint32_t *dest, GError **err) {
   DcmError *dcm_error = NULL;
@@ -139,7 +135,6 @@ static bool decode_dicom(const void *data, uint32_t len,
                                        dcm_frame_get_length(frame),
                                        dest, w, h, err);
 }
-#endif
 
 static bool decode_j2k(const void *data, uint32_t len,
                         uint32_t *dest, GError **err) {
@@ -477,7 +472,6 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
        0x07, 0xec, 0xa8, 0x70, 0xb8, 0xcb, 0x03, 0x00, 0x5d, 0x29, 0xd1, 0x3c,
     }
   },
-#ifdef HAVE_LIBDICOM
   &(const struct synthetic_item){
     .name = "dicom.jpeg",
     .description = "YCbCr JPEG DICOM",
@@ -539,7 +533,6 @@ static const struct synthetic_item **synthetic_items = (const struct synthetic_i
        0x6f, 0xed, 0x55, 0xb3, 0x98,
     }
   },
-#endif
   &(const struct synthetic_item){
     .name = "j2k",
     .description = "J2K",

@@ -4,7 +4,6 @@ slide: DCM_0.dcm
 success: true
 vendor: dicom
 primary: true
-requires: [dicom]
 properties:
   openslide.associated.label.icc-size: "3144"
   openslide.associated.macro.icc-size: "3144"

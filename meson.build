@@ -113,7 +113,6 @@ dicom_dep      = dependency(
   # avoid 'check' dependency
   default_options : ['tests=false'],
   fallback : ['libdicom', 'libdicom_dep'],
-  required : get_option('dicom'),
   version : '>=1.0.0',
 )
 valgrind_dep   = dependency('valgrind', required : false)
@@ -125,10 +124,6 @@ doxygen = find_program(
 )
 
 # Dependency checks
-if dicom_dep.found()
-  conf.set('HAVE_LIBDICOM', 1)
-  feature_flags += 'dicom'
-endif
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
