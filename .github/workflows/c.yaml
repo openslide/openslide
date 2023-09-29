@@ -148,7 +148,7 @@ jobs:
             esac
         esac
     - name: Check out repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Check for uninitialized g_auto variables
       if: matrix.extra
       run: |
