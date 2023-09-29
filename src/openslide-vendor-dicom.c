@@ -402,7 +402,13 @@ static bool decode_frame(struct dicom_file *file,
   g_mutex_unlock(&file->lock);
 
   if (!frame) {
-    _openslide_dicom_propagate_error(err, dcm_error);
+    if (dcm_error_get_code(dcm_error) == DCM_ERROR_CODE_MISSING_FRAME) {
+      dcm_error_clear(&dcm_error);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
+                  "No frame for (%"PRId64", %"PRId64")", tile_col, tile_row);
+    } else {
+      _openslide_dicom_propagate_error(err, dcm_error);
+    }
     return false;
   }
 
@@ -452,10 +458,18 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
+    GError *tmp_err = NULL;
     if (!decode_frame(l->file, tile_col, tile_row,
                       buf, l->base.tile_w, l->base.tile_h,
-                      err)) {
-      return false;
+                      &tmp_err)) {
+      if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
+        // missing tile
+        g_clear_error(&tmp_err);
+        return true;
+      } else {
+        g_propagate_error(err, tmp_err);
+        return false;
+      }
     }
 
     // clip, if necessary
