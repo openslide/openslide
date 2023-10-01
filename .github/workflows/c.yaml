@@ -63,8 +63,7 @@ jobs:
                 sqlite \
                 cairo \
                 glib \
-                xdelta \
-                doxygen
+                xdelta
             python3 -m pip install --upgrade pip
             python3 -m pip install requests PyYAML
             ;;
@@ -89,7 +88,7 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra="git-core clang llvm valgrind valgrind-devel"
+                    extra="git-core clang doxygen llvm valgrind valgrind-devel"
                     extra="$extra dnf-plugins-core"
                     debuginfo=1
                     ;;
@@ -109,7 +108,6 @@ jobs:
                     sqlite-devel \
                     cairo-devel \
                     glib2-devel \
-                    doxygen \
                     xdelta libjpeg-turbo-utils $extra
 
                 if [ -n "$debuginfo" ]; then
@@ -142,7 +140,6 @@ jobs:
                     libsqlite3-dev \
                     libcairo2-dev \
                     libglib2.0-dev \
-                    doxygen \
                     xdelta3 libjpeg-turbo-progs
                 ;;
             esac
