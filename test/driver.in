@@ -1065,9 +1065,10 @@ def coverage(outfile):
             if paths:
                 subprocess.check_call(['gcov', '-o', dirpath] + paths)
 
-        # Record unexecuted lines
+        # Record unexecuted lines; ignore glib headers
         proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
-                fnmatch.filter(sorted(os.listdir('.')), '*.gcov'),
+                [f for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
+                if not fnmatch.fnmatch(f, 'g*.h.gcov')],
                 stdout=subprocess.PIPE)
         report, _ = proc.communicate()
         if proc.returncode:
