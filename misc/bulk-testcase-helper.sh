@@ -22,6 +22,7 @@ function finish() {
     if [ -n "$testcase" ] ; then
         popd
         ./driver pack $testcase
+        ./driver run $testcase
     fi
     testcase=
 }
