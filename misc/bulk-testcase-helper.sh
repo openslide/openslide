@@ -14,7 +14,7 @@ function start() {
     fi
 
     ./driver create "$slide" "$testcase"
-    pushd "cases/$testcase"
+    pushd "../../test/cases/$testcase"
     [ -n "$EDITOR" ] && $EDITOR config.yaml
 }
 
