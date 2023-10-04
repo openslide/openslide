@@ -373,10 +373,11 @@ def pack(testname):
     print(f'Packing {testname}...')
     conf = _load_test_config(testname)
     slide = conf['base']
+    copies = conf.get('copy', {})
 
     total_size = 0
-    for relpath in _list_slide_files(slide):
-        origpath = os.path.join(PRISTINE, slide, relpath)
+    for relpath in _list_slide_files(slide) + list(copies):
+        origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
         newpath = os.path.join(CASEROOT, testname, 'slide', relpath)
         deltapath = os.path.join(CASEROOT, testname,
                 os.path.basename(relpath) + '.xdelta')
@@ -504,13 +505,14 @@ def _unpack_one(testname):
 
     conf = _load_test_config(testname)
     slide = conf['base']
+    copies = conf.get('copy', {})
     renames = conf.get('rename', {})
     generators = conf.get('generate', {})
     printed = False
     _fetch_one(slide)
 
-    for relpath in _list_slide_files(slide):
-        origpath = os.path.join(PRISTINE, slide, relpath)
+    for relpath in _list_slide_files(slide) + list(copies):
+        origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
         newpath = os.path.join(WORKROOT, testname,
                 renames.get(os.path.basename(relpath), relpath))
         deltapath = os.path.join(CASEROOT, testname,
@@ -1065,9 +1067,10 @@ def coverage(outfile):
             if paths:
                 subprocess.check_call(['gcov', '-o', dirpath] + paths)
 
-        # Record unexecuted lines
+        # Record unexecuted lines; ignore glib headers
         proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
-                fnmatch.filter(sorted(os.listdir('.')), '*.gcov'),
+                [f for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
+                if not fnmatch.fnmatch(f, 'g*.h.gcov')],
                 stdout=subprocess.PIPE)
         report, _ = proc.communicate()
         if proc.returncode:
