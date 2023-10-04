@@ -410,4 +410,9 @@ extern const int16_t _openslide_B_Cb[256];
 #define ftello _OPENSLIDE_POISON(_openslide_ftell_)
 #endif
 
+#ifdef _WIN32
+// Prevent windows.h from defining the IN/OUT macro
+#define _NO_W32_PSEUDO_MODIFIERS
+#endif
+
 #endif
