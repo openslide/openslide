@@ -355,7 +355,7 @@ static struct dicom_file *dicom_file_new(const char *filename,
     if (!get_tag_str(f->metadata, SeriesInstanceUID, 0, &f->slide_id)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "SeriesInstanceUID not found");
-      return false;
+      return NULL;
     }
   }
 
