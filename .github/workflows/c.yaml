@@ -76,8 +76,6 @@ jobs:
                 8)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
-                    # https://bugzilla.redhat.com/show_bug.cgi?id=2124013
-                    dnf copr enable -y bgilbert/el8-pixman-openslide
                     pyver=38
                     pydotver=3.8
                     python=python38
