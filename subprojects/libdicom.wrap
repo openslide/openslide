@@ -1,12 +1,10 @@
-# not from wrapdb
-
 [wrap-file]
-directory = libdicom-1.0.0-rc2
-
-source_url = https://github.com/ImagingDataCommons/libdicom/releases/download/v1.0-rc2/libdicom-1.0.0-rc2.tar.xz
-source_filename = libdicom-1.0.0-rc2.tar.xz
-source_hash = 0fd44774037f36e4bf275f1fd9ee4e2b50af4cf0fbbc7ba1a56f0bdff67d1d58
+directory = libdicom-1.0.1
+source_url = https://github.com/ImagingDataCommons/libdicom/releases/download/v1.0.1/libdicom-1.0.1.tar.xz
+source_filename = libdicom-1.0.1.tar.xz
+source_hash = 45edf650e214fa4dc905660aa25970210fe851d51fec5145dc369d447af4f3e1
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/libdicom_1.0.1-1/libdicom-1.0.1.tar.xz
+wrapdb_version = 1.0.1-1
 
 [provide]
 dependency_names = libdicom
-program_names = dcm-dump, dcm-getframe

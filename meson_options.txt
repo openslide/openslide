@@ -1,10 +1,4 @@
 option(
-  'dicom',
-  type : 'feature',
-  value : 'auto',
-  description : 'Support DICOM format',
-)
-option(
   'version_suffix',
   type : 'string',
   description : 'Suffix to append to the package version string',
