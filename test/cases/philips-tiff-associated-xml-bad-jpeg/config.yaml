@@ -1,0 +1,4 @@
+base: Philips-TIFF/Philips-2.tiff
+slide: Philips-2.tiff
+success: true
+vendor: philips

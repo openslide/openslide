@@ -1,0 +1,5 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "^Level 3: Couldn't parse pixel spacing$"
+slide: Philips-1.tiff
+success: false
+vendor: philips

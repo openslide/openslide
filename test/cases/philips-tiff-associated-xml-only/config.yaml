@@ -1,0 +1,9 @@
+# we don't have a sample with XML-only associated images, so we synthesize one
+base: Philips-TIFF/Philips-2.tiff
+slide: Philips-2.tiff
+success: true
+vendor: philips
+primary: true
+properties:
+  openslide.associated.macro.height: "1577"
+  openslide.associated.macro.width: "3629"
