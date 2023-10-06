@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-1.zip
+error: "^Reading .*/000013.dcm: Unsupported transfer syntax 1.2.3.4.5.6.7.8.9.10.1$"
+slide: 000005.dcm
+success: false
+vendor: dicom

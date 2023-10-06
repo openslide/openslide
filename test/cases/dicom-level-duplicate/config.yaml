@@ -1,0 +1,7 @@
+base: DICOM/3DHISTECH-1.zip
+slide: 000005.dcm
+success: true
+vendor: dicom
+copy:
+  ? 000015.dcm
+  : 000012.dcm
