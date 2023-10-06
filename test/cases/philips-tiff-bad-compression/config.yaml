@@ -1,0 +1,5 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "^Unsupported TIFF compression: 42$"
+slide: Philips-1.tiff
+success: false
+vendor: philips

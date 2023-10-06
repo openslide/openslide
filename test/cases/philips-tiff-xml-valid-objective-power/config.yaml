@@ -1,0 +1,8 @@
+# we don't have a test case with a valid objective power in the derivation
+# description, so make one
+base: Philips-TIFF/Philips-1.tiff
+slide: Philips-1.tiff
+success: true
+vendor: philips
+properties:
+  openslide.objective-power: "40"

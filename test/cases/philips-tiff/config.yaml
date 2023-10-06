@@ -1,0 +1,8 @@
+base: Philips-TIFF/Philips-1.tiff
+slide: Philips-1.tiff
+success: true
+vendor: philips
+primary: true
+properties:
+  openslide.quickhash-1: 072a69dc8ae0b35c963dde0c5329fa597f5dac8305b0824120aadb3902860a40
+  openslide.vendor: philips

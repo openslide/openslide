@@ -1,0 +1,12 @@
+# slide appears to have been edited before we received it, so we use it only
+# for testing sparse tiles
+base: Philips-TIFF/Philips-4.tiff
+slide: Philips-4.tiff
+success: true
+vendor: philips
+primary: true
+properties:
+  openslide.associated.macro.height: "821"
+  openslide.associated.macro.width: "1816"
+  openslide.quickhash-1: 72fcf318a15f85a9b975c31153758d6c6f47e90a11676e7e62a1ab283da4f4c2
+  openslide.vendor: philips

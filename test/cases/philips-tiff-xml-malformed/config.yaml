@@ -1,0 +1,7 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "philips-tiff: Could not parse XML"
+slide: Philips-1.tiff
+success: false
+vendor: generic-tiff
+debug:
+  - detection

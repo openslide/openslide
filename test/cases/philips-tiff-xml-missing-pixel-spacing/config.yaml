@@ -1,0 +1,5 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "^Couldn't get level downsamples$"
+slide: Philips-1.tiff
+success: false
+vendor: philips
