@@ -421,7 +421,33 @@ static bool parse_pixel_spacing(const char *spacing,
   return false;
 }
 
-static void add_mpp_properties(openslide_t *osr) {
+static uint32_t parse_objective_power(const char *derivation, GError **err) {
+  g_auto(GStrv) items = g_strsplit(derivation, "-", 0);
+  for (int i = 0; items[i]; i++) {
+    g_auto(GStrv) kv = g_strsplit(items[i], "=", 2);
+    if (g_str_equal(kv[0], "sourceFilename")) {
+      // sourceFilename has a quoted value that can contain dashes.  don't
+      // bother handling that.
+      break;
+    }
+    if (g_str_equal(kv[0], "levels") && kv[1]) {
+      g_auto(GStrv) levels = g_strsplit(kv[1], ",", 0);
+      char *end;
+      uint64_t first_level = g_ascii_strtoull(levels[0], &end, 10);
+      // the first entry might be the objective power, or might be a number
+      // above 10000.  accept only reasonable-looking values.
+      if (first_level && !*end && first_level <= 200) {
+        return first_level;
+      }
+      break;
+    }
+  }
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+              "Couldn't parse objective power");
+  return 0;
+}
+
+static void add_openslide_properties(openslide_t *osr) {
   const char *spacing = g_hash_table_lookup(osr->properties,
                                             "philips.DICOM_PIXEL_SPACING");
   if (spacing) {
@@ -433,6 +459,18 @@ static void add_mpp_properties(openslide_t *osr) {
       g_hash_table_insert(osr->properties,
                           g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
                           _openslide_format_double(1e3 * h));
+    }
+  }
+
+  const char *derivation =
+    g_hash_table_lookup(osr->properties,
+                        "philips.DICOM_DERIVATION_DESCRIPTION");
+  if (derivation) {
+    uint32_t objective_power = parse_objective_power(derivation, NULL);
+    if (objective_power) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                          g_strdup_printf("%u", objective_power));
     }
   }
 }
@@ -638,7 +676,7 @@ static bool philips_tiff_open(openslide_t *osr,
   // add properties from XML
   g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
   add_properties(osr, ctx, "philips", "/DataObject/Attribute");
-  add_mpp_properties(osr);
+  add_openslide_properties(osr);
 
   // add associated images from XML
   // errors are non-fatal
