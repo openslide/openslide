@@ -179,9 +179,9 @@ int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
  * bytes in length. If an error occurs or has occurred, then the memory
  * pointed to by @p dest will be cleared.
  *
- * The returned pixel data is in the color space of the whole slide image,
- * which may or may not be sRGB.  You can get the ICC profile for the
- * slide's color space, if available, with openslide_read_icc_profile().
+ * The returned pixel data is in device color space.  The slide's ICC color
+ * profile, if available, can be read with openslide_read_icc_profile() and
+ * used to transform the pixels for display.
  *
  * For more information about processing pre-multiplied pixel data, see
  * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
@@ -203,7 +203,7 @@ void openslide_read_region(openslide_t *osr,
 
 
 /**
- * Get the size in bytes of the ICC profile for the whole slide image.
+ * Get the size in bytes of the ICC color profile for the whole slide image.
  *
  * @param osr The OpenSlide object.
  * @return -1 on error, 0 if no profile is available, otherwise the profile
@@ -214,9 +214,9 @@ int64_t openslide_get_icc_profile_size(openslide_t *osr);
 
 
 /**
- * Copy the ICC profile from a whole slide image.
+ * Copy the ICC color profile from a whole slide image.
  *
- * This function reads the ICC profile from the slide into the specified
+ * This function reads the ICC color profile from the slide into the specified
  * memory location.  @p dest must be a valid pointer to enough memory
  * to hold the profile.  Get the profile size with
  * openslide_get_icc_profile_size().
@@ -225,7 +225,7 @@ int64_t openslide_get_icc_profile_size(openslide_t *osr);
  * will be cleared.
  *
  * @param osr The OpenSlide object.
- * @param dest The destination buffer for the ICC profile.
+ * @param dest The destination buffer for the ICC color profile.
  */
 OPENSLIDE_PUBLIC()
 void openslide_read_icc_profile(openslide_t *osr, void *dest);
@@ -341,7 +341,7 @@ const char *openslide_get_error(openslide_t *osr);
 #define OPENSLIDE_PROPERTY_NAME_COMMENT "openslide.comment"
 
 /**
- * The name of the property containing the size of a slide's ICC profile,
+ * The name of the property containing the size of a slide's ICC color profile,
  * if any.
  *
  * @since 4.0.0
@@ -488,10 +488,10 @@ void openslide_get_associated_image_dimensions(openslide_t *osr,
  * will be cleared. In versions prior to 4.0.0, this function did nothing
  * if an error occurred.
  *
- * The returned pixel data is in the color space of the associated image,
- * which may or may not be sRGB.  You can get the ICC profile for the
- * associated image's color space, if available, with
- * openslide_read_associated_image_icc_profile().
+ * The returned pixel data is in device color space.  The associated image's
+ * ICC color profile, if available, can be read with
+ * openslide_read_associated_image_icc_profile() and used to transform the
+ * pixels for display.
  *
  * For more information about processing pre-multiplied pixel data, see
  * the [OpenSlide website](https://openslide.org/docs/premultiplied-argb/).
@@ -508,7 +508,7 @@ void openslide_read_associated_image(openslide_t *osr,
 
 
 /**
- * Get the size in bytes of the ICC profile for an associated image.
+ * Get the size in bytes of the ICC color profile for an associated image.
  *
  * @param osr The OpenSlide object.
  * @param name The name of the desired associated image. Must be
@@ -522,10 +522,10 @@ int64_t openslide_get_associated_image_icc_profile_size(openslide_t *osr,
 
 
 /**
- * Copy the ICC profile from an associated image.
+ * Copy the ICC color profile from an associated image.
  *
- * This function reads the ICC profile from an associated image into the
- * specified memory location.  @p dest must be a valid pointer to enough
+ * This function reads the ICC color profile from an associated image into
+ * the specified memory location.  @p dest must be a valid pointer to enough
  * memory to hold the profile.  Get the profile size with
  * openslide_get_associated_image_icc_profile_size().
  *
@@ -535,7 +535,7 @@ int64_t openslide_get_associated_image_icc_profile_size(openslide_t *osr,
  * @param osr The OpenSlide object.
  * @param name The name of the desired associated image. Must be
  *             a valid name as given by openslide_get_associated_image_names().
- * @param dest The destination buffer for the ICC profile.
+ * @param dest The destination buffer for the ICC color profile.
  */
 OPENSLIDE_PUBLIC()
 void openslide_read_associated_image_icc_profile(openslide_t *osr,
