@@ -315,20 +315,6 @@ static int dimension_compare(const void *a, const void *b) {
   }
 }
 
-static void set_resolution_prop(openslide_t *osr, TIFF *tiff,
-                                const char *property_name,
-                                ttag_t tag) {
-  float f;
-  uint16_t unit;
-
-  if (TIFFGetFieldDefaulted(tiff, TIFFTAG_RESOLUTIONUNIT, &unit) &&
-      TIFFGetField(tiff, tag, &f) &&
-      unit == RESUNIT_CENTIMETER) {
-    g_hash_table_insert(osr->properties, g_strdup(property_name),
-                        _openslide_format_double(10000.0 / f));
-  }
-}
-
 static void set_region_bounds_props(openslide_t *osr,
                                     struct level *level0) {
   int64_t x0 = INT64_MAX;
@@ -819,13 +805,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   g_hash_table_remove(osr->properties, "tiff.ImageDescription");
 
   // set MPP properties
-  if (!_openslide_tiff_set_dir(ct.tiff, property_dir, err)) {
-    return false;
-  }
-  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_X,
-                      TIFFTAG_XRESOLUTION);
-  set_resolution_prop(osr, ct.tiff, OPENSLIDE_PROPERTY_NAME_MPP_Y,
-                      TIFFTAG_YRESOLUTION);
+  _openslide_tifflike_set_resolution_props(osr, tl, property_dir);
 
   // set region bounds properties
   set_region_bounds_props(osr, level0);

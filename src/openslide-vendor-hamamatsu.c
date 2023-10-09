@@ -2021,31 +2021,6 @@ static void ndpi_set_float_prop(openslide_t *osr,
   g_clear_error(&tmp_err);
 }
 
-static void ndpi_set_resolution_prop(openslide_t *osr,
-                                     struct _openslide_tifflike *tl,
-                                     int64_t dir, int32_t tag,
-                                     const char *property_name) {
-  GError *tmp_err = NULL;
-  uint64_t unit = _openslide_tifflike_get_uint(tl, dir,
-                                               TIFFTAG_RESOLUTIONUNIT,
-                                               &tmp_err);
-  if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
-    unit = RESUNIT_INCH;  // default
-    g_clear_error(&tmp_err);
-  } else if (tmp_err) {
-    g_clear_error(&tmp_err);
-    return;
-  }
-
-  double res = _openslide_tifflike_get_float(tl, dir, tag, &tmp_err);
-  if (!tmp_err && unit == RESUNIT_CENTIMETER) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(property_name),
-                        _openslide_format_double(10000.0 / res));
-  }
-  g_clear_error(&tmp_err);
-}
-
 static void ndpi_set_string_prop(openslide_t *osr,
                                  struct _openslide_tifflike *tl,
                                  int64_t dir, int32_t tag,
@@ -2061,10 +2036,7 @@ static void ndpi_set_string_prop(openslide_t *osr,
 static void ndpi_set_props(openslide_t *osr,
                            struct _openslide_tifflike *tl, int64_t dir) {
   // MPP
-  ndpi_set_resolution_prop(osr, tl, dir, TIFFTAG_XRESOLUTION,
-                           OPENSLIDE_PROPERTY_NAME_MPP_X);
-  ndpi_set_resolution_prop(osr, tl, dir, TIFFTAG_YRESOLUTION,
-                           OPENSLIDE_PROPERTY_NAME_MPP_Y);
+  _openslide_tifflike_set_resolution_props(osr, tl, dir);
 
   // objective power
   ndpi_set_float_prop(osr, tl, dir, NDPI_SOURCELENS,

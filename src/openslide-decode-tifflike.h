@@ -47,6 +47,12 @@ bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
                                                   int32_t property_dir,
                                                   GError **err);
 
+// not included in _openslide_tifflike_init_properties_and_hash because
+// a format's resolution tags might be unreliable
+void _openslide_tifflike_set_resolution_props(openslide_t *osr,
+                                              struct _openslide_tifflike *tl,
+                                              int64_t dir);
+
 // helpful printout?
 void _openslide_tifflike_print(struct _openslide_tifflike *tl);
 
