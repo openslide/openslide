@@ -1134,3 +1134,45 @@ bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
 
   return true;
 }
+
+void _openslide_tifflike_set_resolution_props(openslide_t *osr,
+                                              struct _openslide_tifflike *tl,
+                                              int64_t dir) {
+  uint64_t unit;
+  {
+    g_autoptr(GError) tmp_err = NULL;
+    unit =
+      _openslide_tifflike_get_uint(tl, dir, TIFFTAG_RESOLUTIONUNIT, &tmp_err);
+    if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
+      unit = RESUNIT_INCH;  // default
+    } else if (tmp_err) {
+      return;
+    }
+  }
+
+  double dividend;
+  switch (unit) {
+  case RESUNIT_INCH:
+    dividend = 25400;
+    break;
+  case RESUNIT_CENTIMETER:
+    dividend = 10000;
+    break;
+  default:
+    return;
+  }
+
+  int32_t tags[] = {TIFFTAG_XRESOLUTION, TIFFTAG_YRESOLUTION};
+  const char *props[] =
+    {OPENSLIDE_PROPERTY_NAME_MPP_X, OPENSLIDE_PROPERTY_NAME_MPP_Y};
+  for (unsigned i = 0; i < G_N_ELEMENTS(tags); i++) {
+    g_autoptr(GError) tmp_err = NULL;
+    double res =
+      _openslide_tifflike_get_float(tl, dir, tags[i], &tmp_err);
+    if (!tmp_err) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(props[i]),
+                          _openslide_format_double(dividend / res));
+    }
+  }
+}
