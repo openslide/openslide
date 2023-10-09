@@ -1165,14 +1165,18 @@ void _openslide_tifflike_set_resolution_props(openslide_t *osr,
   int32_t tags[] = {TIFFTAG_XRESOLUTION, TIFFTAG_YRESOLUTION};
   const char *props[] =
     {OPENSLIDE_PROPERTY_NAME_MPP_X, OPENSLIDE_PROPERTY_NAME_MPP_Y};
+  double values[G_N_ELEMENTS(tags)];
   for (unsigned i = 0; i < G_N_ELEMENTS(tags); i++) {
     g_autoptr(GError) tmp_err = NULL;
-    double res =
-      _openslide_tifflike_get_float(tl, dir, tags[i], &tmp_err);
-    if (!tmp_err) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(props[i]),
-                          _openslide_format_double(dividend / res));
+    double res = _openslide_tifflike_get_float(tl, dir, tags[i], &tmp_err);
+    if (tmp_err || res == 0) {
+      return;
     }
+    values[i] = dividend / res;
+  }
+  for (unsigned i = 0; i < G_N_ELEMENTS(tags); i++) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(props[i]),
+                        _openslide_format_double(values[i]));
   }
 }
