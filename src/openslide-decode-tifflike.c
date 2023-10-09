@@ -1150,7 +1150,15 @@ void _openslide_tifflike_set_resolution_props(openslide_t *osr,
     }
   }
 
-  if (unit != RESUNIT_CENTIMETER) {
+  double dividend;
+  switch (unit) {
+  case RESUNIT_INCH:
+    dividend = 25400;
+    break;
+  case RESUNIT_CENTIMETER:
+    dividend = 10000;
+    break;
+  default:
     return;
   }
 
@@ -1164,7 +1172,7 @@ void _openslide_tifflike_set_resolution_props(openslide_t *osr,
     if (!tmp_err) {
       g_hash_table_insert(osr->properties,
                           g_strdup(props[i]),
-                          _openslide_format_double(10000.0 / res));
+                          _openslide_format_double(dividend / res));
     }
   }
 }

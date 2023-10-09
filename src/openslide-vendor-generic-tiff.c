@@ -266,6 +266,7 @@ static bool generic_tiff_open(openslide_t *osr,
                                                     err)) {
     return false;
   }
+  _openslide_tifflike_set_resolution_props(osr, tl, 0);
 
   // get icc profile size, if present
   struct level *base_level = level_array->pdata[0];
