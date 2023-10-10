@@ -184,6 +184,7 @@ if get_option('_sanitize')
     '-fsanitize=address',
     # UB sanitizer
     '-fsanitize=undefined',
+    '-fsanitize=float-divide-by-zero',
     '-fsanitize=unsigned-integer-overflow',
     '-fsanitize=implicit-conversion',
     '-fsanitize=local-bounds',

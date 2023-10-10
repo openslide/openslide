@@ -193,9 +193,16 @@ static uint64_t fix_offset_ndpi(uint64_t diroff, uint64_t offset) {
     }									\
   } while (0)
 
-#define CONVERT_VALUES_RATIONAL(TO, FROM_TYPE, FROM, COUNT) do {	\
+// on error, frees TO and sets it to NULL
+#define CONVERT_VALUES_RATIONAL_OR_FAIL(TO, FROM_TYPE, FROM, COUNT) do {\
     const FROM_TYPE *from = (const FROM_TYPE *) FROM;			\
     for (int64_t i = 0; i < COUNT; i++) {				\
+      if (!from[i * 2 + 1]) {						\
+        g_clear_pointer(&TO, g_free);					\
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,	\
+                    "Zero denominator in rational value");		\
+        return false;							\
+      }									\
       TO[i] = (double) from[i * 2] / (double) from[i * 2 + 1];		\
     }									\
   } while (0)
@@ -284,14 +291,14 @@ static bool set_item_values(struct tiff_item *item,
     // convert 2 longs into rational
     if (!item->floats) {
       ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
-      CONVERT_VALUES_RATIONAL(item->floats, uint32_t, buf, item->count);
+      CONVERT_VALUES_RATIONAL_OR_FAIL(item->floats, uint32_t, buf, item->count);
     }
     break;
   case TIFF_SRATIONAL:
     // convert 2 slongs into rational
     if (!item->floats) {
       ALLOC_VALUES_OR_FAIL(item->floats, double, item->count);
-      CONVERT_VALUES_RATIONAL(item->floats, int32_t, buf, item->count);
+      CONVERT_VALUES_RATIONAL_OR_FAIL(item->floats, int32_t, buf, item->count);
     }
     break;
 
@@ -1165,14 +1172,18 @@ void _openslide_tifflike_set_resolution_props(openslide_t *osr,
   int32_t tags[] = {TIFFTAG_XRESOLUTION, TIFFTAG_YRESOLUTION};
   const char *props[] =
     {OPENSLIDE_PROPERTY_NAME_MPP_X, OPENSLIDE_PROPERTY_NAME_MPP_Y};
+  double values[G_N_ELEMENTS(tags)];
   for (unsigned i = 0; i < G_N_ELEMENTS(tags); i++) {
     g_autoptr(GError) tmp_err = NULL;
-    double res =
-      _openslide_tifflike_get_float(tl, dir, tags[i], &tmp_err);
-    if (!tmp_err) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(props[i]),
-                          _openslide_format_double(dividend / res));
+    double res = _openslide_tifflike_get_float(tl, dir, tags[i], &tmp_err);
+    if (tmp_err || res == 0) {
+      return;
     }
+    values[i] = dividend / res;
+  }
+  for (unsigned i = 0; i < G_N_ELEMENTS(tags); i++) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(props[i]),
+                        _openslide_format_double(values[i]));
   }
 }
