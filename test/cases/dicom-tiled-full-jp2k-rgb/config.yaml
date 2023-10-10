@@ -9,4 +9,5 @@ properties:
   openslide.associated.macro.icc-size: "3144"
   openslide.associated.thumbnail.icc-size: "3144"
   openslide.icc-size: "3144"
+  openslide.quickhash-1: 8d3fcfae032e2758633c75fa65a583acf4dd22e0a28872d628947d3937f5c2f8
   openslide.vendor: dicom

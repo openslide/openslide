@@ -23,6 +23,8 @@
 
 /*
  * DICOM (.dcm) support
+ *
+ * quickhash comes from the Series Instance UID
  */
 
 /*
@@ -1095,8 +1097,8 @@ static bool dicom_open(openslide_t *osr,
 
   (void) get_icc_profile(level0->file, &osr->icc_profile_size);
 
-  // no quickhash yet; disable
-  _openslide_hash_disable(quickhash1);
+  // compute quickhash
+  _openslide_hash_string(quickhash1, slide_id);
 
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
