@@ -92,3 +92,8 @@ contributors.
 OpenSlide has been supported by the National Institutes of Health and
 the Clinical and Translational Science Institute at the University of
 Pittsburgh.
+
+Development of DICOM and ICC functionality was supported by NCI Imaging
+Data Commons and has been funded in whole or in part with Federal funds
+from the National Cancer Institute, National Institutes of Health, under
+Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
