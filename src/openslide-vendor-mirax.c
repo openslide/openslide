@@ -508,10 +508,10 @@ static bool read_nonhier_record(struct _openslide_file *f,
     return false;
   }
 
-  // read pagesize == 1
-  if (read_le_int32_from_file(f) != 1) {
+  // read pagesize
+  if (read_le_int32_from_file(f) < 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Expected 1 value");
+                "Expected at least one data item");
     return false;
   }
 
