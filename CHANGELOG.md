@@ -13,7 +13,7 @@
 * aperio: Detect OpenJPEG chroma subsampling breakage during `open`
 * aperio: Fill in missing tiles with downsampled data
 * aperio: Report MPP for slides scanned in locales with decimal comma
-* hamamatsu: Support NDPI files &gt; 4 GB
+* hamamatsu: Support NDPI files \> 4 GB
 * hamamatsu: Properly detect NDPI slides produced by NDP.toolkit
 * hamamatsu: Support VMS/VMU slides without a `NoLayers` key
 * hamamatsu: Report MPP for VMS/VMU
@@ -74,7 +74,7 @@
 
 ## Version 3.3.0, 2012-09-08
 
-* Support Leica SCN format (requires libtiff &ge; 4) (thanks, Agelos Pappas)
+* Support Leica SCN format (requires libtiff ≥ 4) (thanks, Agelos Pappas)
 * Allow opening MIRAX 2.2 slides (though there are seams, bug #92)
 * Add standardized microns-per-pixel and objective-power properties
 * Add `macro` associated image in Trestle
@@ -93,7 +93,7 @@
 
 * Support downsampled MIRAX files
 * Improve performance on MIRAX slides without tile overlaps
-* Fix `openslide_read_region` for large dimensions on layer &gt; 0
+* Fix `openslide_read_region` for large dimensions on layer \> 0
   (3.2.5 regression)
 * Correct subpixel error in MIRAX tile placement
 * Fix unlikely use-after-free with Hamamatsu VMU
