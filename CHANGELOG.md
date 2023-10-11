@@ -1,6 +1,56 @@
 # Notable Changes in OpenSlide
 
 
+## Version 4.0.0, 2023-10-11
+
+### Breaking changes
+
+* Update soname to `libopenslide.so.1`
+* Remove all deprecated functions
+* Clear `openslide_read_associated_image()` output buffer on error
+* Remove undocumented NULL `dest` support in `openslide_read_associated_image()`
+* Change GLib log domain to `OpenSlide`
+* Convert build system to Meson (thanks, Jan Harkes)
+
+### New features
+
+* New format: DICOM WSI (thanks, John Cupitt and Jim O'Donnell)
+* Add APIs to read ICC color profiles (thanks, John)
+* Add APIs to configure tile cache size and share caches between slides
+* Add properties for associated image metadata
+* generic-tiff: Set MPP properties if available
+* philips: Set objective power property if available
+* Add `slidetool` command-line tool which supports all OpenSlide features
+* Combine all command-line tools into the same binary
+* Add ICC profile to PNG images written by command-line tools
+* Add self-test that doesn't require sample data (run with `meson test`)
+
+### Changes
+
+* Require libtiff ≥ 4, OpenJPEG ≥ 2.1, GLib ≥ 2.56, SQLite ≥ 3.14
+* Require libdicom ≥ 1.0, with build-time fallback for now
+* Remove support for including `openslide.h` in Visual Studio \< 2013
+* Fail `openslide_open()` with a broken pixman 0.38.x
+* Avoid extra buffer copy in `openslide_read_region()`
+* Replace `goto`-based cleanup with `g_autoptr`
+* Stop using deprecated GLib slice allocator
+* Use internal wrappers for file I/O
+* Documentation improvements
+
+### Bug fixes
+
+* Use UTF-8 filenames on Windows
+* Improve `openslide-write-png` performance for very large regions
+* Fix assertions on JPEG decode errors when compiled with Clang
+* Portability fixes (thanks, Billy Robert O'Neal III and Kleis Auke Wolthuizen)
+* aperio: Set objective power property even if floating point
+* hamamatsu: Fix `Restart marker not found` on VMS slides with multiple Z-layers
+* hamamatsu: Fix integer overflow in VMS parsing (thanks, Adam Goode)
+* mirax: Fix `Expected 1 value` error
+* philips: Don't cache missing tiles
+* sakura: Fix memory leak reading missing tile
+
+
 ## Version 3.4.1, 2015-04-20
 
 * New formats: Philips TIFF, Ventana TIFF
@@ -13,7 +63,7 @@
 * aperio: Detect OpenJPEG chroma subsampling breakage during `open`
 * aperio: Fill in missing tiles with downsampled data
 * aperio: Report MPP for slides scanned in locales with decimal comma
-* hamamatsu: Support NDPI files &gt; 4 GB
+* hamamatsu: Support NDPI files \> 4 GB
 * hamamatsu: Properly detect NDPI slides produced by NDP.toolkit
 * hamamatsu: Support VMS/VMU slides without a `NoLayers` key
 * hamamatsu: Report MPP for VMS/VMU
@@ -74,7 +124,7 @@
 
 ## Version 3.3.0, 2012-09-08
 
-* Support Leica SCN format (requires libtiff &ge; 4) (thanks, Agelos Pappas)
+* Support Leica SCN format (requires libtiff ≥ 4) (thanks, Agelos Pappas)
 * Allow opening MIRAX 2.2 slides (though there are seams, bug #92)
 * Add standardized microns-per-pixel and objective-power properties
 * Add `macro` associated image in Trestle
@@ -93,7 +143,7 @@
 
 * Support downsampled MIRAX files
 * Improve performance on MIRAX slides without tile overlaps
-* Fix `openslide_read_region` for large dimensions on layer &gt; 0
+* Fix `openslide_read_region` for large dimensions on layer \> 0
   (3.2.5 regression)
 * Correct subpixel error in MIRAX tile placement
 * Fix unlikely use-after-free with Hamamatsu VMU
