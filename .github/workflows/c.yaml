@@ -34,6 +34,9 @@ jobs:
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-latest
             container: debian:12
+          - os: ubuntu-latest
+            container: debian:12
+            arch: i386
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
@@ -59,6 +62,7 @@ jobs:
                 libtiff \
                 openjpeg \
                 gdk-pixbuf \
+                libdicom \
                 libxml2 \
                 sqlite \
                 cairo \
@@ -124,21 +128,26 @@ jobs:
                     jpeg=libjpeg-turbo8-dev
                     sudo=sudo
                 fi
+                if [ -n "${{ matrix.arch }}" ]; then
+                    $sudo dpkg --add-architecture "${{ matrix.arch }}"
+                    arch=":${{ matrix.arch }}"
+                    extra=gcc-multilib
+                fi
                 $sudo apt-get update
                 $sudo apt-get -y install \
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
-                    zlib1g-dev \
-                    libpng-dev \
-                    $jpeg \
-                    libtiff-dev \
-                    libopenjp2-7-dev \
-                    libgdk-pixbuf2.0-dev \
-                    libxml2-dev \
-                    libsqlite3-dev \
-                    libcairo2-dev \
-                    libglib2.0-dev \
-                    xdelta3 libjpeg-turbo-progs
+                    zlib1g-dev$arch \
+                    libpng-dev$arch \
+                    $jpeg$arch \
+                    libtiff-dev$arch \
+                    libopenjp2-7-dev$arch \
+                    libgdk-pixbuf2.0-dev$arch \
+                    libxml2-dev$arch \
+                    libsqlite3-dev$arch \
+                    libcairo2-dev$arch \
+                    libglib2.0-dev$arch \
+                    xdelta3 libjpeg-turbo-progs $extra
                 ;;
             esac
         esac
@@ -159,6 +168,30 @@ jobs:
             # Some distro versions have leaky libraries
             echo "Disabling CLOEXEC leak check"
             args="-D_nonatomic_cloexec=true"
+        fi
+        if [ -n "${{ matrix.arch }}" ]; then
+            cat > cross.ini << EOF
+        [built-in options]
+        c_args = ['-O2', '-g', '-m32']
+        c_link_args = ['-m32']
+        cpp_args = ['-O2', '-g', '-m32']
+        cpp_link_args = ['-m32']
+
+        [properties]
+        pkg_config_libdir = ['/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig', '/usr/share/pkgconfig']
+
+        [binaries]
+        c = 'gcc'
+        pkgconfig = 'pkg-config'
+        strip = 'strip'
+
+        [host_machine]
+        system = 'linux'
+        endian = 'little'
+        cpu_family = 'x86'
+        cpu = '${{ matrix.arch }}'
+        EOF
+            args="$args --cross-file=cross.ini"
         fi
         if ! meson setup builddir --werror $args; then
             cat builddir/meson-logs/meson-log.txt
