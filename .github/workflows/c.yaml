@@ -59,6 +59,7 @@ jobs:
                 libtiff \
                 openjpeg \
                 gdk-pixbuf \
+                libdicom \
                 libxml2 \
                 sqlite \
                 cairo \
