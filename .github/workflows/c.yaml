@@ -271,6 +271,8 @@ jobs:
       - name: Find builder container digest
         id: find
         uses: openslide/openslide-winbuild/.github/find-container-digest@main
+        with:
+          builder_image: windows
       - name: Calculate parameters
         id: params
         run: |
