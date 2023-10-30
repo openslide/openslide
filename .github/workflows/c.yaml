@@ -265,11 +265,11 @@ jobs:
     name: Set up Windows build
     runs-on: ubuntu-latest
     outputs:
-      builder_repo_and_digest: ${{ steps.find.outputs.builder_repo_and_digest }}
       pkgver: ${{ steps.params.outputs.pkgver }}
+      windows_builder_repo_and_digest: ${{ steps.find-windows.outputs.builder_repo_and_digest }}
     steps:
-      - name: Find builder container digest
-        id: find
+      - name: Find Windows builder container digest
+        id: find-windows
         uses: openslide/openslide-winbuild/.github/find-container-digest@main
         with:
           builder_image: windows
@@ -291,10 +291,10 @@ jobs:
   windows_build:
     name: Windows build
     needs: windows_setup
-    uses: openslide/openslide-winbuild/.github/workflows/windows.yml@main
+    uses: openslide/openslide-winbuild/.github/workflows/build.yml@main
     with:
-      builder_repo_and_digest: ${{ needs.windows_setup.outputs.builder_repo_and_digest }}
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
       pkgver: ${{ needs.windows_setup.outputs.pkgver }}
       werror: true
+      windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
