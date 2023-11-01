@@ -9,6 +9,8 @@
 - [ ] Update website: `_data/releases.yaml`, `_includes/news.md`, `api/`
 - [ ] Start a [CI build](https://github.com/openslide/openslide.github.io/actions/workflows/retile.yml) of the demo site
 - [ ] Update Ubuntu PPA
-- [ ] Send mail to -announce and -users
 - [ ] Update Fedora and EPEL packages
+- [ ] Check that [Copr package](https://copr.fedorainfracloud.org/coprs/g/openslide/openslide/builds/) built successfully
+- [ ] Send mail to -announce and -users
+- [ ] Post to [forum.image.sc](https://forum.image.sc/c/announcements/10)
 - [ ] Update MacPorts package
