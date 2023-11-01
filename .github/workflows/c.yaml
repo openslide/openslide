@@ -270,7 +270,7 @@ jobs:
     steps:
       - name: Find Windows builder container digest
         id: find-windows
-        uses: openslide/openslide-winbuild/.github/find-container-digest@main
+        uses: openslide/openslide-bin/.github/find-container-digest@main
         with:
           builder_image: windows
       - name: Calculate parameters
@@ -291,7 +291,7 @@ jobs:
   windows_build:
     name: Windows build
     needs: windows_setup
-    uses: openslide/openslide-winbuild/.github/workflows/build.yml@main
+    uses: openslide/openslide-bin/.github/workflows/build.yml@main
     with:
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
