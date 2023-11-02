@@ -23,7 +23,7 @@ else
   ]
 endif
 foreach target : tools_binaries
-  executable(
+  exe = executable(
     target,
     [
       'slidetool.c',
@@ -43,6 +43,7 @@ foreach target : tools_binaries
     install : true,
     install_tag : 'bin',
   )
+  set_variable(target.underscorify(), exe)
 endforeach
 
 mans = [
