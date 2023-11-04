@@ -31,10 +31,10 @@ else
 endif
 
 # Public headers
-openslide_headers = [
+openslide_headers = files(
   'openslide.h',
   'openslide-features.h',
-]
+)
 include_subdir = 'openslide'
 install_headers(
   openslide_headers,
