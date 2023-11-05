@@ -225,8 +225,6 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   g_assert(datalen >= 0);
 
   // init stream
-  // avoid tracking stream offset (and implementing skip callback) by having
-  // OpenJPEG read the whole buffer at once
   g_autoptr(opj_stream_t) stream = opj_stream_create(datalen, true);
   struct buffer_state state = {
     .data = data,

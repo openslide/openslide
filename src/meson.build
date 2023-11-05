@@ -31,10 +31,10 @@ else
 endif
 
 # Public headers
-openslide_headers = [
+openslide_headers = files(
   'openslide.h',
   'openslide-features.h',
-]
+)
 include_subdir = 'openslide'
 install_headers(
   openslide_headers,
@@ -46,6 +46,7 @@ openslide_sources = [
   'openslide.c',
   'openslide-cache.c',
   openslide_dll_o,
+  'openslide-decode-dicom.c',
   'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
   'openslide-decode-jpeg.c',
@@ -62,6 +63,7 @@ openslide_sources = [
   openslide_tables_c,
   'openslide-util.c',
   'openslide-vendor-aperio.c',
+  'openslide-vendor-dicom.c',
   'openslide-vendor-generic-tiff.c',
   'openslide-vendor-hamamatsu.c',
   'openslide-vendor-leica.c',
@@ -72,12 +74,6 @@ openslide_sources = [
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
 ]
-if dicom_dep.found()
-  openslide_sources += [
-    'openslide-decode-dicom.c',
-    'openslide-vendor-dicom.c',
-  ]
-endif
 libopenslide = library('openslide',
   openslide_sources,
   version : soversion,
