@@ -131,11 +131,9 @@ if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If
   # glib is another subpackage, we can't check, so fail at build time if not.
   # glib only offers autoptr macros when the compiler supports them.
-  cc.has_header_symbol(
-    'glib.h', 'G_DEFINE_AUTOPTR_CLEANUP_FUNC',
-    dependencies : glib_dep,
-    required : true,
-  )
+  if not cc.has_header_symbol('glib.h', 'g_autofree', dependencies : glib_dep)
+    error('OpenSlide requires the GNU C "cleanup" attribute.')
+  endif
 endif
 
 # Test configuration
