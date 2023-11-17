@@ -91,14 +91,14 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra="git-core clang doxygen llvm valgrind valgrind-devel"
+                    extra="clang doxygen llvm valgrind valgrind-devel"
                     extra="$extra dnf-plugins-core"
                     debuginfo=1
                     ;;
                 esac
 
                 dnf install -y \
-                    gcc git meson pkg-config \
+                    gcc git-core meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
