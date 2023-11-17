@@ -5,6 +5,15 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
+      # We don't want to allow arbitrarily large binary diffs into the
+      # repo, where they'll live in the Git history forever.  At the time
+      # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
+      # set the cutoff at 6000.
+      # https://openslide.org/docs/testsuite/#tips
+      - id: check-added-large-files
+        name: Check for overlarge tests
+        args: [--maxkb=6]
+        files: ^test/cases/
       - id: check-added-large-files
         args: [--maxkb=200]
       - id: check-case-conflict
