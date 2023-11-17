@@ -46,7 +46,7 @@ static struct tile sentinel;
 
 static void *thread_func(void *data) {
   struct state *state = data;
-  struct tile *tile;	
+  struct tile *tile;
   g_autofree uint32_t *buf = g_malloc(TILE_SIZE * TILE_SIZE * sizeof(uint32_t));
 
   g_async_queue_push(state->completions, &sentinel);
