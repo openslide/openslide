@@ -1,0 +1,22 @@
+# exclude vendored files
+exclude: '^(COPYING\.LESSER|subprojects/.*)$'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=200]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-vcs-permalinks
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
