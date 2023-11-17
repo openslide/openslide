@@ -167,14 +167,6 @@ jobs:
         esac
     - name: Check out repo
       uses: actions/checkout@v4
-    - name: Check for uninitialized g_auto variables
-      if: matrix.extra
-      run: |
-        git config --global --add safe.directory $GITHUB_WORKSPACE
-        if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
-            echo "Found g_auto* declarations without initializers"
-            exit 1
-        fi
     - name: Build
       run: |
         args=

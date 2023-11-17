@@ -29,3 +29,11 @@ repos:
     hooks:
       - id: check-hooks-apply
       - id: check-useless-excludes
+
+  - repo: local
+    hooks:
+      - id: autoptr
+        name: Check for g_auto* declarations without initializers
+        language: pygrep
+        types: [c]
+        entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
