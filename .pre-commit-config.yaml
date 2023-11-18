@@ -1,0 +1,39 @@
+# exclude vendored files
+exclude: '^(COPYING\.LESSER|subprojects/.*)$'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # We don't want to allow arbitrarily large binary diffs into the
+      # repo, where they'll live in the Git history forever.  At the time
+      # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
+      # set the cutoff at 6000.
+      # https://openslide.org/docs/testsuite/#tips
+      - id: check-added-large-files
+        name: Check for overlarge tests
+        args: [--maxkb=6]
+        files: ^test/cases/
+      - id: check-added-large-files
+        args: [--maxkb=200]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-vcs-permalinks
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
+  - repo: local
+    hooks:
+      - id: autoptr
+        name: Check for g_auto* declarations without initializers
+        language: pygrep
+        types: [c]
+        entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"

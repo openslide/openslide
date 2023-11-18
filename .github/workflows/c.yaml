@@ -14,6 +14,18 @@ env:
   PYTHONUNBUFFERED: 1
 
 jobs:
+  pre-commit:
+    name: Rerun pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.0
   tests:
     name: Build
     runs-on: ${{ matrix.os }}
@@ -91,14 +103,14 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra="git-core clang doxygen llvm valgrind valgrind-devel"
+                    extra="clang doxygen llvm valgrind valgrind-devel"
                     extra="$extra dnf-plugins-core"
                     debuginfo=1
                     ;;
                 esac
 
                 dnf install -y \
-                    gcc git meson pkg-config \
+                    gcc git-core meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
@@ -155,14 +167,6 @@ jobs:
         esac
     - name: Check out repo
       uses: actions/checkout@v4
-    - name: Check for uninitialized g_auto variables
-      if: matrix.extra
-      run: |
-        git config --global --add safe.directory $GITHUB_WORKSPACE
-        if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
-            echo "Found g_auto* declarations without initializers"
-            exit 1
-        fi
     - name: Build
       run: |
         args=
@@ -224,21 +228,6 @@ jobs:
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
-    - name: Check for overlarge tests
-      if: matrix.extra
-      run: |
-        # We don't want to allow arbitrarily large binary diffs into the
-        # repo, where they'll live in the Git history forever.  At the time
-        # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
-        # set the cutoff at 6000.
-        # https://openslide.org/docs/testsuite/#tips
-        THRESHOLD=6000
-        large=$(find test/cases -type f -size +${THRESHOLD}c)
-        if [ -n "$large" ]; then
-            echo "Found test case files larger than $THRESHOLD bytes:"
-            echo "$large"
-            exit 1
-        fi
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
