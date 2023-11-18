@@ -162,8 +162,8 @@ def _launch_test(
     valgrind=False,
     extra_checks=True,
     testdir=None,
-    debug=[],
-    args=[],
+    debug=None,
+    args=None,
     **kwargs,
 ):
     '''Start the specified test from the testdir directory against the
@@ -178,17 +178,17 @@ def _launch_test(
     env = os.environ.copy()
     env.update(
         G_MESSAGES_DEBUG='',
-        OPENSLIDE_DEBUG=','.join(debug),
+        OPENSLIDE_DEBUG=','.join(debug or []),
         GIO_USE_VFS='local',
-        LSAN_OPTIONS=f'suppressions={CLANG_LSAN_SUPPRESSIONS},print_suppressions=0',
-        UBSAN_OPTIONS=f'print_stacktrace=1',
+        LSAN_OPTIONS=f'suppressions={CLANG_LSAN_SUPPRESSIONS},print_suppressions=0',  # noqa: E501
+        UBSAN_OPTIONS='print_stacktrace=1',
     )
     if extra_checks:
         env.update(
             G_DEBUG='gc-friendly',
             MALLOC_CHECK_='1',
         )
-    args = [os.path.join(testdir, test), slidefile] + args
+    args = [os.path.join(testdir, test), slidefile] + (args or [])
     if valgrind:
         args = [
             'valgrind',
@@ -212,10 +212,10 @@ def _try_open_slide(
     slidefile,
     valgrind=False,
     testdir=None,
-    debug=[],
+    debug=None,
     vendor=SKIP,
-    properties={},
-    regions=[],
+    properties=None,
+    regions=None,
 ):
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
@@ -228,17 +228,19 @@ def _try_open_slide(
     args = []
     if vendor is not SKIP:
         args.extend(['-n', 'none' if vendor is None else vendor])
-    for k, v in properties.items():
-        args.extend(['-p', '='.join([k, (v or '')])])
-    for region in regions:
-        args.extend(['-r', ' '.join(str(d) for d in region)])
+    if properties:
+        for k, v in properties.items():
+            args.extend(['-p', '='.join([k, (v or '')])])
+    if regions:
+        for region in regions:
+            args.extend(['-r', ' '.join(str(d) for d in region)])
     proc = _launch_test(
         'try_open',
         slidefile,
         valgrind=valgrind,
         args=args,
         testdir=testdir,
-        debug=debug,
+        debug=debug or [],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -252,7 +254,7 @@ def _try_open_slide(
         return None
 
 
-def _try_extended(slidefile, valgrind=False, testdir=None, debug=[]):
+def _try_extended(slidefile, valgrind=False, testdir=None, debug=None):
     '''Run the extended test program against the specified slide file, under
     Valgrind if specified, using the test program in the testdir directory.
     Return None on success, error message on failure.'''
@@ -262,7 +264,7 @@ def _try_extended(slidefile, valgrind=False, testdir=None, debug=[]):
         slidefile,
         valgrind=valgrind,
         testdir=testdir,
-        debug=debug,
+        debug=debug or [],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -367,7 +369,7 @@ def _fetch_one(slide):
                 print(f'Unpacking {slide}...')
                 with closing(ZipFile(dest)) as zf:
                     zf.extractall(path=destpath)
-    except:
+    except BaseException:
         rmtree(destpath, ignore_errors=True)
         raise
 
@@ -886,7 +888,7 @@ def _fusefs_run():
 
     try:
         trio.run(pyfuse3.main)
-    except:
+    except BaseException:
         pyfuse3.close(unmount=False)
         raise
     pyfuse3.close()
@@ -1167,7 +1169,7 @@ def _run_all(
             print(msg)
             if not ok:
                 failed += 1
-    except:
+    except BaseException:
         # In particular, KeyboardInterrupt
         executor.shutdown(cancel_futures=True)
         raise
@@ -1189,7 +1191,7 @@ def run(pattern='*'):
 
 
 @contextmanager
-def _rebuild(setup_args, env={}):
+def _rebuild(setup_args, env=None):
     '''Context manager: rebuild the source with the specified setup
     arguments and environment, and yield to the caller to do profiling.'''
 
@@ -1200,7 +1202,8 @@ def _rebuild(setup_args, env={}):
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
     os.chdir(top_srcdir)
     setup_env = os.environ.copy()
-    setup_env.update(env)
+    if env:
+        setup_env.update(env)
     subprocess.run(
         ['meson', 'setup', tempdir] + setup_args, check=True, env=setup_env
     )
@@ -1225,7 +1228,7 @@ def coverage(outfile):
         _run_all(testdir='test', parallel=False)
 
         # Generate coverage reports
-        for dirpath, dirnames, filenames in os.walk('src'):
+        for dirpath, _, filenames in os.walk('src'):
             paths = [
                 os.path.join(dirpath, name)
                 for name in fnmatch.filter(sorted(filenames), '*.gcda')
@@ -1247,7 +1250,8 @@ def coverage(outfile):
         if proc.returncode:
             raise OSError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(
-            l.replace('.c.gcov', '.c', 1) for l in report.decode().split('\n')
+            line.replace('.c.gcov', '.c', 1)
+            for line in report.decode().split('\n')
         )
         with open(os.path.join(basedir, outfile), 'w') as fh:
             fh.write(report)
@@ -1269,7 +1273,7 @@ def sanitize(pattern='*'):
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
     comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
-    with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}) as basedir:
+    with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}):
         xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail.split(',') if xfail else []
         if _run_all(pattern, xfail=xfail, testdir='test'):
@@ -1503,8 +1507,8 @@ def _main():
             fh.writelines(
                 [
                     'Signature: 8a477f597d28d172789f06886806bc55\n',
-                    "# This file is a cache directory tag created by OpenSlide's test suite.\n",
-                    '# For information about cache directory tags, see https://bford.info/cachedir/\n',
+                    "# This file is a cache directory tag created by OpenSlide's test suite.\n",  # noqa: E501
+                    '# For information about cache directory tags, see https://bford.info/cachedir/\n',  # noqa: E501
                 ]
             )
     f(*sys.argv[2:])
