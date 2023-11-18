@@ -56,7 +56,7 @@ import yaml
 
 TESTDATA_URL = os.getenv(
     'OPENSLIDE_TESTDATA_URL',
-    'https://openslide.cs.cmu.edu/download/openslide-testdata/'
+    'https://openslide.cs.cmu.edu/download/openslide-testdata/',
 )
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
@@ -105,14 +105,18 @@ def _color(color, str):
 
 def _list_tests(pattern='*'):
     '''Return a list of test names matching the specified pattern.'''
-    return [name for name in sorted(os.listdir(CASEROOT))
-            if fnmatch.fnmatch(name, pattern)
-            and os.path.exists(os.path.join(CASEROOT, name, TESTCONF))]
+    return [
+        name
+        for name in sorted(os.listdir(CASEROOT))
+        if fnmatch.fnmatch(name, pattern)
+        and os.path.exists(os.path.join(CASEROOT, name, TESTCONF))
+    ]
 
 
 def _list_slide_files(slide):
     '''List relative paths of files within a slide.  slide is e.g.
     "Mirax/CMU-1.zip".'''
+
     def walk(basedir):
         files = []
         for name in os.listdir(basedir):
@@ -122,6 +126,7 @@ def _list_slide_files(slide):
             else:
                 files.append(name)
         return files
+
     return walk(os.path.join(PRISTINE, slide))
 
 
@@ -151,8 +156,16 @@ def _cpu_count():
         return os.cpu_count()
 
 
-def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
-        testdir=None, debug=[], args=[], **kwargs):
+def _launch_test(
+    test,
+    slidefile,
+    valgrind=False,
+    extra_checks=True,
+    testdir=None,
+    debug=[],
+    args=[],
+    **kwargs,
+):
     '''Start the specified test from the testdir directory against the
     specified slide, running under Valgrind if requested.  If extra_checks
     is False, turn off debug instrumentation that would invalidate benchmark
@@ -177,10 +190,15 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
         )
     args = [os.path.join(testdir, test), slidefile] + args
     if valgrind:
-        args = ['valgrind', '--quiet', '--error-exitcode=3',
-                '--suppressions=' + VALGRIND_SUPPRESSIONS,
-                '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
-                '--leak-check=full', '--num-callers=30'] + args
+        args = [
+            'valgrind',
+            '--quiet',
+            '--error-exitcode=3',
+            '--suppressions=' + VALGRIND_SUPPRESSIONS,
+            '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
+            '--leak-check=full',
+            '--num-callers=30',
+        ] + args
         env.update(
             # Valgrind has known issues detecting memory initialization by
             # libjpeg-turbo SIMD code.  Disable SIMD support.
@@ -190,8 +208,15 @@ def _launch_test(test, slidefile, valgrind=False, extra_checks=True,
     return subprocess.Popen(args, env=env, **kwargs)
 
 
-def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
-        vendor=SKIP, properties={}, regions=[]):
+def _try_open_slide(
+    slidefile,
+    valgrind=False,
+    testdir=None,
+    debug=[],
+    vendor=SKIP,
+    properties={},
+    regions=[],
+):
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
     success, error message on failure.  vendor is the vendor string that
@@ -207,9 +232,17 @@ def _try_open_slide(slidefile, valgrind=False, testdir=None, debug=[],
         args.extend(['-p', '='.join([k, (v or '')])])
     for region in regions:
         args.extend(['-r', ' '.join(str(d) for d in region)])
-    proc = _launch_test('try_open', slidefile, valgrind=valgrind, args=args,
-            testdir=testdir, debug=debug, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True)
+    proc = _launch_test(
+        'try_open',
+        slidefile,
+        valgrind=valgrind,
+        args=args,
+        testdir=testdir,
+        debug=debug,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     out, err = proc.communicate()
     if out or err or proc.returncode > 0:
         return (out + err).strip()
@@ -224,9 +257,16 @@ def _try_extended(slidefile, valgrind=False, testdir=None, debug=[]):
     Valgrind if specified, using the test program in the testdir directory.
     Return None on success, error message on failure.'''
 
-    proc = _launch_test('extended', slidefile, valgrind=valgrind,
-            testdir=testdir, debug=debug, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True)
+    proc = _launch_test(
+        'extended',
+        slidefile,
+        valgrind=valgrind,
+        testdir=testdir,
+        debug=debug,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     out, err = proc.communicate()
     if out or err:
         return (out + err).strip()
@@ -259,16 +299,24 @@ def _download(url, name, fh):
             cur += len(chunk)
             now = curtime()
             if now - last_update >= 1:
-                print(f'Fetching {name} ({cur >> 20}/{size >> 20} MB)...\r',
-                        end='')
+                print(
+                    f'Fetching {name} ({cur >> 20}/{size >> 20} MB)...\r',
+                    end='',
+                )
                 sys.stdout.flush()
                 last_update = now
         if cur != size:
             raise ConnectionInterrupted
-    except (ConnectionInterrupted,
-            requests.exceptions.Timeout,
-            socket.timeout):
-        print('{:<79}'.format(f'Failure fetching {name} ({cur >> 20}/{size >> 20} MB)'))
+    except (
+        ConnectionInterrupted,
+        requests.exceptions.Timeout,
+        socket.timeout,
+    ):
+        print(
+            '{:<79}'.format(
+                f'Failure fetching {name} ({cur >> 20}/{size >> 20} MB)'
+            )
+        )
         raise ConnectionInterrupted
     else:
         print('{:<79}'.format(f'Fetched {name} ({size >> 20} MB)'))
@@ -348,8 +396,9 @@ def create(slide, testname):
     else:
         raise OSError('Could not locate readable slide file')
 
-    query = _launch_test('query', slidepath, args=['-n'],
-            stdout=subprocess.PIPE, text=True)
+    query = _launch_test(
+        'query', slidepath, args=['-n'], stdout=subprocess.PIPE, text=True
+    )
     vendor, _ = query.communicate()
     if query.returncode:
         raise OSError('Could not query slide vendor')
@@ -384,10 +433,12 @@ def pack(testname):
     for relpath in _list_slide_files(slide) + list(copies):
         origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
         newpath = os.path.join(CASEROOT, testname, 'slide', relpath)
-        deltapath = os.path.join(CASEROOT, testname,
-                os.path.basename(relpath) + '.xdelta')
-        whiteoutpath = os.path.join(CASEROOT, testname,
-                os.path.basename(relpath) + '.whiteout')
+        deltapath = os.path.join(
+            CASEROOT, testname, os.path.basename(relpath) + '.xdelta'
+        )
+        whiteoutpath = os.path.join(
+            CASEROOT, testname, os.path.basename(relpath) + '.whiteout'
+        )
 
         for path in deltapath, whiteoutpath:
             if os.path.exists(path):
@@ -395,9 +446,21 @@ def pack(testname):
 
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
-                subprocess.check_call(['xdelta3', 'encode', '-9', '-W',
-                        '16777216', '-S', 'none', '-s', origpath, newpath,
-                        deltapath])
+                subprocess.check_call(
+                    [
+                        'xdelta3',
+                        'encode',
+                        '-9',
+                        '-W',
+                        '16777216',
+                        '-S',
+                        'none',
+                        '-s',
+                        origpath,
+                        newpath,
+                        deltapath,
+                    ]
+                )
                 total_size += os.stat(deltapath).st_size
         else:
             open(whiteoutpath, 'w').close()
@@ -427,9 +490,12 @@ def _run_generator(command_str, inpath, outpath):
         fout.append(None)
 
         for i, cmd in enumerate(cmds):
-            proc = subprocess.Popen([a % {'in': inpath, 'out': outpath}
-                    for a in shlex.split(cmd)],
-                    stdin=fin[i], stdout=fout[i], close_fds=True)
+            proc = subprocess.Popen(
+                [a % {'in': inpath, 'out': outpath} for a in shlex.split(cmd)],
+                stdin=fin[i],
+                stdout=fout[i],
+                close_fds=True,
+            )
             procs.append(proc)
     finally:
         for fh in fout + fin:
@@ -445,6 +511,8 @@ def _run_generator(command_str, inpath, outpath):
 
 
 _can_reflink = True
+
+
 def _try_reflink(inpath, outpath):
     '''Try to make a zero-copy clone of the file inpath at outpath.  Return
     True if successful.'''
@@ -456,8 +524,13 @@ def _try_reflink(inpath, outpath):
         return False
     system = platform.system()
     if system == 'Linux':
-        if subprocess.call(['cp', '--reflink=always', '--', inpath,
-                outpath], stderr=subprocess.DEVNULL) == 0:
+        if (
+            subprocess.call(
+                ['cp', '--reflink=always', '--', inpath, outpath],
+                stderr=subprocess.DEVNULL,
+            )
+            == 0
+        ):
             return True
         try:
             # cp from coreutils <= 9.1 leaves an empty file at outpath
@@ -466,8 +539,12 @@ def _try_reflink(inpath, outpath):
         except FileNotFoundError:
             pass
     elif system == 'Darwin':
-        if subprocess.call(['cp', '-c', inpath, outpath],
-                stderr=subprocess.DEVNULL) == 0:
+        if (
+            subprocess.call(
+                ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
+            )
+            == 0
+        ):
             return True
     # If we fail once, don't try again.  It's possible that we might succeed
     # under other circumstances (e.g. inpath and outpath might be on different
@@ -486,8 +563,11 @@ def _decode_xdelta(inpath, deltapath, outpath):
         # but we don't need perfect savings.  Mostly we're trying to avoid
         # copying huge runs of unchanged data.
         blksize = 1 << 20
-        proc = subprocess.Popen(['xdelta3', 'decode', '-cs', inpath, deltapath],
-                stdout=subprocess.PIPE, bufsize=bufsize)
+        proc = subprocess.Popen(
+            ['xdelta3', 'decode', '-cs', inpath, deltapath],
+            stdout=subprocess.PIPE,
+            bufsize=bufsize,
+        )
         with open(outpath, 'rb+', buffering=bufsize) as fh:
             while True:
                 want = proc.stdout.read(blksize)
@@ -501,8 +581,9 @@ def _decode_xdelta(inpath, deltapath, outpath):
         if proc.wait() != 0:
             raise OSError(f'xdelta failed with status {proc.returncode}')
     else:
-        subprocess.check_call(['xdelta3', 'decode', '-s',
-                inpath, deltapath, outpath])
+        subprocess.check_call(
+            ['xdelta3', 'decode', '-s', inpath, deltapath, outpath]
+        )
 
 
 def _unpack_one(testname):
@@ -518,12 +599,15 @@ def _unpack_one(testname):
 
     for relpath in _list_slide_files(slide) + list(copies):
         origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
-        newpath = os.path.join(WORKROOT, testname,
-                renames.get(os.path.basename(relpath), relpath))
-        deltapath = os.path.join(CASEROOT, testname,
-                os.path.basename(relpath) + '.xdelta')
-        whiteoutpath = os.path.join(CASEROOT, testname,
-                os.path.basename(relpath) + '.whiteout')
+        newpath = os.path.join(
+            WORKROOT, testname, renames.get(os.path.basename(relpath), relpath)
+        )
+        deltapath = os.path.join(
+            CASEROOT, testname, os.path.basename(relpath) + '.xdelta'
+        )
+        whiteoutpath = os.path.join(
+            CASEROOT, testname, os.path.basename(relpath) + '.whiteout'
+        )
 
         if not os.path.exists(newpath) and not os.path.exists(whiteoutpath):
             if not printed:
@@ -552,7 +636,9 @@ def unpack(pattern='*'):
         pattern = '*'
         conditional = True
     for testname in _list_tests(pattern):
-        if not conditional or not os.path.exists(os.path.join(FROZEN, testname)):
+        if not conditional or not os.path.exists(
+            os.path.join(FROZEN, testname)
+        ):
             _unpack_one(testname)
 
 
@@ -576,7 +662,7 @@ def _fusefs_init(shadowdir):
         def __init__(self):
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
-            self._inode_path_map = { pyfuse3.ROOT_INODE: ('.', WORKROOT) }
+            self._inode_path_map = {pyfuse3.ROOT_INODE: ('.', WORKROOT)}
             self._lookup_cnt = defaultdict(int)
             self._fd_inode_map = dict()
             self._inode_fd_map = dict()
@@ -599,7 +685,7 @@ def _fusefs_init(shadowdir):
             return shadowpath
 
         async def forget(self, inode_list):
-            for (inode, nlookup) in inode_list:
+            for inode, nlookup in inode_list:
                 if self._lookup_cnt[inode] > nlookup:
                     self._lookup_cnt[inode] -= nlookup
                     continue
@@ -607,13 +693,14 @@ def _fusefs_init(shadowdir):
                 del self._lookup_cnt[inode]
                 try:
                     del self._inode_path_map[inode]
-                except KeyError: # may have been deleted
+                except KeyError:  # may have been deleted
                     pass
 
         async def lookup(self, inode_p, name, ctx=None):
             name = os.fsdecode(name)
-            relpath, backingpath = (os.path.join(p, name) for p in
-                    self._inode_to_paths(inode_p))
+            relpath, backingpath = (
+                os.path.join(p, name) for p in self._inode_to_paths(inode_p)
+            )
             # Special case: map PRISTINE into the filesystem even though it's
             # outside WORKROOT
             if inode_p == pyfuse3.ROOT_INODE and name == '_pristine':
@@ -633,15 +720,26 @@ def _fusefs_init(shadowdir):
             except OSError as exc:
                 raise FUSEError(exc.errno)
             entry = pyfuse3.EntryAttributes()
-            for attr in ('st_ino', 'st_mode', 'st_nlink', 'st_uid', 'st_gid',
-                         'st_rdev', 'st_size', 'st_atime_ns', 'st_mtime_ns',
-                         'st_ctime_ns'):
+            for attr in (
+                'st_ino',
+                'st_mode',
+                'st_nlink',
+                'st_uid',
+                'st_gid',
+                'st_rdev',
+                'st_size',
+                'st_atime_ns',
+                'st_mtime_ns',
+                'st_ctime_ns',
+            ):
                 setattr(entry, attr, getattr(stat, attr))
             entry.generation = 0
             entry.entry_timeout = 0
             entry.attr_timeout = 0
             entry.st_blksize = 512
-            entry.st_blocks = ((entry.st_size+entry.st_blksize-1) // entry.st_blksize)
+            entry.st_blocks = (
+                entry.st_size + entry.st_blksize - 1
+            ) // entry.st_blksize
             return entry
 
         async def readlink(self, inode, ctx):
@@ -650,15 +748,17 @@ def _fusefs_init(shadowdir):
                 target = os.readlink(backingpath)
                 # calculate target relative to the root of the FUSE FS
                 reltarget = os.path.normpath(
-                        os.path.join(os.path.dirname(relpath), target))
+                    os.path.join(os.path.dirname(relpath), target)
+                )
                 # calculate path to PRISTINE relative to WORKROOT
                 relpristine = os.path.relpath(PRISTINE, WORKROOT)
                 if reltarget.startswith(relpristine):
                     # link points to pristine directory; repoint it inside
                     # the FUSE root
                     reltarget = reltarget.replace(relpristine, '_pristine')
-                    target = os.path.relpath(reltarget,
-                            os.path.dirname(relpath))
+                    target = os.path.relpath(
+                        reltarget, os.path.dirname(relpath)
+                    )
                 shadowpath = self._shadowpath(relpath)
                 if not os.path.lexists(shadowpath):
                     os.symlink(target, shadowpath)
@@ -675,8 +775,15 @@ def _fusefs_init(shadowdir):
             if inode == pyfuse3.ROOT_INODE:
                 # Insert _pristine into the root dir
                 attr = self._getattr(PRISTINE)
-                entries.append((attr.st_ino, '_pristine',
-                        os.path.join(reldir, '_pristine'), PRISTINE, attr))
+                entries.append(
+                    (
+                        attr.st_ino,
+                        '_pristine',
+                        os.path.join(reldir, '_pristine'),
+                        PRISTINE,
+                        attr,
+                    )
+                )
             for name in os.listdir(backingdir):
                 if name == '.' or name == '..':
                     continue
@@ -684,11 +791,12 @@ def _fusefs_init(shadowdir):
                 backingpath = os.path.join(backingdir, name)
                 attr = self._getattr(backingpath)
                 entries.append((attr.st_ino, name, relpath, backingpath, attr))
-            for (ino, name, relpath, backingpath, attr) in sorted(entries):
+            for ino, name, relpath, backingpath, attr in sorted(entries):
                 if ino <= off:
                     continue
                 if not pyfuse3.readdir_reply(
-                    token, os.fsencode(name), attr, ino):
+                    token, os.fsencode(name), attr, ino
+                ):
                     break
                 self._add_paths(attr.st_ino, relpath, backingpath)
 
@@ -698,10 +806,18 @@ def _fusefs_init(shadowdir):
                 statfs = os.statvfs(WORKROOT)
             except OSError as exc:
                 raise FUSEError(exc.errno)
-            for attr in ('f_bsize', 'f_frsize', 'f_blocks', 'f_bfree', 'f_bavail',
-                         'f_files', 'f_ffree', 'f_favail'):
+            for attr in (
+                'f_bsize',
+                'f_frsize',
+                'f_blocks',
+                'f_bfree',
+                'f_bavail',
+                'f_files',
+                'f_ffree',
+                'f_favail',
+            ):
                 setattr(stat_, attr, getattr(statfs, attr))
-            stat_.f_namemax = statfs.f_namemax - (len(WORKROOT)+1)
+            stat_.f_namemax = statfs.f_namemax - (len(WORKROOT) + 1)
             return stat_
 
         async def open(self, inode, flags, ctx):
@@ -714,8 +830,14 @@ def _fusefs_init(shadowdir):
             try:
                 relpath, backingpath = self._inode_to_paths(inode)
                 fd = os.open(backingpath, flags)
-                shadow = os.fdopen(os.open(self._shadowpath(relpath),
-                        os.O_WRONLY | os.O_CREAT, 0o644), 'wb')
+                shadow = os.fdopen(
+                    os.open(
+                        self._shadowpath(relpath),
+                        os.O_WRONLY | os.O_CREAT,
+                        0o644,
+                    ),
+                    'wb',
+                )
                 shadow.truncate(os.lseek(fd, 0, os.SEEK_END))
             except OSError as exc:
                 raise FUSEError(exc.errno)
@@ -765,6 +887,7 @@ def _fusefs_run():
     '''Run an initialized FUSE filesystem.'''
     import pyfuse3
     import trio
+
     try:
         trio.run(pyfuse3.main)
     except:
@@ -773,14 +896,19 @@ def _fusefs_run():
     pyfuse3.close()
 
 
-def _s3_upload_public(bucket, key, fh, content_type='application/octet-stream'):
+def _s3_upload_public(
+    bucket, key, fh, content_type='application/octet-stream'
+):
     '''Upload public content to the specified S3 bucket and key.  Return
     a public URL.'''
     import boto3
+
     s3 = boto3.client('s3')
     # Calculate public URL
-    region = s3.get_bucket_location(Bucket=bucket)['LocationConstraint'] \
-            or 'us-east-1'
+    region = (
+        s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
+        or 'us-east-1'
+    )
     url = f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/{key}'
     # Skip re-uploading existing objects
     try:
@@ -794,21 +922,25 @@ def _s3_upload_public(bucket, key, fh, content_type='application/octet-stream'):
     length = fh.seek(0, os.SEEK_END)
     last_update = 0
     uploaded = 0
+
     def progress(count):
         nonlocal last_update, uploaded
         uploaded += count
         now = curtime()
         if now - last_update >= 1:
-            print(f'Uploading {uploaded >> 20}/{length >> 20} MB...\r',
-                    end='')
+            print(f'Uploading {uploaded >> 20}/{length >> 20} MB...\r', end='')
             sys.stdout.flush()
             last_update = now
+
     # Upload object
     fh.seek(0)
-    s3.upload_fileobj(fh, bucket, key, Callback=progress, ExtraArgs={
-        'ACL': 'public-read',
-        'ContentType': content_type
-    })
+    s3.upload_fileobj(
+        fh,
+        bucket,
+        key,
+        Callback=progress,
+        ExtraArgs={'ACL': 'public-read', 'ContentType': content_type},
+    )
     print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
     return url
 
@@ -851,16 +983,30 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
             if os.path.exists(path):
                 rmtree(path)
         # Python tarfile doesn't support creating sparse archives
-        proc = subprocess.Popen(['gtar', 'c', '--sparse',
+        proc = subprocess.Popen(
+            [
+                'gtar',
+                'c',
+                '--sparse',
                 # Make archive reproducible
-                '--owner=0', '--group=0', '--mtime=@0', '--sort=name',
-                '-C', tempdir, '.'], stdout=subprocess.PIPE)
+                '--owner=0',
+                '--group=0',
+                '--mtime=@0',
+                '--sort=name',
+                '-C',
+                tempdir,
+                '.',
+            ],
+            stdout=subprocess.PIPE,
+        )
         compressor = LZMACompressor(preset=9)
         hasher = sha256()
         with TemporaryFile(prefix='frozen-', dir=FROZENBASE) as fh:
+
             def update(buf):
                 hasher.update(buf)
                 fh.write(buf)
+
             while True:
                 buf = proc.stdout.read(1 << 20)
                 if not buf:
@@ -873,8 +1019,9 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
             digest = hasher.hexdigest()
 
             print('Uploading archive...')
-            url = _s3_upload_public(bucket, digest, fh,
-                    content_type='application/x-xz')
+            url = _s3_upload_public(
+                bucket, digest, fh, content_type='application/x-xz'
+            )
 
     manifest = {
         'url': url,
@@ -905,7 +1052,9 @@ def unfreeze():
     with TemporaryFile(dir=FROZENBASE, prefix='frozen-') as fh:
         found_sha256 = _download(manifest['url'], 'frozen archive', fh)
         if found_sha256 != sha256:
-            raise OSError(f'Hash mismatch: expected {sha256}, found {found_sha256}')
+            raise OSError(
+                f'Hash mismatch: expected {sha256}, found {found_sha256}'
+            )
         fh.seek(0)
         print('Unpacking...')
         tf = tarfile.open(fileobj=fh)
@@ -927,8 +1076,9 @@ def unfreeze():
     os.symlink(link_target, FROZEN)
 
 
-def _run_one(testname, valgrind=False, xfail=False, testdir=None,
-        workdir=WORKROOT):
+def _run_one(
+    testname, valgrind=False, xfail=False, testdir=None, workdir=WORKROOT
+):
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
     to succeed, and 3) do in fact succeed.  If xfail is specified, invert
@@ -942,11 +1092,15 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
         slidefile = ''
     else:
         slidefile = os.path.join(workdir, testname, conf['slide'])
-    result = _try_open_slide(slidefile, valgrind, testdir,
-            vendor=conf.get('vendor', None),
-            properties=conf.get('properties', {}),
-            regions=conf.get('regions', []),
-            debug=conf.get('debug', []))
+    result = _try_open_slide(
+        slidefile,
+        valgrind,
+        testdir,
+        vendor=conf.get('vendor', None),
+        properties=conf.get('properties', {}),
+        regions=conf.get('regions', []),
+        debug=conf.get('debug', []),
+    )
 
     msg = _color(GREEN, f'{testname}: OK')
     ok = True
@@ -960,8 +1114,9 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
         msg = _color(RED, f'{testname}: incorrect error: {result}')
         ok = False
     elif conf.get('primary', False) and conf['success']:
-        result = _try_extended(slidefile, valgrind, testdir,
-                debug=conf.get('debug', []))
+        result = _try_extended(
+            slidefile, valgrind, testdir, debug=conf.get('debug', [])
+        )
         if result:
             msg = _color(RED, f'{testname}: extended test failed: {result}')
             ok = False
@@ -976,8 +1131,9 @@ def _run_one(testname, valgrind=False, xfail=False, testdir=None,
     return ok, msg
 
 
-def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None,
-        parallel=True):
+def _run_all(
+    pattern='*', valgrind=False, xfail=None, testdir=None, parallel=True
+):
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results.'''
@@ -1001,8 +1157,14 @@ def _run_all(pattern='*', valgrind=False, xfail=None, testdir=None,
             else:
                 workdir = FROZEN
             futures.append(
-                executor.submit(_run_one, testname, valgrind, testname in xfail,
-                    testdir, workdir=workdir)
+                executor.submit(
+                    _run_one,
+                    testname,
+                    valgrind,
+                    testname in xfail,
+                    testdir,
+                    workdir=workdir,
+                )
             )
         for future in futures:
             ok, msg = future.result()
@@ -1043,8 +1205,9 @@ def _rebuild(setup_args, env={}):
     os.chdir(top_srcdir)
     setup_env = os.environ.copy()
     setup_env.update(env)
-    subprocess.run(['meson', 'setup', tempdir] + setup_args, check=True,
-            env=setup_env)
+    subprocess.run(
+        ['meson', 'setup', tempdir] + setup_args, check=True, env=setup_env
+    )
     os.chdir(tempdir)
     subprocess.run(['ninja'], check=True)
 
@@ -1067,21 +1230,29 @@ def coverage(outfile):
 
         # Generate coverage reports
         for dirpath, dirnames, filenames in os.walk('src'):
-            paths = [os.path.join(dirpath, name)
-                    for name in fnmatch.filter(sorted(filenames), '*.gcda')]
+            paths = [
+                os.path.join(dirpath, name)
+                for name in fnmatch.filter(sorted(filenames), '*.gcda')
+            ]
             if paths:
                 subprocess.check_call(['gcov', '-o', dirpath] + paths)
 
         # Record unexecuted lines; ignore glib headers
-        proc = subprocess.Popen(['grep', '-FC', '2', '#####'] +
-                [f for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
-                if not fnmatch.fnmatch(f, 'g*.h.gcov')],
-                stdout=subprocess.PIPE)
+        proc = subprocess.Popen(
+            ['grep', '-FC', '2', '#####']
+            + [
+                f
+                for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
+                if not fnmatch.fnmatch(f, 'g*.h.gcov')
+            ],
+            stdout=subprocess.PIPE,
+        )
         report, _ = proc.communicate()
         if proc.returncode:
             raise OSError(f'Process returned exit status {proc.returncode}')
-        report = '\n'.join(l.replace('.c.gcov', '.c', 1)
-                for l in report.decode().split('\n'))
+        report = '\n'.join(
+            l.replace('.c.gcov', '.c', 1) for l in report.decode().split('\n')
+        )
         with open(os.path.join(basedir, outfile), 'w') as fh:
             fh.write(report)
 
@@ -1120,8 +1291,14 @@ def _fetch_for_mosaic():
 
 def _mosaic(outfile, pristinedir=PRISTINE):
     '''Produce a mosaic image of slide data from various formats.'''
-    subprocess.check_call([os.path.join('@BUILDDIR@', 'mosaic'),
-            pristinedir, MOSAICLIST, outfile])
+    subprocess.check_call(
+        [
+            os.path.join('@BUILDDIR@', 'mosaic'),
+            pristinedir,
+            MOSAICLIST,
+            outfile,
+        ]
+    )
 
 
 @_command
@@ -1139,8 +1316,11 @@ def _successful_primary_tests(pattern='*'):
     '''Yield testname and slide path for each successful primary test.'''
     for testname in _list_tests(pattern):
         conf = _load_test_config(testname)
-        if (not conf.get('primary', False) or not conf['success']
-                or not _features_available(conf)):
+        if (
+            not conf.get('primary', False)
+            or not conf['success']
+            or not _features_available(conf)
+        ):
             continue
         _unpack_one(testname)
         if conf['slide'] == '':
@@ -1156,9 +1336,16 @@ def time(pattern='*'):
     '''Time openslide_open() for all successful primary tests matching the
     specified pattern.'''
     for testname, slidefile in _successful_primary_tests(pattern):
-        proc = _launch_test('try_open', slidefile, args=['-t'],
-                extra_checks=False, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, debug=['synthetic'])
+        proc = _launch_test(
+            'try_open',
+            slidefile,
+            args=['-t'],
+            extra_checks=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            debug=['synthetic'],
+        )
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
@@ -1178,22 +1365,32 @@ def profile(pattern='*', level=0):
     for testname, slidefile in _successful_primary_tests(pattern):
         print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args = ['valgrind', '--quiet', '--error-exitcode=3',
-                    '--tool=callgrind', '--callgrind-out-file=' + fh.name,
-                    '--instr-atstart=no',
-                    '@BUILDDIR@/profile', slidefile, str(level)]
+            args = [
+                'valgrind',
+                '--quiet',
+                '--error-exitcode=3',
+                '--tool=callgrind',
+                '--callgrind-out-file=' + fh.name,
+                '--instr-atstart=no',
+                '@BUILDDIR@/profile',
+                slidefile,
+                str(level),
+            ]
             if subprocess.call(args, env=env) == 0:
-                subprocess.check_call(['callgrind_annotate',
-                        '--threshold=80', fh.name])
+                subprocess.check_call(
+                    ['callgrind_annotate', '--threshold=80', fh.name]
+                )
 
 
 @_command
 def exports():
     '''Report exported or hidden symbols with improper names.'''
+
     def get_symbols(basedir):
-        proc = subprocess.Popen(['objdump', '-T',
-                os.path.join(basedir, 'src', 'libopenslide.so')],
-                stdout=subprocess.PIPE)
+        proc = subprocess.Popen(
+            ['objdump', '-T', os.path.join(basedir, 'src', 'libopenslide.so')],
+            stdout=subprocess.PIPE,
+        )
         out, _ = proc.communicate()
         if proc.returncode:
             raise OSError(f'objdump returned exit status {proc.returncode}')
@@ -1211,15 +1408,22 @@ def exports():
 
     # Check exported symbols
     exported_symbols = set(get_symbols('@BUILDDIR@/..')) - ignore_symbols
-    bad_exported = {symbol for symbol in exported_symbols
-            if not symbol.startswith('openslide_')}
+    bad_exported = {
+        symbol
+        for symbol in exported_symbols
+        if not symbol.startswith('openslide_')
+    }
 
     # Check hidden symbols
     with _rebuild(['-D_export_internal_symbols=true']):
-        hidden_symbols = (set(get_symbols('.')) - exported_symbols -
-                ignore_symbols)
-        bad_hidden = {symbol for symbol in hidden_symbols
-                if not symbol.startswith('_openslide_')}
+        hidden_symbols = (
+            set(get_symbols('.')) - exported_symbols - ignore_symbols
+        )
+        bad_hidden = {
+            symbol
+            for symbol in hidden_symbols
+            if not symbol.startswith('_openslide_')
+        }
 
     # Report
     for symbol in sorted(bad_exported):
@@ -1268,8 +1472,9 @@ def _get_arglist(f):
 
 def _usage():
     '''Print usage message and exit.'''
-    wrapper = textwrap.TextWrapper(width=76, initial_indent=' ' * 8,
-            subsequent_indent=' ' * 8)
+    wrapper = textwrap.TextWrapper(
+        width=76, initial_indent=' ' * 8, subsequent_indent=' ' * 8
+    )
     print('Usage:')
     for name in _commands:
         f = _command_funcs[name]
@@ -1299,11 +1504,13 @@ def _main():
     if not os.path.exists(CACHE_TAG):
         os.makedirs(CACHE, exist_ok=True)
         with open(CACHE_TAG, 'w') as fh:
-            fh.writelines([
-                'Signature: 8a477f597d28d172789f06886806bc55\n',
-                "# This file is a cache directory tag created by OpenSlide's test suite.\n",
-                '# For information about cache directory tags, see https://bford.info/cachedir/\n',
-            ])
+            fh.writelines(
+                [
+                    'Signature: 8a477f597d28d172789f06886806bc55\n',
+                    "# This file is a cache directory tag created by OpenSlide's test suite.\n",
+                    '# For information about cache directory tags, see https://bford.info/cachedir/\n',
+                ]
+            )
     f(*sys.argv[2:])
 
 

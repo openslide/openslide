@@ -41,6 +41,13 @@ repos:
         name: Reorder python imports with isort
         exclude: ^misc/
 
+  - repo: https://github.com/psf/black
+    rev: 23.11.0
+    hooks:
+      - id: black
+        name: Format python code with black
+        exclude: ^misc/
+
   - repo: meta
     hooks:
       - id: check-hooks-apply
