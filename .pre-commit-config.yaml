@@ -25,6 +25,14 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
 
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.0
+    hooks:
+      - id: pyupgrade
+        name: Modernize python code
+        exclude: ^misc/
+        args: ["--py38-plus"]
+
   - repo: meta
     hooks:
       - id: check-hooks-apply

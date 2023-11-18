@@ -341,13 +341,13 @@ def create(slide, testname):
             slidepath = curpath
             break
     else:
-        raise IOError('Could not locate readable slide file')
+        raise OSError('Could not locate readable slide file')
 
     query = _launch_test('query', slidepath, args=['-n'],
             stdout=subprocess.PIPE, text=True)
     vendor, _ = query.communicate()
     if query.returncode:
-        raise IOError('Could not query slide vendor')
+        raise OSError('Could not query slide vendor')
     vendor = vendor.strip() or None
 
     os.mkdir(testpath)
@@ -386,7 +386,7 @@ def pack(testname):
 
         for path in deltapath, whiteoutpath:
             if os.path.exists(path):
-                raise IOError(f'{path} already exists')
+                raise OSError(f'{path} already exists')
 
         if os.path.exists(newpath):
             if not filecmp.cmp(origpath, newpath, shallow=False):
@@ -436,7 +436,7 @@ def _run_generator(command_str, inpath, outpath):
         proc.wait()
         returncode = returncode or proc.returncode
     if returncode:
-        raise IOError(f'Generator returned exit status {returncode}')
+        raise OSError(f'Generator returned exit status {returncode}')
 
 
 _can_reflink = True
@@ -494,7 +494,7 @@ def _decode_xdelta(inpath, deltapath, outpath):
                     fh.write(want)
             fh.truncate()
         if proc.wait() != 0:
-            raise IOError(f'xdelta failed with status {proc.returncode}')
+            raise OSError(f'xdelta failed with status {proc.returncode}')
     else:
         subprocess.check_call(['xdelta3', 'decode', '-s',
                 inpath, deltapath, outpath])
@@ -572,7 +572,7 @@ def _fusefs_init(shadowdir):
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
             self._inode_path_map = { pyfuse3.ROOT_INODE: ('.', WORKROOT) }
-            self._lookup_cnt = defaultdict(lambda: 0)
+            self._lookup_cnt = defaultdict(int)
             self._fd_inode_map = dict()
             self._inode_fd_map = dict()
             self._fd_shadow_map = dict()
@@ -607,8 +607,8 @@ def _fusefs_init(shadowdir):
 
         async def lookup(self, inode_p, name, ctx=None):
             name = os.fsdecode(name)
-            relpath, backingpath = [os.path.join(p, name) for p in
-                    self._inode_to_paths(inode_p)]
+            relpath, backingpath = (os.path.join(p, name) for p in
+                    self._inode_to_paths(inode_p))
             # Special case: map PRISTINE into the filesystem even though it's
             # outside WORKROOT
             if inode_p == pyfuse3.ROOT_INODE and name == '_pristine':
@@ -864,7 +864,7 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
             update(compressor.flush())
             proc.wait()
             if proc.returncode != 0:
-                raise IOError('tar failed')
+                raise OSError('tar failed')
             digest = hasher.hexdigest()
 
             print('Uploading archive...')
@@ -900,7 +900,7 @@ def unfreeze():
     with TemporaryFile(dir=FROZENBASE, prefix='frozen-') as fh:
         found_sha256 = _download(manifest['url'], 'frozen archive', fh)
         if found_sha256 != sha256:
-            raise IOError(f'Hash mismatch: expected {sha256}, found {found_sha256}')
+            raise OSError(f'Hash mismatch: expected {sha256}, found {found_sha256}')
         fh.seek(0)
         print('Unpacking...')
         tf = tarfile.open(fileobj=fh)
@@ -912,13 +912,13 @@ def unfreeze():
             # tarball hash, but check anyway
             normalized = os.path.normpath(info.name)
             if normalized.startswith('/') or normalized.startswith('../'):
-                raise IOError(f'Directory traversal: {info.name}')
+                raise OSError(f'Directory traversal: {info.name}')
             if info.isfile() or info.isdir():
                 tf.extract(info, path=basedir, set_attrs=False)
             elif info.issym():
                 os.symlink(info.linkname, os.path.join(basedir, info.name))
             else:
-                raise IOError(f'Unexpected type: {info.name}')
+                raise OSError(f'Unexpected type: {info.name}')
     os.symlink(link_target, FROZEN)
 
 
@@ -1074,7 +1074,7 @@ def coverage(outfile):
                 stdout=subprocess.PIPE)
         report, _ = proc.communicate()
         if proc.returncode:
-            raise IOError(f'Process returned exit status {proc.returncode}')
+            raise OSError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(l.replace('.c.gcov', '.c', 1)
                 for l in report.decode().split('\n'))
         with open(os.path.join(basedir, outfile), 'w') as fh:
@@ -1191,7 +1191,7 @@ def exports():
                 stdout=subprocess.PIPE)
         out, _ = proc.communicate()
         if proc.returncode:
-            raise IOError(f'objdump returned exit status {proc.returncode}')
+            raise OSError(f'objdump returned exit status {proc.returncode}')
         for line in out.decode().splitlines():
             words = line.split()
             if len(words) < 3:
@@ -1206,15 +1206,15 @@ def exports():
 
     # Check exported symbols
     exported_symbols = set(get_symbols('@BUILDDIR@/..')) - ignore_symbols
-    bad_exported = set(symbol for symbol in exported_symbols
-            if not symbol.startswith('openslide_'))
+    bad_exported = {symbol for symbol in exported_symbols
+            if not symbol.startswith('openslide_')}
 
     # Check hidden symbols
     with _rebuild(['-D_export_internal_symbols=true']):
         hidden_symbols = (set(get_symbols('.')) - exported_symbols -
                 ignore_symbols)
-        bad_hidden = set(symbol for symbol in hidden_symbols
-                if not symbol.startswith('_openslide_'))
+        bad_hidden = {symbol for symbol in hidden_symbols
+                if not symbol.startswith('_openslide_')}
 
     # Report
     for symbol in sorted(bad_exported):
