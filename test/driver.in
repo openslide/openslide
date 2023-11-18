@@ -33,21 +33,26 @@ from lzma import LZMACompressor
 import os
 import platform
 import re
-import requests
 import shlex
 from shutil import copytree, rmtree
 import socket
 import subprocess
 import sys
 import tarfile
-from tempfile import (mkdtemp, TemporaryDirectory, TemporaryFile,
-        NamedTemporaryFile)
+from tempfile import (
+    NamedTemporaryFile,
+    TemporaryDirectory,
+    TemporaryFile,
+    mkdtemp,
+)
 import textwrap
 from threading import Thread
 from time import time as curtime
 from urllib.parse import urljoin
-import yaml
 from zipfile import ZipFile
+
+import requests
+import yaml
 
 TESTDATA_URL = os.getenv(
     'OPENSLIDE_TESTDATA_URL',
@@ -564,8 +569,8 @@ def _fusefs_init(shadowdir):
     # the distro's error reporting, so reset the excepthook to default.
     sys.excepthook = sys.__excepthook__
 
-    from pyfuse3 import FUSEError
     import pyfuse3
+    from pyfuse3 import FUSEError
 
     class Operations(pyfuse3.Operations):
         def __init__(self):
