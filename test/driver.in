@@ -20,6 +20,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+from __future__ import annotations
+
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
@@ -48,6 +50,17 @@ from tempfile import (
 import textwrap
 from threading import Thread
 from time import time as curtime
+from typing import (
+    Any,
+    BinaryIO,
+    Iterable,
+    Iterator,
+    NewType,
+    Protocol,
+    Sequence,
+    TypedDict,
+    cast,
+)
 from urllib.parse import urljoin
 from zipfile import ZipFile
 
@@ -84,26 +97,56 @@ RESET = '\033[1;0m'
 _commands = []
 _command_funcs = {}
 
-SKIP = object()
+
+class Config(TypedDict, total=False):
+    base: str
+    slide: str
+    success: bool
+    error: str
+    vendor: str
+    primary: bool
+    requires: list[str]
+    debug: list[str]
+    regions: list[list[int]]
+    properties: dict[str, str]
+    generate: dict[str, str]
+    copy: dict[str, str]
+    rename: dict[str, str]
+
+
+# Required wrapper requires Python >= 3.11
+Config.__required_keys__ = frozenset({'base', 'slide', 'success'})
+
+
+class Skip:
+    pass
 
 
 class ConnectionInterrupted(Exception):
     pass
 
 
-def _command(f):
+class Command(Protocol):
+    def __call__(self, *args: str) -> None:
+        pass
+
+
+# There doesn't seem to be a way to tell mypy that a function taking k
+# strings satisfies a variadic function taking strings, so we type f as Any.
+def _command(f: Any) -> Command:
     '''Decorator to mark the function as a user command.'''
+    ff = cast(Command, f)
     _commands.append(f.__name__)
-    _command_funcs[f.__name__] = f
-    return f
+    _command_funcs[f.__name__] = ff
+    return ff
 
 
-def _color(color, str):
+def _color(color: str, str: str) -> str:
     '''Return str, wrapped in the specified ANSI color escape sequence.'''
     return color + str + RESET
 
 
-def _list_tests(pattern='*'):
+def _list_tests(pattern: str = '*') -> list[str]:
     '''Return a list of test names matching the specified pattern.'''
     return [
         name
@@ -113,12 +156,12 @@ def _list_tests(pattern='*'):
     ]
 
 
-def _list_slide_files(slide):
+def _list_slide_files(slide: str) -> list[str]:
     '''List relative paths of files within a slide.  slide is e.g.
     "Mirax/CMU-1.zip".'''
 
-    def walk(basedir):
-        files = []
+    def walk(basedir: str) -> list[str]:
+        files: list[str] = []
         for name in os.listdir(basedir):
             path = os.path.join(basedir, name)
             if os.path.isdir(path):
@@ -130,13 +173,14 @@ def _list_slide_files(slide):
     return walk(os.path.join(PRISTINE, slide))
 
 
-def _load_test_config(testname):
+def _load_test_config(testname: str) -> Config:
     '''Parse and return the config.yaml for the specified test.'''
     with open(os.path.join(CASEROOT, testname, TESTCONF)) as fh:
-        return yaml.safe_load(fh)
+        config: Config = yaml.safe_load(fh)
+        return config
 
 
-def _features_available(conf):
+def _features_available(conf: Config) -> bool:
     '''Return True if the features required by the test configuration
     are available in this build.'''
     for feature in conf.get('requires', []):
@@ -145,7 +189,7 @@ def _features_available(conf):
     return True
 
 
-def _cpu_count():
+def _cpu_count() -> int:
     # Does not account for cgroup CPU limits, which might be lower
     # https://github.com/python/cpython/issues/80235
     try:
@@ -153,19 +197,19 @@ def _cpu_count():
         return len(os.sched_getaffinity(0))
     except AttributeError:
         # macOS
-        return os.cpu_count()
+        return os.cpu_count() or 1
 
 
 def _launch_test(
-    test,
-    slidefile,
-    valgrind=False,
-    extra_checks=True,
-    testdir=None,
-    debug=None,
-    args=None,
-    **kwargs,
-):
+    test: str,
+    slidefile: str,
+    valgrind: bool = False,
+    extra_checks: bool = True,
+    testdir: str | None = None,
+    debug: Iterable[str] | None = None,
+    args: Iterable[str] | None = None,
+    **kwargs: Any,
+) -> subprocess.Popen[str]:
     '''Start the specified test from the testdir directory against the
     specified slide, running under Valgrind if requested.  If extra_checks
     is False, turn off debug instrumentation that would invalidate benchmark
@@ -188,7 +232,7 @@ def _launch_test(
             G_DEBUG='gc-friendly',
             MALLOC_CHECK_='1',
         )
-    args = [os.path.join(testdir, test), slidefile] + (args or [])
+    args = [os.path.join(testdir, test), slidefile] + (list(args or []))
     if valgrind:
         args = [
             'valgrind',
@@ -209,25 +253,26 @@ def _launch_test(
 
 
 def _try_open_slide(
-    slidefile,
-    valgrind=False,
-    testdir=None,
-    debug=None,
-    vendor=SKIP,
-    properties=None,
-    regions=None,
-):
+    slidefile: str,
+    valgrind: bool = False,
+    testdir: str | None = None,
+    debug: Iterable[str] | None = None,
+    vendor: str | None | type[Skip] = Skip,
+    properties: dict[str, str] | None = None,
+    regions: Iterable[Iterable[int]] | None = None,
+) -> str | None:
     '''Try opening the specified slide file, under Valgrind if specified,
     using the test program in the testdir directory.  Return None on
     success, error message on failure.  vendor is the vendor string that
-    should be returned by openslide_detect_vendor(), None for NULL, or SKIP
+    should be returned by openslide_detect_vendor(), None for NULL, or Skip
     to omit the test.  properties is a map of slide properties and their
     expected values.  regions is a list of region tuples (x, y, level, w,
     h).  debug is a list of OPENSLIDE_DEBUG options.'''
 
     args = []
-    if vendor is not SKIP:
-        args.extend(['-n', 'none' if vendor is None else vendor])
+    if vendor is not Skip:
+        vendor_str = cast(str, 'none' if vendor is None else vendor)
+        args.extend(['-n', vendor_str])
     if properties:
         for k, v in properties.items():
             args.extend(['-p', '='.join([k, (v or '')])])
@@ -253,7 +298,12 @@ def _try_open_slide(
         return None
 
 
-def _try_extended(slidefile, valgrind=False, testdir=None, debug=None):
+def _try_extended(
+    slidefile: str,
+    valgrind: bool = False,
+    testdir: str | None = None,
+    debug: Iterable[str] | None = None,
+) -> str | None:
     '''Run the extended test program against the specified slide file, under
     Valgrind if specified, using the test program in the testdir directory.
     Return None on success, error message on failure.'''
@@ -276,7 +326,7 @@ def _try_extended(slidefile, valgrind=False, testdir=None, debug=None):
         return None
 
 
-def _download(url, name, fh):
+def _download(url: str, name: str, fh: BinaryIO) -> str:
     '''Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
     or short read.'''
@@ -287,7 +337,7 @@ def _download(url, name, fh):
     r.raise_for_status()
 
     cur = 0
-    last_update = 0
+    last_update = 0.0
     size = int(r.headers['Content-Length'])
     hash = sha256()
 
@@ -323,7 +373,7 @@ def _download(url, name, fh):
         return hash.hexdigest()
 
 
-def _fetch_one(slide):
+def _fetch_one(slide: str) -> None:
     '''Download and unpack the base slide if we don't already have it.'''
 
     destpath = os.path.join(PRISTINE, slide)
@@ -342,7 +392,7 @@ def _fetch_one(slide):
     os.makedirs(destpath)
     try:
         if is_zip:
-            dest = TemporaryFile(dir=destpath)
+            dest: BinaryIO = TemporaryFile(dir=destpath)
         else:
             dest = open(os.path.join(destpath, filename), 'wb')
 
@@ -373,7 +423,7 @@ def _fetch_one(slide):
 
 
 @_command
-def create(slide, testname):
+def create(slide: str, testname: str) -> None:
     '''Create a new test case with the specified name and base slide (e.g.
     "Mirax/CMU-1.zip").'''
 
@@ -399,10 +449,10 @@ def create(slide, testname):
     query = _launch_test(
         'query', slidepath, args=['-n'], stdout=subprocess.PIPE
     )
-    vendor, _ = query.communicate()
+    vendor_str, _ = query.communicate()
     if query.returncode:
         raise OSError('Could not query slide vendor')
-    vendor = vendor.strip() or None
+    vendor = vendor_str.strip() or None
 
     os.mkdir(testpath)
     copytree(srcpath, destpath)
@@ -418,7 +468,7 @@ def create(slide, testname):
 
 
 @_command
-def pack(testname):
+def pack(testname: str) -> None:
     '''Pack a newly-created test case for checkin.'''
 
     if not os.path.exists(os.path.join(CASEROOT, testname, TESTCONF)):
@@ -474,13 +524,13 @@ def pack(testname):
         print(f'Delta: {total_size} bytes')
 
 
-def _run_generator(command_str, inpath, outpath):
+def _run_generator(command_str: str, inpath: str, outpath: str) -> None:
     '''Run the specified generator pipeline.'''
 
     cmds = command_str.split('|')
     procs = []
-    fin = []
-    fout = []
+    fin: list[int | None] = []
+    fout: list[int | None] = []
     try:
         fin.append(None)
         for _ in range(len(cmds) - 1):
@@ -513,7 +563,7 @@ def _run_generator(command_str, inpath, outpath):
 _can_reflink = True
 
 
-def _try_reflink(inpath, outpath):
+def _try_reflink(inpath: str, outpath: str) -> bool:
     '''Try to make a zero-copy clone of the file inpath at outpath.  Return
     True if successful.'''
     # Python can't do this natively yet, and we don't want to require an
@@ -549,7 +599,7 @@ def _try_reflink(inpath, outpath):
     return False
 
 
-def _decode_xdelta(inpath, deltapath, outpath):
+def _decode_xdelta(inpath: str, deltapath: str, outpath: str) -> None:
     '''Apply an xdelta based on inpath and write it to outpath.'''
     # If possible, reflink inpath to outpath and write only the changed
     # blocks, saving a lot of disk space.
@@ -564,6 +614,7 @@ def _decode_xdelta(inpath, deltapath, outpath):
             stdout=subprocess.PIPE,
             bufsize=bufsize,
         )
+        assert proc.stdout is not None
         with open(outpath, 'rb+', buffering=bufsize) as fh:
             while True:
                 want = proc.stdout.read(blksize)
@@ -582,7 +633,7 @@ def _decode_xdelta(inpath, deltapath, outpath):
         )
 
 
-def _unpack_one(testname):
+def _unpack_one(testname: str) -> None:
     '''Unpack the specified test.'''
 
     conf = _load_test_config(testname)
@@ -624,7 +675,7 @@ def _unpack_one(testname):
 
 
 @_command
-def unpack(pattern='*'):
+def unpack(pattern: str = '*') -> None:
     '''Unpack all tests matching the specified pattern.  If pattern is
     `nonfrozen`, unpack tests for which we don't have a frozen counterpart.'''
     conditional = False
@@ -644,7 +695,7 @@ def unpack(pattern='*'):
 #
 # _fusefs_init() and _fusefs_run() are based on pyfuse3's
 # examples/passthroughfs.py, copyright © Nikolaus Rath <Nikolaus.org>
-def _fusefs_init(shadowdir):
+def _fusefs_init(shadowdir: str) -> None:
     '''Prepare a FUSE filesystem to run, and mount it.'''
     # trio, imported by pyfuse3, tries to override sys.excepthook and
     # complains if the distro already put something there.  We don't need
@@ -654,33 +705,46 @@ def _fusefs_init(shadowdir):
     import pyfuse3
     from pyfuse3 import FUSEError
 
-    class Operations(pyfuse3.Operations):
-        def __init__(self):
+    # pending pyfuse3 > 3.3.0
+    FileHandleT = NewType('FileHandleT', int)
+    FileNameT = NewType('FileNameT', bytes)
+    InodeT = NewType('InodeT', int)
+
+    # A Unix file descriptor
+    FileDescriptorT = NewType('FileDescriptorT', FileHandleT)
+
+    # ignored pending pyfuse3 > 3.3.0
+    class Operations(pyfuse3.Operations):  # type: ignore[misc]
+        def __init__(self) -> None:
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
             self._inode_path_map = {pyfuse3.ROOT_INODE: ('.', WORKROOT)}
-            self._lookup_cnt = defaultdict(int)
-            self._fd_inode_map = dict()
-            self._inode_fd_map = dict()
-            self._fd_shadow_map = dict()
-            self._fd_open_count = dict()
+            self._lookup_cnt: dict[InodeT, int] = defaultdict(int)
+            self._fd_inode_map: dict[FileDescriptorT, InodeT] = dict()
+            self._inode_fd_map: dict[InodeT, FileDescriptorT] = dict()
+            self._fd_shadow_map: dict[FileDescriptorT, BinaryIO] = dict()
+            self._fd_open_count: dict[FileDescriptorT, int] = dict()
 
-        def _inode_to_paths(self, inode):
+        def _inode_to_paths(self, inode: InodeT) -> tuple[str, str]:
             try:
                 return self._inode_path_map[inode]
             except KeyError:
                 raise FUSEError(errno.ENOENT)
 
-        def _add_paths(self, inode, relpath, backingpath):
+        def _add_paths(
+            self, inode: InodeT, relpath: str, backingpath: str
+        ) -> None:
             self._lookup_cnt[inode] += 1
             self._inode_path_map.setdefault(inode, (relpath, backingpath))
 
-        def _shadowpath(self, relpath):
+        def _shadowpath(self, relpath: str) -> str:
             shadowpath = os.path.join(shadowdir, relpath)
             os.makedirs(os.path.dirname(shadowpath), exist_ok=True)
             return shadowpath
 
-        async def forget(self, inode_list):
+        async def forget(
+            self, inode_list: Sequence[tuple[InodeT, int]]
+        ) -> None:
             for inode, nlookup in inode_list:
                 if self._lookup_cnt[inode] > nlookup:
                     self._lookup_cnt[inode] -= nlookup
@@ -692,8 +756,13 @@ def _fusefs_init(shadowdir):
                 except KeyError:  # may have been deleted
                     pass
 
-        async def lookup(self, inode_p, name, ctx=None):
-            name = os.fsdecode(name)
+        async def lookup(
+            self,
+            inode_p: InodeT,
+            filename: FileNameT,
+            ctx: pyfuse3.RequestContext,
+        ) -> pyfuse3.EntryAttributes:
+            name = os.fsdecode(filename)
             relpath, backingpath = (
                 os.path.join(p, name) for p in self._inode_to_paths(inode_p)
             )
@@ -706,11 +775,13 @@ def _fusefs_init(shadowdir):
                 self._add_paths(attr.st_ino, relpath, backingpath)
             return attr
 
-        async def getattr(self, inode, ctx=None):
+        async def getattr(
+            self, inode: InodeT, ctx: pyfuse3.RequestContext
+        ) -> pyfuse3.EntryAttributes:
             _, backingpath = self._inode_to_paths(inode)
             return self._getattr(backingpath)
 
-        def _getattr(self, backingpath):
+        def _getattr(self, backingpath: str) -> pyfuse3.EntryAttributes:
             try:
                 stat = os.lstat(backingpath)
             except OSError as exc:
@@ -738,7 +809,9 @@ def _fusefs_init(shadowdir):
             ) // entry.st_blksize
             return entry
 
-        async def readlink(self, inode, ctx):
+        async def readlink(
+            self, inode: InodeT, ctx: pyfuse3.RequestContext
+        ) -> FileNameT:
             relpath, backingpath = self._inode_to_paths(inode)
             try:
                 target = os.readlink(backingpath)
@@ -760,12 +833,17 @@ def _fusefs_init(shadowdir):
                     os.symlink(target, shadowpath)
             except OSError as exc:
                 raise FUSEError(exc.errno)
-            return os.fsencode(target)
+            return cast(FileNameT, os.fsencode(target))
 
-        async def opendir(self, inode, ctx):
-            return inode
+        async def opendir(
+            self, inode: InodeT, ctx: pyfuse3.RequestContext
+        ) -> FileHandleT:
+            return cast(FileHandleT, inode)
 
-        async def readdir(self, inode, off, token):
+        async def readdir(
+            self, fh: FileHandleT, off: int, token: pyfuse3.ReaddirToken
+        ) -> None:
+            inode = cast(InodeT, fh)
             reldir, backingdir = self._inode_to_paths(inode)
             entries = []
             if inode == pyfuse3.ROOT_INODE:
@@ -791,12 +869,14 @@ def _fusefs_init(shadowdir):
                 if ino <= off:
                     continue
                 if not pyfuse3.readdir_reply(
-                    token, os.fsencode(name), attr, ino
+                    token, cast(FileNameT, os.fsencode(name)), attr, ino
                 ):
                     break
                 self._add_paths(attr.st_ino, relpath, backingpath)
 
-        async def statfs(self, ctx):
+        async def statfs(
+            self, ctx: pyfuse3.RequestContext
+        ) -> pyfuse3.StatvfsData:
             stat_ = pyfuse3.StatvfsData()
             try:
                 statfs = os.statvfs(WORKROOT)
@@ -816,7 +896,12 @@ def _fusefs_init(shadowdir):
             stat_.f_namemax = statfs.f_namemax - (len(WORKROOT) + 1)
             return stat_
 
-        async def open(self, inode, flags, ctx):
+        async def open(
+            self,
+            inode: InodeT,
+            flags: pyfuse3.FlagT,
+            ctx: pyfuse3.RequestContext,
+        ) -> pyfuse3.FileInfo:
             # set direct_io to avoid kernel readahead
             if inode in self._inode_fd_map:
                 fd = self._inode_fd_map[inode]
@@ -825,7 +910,7 @@ def _fusefs_init(shadowdir):
             assert flags & os.O_CREAT == 0
             try:
                 relpath, backingpath = self._inode_to_paths(inode)
-                fd = os.open(backingpath, flags)
+                fd = cast(FileDescriptorT, os.open(backingpath, flags))
                 shadow = os.fdopen(
                     os.open(
                         self._shadowpath(relpath),
@@ -843,7 +928,10 @@ def _fusefs_init(shadowdir):
             self._fd_open_count[fd] = 1
             return pyfuse3.FileInfo(fh=fd, direct_io=True)
 
-        async def read(self, fd, offset, length):
+        async def read(
+            self, fh: FileHandleT, offset: int, length: int
+        ) -> bytes:
+            fd = cast(FileDescriptorT, fh)
             os.lseek(fd, offset, os.SEEK_SET)
             buf = os.read(fd, length)
             shadow = self._fd_shadow_map[fd]
@@ -851,7 +939,8 @@ def _fusefs_init(shadowdir):
             shadow.write(buf)
             return buf
 
-        async def release(self, fd):
+        async def release(self, fh: FileHandleT) -> None:
+            fd = cast(FileDescriptorT, fh)
             if self._fd_open_count[fd] > 1:
                 self._fd_open_count[fd] -= 1
                 return
@@ -879,7 +968,7 @@ def _fusefs_init(shadowdir):
     pyfuse3.init(Operations(), FUSEMOUNT, fuse_options)
 
 
-def _fusefs_run():
+def _fusefs_run() -> None:
     '''Run an initialized FUSE filesystem.'''
     import pyfuse3
     import trio
@@ -893,8 +982,11 @@ def _fusefs_run():
 
 
 def _s3_upload_public(
-    bucket, key, fh, content_type='application/octet-stream'
-):
+    bucket: str,
+    key: str,
+    fh: BinaryIO,
+    content_type: str = 'application/octet-stream',
+) -> str:
     '''Upload public content to the specified S3 bucket and key.  Return
     a public URL.'''
     import boto3
@@ -916,10 +1008,10 @@ def _s3_upload_public(
             raise
     # Set up progress reporting
     length = fh.seek(0, os.SEEK_END)
-    last_update = 0
+    last_update = 0.0
     uploaded = 0
 
-    def progress(count):
+    def progress(count: int) -> None:
         nonlocal last_update, uploaded
         uploaded += count
         now = curtime()
@@ -942,7 +1034,7 @@ def _s3_upload_public(
 
 
 @_command
-def freeze(bucket=DEFAULT_FROZEN_BUCKET):
+def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
     '''Create a frozen testdata archive for transport to another system,
     upload it to an S3 bucket, and record its URL in the source tree.'''
     for testname in _list_tests():
@@ -967,8 +1059,8 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
                 os.makedirs(os.path.join(tempdir, testname), exist_ok=True)
             else:
                 exclude_tests.append(testname)
-        with NamedTemporaryFile(prefix='openslide-') as fh:
-            _mosaic(fh.name, os.path.join(FUSEMOUNT, '_pristine'))
+        with NamedTemporaryFile(prefix='openslide-') as mosaic:
+            _mosaic(mosaic.name, os.path.join(FUSEMOUNT, '_pristine'))
         subprocess.check_call(['fusermount', '-u', FUSEMOUNT])
 
         print('Freezing testdata...')
@@ -995,13 +1087,14 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
             ],
             stdout=subprocess.PIPE,
         )
+        assert proc.stdout is not None
         compressor = LZMACompressor(preset=9)
         hasher = sha256()
-        with TemporaryFile(prefix='frozen-', dir=FROZENBASE) as fh:
+        with TemporaryFile(prefix='frozen-', dir=FROZENBASE) as frozen:
 
-            def update(buf):
+            def update(buf: bytes) -> None:
                 hasher.update(buf)
-                fh.write(buf)
+                frozen.write(buf)
 
             while True:
                 buf = proc.stdout.read(1 << 20)
@@ -1016,19 +1109,19 @@ def freeze(bucket=DEFAULT_FROZEN_BUCKET):
 
             print('Uploading archive...')
             url = _s3_upload_public(
-                bucket, digest, fh, content_type='application/x-xz'
+                bucket, digest, frozen, content_type='application/x-xz'
             )
 
     manifest = {
         'url': url,
         'sha256': digest,
     }
-    with open(FROZENLIST, 'w') as fh:
-        yaml.safe_dump(manifest, fh, default_flow_style=False)
+    with open(FROZENLIST, 'w') as frozenlist:
+        yaml.safe_dump(manifest, frozenlist, default_flow_style=False)
 
 
 @_command
-def unfreeze():
+def unfreeze() -> None:
     '''Download and unpack the current frozen archive.'''
     with open(FROZENLIST) as fh:
         manifest = yaml.safe_load(fh)
@@ -1073,8 +1166,12 @@ def unfreeze():
 
 
 def _run_one(
-    testname, valgrind=False, xfail=False, testdir=None, workdir=WORKROOT
-):
+    testname: str,
+    valgrind: bool = False,
+    xfail: bool = False,
+    testdir: str | None = None,
+    workdir: str = WORKROOT,
+) -> tuple[bool, str]:
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
     to succeed, and 3) do in fact succeed.  If xfail is specified, invert
@@ -1128,8 +1225,12 @@ def _run_one(
 
 
 def _run_all(
-    pattern='*', valgrind=False, xfail=None, testdir=None, parallel=True
-):
+    pattern: str = '*',
+    valgrind: bool = False,
+    xfail: Iterable[str] | None = None,
+    testdir: str | None = None,
+    parallel: bool = True,
+) -> int:
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results.'''
@@ -1178,18 +1279,20 @@ def _run_all(
 
 
 @_command
-def run(pattern='*'):
+def run(pattern: str = '*') -> None:
     '''Unpack and run all tests matching the specified pattern.  Ignore
     failures of test cases listed in the comma-separated
     OPENSLIDE_TEST_XFAIL environment variable.'''
-    xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
-    xfail = xfail.split(',') if xfail else []
+    xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
+    xfail = xfail_env.split(',') if xfail_env else []
     if _run_all(pattern, xfail=xfail):
         sys.exit(1)
 
 
 @contextmanager
-def _rebuild(setup_args, env=None):
+def _rebuild(
+    setup_args: list[str], env: dict[str, str] | None = None
+) -> Iterator[str]:
     '''Context manager: rebuild the source with the specified setup
     arguments and environment, and yield to the caller to do profiling.'''
 
@@ -1218,7 +1321,7 @@ def _rebuild(setup_args, env=None):
 
 
 @_command
-def coverage(outfile):
+def coverage(outfile: str) -> None:
     '''Unpack and run all tests and write coverage report to outfile.'''
     with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
@@ -1244,50 +1347,49 @@ def coverage(outfile):
             args,
             stdout=subprocess.PIPE,
         )
-        report, _ = proc.communicate()
+        report_bytes, _ = proc.communicate()
         if proc.returncode:
             raise OSError(f'Process returned exit status {proc.returncode}')
         report = '\n'.join(
             line.replace('.c.gcov', '.c', 1)
-            for line in report.decode().split('\n')
+            for line in report_bytes.decode().split('\n')
         )
         with open(os.path.join(basedir, outfile), 'w') as fh:
             fh.write(report)
 
 
 @_command
-def valgrind(pattern='*'):
+def valgrind(pattern: str = '*') -> None:
     '''Unpack and Valgrind all tests matching the specified pattern.
     Ignore failures of test cases listed in the OPENSLIDE_VALGRIND_XFAIL
     environment variable.'''
-    xfail = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
-    xfail = xfail.split(',') if xfail else []
+    xfail_env = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
+    xfail = xfail_env.split(',') if xfail_env else []
     if _run_all(pattern, valgrind=True, xfail=xfail):
         sys.exit(1)
 
 
 @_command
-def sanitize(pattern='*'):
+def sanitize(pattern: str = '*') -> None:
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
     comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
     with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}):
-        xfail = os.environ.get('OPENSLIDE_TEST_XFAIL')
-        xfail = xfail.split(',') if xfail else []
+        xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
+        xfail = xfail_env.split(',') if xfail_env else []
         if _run_all(pattern, xfail=xfail, testdir='test'):
             sys.exit(1)
 
 
-def _fetch_for_mosaic():
+def _fetch_for_mosaic() -> None:
     '''Fetch pristine slides needed for building the mosaic.'''
     cfg = RawConfigParser()
-    cfg.optionxform = str
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
         _fetch_one(cfg.get(section, 'base'))
 
 
-def _mosaic(outfile, pristinedir=PRISTINE):
+def _mosaic(outfile: str, pristinedir: str = PRISTINE) -> None:
     '''Produce a mosaic image of slide data from various formats.'''
     subprocess.check_call(
         [
@@ -1300,7 +1402,7 @@ def _mosaic(outfile, pristinedir=PRISTINE):
 
 
 @_command
-def mosaic(outfile):
+def mosaic(outfile: str) -> None:
     '''Produce a mosaic image of slide data from various formats.'''
     if os.path.exists(FROZEN):
         pristinedir = os.path.join(FROZEN, '_pristine')
@@ -1310,7 +1412,7 @@ def mosaic(outfile):
     _mosaic(outfile, pristinedir)
 
 
-def _successful_primary_tests(pattern='*'):
+def _successful_primary_tests(pattern: str = '*') -> Iterator[tuple[str, str]]:
     '''Yield testname and slide path for each successful primary test.'''
     for testname in _list_tests(pattern):
         conf = _load_test_config(testname)
@@ -1330,7 +1432,7 @@ def _successful_primary_tests(pattern='*'):
 
 
 @_command
-def time(pattern='*'):
+def time(pattern: str = '*') -> None:
     '''Time openslide_open() for all successful primary tests matching the
     specified pattern.'''
     for testname, slidefile in _successful_primary_tests(pattern):
@@ -1350,7 +1452,7 @@ def time(pattern='*'):
 
 
 @_command
-def profile(pattern='*', level=0):
+def profile(pattern: str = '*', level: str = '0') -> None:
     '''Profile openslide_read_region() on the specified level for all
     successful primary tests matching the specified pattern.'''
     env = os.environ.copy()
@@ -1371,7 +1473,7 @@ def profile(pattern='*', level=0):
                 '--instr-atstart=no',
                 '@BUILDDIR@/profile',
                 slidefile,
-                str(level),
+                level,
             ]
             if subprocess.call(args, env=env) == 0:
                 subprocess.check_call(
@@ -1380,10 +1482,10 @@ def profile(pattern='*', level=0):
 
 
 @_command
-def exports():
+def exports() -> None:
     '''Report exported or hidden symbols with improper names.'''
 
-    def get_symbols(basedir):
+    def get_symbols(basedir: str) -> Iterator[str]:
         proc = subprocess.Popen(
             ['objdump', '-T', os.path.join(basedir, 'src', 'libopenslide.so')],
             stdout=subprocess.PIPE,
@@ -1432,7 +1534,7 @@ def exports():
 
 
 @_command
-def clean(pattern='*'):
+def clean(pattern: str = '*') -> None:
     '''Delete temporary slide data for tests matching the specified
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
     test data.'''
@@ -1449,14 +1551,14 @@ def clean(pattern='*'):
 
 
 @_command
-def fuse():
+def fuse() -> None:
     '''Mount the FUSE filesystem for debugging.'''
     with TemporaryDirectory(prefix='shadow-', dir=FROZENBASE) as tempdir:
         _fusefs_init(tempdir)
         _fusefs_run()
 
 
-def _get_arglist(f):
+def _get_arglist(f: Command) -> tuple[list[str], list[str]]:
     '''Return two lists of argument names for the specified function: the
     mandatory arguments and the optional ones.'''
     info = inspect.getfullargspec(f)
@@ -1467,7 +1569,7 @@ def _get_arglist(f):
         return info.args, []
 
 
-def _usage():
+def _usage() -> None:
     '''Print usage message and exit.'''
     wrapper = textwrap.TextWrapper(
         width=76, initial_indent=' ' * 8, subsequent_indent=' ' * 8
@@ -1483,7 +1585,7 @@ def _usage():
     sys.exit(2)
 
 
-def _main():
+def _main() -> None:
     if '@FEATURES@'.strip('@') == 'FEATURES':
         raise Exception('This program must be built with Meson before use.')
     try:
