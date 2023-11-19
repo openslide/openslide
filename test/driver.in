@@ -33,6 +33,7 @@ from hashlib import sha256
 import inspect
 from lzma import LZMACompressor
 import os
+from pathlib import Path, PurePath
 import platform
 import re
 import shlex
@@ -53,6 +54,7 @@ from time import time as curtime
 from typing import (
     Any,
     BinaryIO,
+    Dict,
     Iterable,
     Iterator,
     NewType,
@@ -72,20 +74,24 @@ TESTDATA_URL = os.getenv(
     'https://openslide.cs.cmu.edu/download/openslide-testdata/',
 )
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
-CLANG_LSAN_SUPPRESSIONS = '@SRCDIR@/clang-lsan.supp'
-VALGRIND_SUPPRESSIONS = '@SRCDIR@/valgrind.supp'
-VALGRIND_SUPPRESSIONS_GLIB = '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
-CASEROOT = '@SRCDIR@/cases'
-SLIDELIST = '@SRCDIR@/cases/slides.yaml'
-FROZENLIST = '@SRCDIR@/cases/frozen.yaml'
-MOSAICLIST = '@SRCDIR@/cases/mosaic.ini'
-CACHE = os.getenv('OPENSLIDE_TEST_CACHE', '@BUILDDIR@/_slidedata')
-CACHE_TAG = f'{CACHE}/CACHEDIR.TAG'
-WORKROOT = f'{CACHE}/unpacked'
-PRISTINE = f'{CACHE}/pristine'
-FUSEMOUNT = f'{CACHE}/fuse'
+SRCDIR = Path('@SRCDIR@')
+BUILDDIR = Path('@BUILDDIR@')
+CLANG_LSAN_SUPPRESSIONS = SRCDIR / 'clang-lsan.supp'
+VALGRIND_SUPPRESSIONS = SRCDIR / 'valgrind.supp'
+VALGRIND_SUPPRESSIONS_GLIB = Path(
+    '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
+)
+CASEROOT = SRCDIR / 'cases'
+SLIDELIST = CASEROOT / 'slides.yaml'
+FROZENLIST = CASEROOT / 'frozen.yaml'
+MOSAICLIST = CASEROOT / 'mosaic.ini'
+CACHE = Path(os.getenv('OPENSLIDE_TEST_CACHE', '@BUILDDIR@/_slidedata'))
+CACHE_TAG = CACHE / 'CACHEDIR.TAG'
+WORKROOT = CACHE / 'unpacked'
+PRISTINE = CACHE / 'pristine'
+FUSEMOUNT = CACHE / 'fuse'
 FROZENBASE = CACHE
-FROZEN = f'{CACHE}/frozen'
+FROZEN = CACHE / 'frozen'
 FEATURES = set('@FEATURES@'.split())
 TESTCONF = 'config.yaml'
 
@@ -149,33 +155,33 @@ def _color(color: str, str: str) -> str:
 def _list_tests(pattern: str = '*') -> list[str]:
     '''Return a list of test names matching the specified pattern.'''
     return [
-        name
-        for name in sorted(os.listdir(CASEROOT))
-        if fnmatch.fnmatch(name, pattern)
-        and os.path.exists(os.path.join(CASEROOT, name, TESTCONF))
+        path.name
+        for path in sorted(CASEROOT.iterdir())
+        if fnmatch.fnmatch(path.name, pattern)
+        and (CASEROOT / path.name / TESTCONF).exists()
     ]
 
 
-def _list_slide_files(slide: str) -> list[str]:
+def _list_slide_files(slide: str) -> list[PurePath]:
     '''List relative paths of files within a slide.  slide is e.g.
     "Mirax/CMU-1.zip".'''
 
-    def walk(basedir: str) -> list[str]:
-        files: list[str] = []
-        for name in os.listdir(basedir):
-            path = os.path.join(basedir, name)
-            if os.path.isdir(path):
-                files.extend(os.path.join(name, p) for p in walk(path))
+    def walk(basedir: Path) -> list[PurePath]:
+        files: list[PurePath] = []
+        for path in basedir.iterdir():
+            name = PurePath(path.name)
+            if path.is_dir():
+                files.extend(name / p for p in walk(path))
             else:
                 files.append(name)
         return files
 
-    return walk(os.path.join(PRISTINE, slide))
+    return walk(PRISTINE / slide)
 
 
 def _load_test_config(testname: str) -> Config:
     '''Parse and return the config.yaml for the specified test.'''
-    with open(os.path.join(CASEROOT, testname, TESTCONF)) as fh:
+    with open(CASEROOT / testname / TESTCONF) as fh:
         config: Config = yaml.safe_load(fh)
         return config
 
@@ -202,10 +208,10 @@ def _cpu_count() -> int:
 
 def _launch_test(
     test: str,
-    slidefile: str,
+    slidefile: Path | None,
     valgrind: bool = False,
     extra_checks: bool = True,
-    testdir: str | None = None,
+    testdir: Path | None = None,
     debug: Iterable[str] | None = None,
     args: Iterable[str] | None = None,
     **kwargs: Any,
@@ -218,7 +224,7 @@ def _launch_test(
     constructor.  Return the Popen instance.'''
 
     if testdir is None:
-        testdir = '@BUILDDIR@'
+        testdir = BUILDDIR
     env = os.environ.copy()
     env.update(
         G_MESSAGES_DEBUG='',
@@ -232,30 +238,35 @@ def _launch_test(
             G_DEBUG='gc-friendly',
             MALLOC_CHECK_='1',
         )
-    args = [os.path.join(testdir, test), slidefile] + (list(args or []))
+    args_: list[str | Path] = []
     if valgrind:
-        args = [
-            'valgrind',
-            '--quiet',
-            '--error-exitcode=3',
-            '--suppressions=' + VALGRIND_SUPPRESSIONS,
-            '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB,
-            '--leak-check=full',
-            '--num-callers=30',
-        ] + args
+        args_.extend(
+            [
+                'valgrind',
+                '--quiet',
+                '--error-exitcode=3',
+                '--suppressions=' + VALGRIND_SUPPRESSIONS.as_posix(),
+                '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB.as_posix(),
+                '--leak-check=full',
+                '--num-callers=30',
+            ]
+        )
         env.update(
             # Valgrind has known issues detecting memory initialization by
             # libjpeg-turbo SIMD code.  Disable SIMD support.
             # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
             JSIMD_FORCENONE='1',
         )
-    return subprocess.Popen(args, env=env, text=True, **kwargs)
+    args_.extend([testdir / test, slidefile or ''])
+    if args:
+        args_.extend(args)
+    return subprocess.Popen(args_, env=env, text=True, **kwargs)
 
 
 def _try_open_slide(
-    slidefile: str,
+    slidefile: Path | None,
     valgrind: bool = False,
-    testdir: str | None = None,
+    testdir: Path | None = None,
     debug: Iterable[str] | None = None,
     vendor: str | None | type[Skip] = Skip,
     properties: dict[str, str] | None = None,
@@ -299,9 +310,9 @@ def _try_open_slide(
 
 
 def _try_extended(
-    slidefile: str,
+    slidefile: Path | None,
     valgrind: bool = False,
-    testdir: str | None = None,
+    testdir: Path | None = None,
     debug: Iterable[str] | None = None,
 ) -> str | None:
     '''Run the extended test program against the specified slide file, under
@@ -376,25 +387,26 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
 def _fetch_one(slide: str) -> None:
     '''Download and unpack the base slide if we don't already have it.'''
 
-    destpath = os.path.join(PRISTINE, slide)
-    if os.path.exists(destpath):
+    destpath = PRISTINE / slide
+    if destpath.exists():
         return
 
-    with open(SLIDELIST) as fh:
+    with SLIDELIST.open() as fh:
         slides = yaml.safe_load(fh)
     if slide not in slides:
         raise ValueError(f'{slide} not in {SLIDELIST}')
 
-    filename = os.path.basename(slide)
+    relpath = PurePath(slide)
+    filename = relpath.name
     url = urljoin(TESTDATA_URL, slide)
-    is_zip = os.path.splitext(filename)[1] == '.zip'
+    is_zip = relpath.suffix == '.zip'
 
-    os.makedirs(destpath)
+    destpath.mkdir(parents=True)
     try:
         if is_zip:
             dest: BinaryIO = TemporaryFile(dir=destpath)
         else:
-            dest = open(os.path.join(destpath, filename), 'wb')
+            dest = open(destpath / filename, 'wb')
 
         with dest:
             for retries_remaining in range(4, -1, -1):
@@ -427,18 +439,18 @@ def create(slide: str, testname: str) -> None:
     '''Create a new test case with the specified name and base slide (e.g.
     "Mirax/CMU-1.zip").'''
 
-    srcpath = os.path.join(PRISTINE, slide)
-    testpath = os.path.join(CASEROOT, testname)
-    destpath = os.path.join(testpath, 'slide')
+    srcpath = PRISTINE / slide
+    testpath = CASEROOT / testname
+    destpath = testpath / 'slide'
 
-    if os.path.exists(testpath):
+    if testpath.exists():
         raise ValueError('A test with that name already exists')
     _fetch_one(slide)
 
     print(f'Creating test {testname} for {slide}')
 
     for relpath in _list_slide_files(slide):
-        curpath = os.path.join(srcpath, relpath)
+        curpath = srcpath / relpath
         if _try_open_slide(curpath) is None:
             slidefile = relpath
             slidepath = curpath
@@ -454,16 +466,16 @@ def create(slide: str, testname: str) -> None:
         raise OSError('Could not query slide vendor')
     vendor = vendor_str.strip() or None
 
-    os.mkdir(testpath)
+    testpath.mkdir()
     copytree(srcpath, destpath)
     conf = {
         'success': False,
         'error': '^$',
         'base': slide,
-        'slide': slidefile,
+        'slide': slidefile.as_posix(),
         'vendor': vendor,
     }
-    with open(os.path.join(testpath, TESTCONF), 'w') as fh:
+    with open(testpath / TESTCONF, 'w') as fh:
         yaml.safe_dump(conf, fh, default_flow_style=False)
 
 
@@ -471,30 +483,32 @@ def create(slide: str, testname: str) -> None:
 def pack(testname: str) -> None:
     '''Pack a newly-created test case for checkin.'''
 
-    if not os.path.exists(os.path.join(CASEROOT, testname, TESTCONF)):
+    def file_map(field: str) -> dict[PurePath, PurePath]:
+        return {
+            PurePath(k): PurePath(v)
+            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
+        }
+
+    if not (CASEROOT / testname / TESTCONF).exists():
         raise ValueError('Test does not exist')
 
     print(f'Packing {testname}...')
     conf = _load_test_config(testname)
     slide = conf['base']
-    copies = conf.get('copy', {})
+    copies = file_map('copy')
 
     total_size = 0
     for relpath in _list_slide_files(slide) + list(copies):
-        origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
-        newpath = os.path.join(CASEROOT, testname, 'slide', relpath)
-        deltapath = os.path.join(
-            CASEROOT, testname, os.path.basename(relpath) + '.xdelta'
-        )
-        whiteoutpath = os.path.join(
-            CASEROOT, testname, os.path.basename(relpath) + '.whiteout'
-        )
+        origpath = PRISTINE / slide / copies.get(relpath, relpath)
+        newpath = CASEROOT / testname / 'slide' / relpath
+        deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
+        whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
 
         for path in deltapath, whiteoutpath:
-            if os.path.exists(path):
+            if path.exists():
                 raise OSError(f'{path} already exists')
 
-        if os.path.exists(newpath):
+        if newpath.exists():
             if not filecmp.cmp(origpath, newpath, shallow=False):
                 subprocess.check_call(
                     [
@@ -511,11 +525,11 @@ def pack(testname: str) -> None:
                         deltapath,
                     ]
                 )
-                total_size += os.stat(deltapath).st_size
+                total_size += deltapath.stat().st_size
         else:
-            open(whiteoutpath, 'w').close()
+            whiteoutpath.write_bytes(b'')
 
-    rmtree(os.path.join(CASEROOT, testname, 'slide'))
+    rmtree(CASEROOT / testname / 'slide')
 
     total_size_kb = total_size >> 10
     if total_size_kb:
@@ -524,7 +538,7 @@ def pack(testname: str) -> None:
         print(f'Delta: {total_size} bytes')
 
 
-def _run_generator(command_str: str, inpath: str, outpath: str) -> None:
+def _run_generator(command_str: str, inpath: Path, outpath: Path) -> None:
     '''Run the specified generator pipeline.'''
 
     cmds = command_str.split('|')
@@ -563,7 +577,7 @@ def _run_generator(command_str: str, inpath: str, outpath: str) -> None:
 _can_reflink = True
 
 
-def _try_reflink(inpath: str, outpath: str) -> bool:
+def _try_reflink(inpath: Path, outpath: Path) -> bool:
     '''Try to make a zero-copy clone of the file inpath at outpath.  Return
     True if successful.'''
     # Python can't do this natively yet, and we don't want to require an
@@ -580,12 +594,9 @@ def _try_reflink(inpath: str, outpath: str) -> bool:
         )
         if ret == 0:
             return True
-        try:
-            # cp from coreutils <= 9.1 leaves an empty file at outpath
-            # https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56391
-            os.unlink(outpath)
-        except FileNotFoundError:
-            pass
+        # cp from coreutils <= 9.1 leaves an empty file at outpath
+        # https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56391
+        outpath.unlink(missing_ok=True)
     elif system == 'Darwin':
         ret = subprocess.call(
             ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
@@ -599,7 +610,7 @@ def _try_reflink(inpath: str, outpath: str) -> bool:
     return False
 
 
-def _decode_xdelta(inpath: str, deltapath: str, outpath: str) -> None:
+def _decode_xdelta(inpath: Path, deltapath: Path, outpath: Path) -> None:
     '''Apply an xdelta based on inpath and write it to outpath.'''
     # If possible, reflink inpath to outpath and write only the changed
     # blocks, saving a lot of disk space.
@@ -615,7 +626,7 @@ def _decode_xdelta(inpath: str, deltapath: str, outpath: str) -> None:
             bufsize=bufsize,
         )
         assert proc.stdout is not None
-        with open(outpath, 'rb+', buffering=bufsize) as fh:
+        with outpath.open('rb+', buffering=bufsize) as fh:
             while True:
                 want = proc.stdout.read(blksize)
                 if len(want) == 0:
@@ -636,42 +647,47 @@ def _decode_xdelta(inpath: str, deltapath: str, outpath: str) -> None:
 def _unpack_one(testname: str) -> None:
     '''Unpack the specified test.'''
 
+    def file_map(field: str) -> dict[PurePath, PurePath]:
+        return {
+            PurePath(k): PurePath(v)
+            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
+        }
+
+    def generator_map(field: str) -> dict[PurePath, str]:
+        return {
+            PurePath(k): v
+            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
+        }
+
     conf = _load_test_config(testname)
     slide = conf['base']
-    copies = conf.get('copy', {})
-    renames = conf.get('rename', {})
-    generators = conf.get('generate', {})
+    copies = file_map('copy')
+    renames = file_map('rename')
+    generators = generator_map('generate')
     printed = False
     _fetch_one(slide)
 
     for relpath in _list_slide_files(slide) + list(copies):
-        origpath = os.path.join(PRISTINE, slide, copies.get(relpath, relpath))
-        newpath = os.path.join(
-            WORKROOT, testname, renames.get(os.path.basename(relpath), relpath)
-        )
-        deltapath = os.path.join(
-            CASEROOT, testname, os.path.basename(relpath) + '.xdelta'
-        )
-        whiteoutpath = os.path.join(
-            CASEROOT, testname, os.path.basename(relpath) + '.whiteout'
-        )
+        origpath = PRISTINE / slide / copies.get(relpath, relpath)
+        newpath = WORKROOT / testname / renames.get(relpath, relpath)
+        deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
+        whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
 
-        if not os.path.exists(newpath) and not os.path.exists(whiteoutpath):
+        if not newpath.exists() and not whiteoutpath.exists():
             if not printed:
                 print(f'Unpacking {testname}...')
                 printed = True
 
-            newdir = os.path.dirname(newpath)
-            os.makedirs(newdir, exist_ok=True)
+            newpath.parent.mkdir(parents=True, exist_ok=True)
 
-            generator = generators.get(os.path.basename(relpath))
+            generator = generators.get(relpath)
             if generator:
                 _run_generator(generator, origpath, newpath)
-            elif os.path.exists(deltapath):
+            elif deltapath.exists():
                 _decode_xdelta(origpath, deltapath, newpath)
             else:
-                src = os.path.relpath(origpath, os.path.dirname(newpath))
-                os.symlink(src, newpath)
+                src = os.path.relpath(origpath, newpath.parent)
+                newpath.symlink_to(src)
 
 
 @_command
@@ -683,9 +699,7 @@ def unpack(pattern: str = '*') -> None:
         pattern = '*'
         conditional = True
     for testname in _list_tests(pattern):
-        if not conditional or not os.path.exists(
-            os.path.join(FROZEN, testname)
-        ):
+        if not conditional or not (FROZEN / testname).exists():
             _unpack_one(testname)
 
 
@@ -695,7 +709,7 @@ def unpack(pattern: str = '*') -> None:
 #
 # _fusefs_init() and _fusefs_run() are based on pyfuse3's
 # examples/passthroughfs.py, copyright © Nikolaus Rath <Nikolaus.org>
-def _fusefs_init(shadowdir: str) -> None:
+def _fusefs_init(shadowdir: Path) -> None:
     '''Prepare a FUSE filesystem to run, and mount it.'''
     # trio, imported by pyfuse3, tries to override sys.excepthook and
     # complains if the distro already put something there.  We don't need
@@ -718,28 +732,30 @@ def _fusefs_init(shadowdir: str) -> None:
         def __init__(self) -> None:
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
-            self._inode_path_map = {pyfuse3.ROOT_INODE: ('.', WORKROOT)}
+            self._inode_path_map = {
+                pyfuse3.ROOT_INODE: (PurePath('.'), WORKROOT)
+            }
             self._lookup_cnt: dict[InodeT, int] = defaultdict(int)
             self._fd_inode_map: dict[FileDescriptorT, InodeT] = dict()
             self._inode_fd_map: dict[InodeT, FileDescriptorT] = dict()
             self._fd_shadow_map: dict[FileDescriptorT, BinaryIO] = dict()
             self._fd_open_count: dict[FileDescriptorT, int] = dict()
 
-        def _inode_to_paths(self, inode: InodeT) -> tuple[str, str]:
+        def _inode_to_paths(self, inode: InodeT) -> tuple[PurePath, Path]:
             try:
                 return self._inode_path_map[inode]
             except KeyError:
                 raise FUSEError(errno.ENOENT)
 
         def _add_paths(
-            self, inode: InodeT, relpath: str, backingpath: str
+            self, inode: InodeT, relpath: PurePath, backingpath: Path
         ) -> None:
             self._lookup_cnt[inode] += 1
             self._inode_path_map.setdefault(inode, (relpath, backingpath))
 
-        def _shadowpath(self, relpath: str) -> str:
-            shadowpath = os.path.join(shadowdir, relpath)
-            os.makedirs(os.path.dirname(shadowpath), exist_ok=True)
+        def _shadowpath(self, relpath: PurePath) -> Path:
+            shadowpath = shadowdir / relpath
+            shadowpath.parent.mkdir(parents=True, exist_ok=True)
             return shadowpath
 
         async def forget(
@@ -763,9 +779,9 @@ def _fusefs_init(shadowdir: str) -> None:
             ctx: pyfuse3.RequestContext,
         ) -> pyfuse3.EntryAttributes:
             name = os.fsdecode(filename)
-            relpath, backingpath = (
-                os.path.join(p, name) for p in self._inode_to_paths(inode_p)
-            )
+            relpath, backingpath = self._inode_to_paths(inode_p)
+            relpath /= name
+            backingpath /= name
             # Special case: map PRISTINE into the filesystem even though it's
             # outside WORKROOT
             if inode_p == pyfuse3.ROOT_INODE and name == '_pristine':
@@ -781,9 +797,9 @@ def _fusefs_init(shadowdir: str) -> None:
             _, backingpath = self._inode_to_paths(inode)
             return self._getattr(backingpath)
 
-        def _getattr(self, backingpath: str) -> pyfuse3.EntryAttributes:
+        def _getattr(self, backingpath: Path) -> pyfuse3.EntryAttributes:
             try:
-                stat = os.lstat(backingpath)
+                stat = backingpath.lstat()
             except OSError as exc:
                 raise FUSEError(exc.errno)
             entry = pyfuse3.EntryAttributes()
@@ -814,23 +830,19 @@ def _fusefs_init(shadowdir: str) -> None:
         ) -> FileNameT:
             relpath, backingpath = self._inode_to_paths(inode)
             try:
-                target = os.readlink(backingpath)
+                target = backingpath.readlink()
                 # calculate target relative to the root of the FUSE FS
-                reltarget = os.path.normpath(
-                    os.path.join(os.path.dirname(relpath), target)
-                )
+                reltarget = os.path.normpath(relpath.parent / target)
                 # calculate path to PRISTINE relative to WORKROOT
                 relpristine = os.path.relpath(PRISTINE, WORKROOT)
                 if reltarget.startswith(relpristine):
                     # link points to pristine directory; repoint it inside
                     # the FUSE root
                     reltarget = reltarget.replace(relpristine, '_pristine')
-                    target = os.path.relpath(
-                        reltarget, os.path.dirname(relpath)
-                    )
+                    target = Path(os.path.relpath(reltarget, relpath.parent))
                 shadowpath = self._shadowpath(relpath)
                 if not os.path.lexists(shadowpath):
-                    os.symlink(target, shadowpath)
+                    shadowpath.symlink_to(target)
             except OSError as exc:
                 raise FUSEError(exc.errno)
             return cast(FileNameT, os.fsencode(target))
@@ -853,18 +865,18 @@ def _fusefs_init(shadowdir: str) -> None:
                     (
                         attr.st_ino,
                         '_pristine',
-                        os.path.join(reldir, '_pristine'),
+                        reldir / '_pristine',
                         PRISTINE,
                         attr,
                     )
                 )
-            for name in os.listdir(backingdir):
-                if name == '.' or name == '..':
-                    continue
-                relpath = os.path.join(reldir, name)
-                backingpath = os.path.join(backingdir, name)
+            for path in backingdir.iterdir():
+                relpath = reldir / path.name
+                backingpath = backingdir / path.name
                 attr = self._getattr(backingpath)
-                entries.append((attr.st_ino, name, relpath, backingpath, attr))
+                entries.append(
+                    (attr.st_ino, path.name, relpath, backingpath, attr)
+                )
             for ino, name, relpath, backingpath, attr in sorted(entries):
                 if ino <= off:
                     continue
@@ -893,7 +905,7 @@ def _fusefs_init(shadowdir: str) -> None:
                 'f_favail',
             ):
                 setattr(stat_, attr, getattr(statfs, attr))
-            stat_.f_namemax = statfs.f_namemax - (len(WORKROOT) + 1)
+            stat_.f_namemax = statfs.f_namemax - (len(WORKROOT.as_posix()) + 1)
             return stat_
 
         async def open(
@@ -957,15 +969,15 @@ def _fusefs_init(shadowdir: str) -> None:
                 raise FUSEError(exc.errno)
 
     try:
-        os.stat(FUSEMOUNT)
+        FUSEMOUNT.stat()
     except OSError as e:
         if e.errno == errno.ENOTCONN:
             # Clean up old mountpoint
             subprocess.check_call(['fusermount', '-u', FUSEMOUNT])
-    os.makedirs(FUSEMOUNT, exist_ok=True)
+    FUSEMOUNT.mkdir(parents=True, exist_ok=True)
     fuse_options = set(pyfuse3.default_options)
     fuse_options.update(['fsname=openslide', 'ro'])
-    pyfuse3.init(Operations(), FUSEMOUNT, fuse_options)
+    pyfuse3.init(Operations(), FUSEMOUNT.as_posix(), fuse_options)
 
 
 def _fusefs_run() -> None:
@@ -1043,7 +1055,8 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
 
     print('Running tests...')
     exclude_tests = []
-    with TemporaryDirectory(prefix='shadow-', dir=FROZENBASE) as tempdir:
+    with TemporaryDirectory(prefix='shadow-', dir=FROZENBASE) as tempdir_path:
+        tempdir = Path(tempdir_path)
         _fusefs_init(tempdir)
         Thread(name='fuse', target=_fusefs_run, daemon=False).start()
         # Run all tests that we might want to run on thawed testdata
@@ -1056,19 +1069,19 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
                 # Otherwise, tests that solely test opening a missing file
                 # in a multi-file format will cause a base slide fetch and
                 # unpack when run against frozen data.
-                os.makedirs(os.path.join(tempdir, testname), exist_ok=True)
+                (tempdir / testname).mkdir(parents=True, exist_ok=True)
             else:
                 exclude_tests.append(testname)
         with NamedTemporaryFile(prefix='openslide-') as mosaic:
-            _mosaic(mosaic.name, os.path.join(FUSEMOUNT, '_pristine'))
+            _mosaic(Path(mosaic.name), FUSEMOUNT / '_pristine')
         subprocess.check_call(['fusermount', '-u', FUSEMOUNT])
 
         print('Freezing testdata...')
         # Delete spurious shadow directories from any incidental filesystem
         # access to skipped tests
         for testname in exclude_tests:
-            path = os.path.join(tempdir, testname)
-            if os.path.exists(path):
+            path = tempdir / testname
+            if path.exists():
                 rmtree(path)
         # Python tarfile doesn't support creating sparse archives
         proc = subprocess.Popen(
@@ -1116,28 +1129,28 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         'url': url,
         'sha256': digest,
     }
-    with open(FROZENLIST, 'w') as frozenlist:
+    with FROZENLIST.open('w') as frozenlist:
         yaml.safe_dump(manifest, frozenlist, default_flow_style=False)
 
 
 @_command
 def unfreeze() -> None:
     '''Download and unpack the current frozen archive.'''
-    with open(FROZENLIST) as fh:
+    with FROZENLIST.open() as fh:
         manifest = yaml.safe_load(fh)
         sha256 = manifest['sha256']
         link_target = 'frozen-' + sha256
     if os.path.lexists(FROZEN):
-        current = os.readlink(FROZEN)
-        if current == link_target:
+        current = FROZEN.readlink()
+        if current.as_posix() == link_target:
             return
         else:
-            os.unlink(FROZEN)
-            basedir = os.path.join(FROZENBASE, current)
-            if os.path.exists(basedir):
+            FROZEN.unlink()
+            basedir = FROZENBASE / current
+            if basedir.exists():
                 rmtree(basedir)
-    basedir = os.path.join(FROZENBASE, link_target)
-    os.makedirs(basedir)
+    basedir = FROZENBASE / link_target
+    basedir.mkdir(parents=True)
     with TemporaryFile(dir=FROZENBASE, prefix='frozen-') as fh:
         found_sha256 = _download(manifest['url'], 'frozen archive', fh)
         if found_sha256 != sha256:
@@ -1159,18 +1172,18 @@ def unfreeze() -> None:
             if info.isfile() or info.isdir():
                 tf.extract(info, path=basedir, set_attrs=False)
             elif info.issym():
-                os.symlink(info.linkname, os.path.join(basedir, info.name))
+                (basedir / info.name).symlink_to(info.linkname)
             else:
                 raise OSError(f'Unexpected type: {info.name}')
-    os.symlink(link_target, FROZEN)
+    FROZEN.symlink_to(link_target)
 
 
 def _run_one(
     testname: str,
     valgrind: bool = False,
     xfail: bool = False,
-    testdir: str | None = None,
-    workdir: str = WORKROOT,
+    testdir: Path | None = None,
+    workdir: Path = WORKROOT,
 ) -> tuple[bool, str]:
     '''Run the specified test, under Valgrind if specified.  Also execute
     extended tests against cases which 1) are marked primary, 2) are expected
@@ -1182,9 +1195,9 @@ def _run_one(
         return True, _color(BLUE, f'{testname}: skipped')
     if conf['slide'] == '':
         # synthetic test slide
-        slidefile = ''
+        slidefile = None
     else:
-        slidefile = os.path.join(workdir, testname, conf['slide'])
+        slidefile = workdir / testname / conf['slide']
     result = _try_open_slide(
         slidefile,
         valgrind,
@@ -1228,7 +1241,7 @@ def _run_all(
     pattern: str = '*',
     valgrind: bool = False,
     xfail: Iterable[str] | None = None,
-    testdir: str | None = None,
+    testdir: Path | None = None,
     parallel: bool = True,
 ) -> int:
     '''Run all tests matching the specified pattern, under Valgrind if
@@ -1236,7 +1249,7 @@ def _run_all(
     Return the number of tests producing unexpected results.'''
     tests = _list_tests(pattern)
     for testname in tests:
-        if not os.path.exists(os.path.join(FROZEN, testname)):
+        if not (FROZEN / testname).exists():
             _unpack_one(testname)
 
     failed = 0
@@ -1249,7 +1262,7 @@ def _run_all(
         futures = []
         for testname in tests:
             # Prefer the real test if available
-            if os.path.exists(os.path.join(WORKROOT, testname)):
+            if (WORKROOT / testname).exists():
                 workdir = WORKROOT
             else:
                 workdir = FROZEN
@@ -1292,12 +1305,12 @@ def run(pattern: str = '*') -> None:
 @contextmanager
 def _rebuild(
     setup_args: list[str], env: dict[str, str] | None = None
-) -> Iterator[str]:
+) -> Iterator[Path]:
     '''Context manager: rebuild the source with the specified setup
     arguments and environment, and yield to the caller to do profiling.'''
 
-    top_srcdir = os.path.dirname('@SRCDIR@')
-    prevdir = os.getcwd()
+    top_srcdir = SRCDIR.parent
+    prevdir = Path.cwd()
 
     # Set up and build
     tempdir = mkdtemp(prefix='build-', dir=prevdir)
@@ -1326,23 +1339,26 @@ def coverage(outfile: str) -> None:
     with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
         # Avoid races when writing coverage data
-        _run_all(testdir='test', parallel=False)
+        _run_all(testdir=Path('test'), parallel=False)
 
         # Generate coverage reports
-        for dirpath, _, filenames in os.walk('src'):
+        for dirpath, _, filenames in Path('src').walk():
             paths = [
-                os.path.join(dirpath, name)
+                dirpath / name
                 for name in fnmatch.filter(sorted(filenames), '*.gcda')
             ]
             if paths:
-                subprocess.check_call(['gcov', '-o', dirpath] + paths)
+                args: list[str | Path] = ['gcov', '-o', dirpath]
+                args.extend(paths)
+                subprocess.check_call(args)
 
         # Record unexecuted lines; ignore glib headers
-        args = ['grep', '-FC', '2', '#####'] + [
+        args = ['grep', '-FC', '2', '#####']
+        args.extend(
             f
             for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
             if not fnmatch.fnmatch(f, 'g*.h.gcov')
-        ]
+        )
         proc = subprocess.Popen(
             args,
             stdout=subprocess.PIPE,
@@ -1354,7 +1370,7 @@ def coverage(outfile: str) -> None:
             line.replace('.c.gcov', '.c', 1)
             for line in report_bytes.decode().split('\n')
         )
-        with open(os.path.join(basedir, outfile), 'w') as fh:
+        with open(basedir / outfile, 'w') as fh:
             fh.write(report)
 
 
@@ -1377,7 +1393,7 @@ def sanitize(pattern: str = '*') -> None:
     with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}):
         xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail_env.split(',') if xfail_env else []
-        if _run_all(pattern, xfail=xfail, testdir='test'):
+        if _run_all(pattern, xfail=xfail, testdir=Path('test')):
             sys.exit(1)
 
 
@@ -1389,11 +1405,11 @@ def _fetch_for_mosaic() -> None:
         _fetch_one(cfg.get(section, 'base'))
 
 
-def _mosaic(outfile: str, pristinedir: str = PRISTINE) -> None:
+def _mosaic(outfile: Path, pristinedir: Path = PRISTINE) -> None:
     '''Produce a mosaic image of slide data from various formats.'''
     subprocess.check_call(
         [
-            os.path.join('@BUILDDIR@', 'mosaic'),
+            BUILDDIR / 'mosaic',
             pristinedir,
             MOSAICLIST,
             outfile,
@@ -1404,15 +1420,17 @@ def _mosaic(outfile: str, pristinedir: str = PRISTINE) -> None:
 @_command
 def mosaic(outfile: str) -> None:
     '''Produce a mosaic image of slide data from various formats.'''
-    if os.path.exists(FROZEN):
-        pristinedir = os.path.join(FROZEN, '_pristine')
+    if FROZEN.exists():
+        pristinedir = FROZEN / '_pristine'
     else:
         pristinedir = PRISTINE
         _fetch_for_mosaic()
-    _mosaic(outfile, pristinedir)
+    _mosaic(Path(outfile), pristinedir)
 
 
-def _successful_primary_tests(pattern: str = '*') -> Iterator[tuple[str, str]]:
+def _successful_primary_tests(
+    pattern: str = '*',
+) -> Iterator[tuple[str, Path | None]]:
     '''Yield testname and slide path for each successful primary test.'''
     for testname in _list_tests(pattern):
         conf = _load_test_config(testname)
@@ -1425,9 +1443,9 @@ def _successful_primary_tests(pattern: str = '*') -> Iterator[tuple[str, str]]:
         _unpack_one(testname)
         if conf['slide'] == '':
             # synthetic test slide
-            slidefile = ''
+            slidefile = None
         else:
-            slidefile = os.path.join(WORKROOT, testname, conf['slide'])
+            slidefile = WORKROOT / testname / conf['slide']
         yield testname, slidefile
 
 
@@ -1464,15 +1482,15 @@ def profile(pattern: str = '*', level: str = '0') -> None:
     for testname, slidefile in _successful_primary_tests(pattern):
         print(f'{line}\n# {testname}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args = [
+            args: list[str | Path] = [
                 'valgrind',
                 '--quiet',
                 '--error-exitcode=3',
                 '--tool=callgrind',
                 '--callgrind-out-file=' + fh.name,
                 '--instr-atstart=no',
-                '@BUILDDIR@/profile',
-                slidefile,
+                BUILDDIR / 'profile',
+                slidefile or '',
                 level,
             ]
             if subprocess.call(args, env=env) == 0:
@@ -1485,9 +1503,9 @@ def profile(pattern: str = '*', level: str = '0') -> None:
 def exports() -> None:
     '''Report exported or hidden symbols with improper names.'''
 
-    def get_symbols(basedir: str) -> Iterator[str]:
+    def get_symbols(basedir: Path) -> Iterator[str]:
         proc = subprocess.Popen(
-            ['objdump', '-T', os.path.join(basedir, 'src', 'libopenslide.so')],
+            ['objdump', '-T', basedir / 'src' / 'libopenslide.so'],
             stdout=subprocess.PIPE,
         )
         out, _ = proc.communicate()
@@ -1506,7 +1524,7 @@ def exports() -> None:
     ignore_symbols = {'__bss_start', '_edata', '_end', '_fini', '_init'}
 
     # Check exported symbols
-    exported_symbols = set(get_symbols('@BUILDDIR@/..')) - ignore_symbols
+    exported_symbols = set(get_symbols(BUILDDIR.parent)) - ignore_symbols
     bad_exported = {
         symbol
         for symbol in exported_symbols
@@ -1516,7 +1534,7 @@ def exports() -> None:
     # Check hidden symbols
     with _rebuild(['-D_export_internal_symbols=true']):
         hidden_symbols = (
-            set(get_symbols('.')) - exported_symbols - ignore_symbols
+            set(get_symbols(Path.cwd())) - exported_symbols - ignore_symbols
         )
         bad_hidden = {
             symbol
@@ -1539,14 +1557,14 @@ def clean(pattern: str = '*') -> None:
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
     test data.'''
     for testname in _list_tests(pattern):
-        path = os.path.join(WORKROOT, testname)
-        if os.path.exists(path):
+        path = WORKROOT / testname
+        if path.exists():
             rmtree(path)
     if pattern == '*' or pattern == 'frozen':
         if os.path.lexists(FROZEN):
-            basedir = os.path.join(FROZENBASE, os.readlink(FROZEN))
-            os.unlink(FROZEN)
-            if os.path.exists(basedir):
+            basedir = FROZENBASE / FROZEN.readlink()
+            FROZEN.unlink()
+            if basedir.exists():
                 rmtree(basedir)
 
 
@@ -1554,7 +1572,7 @@ def clean(pattern: str = '*') -> None:
 def fuse() -> None:
     '''Mount the FUSE filesystem for debugging.'''
     with TemporaryDirectory(prefix='shadow-', dir=FROZENBASE) as tempdir:
-        _fusefs_init(tempdir)
+        _fusefs_init(Path(tempdir))
         _fusefs_run()
 
 
@@ -1600,9 +1618,9 @@ def _main() -> None:
     argc = len(sys.argv) - 2
     if argc < len(args) or argc > len(args) + len(optargs):
         _usage()
-    if not os.path.exists(CACHE_TAG):
-        os.makedirs(CACHE, exist_ok=True)
-        with open(CACHE_TAG, 'w') as fh:
+    if not CACHE_TAG.exists():
+        CACHE.mkdir(parents=True, exist_ok=True)
+        with CACHE_TAG.open('w') as fh:
             fh.writelines(
                 [
                     'Signature: 8a477f597d28d172789f06886806bc55\n',
