@@ -524,13 +524,11 @@ def _try_reflink(inpath, outpath):
         return False
     system = platform.system()
     if system == 'Linux':
-        if (
-            subprocess.call(
-                ['cp', '--reflink=always', '--', inpath, outpath],
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        ):
+        ret = subprocess.call(
+            ['cp', '--reflink=always', '--', inpath, outpath],
+            stderr=subprocess.DEVNULL,
+        )
+        if ret == 0:
             return True
         try:
             # cp from coreutils <= 9.1 leaves an empty file at outpath
@@ -539,12 +537,10 @@ def _try_reflink(inpath, outpath):
         except FileNotFoundError:
             pass
     elif system == 'Darwin':
-        if (
-            subprocess.call(
-                ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
-            )
-            == 0
-        ):
+        ret = subprocess.call(
+            ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
+        )
+        if ret == 0:
             return True
     # If we fail once, don't try again.  It's possible that we might succeed
     # under other circumstances (e.g. inpath and outpath might be on different
@@ -1238,13 +1234,13 @@ def coverage(outfile):
                 subprocess.check_call(['gcov', '-o', dirpath] + paths)
 
         # Record unexecuted lines; ignore glib headers
+        args = ['grep', '-FC', '2', '#####'] + [
+            f
+            for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
+            if not fnmatch.fnmatch(f, 'g*.h.gcov')
+        ]
         proc = subprocess.Popen(
-            ['grep', '-FC', '2', '#####']
-            + [
-                f
-                for f in fnmatch.filter(sorted(os.listdir('.')), '*.gcov')
-                if not fnmatch.fnmatch(f, 'g*.h.gcov')
-            ],
+            args,
             stdout=subprocess.PIPE,
         )
         report, _ = proc.communicate()
