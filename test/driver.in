@@ -206,25 +206,25 @@ def _cpu_count() -> int:
         return os.cpu_count() or 1
 
 
-def _launch_test(
-    test: str,
+def _launch_prog(
+    prog: str,
     slidefile: Path | None,
     valgrind: bool = False,
     extra_checks: bool = True,
-    testdir: Path | None = None,
+    progdir: Path | None = None,
     debug: Iterable[str] | None = None,
     args: Iterable[str] | None = None,
     **kwargs: Any,
 ) -> subprocess.Popen[str]:
-    '''Start the specified test from the testdir directory against the
+    '''Start the specified test program from the progdir directory against the
     specified slide, running under Valgrind if requested.  If extra_checks
     is False, turn off debug instrumentation that would invalidate benchmark
     results.  debug options are passed in OPENSLIDE_DEBUG.  args are
     appended to the command line.  kwargs are passed to the Popen
     constructor.  Return the Popen instance.'''
 
-    if testdir is None:
-        testdir = BUILDDIR
+    if progdir is None:
+        progdir = BUILDDIR
     env = os.environ.copy()
     env.update(
         G_MESSAGES_DEBUG='',
@@ -257,7 +257,7 @@ def _launch_test(
             # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
             JSIMD_FORCENONE='1',
         )
-    args_.extend([testdir / test, slidefile or ''])
+    args_.extend([progdir / prog, slidefile or ''])
     if args:
         args_.extend(args)
     return subprocess.Popen(args_, env=env, text=True, **kwargs)
@@ -266,14 +266,14 @@ def _launch_test(
 def _try_open_slide(
     slidefile: Path | None,
     valgrind: bool = False,
-    testdir: Path | None = None,
+    progdir: Path | None = None,
     debug: Iterable[str] | None = None,
     vendor: str | None | type[Skip] = Skip,
     properties: dict[str, str] | None = None,
     regions: Iterable[Iterable[int]] | None = None,
 ) -> str | None:
     '''Try opening the specified slide file, under Valgrind if specified,
-    using the test program in the testdir directory.  Return None on
+    using the test program in the progdir directory.  Return None on
     success, error message on failure.  vendor is the vendor string that
     should be returned by openslide_detect_vendor(), None for NULL, or Skip
     to omit the test.  properties is a map of slide properties and their
@@ -290,12 +290,12 @@ def _try_open_slide(
     if regions:
         for region in regions:
             args.extend(['-r', ' '.join(str(d) for d in region)])
-    proc = _launch_test(
+    proc = _launch_prog(
         'try_open',
         slidefile,
         valgrind=valgrind,
         args=args,
-        testdir=testdir,
+        progdir=progdir,
         debug=debug or [],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -312,18 +312,18 @@ def _try_open_slide(
 def _try_extended(
     slidefile: Path | None,
     valgrind: bool = False,
-    testdir: Path | None = None,
+    progdir: Path | None = None,
     debug: Iterable[str] | None = None,
 ) -> str | None:
     '''Run the extended test program against the specified slide file, under
-    Valgrind if specified, using the test program in the testdir directory.
+    Valgrind if specified, using the test program in the progdir directory.
     Return None on success, error message on failure.'''
 
-    proc = _launch_test(
+    proc = _launch_prog(
         'extended',
         slidefile,
         valgrind=valgrind,
-        testdir=testdir,
+        progdir=progdir,
         debug=debug or [],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -458,7 +458,7 @@ def create(slide: str, testname: str) -> None:
     else:
         raise OSError('Could not locate readable slide file')
 
-    query = _launch_test(
+    query = _launch_prog(
         'query', slidepath, args=['-n'], stdout=subprocess.PIPE
     )
     vendor_str, _ = query.communicate()
@@ -1182,7 +1182,7 @@ def _run_one(
     testname: str,
     valgrind: bool = False,
     xfail: bool = False,
-    testdir: Path | None = None,
+    progdir: Path | None = None,
     workdir: Path = WORKROOT,
 ) -> tuple[bool, str]:
     '''Run the specified test, under Valgrind if specified.  Also execute
@@ -1201,7 +1201,7 @@ def _run_one(
     result = _try_open_slide(
         slidefile,
         valgrind,
-        testdir,
+        progdir,
         vendor=conf.get('vendor', None),
         properties=conf.get('properties', {}),
         regions=conf.get('regions', []),
@@ -1221,7 +1221,7 @@ def _run_one(
         ok = False
     elif conf.get('primary', False) and conf['success']:
         result = _try_extended(
-            slidefile, valgrind, testdir, debug=conf.get('debug', [])
+            slidefile, valgrind, progdir, debug=conf.get('debug', [])
         )
         if result:
             msg = _color(RED, f'{testname}: extended test failed: {result}')
@@ -1241,7 +1241,7 @@ def _run_all(
     pattern: str = '*',
     valgrind: bool = False,
     xfail: Iterable[str] | None = None,
-    testdir: Path | None = None,
+    progdir: Path | None = None,
     parallel: bool = True,
 ) -> int:
     '''Run all tests matching the specified pattern, under Valgrind if
@@ -1272,7 +1272,7 @@ def _run_all(
                     testname,
                     valgrind,
                     testname in xfail,
-                    testdir,
+                    progdir,
                     workdir=workdir,
                 )
             )
@@ -1339,7 +1339,7 @@ def coverage(outfile: str) -> None:
     with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
         # Avoid races when writing coverage data
-        _run_all(testdir=Path('test'), parallel=False)
+        _run_all(progdir=Path('test'), parallel=False)
 
         # Generate coverage reports
         for dirpath, _, filenames in Path('src').walk():
@@ -1393,7 +1393,7 @@ def sanitize(pattern: str = '*') -> None:
     with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}):
         xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail_env.split(',') if xfail_env else []
-        if _run_all(pattern, xfail=xfail, testdir=Path('test')):
+        if _run_all(pattern, xfail=xfail, progdir=Path('test')):
             sys.exit(1)
 
 
@@ -1454,7 +1454,7 @@ def time(pattern: str = '*') -> None:
     '''Time openslide_open() for all successful primary tests matching the
     specified pattern.'''
     for testname, slidefile in _successful_primary_tests(pattern):
-        proc = _launch_test(
+        proc = _launch_prog(
             'try_open',
             slidefile,
             args=['-t'],
