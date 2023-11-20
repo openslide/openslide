@@ -29,6 +29,7 @@ from contextlib import closing, contextmanager
 import errno
 import filecmp
 import fnmatch
+from functools import cached_property, lru_cache
 from hashlib import sha256
 import inspect
 from lzma import LZMACompressor
@@ -162,23 +163,6 @@ def _list_tests(pattern: str = '*') -> list[str]:
     ]
 
 
-def _list_slide_files(slide: str) -> list[PurePath]:
-    '''List relative paths of files within a slide.  slide is e.g.
-    "Mirax/CMU-1.zip".'''
-
-    def walk(basedir: Path) -> list[PurePath]:
-        files: list[PurePath] = []
-        for path in basedir.iterdir():
-            name = PurePath(path.name)
-            if path.is_dir():
-                files.extend(name / p for p in walk(path))
-            else:
-                files.append(name)
-        return files
-
-    return walk(PRISTINE / slide)
-
-
 def _load_test_config(testname: str) -> Config:
     '''Parse and return the config.yaml for the specified test.'''
     with open(CASEROOT / testname / TESTCONF) as fh:
@@ -204,6 +188,90 @@ def _cpu_count() -> int:
     except AttributeError:
         # macOS
         return os.cpu_count() or 1
+
+
+class BaseSlide:
+    '''A pristine slide from openslide-testdata, not necessarily present
+    in the filesystem.'''
+
+    def __init__(self, relpath: PurePath):
+        digests = self._get_digests()
+        if relpath not in digests:
+            raise ValueError(f'{relpath} not in {SLIDELIST}')
+
+        self.relpath = relpath
+        # path of containing directory inside PRISTINE
+        self.path = PRISTINE / relpath
+        self.digest = digests[relpath]
+        self.is_zip = relpath.suffix == '.zip'
+
+    @staticmethod
+    @lru_cache
+    def _get_digests() -> dict[PurePath, str]:
+        '''Return map of relative paths of all base slides and their
+        digests.'''
+        with SLIDELIST.open() as fh:
+            return {PurePath(k): v for k, v in yaml.safe_load(fh).items()}
+
+    def __str__(self) -> str:
+        return self.relpath.as_posix()
+
+    def fetch(self) -> None:
+        '''Download and unpack the slide if we don't already have it.'''
+
+        if self.path.exists():
+            return
+
+        url = urljoin(TESTDATA_URL, str(self))
+
+        self.path.mkdir(parents=True)
+        try:
+            if self.is_zip:
+                dest: BinaryIO = TemporaryFile(dir=self.path)
+            else:
+                dest = open(self.path / self.path.name, 'wb')
+
+            with dest:
+                for retries_remaining in range(4, -1, -1):
+                    try:
+                        digest = _download(url, str(self), dest)
+                    except ConnectionInterrupted:
+                        if retries_remaining == 0:
+                            raise
+                        else:
+                            print('Retrying...')
+                            dest.seek(0)
+                            dest.truncate()
+                    else:
+                        break
+
+                if digest != self.digest:
+                    raise ValueError(f'Hash mismatch: {self}')
+
+                if self.is_zip:
+                    print(f'Unpacking {self}...')
+                    with closing(ZipFile(dest)) as zf:
+                        zf.extractall(path=self.path)
+        except BaseException:
+            rmtree(self.path, ignore_errors=True)
+            raise
+
+    @cached_property
+    def files(self) -> list[PurePath]:
+        '''Relative paths of files within the slide.'''
+
+        def walk(basedir: Path) -> list[PurePath]:
+            files: list[PurePath] = []
+            for path in basedir.iterdir():
+                name = PurePath(path.name)
+                if path.is_dir():
+                    files.extend(name / p for p in walk(path))
+                else:
+                    files.append(name)
+            return files
+
+        self.fetch()
+        return walk(self.path)
 
 
 class UnpackedSlide:
@@ -388,73 +456,24 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
         return hash.hexdigest()
 
 
-def _fetch_one(slide: str) -> None:
-    '''Download and unpack the base slide if we don't already have it.'''
-
-    destpath = PRISTINE / slide
-    if destpath.exists():
-        return
-
-    with SLIDELIST.open() as fh:
-        slides = yaml.safe_load(fh)
-    if slide not in slides:
-        raise ValueError(f'{slide} not in {SLIDELIST}')
-
-    relpath = PurePath(slide)
-    filename = relpath.name
-    url = urljoin(TESTDATA_URL, slide)
-    is_zip = relpath.suffix == '.zip'
-
-    destpath.mkdir(parents=True)
-    try:
-        if is_zip:
-            dest: BinaryIO = TemporaryFile(dir=destpath)
-        else:
-            dest = open(destpath / filename, 'wb')
-
-        with dest:
-            for retries_remaining in range(4, -1, -1):
-                try:
-                    digest = _download(url, slide, dest)
-                except ConnectionInterrupted:
-                    if retries_remaining == 0:
-                        raise
-                    else:
-                        print('Retrying...')
-                        dest.seek(0)
-                        dest.truncate()
-                else:
-                    break
-
-            if digest != slides[slide]:
-                raise ValueError(f'Hash mismatch: {slide}')
-
-            if is_zip:
-                print(f'Unpacking {slide}...')
-                with closing(ZipFile(dest)) as zf:
-                    zf.extractall(path=destpath)
-    except BaseException:
-        rmtree(destpath, ignore_errors=True)
-        raise
-
-
 @_command
 def create(slide: str, testname: str) -> None:
     '''Create a new test case with the specified name and base slide (e.g.
     "Mirax/CMU-1.zip").'''
 
-    srcpath = PRISTINE / slide
     testpath = CASEROOT / testname
     destpath = testpath / 'slide'
 
     if testpath.exists():
         raise ValueError('A test with that name already exists')
-    _fetch_one(slide)
+
+    base_slide = BaseSlide(PurePath(slide))
+    base_slide.fetch()
 
     print(f'Creating test {testname} for {slide}')
 
-    for relpath in _list_slide_files(slide):
-        unpacked = UnpackedSlide(srcpath / relpath)
+    for relpath in base_slide.files:
+        unpacked = UnpackedSlide(base_slide.path / relpath)
         if unpacked.try_open() is None:
             slidefile = relpath
             break
@@ -468,7 +487,7 @@ def create(slide: str, testname: str) -> None:
     vendor = vendor_str.strip() or None
 
     testpath.mkdir()
-    copytree(srcpath, destpath)
+    copytree(base_slide.path, destpath)
     conf = {
         'success': False,
         'error': '^$',
@@ -495,12 +514,12 @@ def pack(testname: str) -> None:
 
     print(f'Packing {testname}...')
     conf = _load_test_config(testname)
-    slide = conf['base']
+    base_slide = BaseSlide(PurePath(conf['base']))
     copies = file_map('copy')
 
     total_size = 0
-    for relpath in _list_slide_files(slide) + list(copies):
-        origpath = PRISTINE / slide / copies.get(relpath, relpath)
+    for relpath in base_slide.files + list(copies):
+        origpath = base_slide.path / copies.get(relpath, relpath)
         newpath = CASEROOT / testname / 'slide' / relpath
         deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
         whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
@@ -666,10 +685,11 @@ def _unpack_one(testname: str) -> None:
     renames = file_map('rename')
     generators = generator_map('generate')
     printed = False
-    _fetch_one(slide)
+    base_slide = BaseSlide(PurePath(slide))
+    base_slide.fetch()
 
-    for relpath in _list_slide_files(slide) + list(copies):
-        origpath = PRISTINE / slide / copies.get(relpath, relpath)
+    for relpath in base_slide.files + list(copies):
+        origpath = base_slide.path / copies.get(relpath, relpath)
         newpath = WORKROOT / testname / renames.get(relpath, relpath)
         deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
         whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
@@ -1402,7 +1422,7 @@ def _fetch_for_mosaic() -> None:
     cfg = RawConfigParser()
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
-        _fetch_one(cfg.get(section, 'base'))
+        BaseSlide(PurePath(cfg.get(section, 'base'))).fetch()
 
 
 def _mosaic(outfile: Path, pristinedir: Path = PRISTINE) -> None:
