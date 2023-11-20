@@ -61,7 +61,7 @@ jobs:
         macos-*)
             # https://github.com/actions/setup-python/issues/577
             # https://github.com/q3aiml/ledger/commit/f53b35ae
-            brew list -1 | grep python | while read formula; do
+            brew list -1 | grep python@ | while read formula; do
                 brew unlink $formula
                 brew link --overwrite $formula
             done
