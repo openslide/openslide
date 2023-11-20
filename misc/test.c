@@ -21,13 +21,8 @@
 
 #define _GNU_SOURCE
 
-#include "config.h"
 #include "openslide.h"
 #include "openslide-common.h"
-
-#ifdef HAVE_VALGRIND
-#include <callgrind.h>
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -294,9 +289,6 @@ int main(int argc, char **argv) {
     associated_image_names++;
   }
 
-#ifdef HAVE_VALGRIND
-  CALLGRIND_START_INSTRUMENTATION;
-#endif
   /*
   // simulate horizonal scrolling?
   gettimeofday(&start_tv, NULL);
@@ -346,10 +338,6 @@ int main(int argc, char **argv) {
     int64_t y = g_ascii_strtoll(bounds_y, NULL, 10);
     test_image_fetch(osr, "test8", x, y, 200, 200, skip);
   }
-
-#ifdef HAVE_VALGRIND
-  CALLGRIND_STOP_INSTRUMENTATION;
-#endif
 
   openslide_close(osr);
 
