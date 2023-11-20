@@ -55,13 +55,11 @@ from time import time as curtime
 from typing import (
     Any,
     BinaryIO,
-    Dict,
     Iterable,
     Iterator,
     NewType,
     Protocol,
     Sequence,
-    TypedDict,
     cast,
 )
 from urllib.parse import urljoin
@@ -105,26 +103,6 @@ _commands = []
 _command_funcs = {}
 
 
-class Config(TypedDict, total=False):
-    base: str
-    slide: str
-    success: bool
-    error: str
-    vendor: str
-    primary: bool
-    requires: list[str]
-    debug: list[str]
-    regions: list[list[int]]
-    properties: dict[str, str]
-    generate: dict[str, str]
-    copy: dict[str, str]
-    rename: dict[str, str]
-
-
-# Required wrapper requires Python >= 3.11
-Config.__required_keys__ = frozenset({'base', 'slide', 'success'})
-
-
 class Skip:
     pass
 
@@ -159,24 +137,8 @@ def _list_tests(pattern: str = '*') -> list[str]:
         path.name
         for path in sorted(CASEROOT.iterdir())
         if fnmatch.fnmatch(path.name, pattern)
-        and (CASEROOT / path.name / TESTCONF).exists()
+        and TestCaseConfig.exists(path.name)
     ]
-
-
-def _load_test_config(testname: str) -> Config:
-    '''Parse and return the config.yaml for the specified test.'''
-    with open(CASEROOT / testname / TESTCONF) as fh:
-        config: Config = yaml.safe_load(fh)
-        return config
-
-
-def _features_available(conf: Config) -> bool:
-    '''Return True if the features required by the test configuration
-    are available in this build.'''
-    for feature in conf.get('requires', []):
-        if feature not in FEATURES:
-            return False
-    return True
 
 
 def _cpu_count() -> int:
@@ -409,6 +371,88 @@ class UnpackedSlide:
             return None
 
 
+class TestCaseConfig:
+    '''The configuration file for a test case.'''
+
+    def __init__(self, testname: str):
+        self.testname = testname
+
+        # https://openslide.org/docs/testsuite/#annotated-configyaml
+        try:
+            with open(CASEROOT / testname / TESTCONF) as fh:
+                conf = yaml.safe_load(fh)
+        except FileNotFoundError:
+            raise ValueError('Test does not exist')
+        self.base_slide = BaseSlide(PurePath(conf['base']))
+        self.filename: str = conf['slide']
+        self.success: bool = conf['success']
+        if not self.success:
+            self.error = re.compile(conf['error'])
+        self.vendor: str | None = conf.get('vendor')
+        self.primary: bool = conf.get('primary', False)
+        self.freezable: bool = conf.get('freezable', True)
+        self.required_features: set[str] = set(conf.get('requires', []))
+        self.debug: set[str] = set(conf.get('debug', []))
+        self.regions: list[list[int]] = conf.get('regions', [])
+        self.properties: dict[str, str] = conf.get('properties', {})
+        self.generators = self._generator_map(conf, 'generate')
+        self.copies = self._file_map(conf, 'copy')
+        self.renames = self._file_map(conf, 'rename')
+
+    def __str__(self) -> str:
+        return self.testname
+
+    @staticmethod
+    def _generator_map(
+        conf: dict[str, Any], field: str
+    ) -> dict[PurePath, str]:
+        return {PurePath(k): v for k, v in conf.get(field, {}).items()}
+
+    @staticmethod
+    def _file_map(
+        conf: dict[str, Any], field: str
+    ) -> dict[PurePath, PurePath]:
+        return {
+            PurePath(k): PurePath(v) for k, v in conf.get(field, {}).items()
+        }
+
+    @property
+    def features_available(self) -> bool:
+        '''True if the features required by the test are available in this
+        build.'''
+        return self.required_features.issubset(FEATURES)
+
+    @staticmethod
+    def create(base_slide: BaseSlide, testpath: Path) -> None:
+        for relpath in base_slide.files:
+            unpacked = UnpackedSlide(base_slide.path / relpath)
+            if unpacked.try_open() is None:
+                slidefile = relpath
+                break
+        else:
+            raise OSError('Could not locate readable slide file')
+
+        query = unpacked.run_prog('query', args=['-n'], stdout=subprocess.PIPE)
+        vendor_str, _ = query.communicate()
+        if query.returncode:
+            raise OSError('Could not query slide vendor')
+        vendor = vendor_str.strip() or None
+
+        conf = {
+            'success': False,
+            'error': '^$',
+            'base': base_slide.relpath.as_posix(),
+            'slide': slidefile.as_posix(),
+            'vendor': vendor,
+        }
+        with open(testpath / TESTCONF, 'w') as fh:
+            yaml.safe_dump(conf, fh, default_flow_style=False)
+
+    @staticmethod
+    def exists(testname: str) -> bool:
+        return (CASEROOT / testname / TESTCONF).exists()
+
+
 def _download(url: str, name: str, fh: BinaryIO) -> str:
     '''Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
@@ -462,8 +506,6 @@ def create(slide: str, testname: str) -> None:
     "Mirax/CMU-1.zip").'''
 
     testpath = CASEROOT / testname
-    destpath = testpath / 'slide'
-
     if testpath.exists():
         raise ValueError('A test with that name already exists')
 
@@ -471,55 +513,24 @@ def create(slide: str, testname: str) -> None:
     base_slide.fetch()
 
     print(f'Creating test {testname} for {slide}')
-
-    for relpath in base_slide.files:
-        unpacked = UnpackedSlide(base_slide.path / relpath)
-        if unpacked.try_open() is None:
-            slidefile = relpath
-            break
-    else:
-        raise OSError('Could not locate readable slide file')
-
-    query = unpacked.run_prog('query', args=['-n'], stdout=subprocess.PIPE)
-    vendor_str, _ = query.communicate()
-    if query.returncode:
-        raise OSError('Could not query slide vendor')
-    vendor = vendor_str.strip() or None
-
     testpath.mkdir()
-    copytree(base_slide.path, destpath)
-    conf = {
-        'success': False,
-        'error': '^$',
-        'base': slide,
-        'slide': slidefile.as_posix(),
-        'vendor': vendor,
-    }
-    with open(testpath / TESTCONF, 'w') as fh:
-        yaml.safe_dump(conf, fh, default_flow_style=False)
+    copytree(base_slide.path, testpath / 'slide')
+    TestCaseConfig.create(base_slide, testpath)
 
 
 @_command
 def pack(testname: str) -> None:
     '''Pack a newly-created test case for checkin.'''
 
-    def file_map(field: str) -> dict[PurePath, PurePath]:
-        return {
-            PurePath(k): PurePath(v)
-            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
-        }
-
-    if not (CASEROOT / testname / TESTCONF).exists():
+    if not TestCaseConfig.exists(testname):
         raise ValueError('Test does not exist')
 
     print(f'Packing {testname}...')
-    conf = _load_test_config(testname)
-    base_slide = BaseSlide(PurePath(conf['base']))
-    copies = file_map('copy')
+    conf = TestCaseConfig(testname)
 
     total_size = 0
-    for relpath in base_slide.files + list(copies):
-        origpath = base_slide.path / copies.get(relpath, relpath)
+    for relpath in conf.base_slide.files + list(conf.copies):
+        origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
         newpath = CASEROOT / testname / 'slide' / relpath
         deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
         whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
@@ -667,30 +678,13 @@ def _decode_xdelta(inpath: Path, deltapath: Path, outpath: Path) -> None:
 def _unpack_one(testname: str) -> None:
     '''Unpack the specified test.'''
 
-    def file_map(field: str) -> dict[PurePath, PurePath]:
-        return {
-            PurePath(k): PurePath(v)
-            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
-        }
-
-    def generator_map(field: str) -> dict[PurePath, str]:
-        return {
-            PurePath(k): v
-            for k, v in cast(Dict[str, str], conf.get(field, {})).items()
-        }
-
-    conf = _load_test_config(testname)
-    slide = conf['base']
-    copies = file_map('copy')
-    renames = file_map('rename')
-    generators = generator_map('generate')
+    conf = TestCaseConfig(testname)
+    conf.base_slide.fetch()
     printed = False
-    base_slide = BaseSlide(PurePath(slide))
-    base_slide.fetch()
 
-    for relpath in base_slide.files + list(copies):
-        origpath = base_slide.path / copies.get(relpath, relpath)
-        newpath = WORKROOT / testname / renames.get(relpath, relpath)
+    for relpath in conf.base_slide.files + list(conf.copies):
+        origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
+        newpath = WORKROOT / testname / conf.renames.get(relpath, relpath)
         deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
         whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
 
@@ -701,7 +695,7 @@ def _unpack_one(testname: str) -> None:
 
             newpath.parent.mkdir(parents=True, exist_ok=True)
 
-            generator = generators.get(relpath)
+            generator = conf.generators.get(relpath)
             if generator:
                 _run_generator(generator, origpath, newpath)
             elif deltapath.exists():
@@ -1082,8 +1076,8 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         Thread(name='fuse', target=_fusefs_run, daemon=False).start()
         # Run all tests that we might want to run on thawed testdata
         for testname in _list_tests():
-            conf = _load_test_config(testname)
-            if conf.get('freezable', True):
+            conf = TestCaseConfig(testname)
+            if conf.freezable:
                 _, msg = _run_one(testname, workdir=FUSEMOUNT)
                 print(msg)
                 # Ensure we at least have a shadow directory for the test.
@@ -1211,38 +1205,36 @@ def _run_one(
     to succeed, and 3) do in fact succeed.  If xfail is specified, invert
     the sense of the result.'''
 
-    conf = _load_test_config(testname)
-    if not _features_available(conf):
+    conf = TestCaseConfig(testname)
+    if not conf.features_available:
         return True, _color(BLUE, f'{testname}: skipped')
-    if conf['slide'] == '':
+    if conf.filename == '':
         # synthetic test slide
         unpacked = UnpackedSlide(None)
     else:
-        unpacked = UnpackedSlide(workdir / testname / conf['slide'])
+        unpacked = UnpackedSlide(workdir / testname / conf.filename)
     result = unpacked.try_open(
         valgrind,
         progdir,
-        vendor=conf.get('vendor', None),
-        properties=conf.get('properties', {}),
-        regions=conf.get('regions', []),
-        debug=conf.get('debug', []),
+        vendor=conf.vendor,
+        properties=conf.properties,
+        regions=conf.regions,
+        debug=conf.debug,
     )
 
     msg = _color(GREEN, f'{testname}: OK')
     ok = True
-    if result is None and not conf['success']:
+    if result is None and not conf.success:
         msg = _color(RED, f'{testname}: unexpected success')
         ok = False
-    elif result is not None and conf['success']:
+    elif result is not None and conf.success:
         msg = _color(RED, f'{testname}: unexpected failure: {result}')
         ok = False
-    elif result is not None and not re.search(conf['error'], result):
+    elif result is not None and not conf.error.search(result):
         msg = _color(RED, f'{testname}: incorrect error: {result}')
         ok = False
-    elif conf.get('primary', False) and conf['success']:
-        result = unpacked.try_extended(
-            valgrind, progdir, debug=conf.get('debug', [])
-        )
+    elif conf.primary and conf.success:
+        result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
         if result:
             msg = _color(RED, f'{testname}: extended test failed: {result}')
             ok = False
@@ -1453,19 +1445,15 @@ def _successful_primary_tests(
 ) -> Iterator[tuple[str, UnpackedSlide]]:
     '''Yield testname and unpacked slide for each successful primary test.'''
     for testname in _list_tests(pattern):
-        conf = _load_test_config(testname)
-        if (
-            not conf.get('primary', False)
-            or not conf['success']
-            or not _features_available(conf)
-        ):
+        conf = TestCaseConfig(testname)
+        if not conf.primary or not conf.success or not conf.features_available:
             continue
         _unpack_one(testname)
-        if conf['slide'] == '':
+        if conf.filename == '':
             # synthetic test slide
             unpacked = UnpackedSlide(None)
         else:
-            unpacked = UnpackedSlide(WORKROOT / testname / conf['slide'])
+            unpacked = UnpackedSlide(WORKROOT / testname / conf.filename)
         yield testname, unpacked
 
 
