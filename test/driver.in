@@ -60,6 +60,7 @@ from typing import (
     NewType,
     Protocol,
     Sequence,
+    TypeVar,
     cast,
 )
 from urllib.parse import urljoin
@@ -103,6 +104,9 @@ _commands = []
 _command_funcs = {}
 
 
+TestCaseT = TypeVar('TestCaseT', bound='TestCase')
+
+
 class Skip:
     pass
 
@@ -129,16 +133,6 @@ def _command(f: Any) -> Command:
 def _color(color: str, str: str) -> str:
     '''Return str, wrapped in the specified ANSI color escape sequence.'''
     return color + str + RESET
-
-
-def _list_tests(pattern: str = '*') -> list[str]:
-    '''Return a list of test names matching the specified pattern.'''
-    return [
-        path.name
-        for path in sorted(CASEROOT.iterdir())
-        if fnmatch.fnmatch(path.name, pattern)
-        and TestCaseConfig.exists(path.name)
-    ]
 
 
 def _cpu_count() -> int:
@@ -453,6 +447,282 @@ class TestCaseConfig:
         return (CASEROOT / testname / TESTCONF).exists()
 
 
+class TestCase:
+    _can_reflink = True
+
+    def __init__(self, name: str):
+        self.name = name
+        self.conf = TestCaseConfig(name)
+
+    def __str__(self) -> str:
+        return self.name
+
+    @classmethod
+    @lru_cache
+    def list(cls: type[TestCaseT], pattern: str = '*') -> list[TestCaseT]:
+        '''Return a list of tests matching the specified pattern.'''
+        return [
+            cls(path.name)
+            for path in sorted(CASEROOT.iterdir())
+            if fnmatch.fnmatch(path.name, pattern)
+            and TestCaseConfig.exists(path.name)
+        ]
+
+    @staticmethod
+    def create(base_slide: BaseSlide, name: str) -> None:
+        '''Create a new test case with the specified base slide and name.'''
+
+        testpath = CASEROOT / name
+        if testpath.exists():
+            raise ValueError('A test with that name already exists')
+
+        base_slide.fetch()
+
+        print(f'Creating test {name} for {base_slide}')
+        testpath.mkdir()
+        copytree(base_slide.path, testpath / 'slide')
+        TestCaseConfig.create(base_slide, testpath)
+
+    @staticmethod
+    def pack(name: str) -> None:
+        '''Pack a newly-created test case for checkin.'''
+
+        conf = TestCaseConfig(name)
+        print(f'Packing {name}...')
+
+        total_size = 0
+        for relpath in conf.base_slide.files + list(conf.copies):
+            origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
+            newpath = CASEROOT / name / 'slide' / relpath
+            deltapath = CASEROOT / name / f'{relpath.name}.xdelta'
+            whiteoutpath = CASEROOT / name / f'{relpath.name}.whiteout'
+
+            for path in deltapath, whiteoutpath:
+                if path.exists():
+                    raise OSError(f'{path} already exists')
+
+            if newpath.exists():
+                if not filecmp.cmp(origpath, newpath, shallow=False):
+                    subprocess.check_call(
+                        [
+                            'xdelta3',
+                            'encode',
+                            '-9',
+                            '-W',
+                            '16777216',
+                            '-S',
+                            'none',
+                            '-s',
+                            origpath,
+                            newpath,
+                            deltapath,
+                        ]
+                    )
+                    total_size += deltapath.stat().st_size
+            else:
+                whiteoutpath.write_bytes(b'')
+
+        rmtree(CASEROOT / name / 'slide')
+
+        total_size_kb = total_size >> 10
+        if total_size_kb:
+            print(f'Delta: {total_size_kb} KB')
+        else:
+            print(f'Delta: {total_size} bytes')
+
+    def unpack(self) -> None:
+        '''Unpack the test case.'''
+
+        conf = self.conf
+        conf.base_slide.fetch()
+        printed = False
+
+        for relpath in conf.base_slide.files + list(conf.copies):
+            origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
+            newpath = WORKROOT / self.name / conf.renames.get(relpath, relpath)
+            deltapath = CASEROOT / self.name / f'{relpath.name}.xdelta'
+            whiteoutpath = CASEROOT / self.name / f'{relpath.name}.whiteout'
+
+            if not newpath.exists() and not whiteoutpath.exists():
+                if not printed:
+                    print(f'Unpacking {self}...')
+                    printed = True
+
+                newpath.parent.mkdir(parents=True, exist_ok=True)
+
+                generator = conf.generators.get(relpath)
+                if generator:
+                    self._run_generator(generator, origpath, newpath)
+                elif deltapath.exists():
+                    self._decode_xdelta(origpath, deltapath, newpath)
+                else:
+                    src = os.path.relpath(origpath, newpath.parent)
+                    newpath.symlink_to(src)
+
+    @staticmethod
+    def _run_generator(command_str: str, inpath: Path, outpath: Path) -> None:
+        '''Run the specified generator pipeline.'''
+
+        cmds = command_str.split('|')
+        procs = []
+        fin: list[int | None] = []
+        fout: list[int | None] = []
+        try:
+            fin.append(None)
+            for _ in range(len(cmds) - 1):
+                pipe_r, pipe_w = os.pipe()
+                fout.append(pipe_w)
+                fin.append(pipe_r)
+            fout.append(None)
+
+            for i, cmd in enumerate(cmds):
+                proc = subprocess.Popen(
+                    [
+                        a % {'in': inpath, 'out': outpath}
+                        for a in shlex.split(cmd)
+                    ],
+                    stdin=fin[i],
+                    stdout=fout[i],
+                    close_fds=True,
+                )
+                procs.append(proc)
+        finally:
+            for fh in fout + fin:
+                if fh is not None:
+                    os.close(fh)
+
+        returncode = 0
+        for proc in procs:
+            proc.wait()
+            returncode = returncode or proc.returncode
+        if returncode:
+            raise OSError(f'Generator returned exit status {returncode}')
+
+    @classmethod
+    def _decode_xdelta(
+        cls, inpath: Path, deltapath: Path, outpath: Path
+    ) -> None:
+        '''Apply an xdelta based on inpath and write it to outpath.'''
+        # If possible, reflink inpath to outpath and write only the changed
+        # blocks, saving a lot of disk space.
+        if cls._try_reflink(inpath, outpath):
+            bufsize = 1 << 20
+            # We could take this down to stat(outpath).st_blksize
+            # granularity (4K) but we don't need perfect savings.  Mostly
+            # we're trying to avoid copying huge runs of unchanged data.
+            blksize = 1 << 20
+            proc = subprocess.Popen(
+                ['xdelta3', 'decode', '-cs', inpath, deltapath],
+                stdout=subprocess.PIPE,
+                bufsize=bufsize,
+            )
+            assert proc.stdout is not None
+            with outpath.open('rb+', buffering=bufsize) as fh:
+                while True:
+                    want = proc.stdout.read(blksize)
+                    if len(want) == 0:
+                        break
+                    have = fh.read(blksize)
+                    if want != have:
+                        fh.seek(-len(have), 1)
+                        fh.write(want)
+                fh.truncate()
+            if proc.wait() != 0:
+                raise OSError(f'xdelta failed with status {proc.returncode}')
+        else:
+            subprocess.check_call(
+                ['xdelta3', 'decode', '-s', inpath, deltapath, outpath]
+            )
+
+    @classmethod
+    def _try_reflink(cls, inpath: Path, outpath: Path) -> bool:
+        '''Try to make a zero-copy clone of the file inpath at outpath.
+        Return True if successful.'''
+        # Python can't do this natively yet, and we don't want to require an
+        # external module
+        # https://github.com/python/cpython/issues/81338
+        if not cls._can_reflink:
+            return False
+        system = platform.system()
+        if system == 'Linux':
+            ret = subprocess.call(
+                ['cp', '--reflink=always', '--', inpath, outpath],
+                stderr=subprocess.DEVNULL,
+            )
+            if ret == 0:
+                return True
+            # cp from coreutils <= 9.1 leaves an empty file at outpath
+            # https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56391
+            outpath.unlink(missing_ok=True)
+        elif system == 'Darwin':
+            ret = subprocess.call(
+                ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
+            )
+            if ret == 0:
+                return True
+        # If we fail once, don't try again.  It's possible that we might
+        # succeed under other circumstances (e.g. inpath and outpath might
+        # be on different filesystems) but let's not repeatedly spawn
+        # failing subprocesses.
+        cls._can_reflink = False
+        return False
+
+    def run(
+        self,
+        valgrind: bool = False,
+        xfail: bool = False,
+        progdir: Path | None = None,
+        workdir: Path = WORKROOT,
+    ) -> tuple[bool, str]:
+        '''Run the test, under Valgrind if specified.  Also execute extended
+        tests against cases which 1) are marked primary, 2) are expected to
+        succeed, and 3) do in fact succeed.  If xfail is specified, invert
+        the sense of the result.'''
+
+        conf = self.conf
+        if not conf.features_available:
+            return True, _color(BLUE, f'{self}: skipped')
+        if conf.filename == '':
+            # synthetic test slide
+            unpacked = UnpackedSlide(None)
+        else:
+            unpacked = UnpackedSlide(workdir / self.name / conf.filename)
+        result = unpacked.try_open(
+            valgrind,
+            progdir,
+            vendor=conf.vendor,
+            properties=conf.properties,
+            regions=conf.regions,
+            debug=conf.debug,
+        )
+
+        msg = _color(GREEN, f'{self}: OK')
+        ok = True
+        if result is None and not conf.success:
+            msg = _color(RED, f'{self}: unexpected success')
+            ok = False
+        elif result is not None and conf.success:
+            msg = _color(RED, f'{self}: unexpected failure: {result}')
+            ok = False
+        elif result is not None and not conf.error.search(result):
+            msg = _color(RED, f'{self}: incorrect error: {result}')
+            ok = False
+        elif conf.primary and conf.success:
+            result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
+            if result:
+                msg = _color(RED, f'{self}: extended test failed: {result}')
+                ok = False
+
+        if xfail:
+            ok = not ok
+            if ok:
+                msg = _color(BLUE, f'{self}: failed as expected')
+            else:
+                msg = _color(RED, f'{self}: expected to fail, but passed')
+
+        return ok, msg
+
+
 def _download(url: str, name: str, fh: BinaryIO) -> str:
     '''Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
@@ -505,204 +775,14 @@ def create(slide: str, testname: str) -> None:
     '''Create a new test case with the specified name and base slide (e.g.
     "Mirax/CMU-1.zip").'''
 
-    testpath = CASEROOT / testname
-    if testpath.exists():
-        raise ValueError('A test with that name already exists')
-
-    base_slide = BaseSlide(PurePath(slide))
-    base_slide.fetch()
-
-    print(f'Creating test {testname} for {slide}')
-    testpath.mkdir()
-    copytree(base_slide.path, testpath / 'slide')
-    TestCaseConfig.create(base_slide, testpath)
+    TestCase.create(BaseSlide(PurePath(slide)), testname)
 
 
 @_command
 def pack(testname: str) -> None:
     '''Pack a newly-created test case for checkin.'''
 
-    if not TestCaseConfig.exists(testname):
-        raise ValueError('Test does not exist')
-
-    print(f'Packing {testname}...')
-    conf = TestCaseConfig(testname)
-
-    total_size = 0
-    for relpath in conf.base_slide.files + list(conf.copies):
-        origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
-        newpath = CASEROOT / testname / 'slide' / relpath
-        deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
-        whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
-
-        for path in deltapath, whiteoutpath:
-            if path.exists():
-                raise OSError(f'{path} already exists')
-
-        if newpath.exists():
-            if not filecmp.cmp(origpath, newpath, shallow=False):
-                subprocess.check_call(
-                    [
-                        'xdelta3',
-                        'encode',
-                        '-9',
-                        '-W',
-                        '16777216',
-                        '-S',
-                        'none',
-                        '-s',
-                        origpath,
-                        newpath,
-                        deltapath,
-                    ]
-                )
-                total_size += deltapath.stat().st_size
-        else:
-            whiteoutpath.write_bytes(b'')
-
-    rmtree(CASEROOT / testname / 'slide')
-
-    total_size_kb = total_size >> 10
-    if total_size_kb:
-        print(f'Delta: {total_size_kb} KB')
-    else:
-        print(f'Delta: {total_size} bytes')
-
-
-def _run_generator(command_str: str, inpath: Path, outpath: Path) -> None:
-    '''Run the specified generator pipeline.'''
-
-    cmds = command_str.split('|')
-    procs = []
-    fin: list[int | None] = []
-    fout: list[int | None] = []
-    try:
-        fin.append(None)
-        for _ in range(len(cmds) - 1):
-            pipe_r, pipe_w = os.pipe()
-            fout.append(pipe_w)
-            fin.append(pipe_r)
-        fout.append(None)
-
-        for i, cmd in enumerate(cmds):
-            proc = subprocess.Popen(
-                [a % {'in': inpath, 'out': outpath} for a in shlex.split(cmd)],
-                stdin=fin[i],
-                stdout=fout[i],
-                close_fds=True,
-            )
-            procs.append(proc)
-    finally:
-        for fh in fout + fin:
-            if fh is not None:
-                os.close(fh)
-
-    returncode = 0
-    for proc in procs:
-        proc.wait()
-        returncode = returncode or proc.returncode
-    if returncode:
-        raise OSError(f'Generator returned exit status {returncode}')
-
-
-_can_reflink = True
-
-
-def _try_reflink(inpath: Path, outpath: Path) -> bool:
-    '''Try to make a zero-copy clone of the file inpath at outpath.  Return
-    True if successful.'''
-    # Python can't do this natively yet, and we don't want to require an
-    # external module
-    # https://github.com/python/cpython/issues/81338
-    global _can_reflink
-    if not _can_reflink:
-        return False
-    system = platform.system()
-    if system == 'Linux':
-        ret = subprocess.call(
-            ['cp', '--reflink=always', '--', inpath, outpath],
-            stderr=subprocess.DEVNULL,
-        )
-        if ret == 0:
-            return True
-        # cp from coreutils <= 9.1 leaves an empty file at outpath
-        # https://debbugs.gnu.org/cgi/bugreport.cgi?bug=56391
-        outpath.unlink(missing_ok=True)
-    elif system == 'Darwin':
-        ret = subprocess.call(
-            ['cp', '-c', inpath, outpath], stderr=subprocess.DEVNULL
-        )
-        if ret == 0:
-            return True
-    # If we fail once, don't try again.  It's possible that we might succeed
-    # under other circumstances (e.g. inpath and outpath might be on different
-    # filesystems) but let's not repeatedly spawn failing subprocesses.
-    _can_reflink = False
-    return False
-
-
-def _decode_xdelta(inpath: Path, deltapath: Path, outpath: Path) -> None:
-    '''Apply an xdelta based on inpath and write it to outpath.'''
-    # If possible, reflink inpath to outpath and write only the changed
-    # blocks, saving a lot of disk space.
-    if _try_reflink(inpath, outpath):
-        bufsize = 1 << 20
-        # We could take this down to stat(outpath).st_blksize granularity (4K)
-        # but we don't need perfect savings.  Mostly we're trying to avoid
-        # copying huge runs of unchanged data.
-        blksize = 1 << 20
-        proc = subprocess.Popen(
-            ['xdelta3', 'decode', '-cs', inpath, deltapath],
-            stdout=subprocess.PIPE,
-            bufsize=bufsize,
-        )
-        assert proc.stdout is not None
-        with outpath.open('rb+', buffering=bufsize) as fh:
-            while True:
-                want = proc.stdout.read(blksize)
-                if len(want) == 0:
-                    break
-                have = fh.read(blksize)
-                if want != have:
-                    fh.seek(-len(have), 1)
-                    fh.write(want)
-            fh.truncate()
-        if proc.wait() != 0:
-            raise OSError(f'xdelta failed with status {proc.returncode}')
-    else:
-        subprocess.check_call(
-            ['xdelta3', 'decode', '-s', inpath, deltapath, outpath]
-        )
-
-
-def _unpack_one(testname: str) -> None:
-    '''Unpack the specified test.'''
-
-    conf = TestCaseConfig(testname)
-    conf.base_slide.fetch()
-    printed = False
-
-    for relpath in conf.base_slide.files + list(conf.copies):
-        origpath = conf.base_slide.path / conf.copies.get(relpath, relpath)
-        newpath = WORKROOT / testname / conf.renames.get(relpath, relpath)
-        deltapath = CASEROOT / testname / f'{relpath.name}.xdelta'
-        whiteoutpath = CASEROOT / testname / f'{relpath.name}.whiteout'
-
-        if not newpath.exists() and not whiteoutpath.exists():
-            if not printed:
-                print(f'Unpacking {testname}...')
-                printed = True
-
-            newpath.parent.mkdir(parents=True, exist_ok=True)
-
-            generator = conf.generators.get(relpath)
-            if generator:
-                _run_generator(generator, origpath, newpath)
-            elif deltapath.exists():
-                _decode_xdelta(origpath, deltapath, newpath)
-            else:
-                src = os.path.relpath(origpath, newpath.parent)
-                newpath.symlink_to(src)
+    TestCase.pack(testname)
 
 
 @_command
@@ -713,9 +793,9 @@ def unpack(pattern: str = '*') -> None:
     if pattern == 'nonfrozen':
         pattern = '*'
         conditional = True
-    for testname in _list_tests(pattern):
-        if not conditional or not (FROZEN / testname).exists():
-            _unpack_one(testname)
+    for test in TestCase.list(pattern):
+        if not conditional or not (FROZEN / test.name).exists():
+            test.unpack()
 
 
 # Read-only FUSE filesystem that proxies a backing directory tree and builds
@@ -1064,8 +1144,8 @@ def _s3_upload_public(
 def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
     '''Create a frozen testdata archive for transport to another system,
     upload it to an S3 bucket, and record its URL in the source tree.'''
-    for testname in _list_tests():
-        _unpack_one(testname)
+    for test in TestCase.list():
+        test.unpack()
     _fetch_for_mosaic()
 
     print('Running tests...')
@@ -1075,18 +1155,17 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         _fusefs_init(tempdir)
         Thread(name='fuse', target=_fusefs_run, daemon=False).start()
         # Run all tests that we might want to run on thawed testdata
-        for testname in _list_tests():
-            conf = TestCaseConfig(testname)
-            if conf.freezable:
-                _, msg = _run_one(testname, workdir=FUSEMOUNT)
+        for test in TestCase.list():
+            if test.conf.freezable:
+                _, msg = test.run(workdir=FUSEMOUNT)
                 print(msg)
                 # Ensure we at least have a shadow directory for the test.
                 # Otherwise, tests that solely test opening a missing file
                 # in a multi-file format will cause a base slide fetch and
                 # unpack when run against frozen data.
-                (tempdir / testname).mkdir(parents=True, exist_ok=True)
+                (tempdir / test.name).mkdir(parents=True, exist_ok=True)
             else:
-                exclude_tests.append(testname)
+                exclude_tests.append(test)
         with NamedTemporaryFile(prefix='openslide-') as mosaic:
             _mosaic(Path(mosaic.name), FUSEMOUNT / '_pristine')
         subprocess.check_call(['fusermount', '-u', FUSEMOUNT])
@@ -1094,8 +1173,8 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         print('Freezing testdata...')
         # Delete spurious shadow directories from any incidental filesystem
         # access to skipped tests
-        for testname in exclude_tests:
-            path = tempdir / testname
+        for test in exclude_tests:
+            path = tempdir / test.name
             if path.exists():
                 rmtree(path)
         # Python tarfile doesn't support creating sparse archives
@@ -1193,62 +1272,6 @@ def unfreeze() -> None:
     FROZEN.symlink_to(link_target)
 
 
-def _run_one(
-    testname: str,
-    valgrind: bool = False,
-    xfail: bool = False,
-    progdir: Path | None = None,
-    workdir: Path = WORKROOT,
-) -> tuple[bool, str]:
-    '''Run the specified test, under Valgrind if specified.  Also execute
-    extended tests against cases which 1) are marked primary, 2) are expected
-    to succeed, and 3) do in fact succeed.  If xfail is specified, invert
-    the sense of the result.'''
-
-    conf = TestCaseConfig(testname)
-    if not conf.features_available:
-        return True, _color(BLUE, f'{testname}: skipped')
-    if conf.filename == '':
-        # synthetic test slide
-        unpacked = UnpackedSlide(None)
-    else:
-        unpacked = UnpackedSlide(workdir / testname / conf.filename)
-    result = unpacked.try_open(
-        valgrind,
-        progdir,
-        vendor=conf.vendor,
-        properties=conf.properties,
-        regions=conf.regions,
-        debug=conf.debug,
-    )
-
-    msg = _color(GREEN, f'{testname}: OK')
-    ok = True
-    if result is None and not conf.success:
-        msg = _color(RED, f'{testname}: unexpected success')
-        ok = False
-    elif result is not None and conf.success:
-        msg = _color(RED, f'{testname}: unexpected failure: {result}')
-        ok = False
-    elif result is not None and not conf.error.search(result):
-        msg = _color(RED, f'{testname}: incorrect error: {result}')
-        ok = False
-    elif conf.primary and conf.success:
-        result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
-        if result:
-            msg = _color(RED, f'{testname}: extended test failed: {result}')
-            ok = False
-
-    if xfail:
-        ok = not ok
-        if ok:
-            msg = _color(BLUE, f'{testname}: failed as expected')
-        else:
-            msg = _color(RED, f'{testname}: expected to fail, but passed')
-
-    return ok, msg
-
-
 def _run_all(
     pattern: str = '*',
     valgrind: bool = False,
@@ -1259,10 +1282,10 @@ def _run_all(
     '''Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results.'''
-    tests = _list_tests(pattern)
-    for testname in tests:
-        if not (FROZEN / testname).exists():
-            _unpack_one(testname)
+    tests = TestCase.list(pattern)
+    for test in tests:
+        if not (FROZEN / test.name).exists():
+            test.unpack()
 
     failed = 0
     executor = ThreadPoolExecutor(
@@ -1272,18 +1295,17 @@ def _run_all(
     try:
         xfail = set(xfail or [])
         futures = []
-        for testname in tests:
+        for test in tests:
             # Prefer the real test if available
-            if (WORKROOT / testname).exists():
+            if (WORKROOT / test.name).exists():
                 workdir = WORKROOT
             else:
                 workdir = FROZEN
             futures.append(
                 executor.submit(
-                    _run_one,
-                    testname,
+                    test.run,
                     valgrind,
-                    testname in xfail,
+                    test.name in xfail,
                     progdir,
                     workdir=workdir,
                 )
@@ -1442,26 +1464,26 @@ def mosaic(outfile: str) -> None:
 
 def _successful_primary_tests(
     pattern: str = '*',
-) -> Iterator[tuple[str, UnpackedSlide]]:
-    '''Yield testname and unpacked slide for each successful primary test.'''
-    for testname in _list_tests(pattern):
-        conf = TestCaseConfig(testname)
+) -> Iterator[tuple[TestCase, UnpackedSlide]]:
+    '''Yield test case and unpacked slide for each successful primary test.'''
+    for test in TestCase.list(pattern):
+        conf = test.conf
         if not conf.primary or not conf.success or not conf.features_available:
             continue
-        _unpack_one(testname)
+        test.unpack()
         if conf.filename == '':
             # synthetic test slide
             unpacked = UnpackedSlide(None)
         else:
-            unpacked = UnpackedSlide(WORKROOT / testname / conf.filename)
-        yield testname, unpacked
+            unpacked = UnpackedSlide(WORKROOT / test.name / conf.filename)
+        yield test, unpacked
 
 
 @_command
 def time(pattern: str = '*') -> None:
     '''Time openslide_open() for all successful primary tests matching the
     specified pattern.'''
-    for testname, unpacked in _successful_primary_tests(pattern):
+    for test, unpacked in _successful_primary_tests(pattern):
         proc = unpacked.run_prog(
             'try_open',
             args=['-t'],
@@ -1473,7 +1495,7 @@ def time(pattern: str = '*') -> None:
         out, err = proc.communicate()
         if proc.returncode or err:
             out = 'failed'
-        print(f'{testname:<40} {out.strip():<10}')
+        print(f'{test.name:<40} {out.strip():<10}')
 
 
 @_command
@@ -1486,8 +1508,8 @@ def profile(pattern: str = '*', level: str = '0') -> None:
         OPENSLIDE_DEBUG='performance',
     )
     line = '#' * 79
-    for testname, unpacked in _successful_primary_tests(pattern):
-        print(f'{line}\n# {testname}\n{line}\n')
+    for test, unpacked in _successful_primary_tests(pattern):
+        print(f'{line}\n# {test}\n{line}\n')
         with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
             args: list[str | Path] = [
                 'valgrind',
@@ -1563,8 +1585,8 @@ def clean(pattern: str = '*') -> None:
     '''Delete temporary slide data for tests matching the specified
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
     test data.'''
-    for testname in _list_tests(pattern):
-        path = WORKROOT / testname
+    for test in TestCase.list(pattern):
+        path = WORKROOT / test.name
         if path.exists():
             rmtree(path)
     if pattern == '*' or pattern == 'frozen':
