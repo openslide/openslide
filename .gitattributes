@@ -7,4 +7,5 @@
 /.github			export-ignore
 /.pre-commit-config.yaml	export-ignore
 /misc				export-ignore
+/pyproject.toml			export-ignore
 /test/cases			export-ignore
