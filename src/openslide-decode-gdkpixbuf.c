@@ -136,6 +136,12 @@ static bool gdkpixbuf_read(const char *format,
   // create loader
   g_autoptr(gdkpixbuf_ctx) ctx = gdkpixbuf_ctx_new(format, w, h, err);
   if (!ctx) {
+    if (err) {
+      g_autofree char *msg = (*err)->message;
+      (*err)->message =
+        g_strdup_printf("%s. Is the gdk-pixbuf \"%s\" decoder installed?",
+                        msg, format);
+    }
     return false;
   }
 
