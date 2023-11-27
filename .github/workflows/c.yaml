@@ -254,7 +254,7 @@ jobs:
     name: Set up Windows build
     runs-on: ubuntu-latest
     outputs:
-      pkgver: ${{ steps.params.outputs.pkgver }}
+      suffix: ${{ steps.params.outputs.suffix }}
       windows_builder_repo_and_digest: ${{ steps.find-windows.outputs.builder_repo_and_digest }}
     steps:
       - name: Find Windows builder container digest
@@ -267,10 +267,10 @@ jobs:
         run: |
           case "${{ github.event_name }}" in
           pull_request)
-              echo "pkgver=pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              echo "suffix=$(date +%Y%m%d).pr.${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           push)
-              echo "pkgver=${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              echo "suffix=$(date +%Y%m%d).${GITHUB_REF#refs/heads/}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           *)
               echo "Unknown event type ${{ github.event_name }}"
@@ -284,6 +284,6 @@ jobs:
     with:
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
-      pkgver: ${{ needs.windows_setup.outputs.pkgver }}
+      suffix: ${{ needs.windows_setup.outputs.suffix }}
       werror: true
       windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
