@@ -85,6 +85,18 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
+    // TIFF doesn't allow missing tiles, but WSI-derived TIFFs might have them
+    bool is_missing;
+    if (!_openslide_tiff_check_missing_tile(tiffl, tiff,
+                                            tile_col, tile_row,
+                                            &is_missing, err)) {
+      return false;
+    }
+    if (is_missing) {
+      // nothing to draw
+      return true;
+    }
+
     g_autofree uint32_t *buf = g_malloc(tw * th * 4);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
                                    buf, tile_col, tile_row,
