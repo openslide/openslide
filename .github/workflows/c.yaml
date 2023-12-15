@@ -219,7 +219,7 @@ jobs:
         echo "docroot=${docroot}" >> $GITHUB_ENV
     - name: Archive docs
       if: matrix.extra
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ env.docroot }}
         path: builddir/doc-artifact
