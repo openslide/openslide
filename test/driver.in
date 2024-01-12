@@ -519,7 +519,7 @@ class TestCase:
                         ]
                     )
                     total_size += deltapath.stat().st_size
-            else:
+            elif relpath not in conf.copies:
                 whiteoutpath.write_bytes(b'')
 
         rmtree(CASEROOT / name / 'slide')
