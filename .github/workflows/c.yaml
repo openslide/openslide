@@ -103,8 +103,7 @@ jobs:
                     dnf install -y epel-release epel-next-release
                     ;;
                 *)
-                    extra="clang doxygen llvm valgrind valgrind-devel"
-                    extra="$extra dnf-plugins-core"
+                    extra="clang doxygen llvm dnf-plugins-core"
                     debuginfo=1
                     ;;
                 esac
@@ -239,13 +238,6 @@ jobs:
     - name: Sanitize
       if: matrix.sanitize
       run: cd builddir/test && ./driver sanitize
-    - name: Valgrind
-      # Valgrind tests are expensive, and maintaining suppressions across
-      # multiple distros can be fiddly.  We might catch some additional bugs
-      # if we enabled this everywhere (mainly when there are different code
-      # paths for different dependency versions) but it doesn't seem worth it.
-      if: matrix.extra
-      run: cd builddir/test && ./driver valgrind
     - name: Check exports
       if: matrix.extra
       run: cd builddir/test && ./driver exports

@@ -114,7 +114,6 @@ dicom_dep      = dependency(
   fallback : ['libdicom', 'libdicom_dep'],
   version : '>=1.0.0',
 )
-valgrind_dep   = dependency('valgrind', required : false)
 
 doxygen = find_program(
   'doxygen',
@@ -123,10 +122,6 @@ doxygen = find_program(
 )
 
 # Dependency checks
-if valgrind_dep.found()
-  conf.set('HAVE_VALGRIND', 1)
-endif
-
 if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If
   # glib is another subpackage, we can't check, so fail at build time if not.

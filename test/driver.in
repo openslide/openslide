@@ -77,10 +77,6 @@ DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 SRCDIR = Path('@SRCDIR@')
 BUILDDIR = Path('@BUILDDIR@')
 CLANG_LSAN_SUPPRESSIONS = SRCDIR / 'clang-lsan.supp'
-VALGRIND_SUPPRESSIONS = SRCDIR / 'valgrind.supp'
-VALGRIND_SUPPRESSIONS_GLIB = Path(
-    '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
-)
 CASEROOT = SRCDIR / 'cases'
 SLIDELIST = CASEROOT / 'slides.yaml'
 FROZENLIST = CASEROOT / 'frozen.yaml'
@@ -241,7 +237,6 @@ class UnpackedSlide:
     def run_prog(
         self,
         prog: str,
-        valgrind: bool = False,
         extra_checks: bool = True,
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
@@ -249,11 +244,11 @@ class UnpackedSlide:
         **kwargs: Any,
     ) -> subprocess.Popen[str]:
         '''Start the specified test program from the progdir directory
-        against the slide, running under Valgrind if requested.  If
-        extra_checks is False, turn off debug instrumentation that would
-        invalidate benchmark results.  debug options are passed in
-        OPENSLIDE_DEBUG.  args are appended to the command line.  kwargs are
-        passed to the Popen constructor.  Return the Popen instance.'''
+        against the slide.  If extra_checks is False, turn off debug
+        instrumentation that would invalidate benchmark results.  debug
+        options are passed in OPENSLIDE_DEBUG.  args are appended to the
+        command line.  kwargs are passed to the Popen constructor.  Return
+        the Popen instance.'''
 
         if progdir is None:
             progdir = BUILDDIR
@@ -270,46 +265,26 @@ class UnpackedSlide:
                 G_DEBUG='gc-friendly',
                 MALLOC_CHECK_='1',
             )
-        args_: list[str | Path] = []
-        if valgrind:
-            args_.extend(
-                [
-                    'valgrind',
-                    '--quiet',
-                    '--error-exitcode=3',
-                    '--suppressions=' + VALGRIND_SUPPRESSIONS.as_posix(),
-                    '--suppressions=' + VALGRIND_SUPPRESSIONS_GLIB.as_posix(),
-                    '--leak-check=full',
-                    '--num-callers=30',
-                ]
-            )
-            env.update(
-                # Valgrind has known issues detecting memory initialization by
-                # libjpeg-turbo SIMD code.  Disable SIMD support.
-                # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
-                JSIMD_FORCENONE='1',
-            )
-        args_.extend([progdir / prog, self.path_str])
+        args_: list[str | Path] = [progdir / prog, self.path_str]
         if args:
             args_.extend(args)
         return subprocess.Popen(args_, env=env, text=True, **kwargs)
 
     def try_open(
         self,
-        valgrind: bool = False,
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
         vendor: str | None | type[Skip] = Skip,
         properties: dict[str, str] | None = None,
         regions: Iterable[Iterable[int]] | None = None,
     ) -> str | None:
-        '''Try opening the slide file, under Valgrind if specified, using
-        the test program in the progdir directory.  Return None on success,
-        error message on failure.  vendor is the vendor string that should
-        be returned by openslide_detect_vendor(), None for NULL, or Skip to
-        omit the test.  properties is a map of slide properties and their
-        expected values.  regions is a list of region tuples (x, y, level,
-        w, h).  debug is a list of OPENSLIDE_DEBUG options.'''
+        '''Try opening the slide file using the test program in the progdir
+        directory.  Return None on success, error message on failure.
+        vendor is the vendor string that should be returned by
+        openslide_detect_vendor(), None for NULL, or Skip to omit the test.
+        properties is a map of slide properties and their expected values.
+        regions is a list of region tuples (x, y, level, w, h).  debug is a
+        list of OPENSLIDE_DEBUG options.'''
 
         args = []
         if vendor is not Skip:
@@ -323,7 +298,6 @@ class UnpackedSlide:
                 args.extend(['-r', ' '.join(str(d) for d in region)])
         proc = self.run_prog(
             'try_open',
-            valgrind=valgrind,
             args=args,
             progdir=progdir,
             debug=debug or [],
@@ -340,17 +314,15 @@ class UnpackedSlide:
 
     def try_extended(
         self,
-        valgrind: bool = False,
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
     ) -> str | None:
-        '''Run the extended test program against the slide file, under
-        Valgrind if specified, using the test program in the progdir
-        directory.  Return None on success, error message on failure.'''
+        '''Run the extended test program against the slide file using the
+        test program in the progdir directory.  Return None on success,
+        error message on failure.'''
 
         proc = self.run_prog(
             'extended',
-            valgrind=valgrind,
             progdir=progdir,
             debug=debug or [],
             stdout=subprocess.PIPE,
@@ -669,15 +641,13 @@ class TestCase:
 
     def run(
         self,
-        valgrind: bool = False,
         xfail: bool = False,
         progdir: Path | None = None,
         workdir: Path = WORKROOT,
     ) -> tuple[bool, str]:
-        '''Run the test, under Valgrind if specified.  Also execute extended
-        tests against cases which 1) are marked primary, 2) are expected to
-        succeed, and 3) do in fact succeed.  If xfail is specified, invert
-        the sense of the result.'''
+        '''Run the test.  Also execute extended tests against cases which 1)
+        are marked primary, 2) are expected to succeed, and 3) do in fact
+        succeed.  If xfail is specified, invert the sense of the result.'''
 
         conf = self.conf
         if not conf.features_available:
@@ -688,7 +658,6 @@ class TestCase:
         else:
             unpacked = UnpackedSlide(workdir / self.name / conf.filename)
         result = unpacked.try_open(
-            valgrind,
             progdir,
             vendor=conf.vendor,
             properties=conf.properties,
@@ -708,7 +677,7 @@ class TestCase:
             msg = _color(RED, f'{self}: incorrect error: {result}')
             ok = False
         elif conf.primary and conf.success:
-            result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
+            result = unpacked.try_extended(progdir, debug=conf.debug)
             if result:
                 msg = _color(RED, f'{self}: extended test failed: {result}')
                 ok = False
@@ -1274,14 +1243,13 @@ def unfreeze() -> None:
 
 def _run_all(
     pattern: str = '*',
-    valgrind: bool = False,
     xfail: Iterable[str] | None = None,
     progdir: Path | None = None,
     parallel: bool = True,
 ) -> int:
-    '''Run all tests matching the specified pattern, under Valgrind if
-    specified.  xfail specifies a list of tests which are expected to fail.
-    Return the number of tests producing unexpected results.'''
+    '''Run all tests matching the specified pattern.  xfail specifies a list
+    of tests which are expected to fail.  Return the number of tests
+    producing unexpected results.'''
     tests = TestCase.list(pattern)
     for test in tests:
         if not (FROZEN / test.name).exists():
@@ -1304,7 +1272,6 @@ def _run_all(
             futures.append(
                 executor.submit(
                     test.run,
-                    valgrind,
                     test.name in xfail,
                     progdir,
                     workdir=workdir,
@@ -1409,17 +1376,6 @@ def coverage(outfile: str) -> None:
 
 
 @_command
-def valgrind(pattern: str = '*') -> None:
-    '''Unpack and Valgrind all tests matching the specified pattern.
-    Ignore failures of test cases listed in the OPENSLIDE_VALGRIND_XFAIL
-    environment variable.'''
-    xfail_env = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
-    xfail = xfail_env.split(',') if xfail_env else []
-    if _run_all(pattern, valgrind=True, xfail=xfail):
-        sys.exit(1)
-
-
-@_command
 def sanitize(pattern: str = '*') -> None:
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
@@ -1496,36 +1452,6 @@ def time(pattern: str = '*') -> None:
         if proc.returncode or err:
             out = 'failed'
         print(f'{test.name:<40} {out.strip():<10}')
-
-
-@_command
-def profile(pattern: str = '*', level: str = '0') -> None:
-    '''Profile openslide_read_region() on the specified level for all
-    successful primary tests matching the specified pattern.'''
-    env = os.environ.copy()
-    env.update(
-        G_MESSAGES_DEBUG='',
-        OPENSLIDE_DEBUG='performance',
-    )
-    line = '#' * 79
-    for test, unpacked in _successful_primary_tests(pattern):
-        print(f'{line}\n# {test}\n{line}\n')
-        with NamedTemporaryFile(prefix='openslide-callgrind-') as fh:
-            args: list[str | Path] = [
-                'valgrind',
-                '--quiet',
-                '--error-exitcode=3',
-                '--tool=callgrind',
-                '--callgrind-out-file=' + fh.name,
-                '--instr-atstart=no',
-                BUILDDIR / 'profile',
-                unpacked.path_str,
-                level,
-            ]
-            if subprocess.call(args, env=env) == 0:
-                subprocess.check_call(
-                    ['callgrind_annotate', '--threshold=80', fh.name]
-                )
 
 
 @_command
