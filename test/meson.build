@@ -35,7 +35,7 @@ test_synth = executable(
 )
 executable(
   'try_open', 'try_open.c',
-  dependencies : test_deps,
+  dependencies : [test_deps, valgrind_dep],
   c_args : ['-Wno-deprecated-declarations'],
 )
 
@@ -49,6 +49,11 @@ configure_file(
   configuration : {
     'SRCDIR': meson.current_source_dir(),
     'BUILDDIR': meson.current_build_dir(),
+    # Path prefix for glib Valgrind suppressions
+    'GLIB2_DATADIR': gio_dep.get_variable(
+      default_value : '',
+      pkgconfig : 'datadir'
+    ),
     'FEATURES': ' '.join(feature_flags),
   },
 )
