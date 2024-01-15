@@ -1,0 +1,10 @@
+# Valgrind suppressions
+
+# fontconfig
+{
+    fontconfig leak through cairo_text_extents()
+    Memcheck:Leak
+    ...
+    fun:FcPatternObjectInsertElt
+    fun:FcPatternObjectAddWithBinding
+}
