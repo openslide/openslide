@@ -63,6 +63,7 @@ struct dicom_file {
   const DcmDataSet *metadata;
   const char *slide_id;
   enum image_format format;
+  J_COLOR_SPACE jpeg_colorspace;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
 
@@ -461,8 +462,9 @@ static bool decode_frame(struct dicom_file *file,
 
   switch (file->format) {
   case FORMAT_JPEG:
-    return _openslide_jpeg_decode_buffer(frame_value, frame_length,
-                                         dest, w, h, err);
+    return _openslide_jpeg_decode_buffer_colorspace(frame_value, frame_length,
+                                                    file->jpeg_colorspace,
+                                                    dest, w, h, err);
   case FORMAT_JPEG2000:
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
@@ -902,8 +904,13 @@ static bool maybe_add_file(openslide_t *osr,
     }
     break;
   case FORMAT_JPEG:
-    found = g_str_equal(photometric, "YBR_FULL_422") ||
-            g_str_equal(photometric, "RGB");
+    if (g_str_equal(photometric, "YBR_FULL_422")) {
+      f->jpeg_colorspace = JCS_YCbCr;
+      found = true;
+    } else if (g_str_equal(photometric, "RGB")) {
+      f->jpeg_colorspace = JCS_RGB;
+      found = true;
+    }
     break;
   case FORMAT_RGB:
     found = g_str_equal(photometric, "RGB");
