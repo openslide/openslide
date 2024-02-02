@@ -223,10 +223,11 @@ jobs:
         name: ${{ env.docroot }}
         path: builddir/doc-artifact
     - name: Cache pristine slides
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
+        save-always: true
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
