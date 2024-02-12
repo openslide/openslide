@@ -74,7 +74,6 @@ struct associated_image {
     result = tmp;							\
   } while (0)
 
-#undef TIFFSetDirectory
 bool _openslide_tiff_set_dir(TIFF *tiff,
                              tdir_t dir,
                              GError **err) {
@@ -82,14 +81,13 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
     // avoid libtiff unnecessarily rereading directory contents
     return true;
   }
-  if (!TIFFSetDirectory(tiff, dir)) {
+  if (!TIFFSetDirectory(tiff, dir)) {  // ci-allow
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Cannot set TIFF directory %d", dir);
     return false;
   }
   return true;
 }
-#define TIFFSetDirectory _OPENSLIDE_POISON(_openslide_tiff_set_dir)
 
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
@@ -587,7 +585,6 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
-#undef TIFFClientOpen
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
   g_autoptr(_openslide_file) f = _openslide_fopen(tc->filename, err);
@@ -646,7 +643,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
 
   // TIFFOpen
   // mode: m disables mmap to avoid sigbus and other mmap fragility
-  TIFF *tiff = TIFFClientOpen(tc->filename, "rm", hdl,
+  TIFF *tiff = TIFFClientOpen(tc->filename, "rm", hdl,  // ci-allow
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
   if (tiff == NULL) {
@@ -656,7 +653,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   }
   return tiff;
 }
-#define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
 
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename) {
   struct _openslide_tiffcache *tc = g_new0(struct _openslide_tiffcache, 1);
