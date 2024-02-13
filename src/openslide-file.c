@@ -22,7 +22,6 @@
 
 #include <config.h>
 
-#define NO_POISON_FSEEKO
 #include "openslide-private.h"
 
 #include <stdio.h>
@@ -44,13 +43,8 @@ struct _openslide_dir {
   GDir *dir;
 };
 
-#undef fopen
-#undef fread
-#undef fclose
-#undef g_file_test
-
 static void wrap_fclose(FILE *fp) {
-  fclose(fp);
+  fclose(fp);  // ci-allow
 }
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(FILE, wrap_fclose)
 
@@ -87,7 +81,7 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
     io_error(err, "Couldn't open %s", path);
   }
 #else
-  f = fopen(path, mode);
+  f = fopen(path, mode);  // ci-allow
   if (f == NULL) {
     io_error(err, "Couldn't open %s", path);
   }
@@ -132,7 +126,7 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
   char *bufp = buf;
   size_t total = 0;
   while (total < size) {
-    size_t count = fread(bufp + total, 1, size - total, file->fp);
+    size_t count = fread(bufp + total, 1, size - total, file->fp);  // ci-allow
     if (count == 0) {
       return total;
     }
@@ -143,7 +137,7 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
 
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err) {
-  if (fseeko(file->fp, offset, whence)) {
+  if (fseeko(file->fp, offset, whence)) {  // ci-allow
     g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
                 "%s", g_strerror(errno));
     return false;
@@ -152,7 +146,7 @@ bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
 }
 
 off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
-  off_t ret = ftello(file->fp);
+  off_t ret = ftello(file->fp);  // ci-allow
   if (ret == -1) {
     g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
                 "%s", g_strerror(errno));
@@ -179,12 +173,12 @@ off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
 }
 
 void _openslide_fclose(struct _openslide_file *file) {
-  fclose(file->fp);
+  fclose(file->fp);  // ci-allow
   g_free(file);
 }
 
 bool _openslide_fexists(const char *path, GError **err G_GNUC_UNUSED) {
-  return g_file_test(path, G_FILE_TEST_EXISTS);
+  return g_file_test(path, G_FILE_TEST_EXISTS);  // ci-allow
 }
 
 struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {

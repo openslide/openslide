@@ -204,7 +204,6 @@ static toff_t mem_tiff_size(thandle_t th) {
   return mem->size;
 }
 
-#undef TIFFClientOpen
 static bool decode_tiff(const void *data, uint32_t len,
                         uint32_t *dest, GError **err) {
   // there's no reason for OpenSlide as a whole to support reading entire
@@ -216,8 +215,9 @@ static bool decode_tiff(const void *data, uint32_t len,
   };
   // mode: m disables mmap to avoid sigbus and other mmap fragility
   g_autoptr(TIFF) tiff =
-    TIFFClientOpen("tiff", "rm", &mem, mem_tiff_read, mem_tiff_write,
-                   mem_tiff_seek, mem_tiff_close, mem_tiff_size, NULL, NULL);
+    TIFFClientOpen("tiff", "rm", &mem, mem_tiff_read,  // ci-allow
+                   mem_tiff_write, mem_tiff_seek, mem_tiff_close,
+                   mem_tiff_size, NULL, NULL);
   if (tiff == NULL) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't open TIFF");
@@ -238,7 +238,6 @@ static bool decode_tiff(const void *data, uint32_t len,
 
   return _openslide_tiff_read_tile(&tiffl, tiff, dest, 0, 0, err);
 }
-#define TIFFClientOpen _OPENSLIDE_POISON(_openslide_tiffcache_get)
 
 static bool decode_xml(const void *data, uint32_t len,
                        uint32_t *dest, GError **err) {

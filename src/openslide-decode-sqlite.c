@@ -44,7 +44,6 @@ static int profile_callback(unsigned trace_type G_GNUC_UNUSED,
   return 0;
 }
 
-#undef sqlite3_open_v2
 static sqlite3 *do_open(const char *filename, int flags, GError **err) {
   sqlite3 *db;
 
@@ -55,7 +54,7 @@ static sqlite3 *do_open(const char *filename, int flags, GError **err) {
     return NULL;
   }
 
-  ret = sqlite3_open_v2(filename, &db, flags, NULL);
+  ret = sqlite3_open_v2(filename, &db, flags, NULL);  // ci-allow
 
   if (ret) {
     if (db) {
@@ -76,7 +75,6 @@ static sqlite3 *do_open(const char *filename, int flags, GError **err) {
 
   return db;
 }
-#define sqlite3_open_v2 _OPENSLIDE_POISON(_openslide_sqlite_open)
 
 sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   // ":" filename prefix is reserved.
@@ -131,12 +129,10 @@ void _openslide_sqlite_propagate_stmt_error(sqlite3_stmt *stmt, GError **err) {
   _openslide_sqlite_propagate_error(sqlite3_db_handle(stmt), err);
 }
 
-#undef sqlite3_close
 void _openslide_sqlite_close(sqlite3 *db) {
-  // sqlite3_close() failures indicate a leaked resource, probably a
+  // sqlite3_close failures indicate a leaked resource, probably a
   // prepared statement.
-  if (sqlite3_close(db)) {
+  if (sqlite3_close(db)) {  // ci-allow
     g_warning("SQLite error: %s", sqlite3_errmsg(db));
   }
 }
-#define sqlite3_close _OPENSLIDE_POISON(_openslide_sqlite_close)

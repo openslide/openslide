@@ -158,7 +158,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 {
   struct jpeg_source_mgr * src = cinfo->src;
 
-  /* Just a dumb implementation for now.  Could use fseek() except
+  /* Just a dumb implementation for now.  Could use fseek except
    * it doesn't work on pipes.  Not clear that being smart is worth
    * any trouble anyway --- large skips are infrequent.
    */

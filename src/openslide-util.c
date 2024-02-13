@@ -170,7 +170,6 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
   return g_steal_pointer(&dst);
 }
 
-#undef g_ascii_strtod
 double _openslide_parse_double(const char *value) {
   // Canonicalize comma to decimal point, since the locale of the
   // originating system sometimes leaks into slide files.
@@ -180,14 +179,13 @@ double _openslide_parse_double(const char *value) {
 
   char *endptr;
   errno = 0;
-  double result = g_ascii_strtod(canonical, &endptr);
+  double result = g_ascii_strtod(canonical, &endptr);  // ci-allow
   // fail on overflow/underflow
   if (canonical[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
     return NAN;
   }
   return result;
 }
-#define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double)
 
 char *_openslide_format_double(double d) {
   char buf[G_ASCII_DTOSTR_BUF_SIZE];
