@@ -8,6 +8,7 @@ fun:my_output_message
 fun:_openslide_jpeg_mem_src
 fun:_openslide_jpeg_stdio_src
 fun:_openslide_xml_char_free
+fun:_openslide_jxr_decode_buf
 
 [unsigned-integer-overflow]
 # unsigned overflow isn't UB but we check for it, and ignore cases where
