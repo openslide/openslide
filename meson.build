@@ -115,6 +115,43 @@ dicom_dep      = dependency(
   version : '>=1.0.0',
 )
 valgrind_dep   = dependency('valgrind', required : false)
+jxr_dep        = dependency('libjxr', required: false)
+# Workaround for Debian < Bookworm, and Ubuntu < 22.04LTS. They miss pkg-config
+# file
+if not jxr_dep.found()
+  fs = import('fs')
+  jxr_includedirs = ['/usr/include/jxrlib/']  # Linux
+  # Mac homebrew
+  jxr_includedirs += '/usr/local/Cellar/jxrlib/1.1_1/include/jxrlib'
+  has_jxr_includedir = false
+  foreach d: jxr_includedirs
+    if not fs.is_dir(d)
+      continue
+    endif
+
+    if cc.has_header('JXRGlue.h', include_directories: include_directories(d))
+      jxr_includedir = d
+      has_jxr_includedir = true
+      break
+    endif
+  endforeach
+
+  # Debian, RHEL and Mac homebrew
+  jxr_libdirs = ['/usr/lib/i386-linux-gnu/',
+                 '/usr/lib/x86_64-linux-gnu/',
+                 '/usr/lib/lib64/',
+                 '/usr/local/Cellar/jxrlib/1.1_1/lib'
+                ]
+  jxr_lib_dep = cc.find_library('libjxrglue', dirs: jxr_libdirs, required: false)
+  if has_jxr_includedir and jxr_lib_dep.found()
+    jxr_dep = declare_dependency(
+      compile_args: ['-D__ANSI__', '-DDISABLE_PERF_MEASUREMENT'],
+      include_directories: [jxr_includedir],
+      dependencies: jxr_lib_dep,
+      link_args : ['-ljpegxr', '-ljxrglue']
+    )
+  endif
+endif
 
 doxygen = find_program(
   'doxygen',
@@ -126,6 +163,7 @@ doxygen = find_program(
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
+
 
 if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If

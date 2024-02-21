@@ -74,6 +74,11 @@ openslide_sources = [
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
 ]
+
+if jxr_dep.found()
+  openslide_sources += ['openslide-decode-jxr.c', 'openslide-vendor-zeiss.c']
+endif
+
 libopenslide = library('openslide',
   openslide_sources,
   version : soversion,
@@ -93,6 +98,7 @@ libopenslide = library('openslide',
     tiff_dep,
     openjpeg_dep,
     jpeg_dep,
+    jxr_dep,
     png_dep,
     zlib_dep,
     libm_dep,
