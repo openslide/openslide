@@ -2,7 +2,7 @@ base: Zeiss/Zeiss-5-JXR.czi
 slide: Zeiss-5-JXR.czi
 success: true
 vendor: zeiss
-primary: true
+primary: false
 properties:
   openslide.quickhash-1: 3bf2fe9f1763e731c9c59fc96f5d0fd47b9bd72cb3a3c8dee9c101cb06fff481
   openslide.vendor: zeiss

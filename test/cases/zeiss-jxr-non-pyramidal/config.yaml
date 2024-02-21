@@ -2,7 +2,7 @@ base: Zeiss/Zeiss-5-Flat.czi
 slide: Zeiss-5-Flat.czi
 success: true
 vendor: zeiss
-primary: true
+primary: false
 properties:
   openslide.quickhash-1: ac4f0dc0bbe0fedaf3ef87763db971fb02606a12afa59ec7e3be0b0f27301b1e
   openslide.vendor: zeiss
