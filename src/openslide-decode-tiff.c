@@ -592,47 +592,10 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     return NULL;
   }
 
-  // read magic
-  uint8_t buf[4];
-  if (_openslide_fread(f, buf, 4) != 4) {
-    // can't read
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read TIFF magic number for %s", tc->filename);
-    return NULL;
-  }
-
   // get size
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
     g_prefix_error(err, "Couldn't get size of %s: ", tc->filename);
-    return NULL;
-  }
-
-  // check magic
-  // TODO: remove if libtiff gets private error/warning callbacks
-  if (buf[0] != buf[1]) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
-    return NULL;
-  }
-  uint16_t version;
-  switch (buf[0]) {
-  case 'M':
-    // big endian
-    version = (buf[2] << 8) | buf[3];
-    break;
-  case 'I':
-    // little endian
-    version = (buf[3] << 8) | buf[2];
-    break;
-  default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
-    return NULL;
-  }
-  if (version != 42 && version != 43) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
     return NULL;
   }
 
