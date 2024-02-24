@@ -656,22 +656,16 @@ void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct) {
     return;
   }
   struct _openslide_tiffcache *tc = ct->tc;
-  TIFF *tiff = ct->tiff;
+  g_autoptr(TIFF) tiff = ct->tiff;
 
   //g_debug("put TIFF");
   g_mutex_lock(&tc->lock);
   g_assert(tc->outstanding);
   tc->outstanding--;
   if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
-    g_queue_push_head(tc->cache, tiff);
-    tiff = NULL;
+    g_queue_push_head(tc->cache, g_steal_pointer(&tiff));
   }
   g_mutex_unlock(&tc->lock);
-
-  if (tiff) {
-    //g_debug("too many TIFFs");
-    TIFFClose(tiff);
-  }
 }
 
 void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
