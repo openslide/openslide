@@ -645,7 +645,6 @@ struct _openslide_cached_tiff _openslide_tiffcache_get(struct _openslide_tiffcac
     g_mutex_unlock(&tc->lock);
   }
   struct _openslide_cached_tiff ct = {
-    .tc = tc,
     .tiff = tiff,
   };
   return ct;
@@ -655,8 +654,9 @@ void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct) {
   if (ct == NULL || ct->tiff == NULL) {
     return;
   }
-  struct _openslide_tiffcache *tc = ct->tc;
   g_autoptr(TIFF) tiff = ct->tiff;
+  struct tiff_file_handle *hdl = TIFFClientdata(tiff);
+  struct _openslide_tiffcache *tc = hdl->tc;
 
   //g_debug("put TIFF");
   g_mutex_lock(&tc->lock);

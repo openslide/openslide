@@ -48,7 +48,6 @@ struct _openslide_tiff_level {
 struct _openslide_tiffcache;
 
 struct _openslide_cached_tiff {
-  struct _openslide_tiffcache *tc;
   TIFF *tiff;
 };
 
