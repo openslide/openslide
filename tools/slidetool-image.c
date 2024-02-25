@@ -47,6 +47,20 @@ static const uint32_t BUFSIZE = 16 << 20;
     common_fail(#i " must be positive"); \
   }
 
+static void warning_callback(png_structp png_ptr G_GNUC_UNUSED,
+                             const char *message) {
+  // libpng recognizes specific sRGB ICC profiles and automatically adds
+  // an sRGB chunk.  Sometimes it detects profiles which are sRGB but don't
+  // exactly match what it's looking for, in which case it warns and doesn't
+  // add the sRGB chunk.  We're just copying a profile from the original
+  // slide, so this warning isn't actionable.  Suppress it.
+  if (g_str_equal(message,
+                  "Not recognizing known sRGB profile that has been edited")) {
+    return;
+  }
+  fprintf(stderr, "libpng warning: %s\n", message);
+}
+
 static void setup_png(png_structp png_ptr, png_infop info_ptr,
                       FILE *f, int32_t w, int32_t h) {
   png_init_io(png_ptr, f);
@@ -101,7 +115,7 @@ static void write_png(openslide_t *osr, FILE *f,
                       int64_t x, int64_t y, int32_t level,
                       int32_t w, int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-                                                NULL, NULL, NULL);
+                                                NULL, NULL, warning_callback);
   if (!png_ptr) {
     common_fail("Could not initialize PNG");
   }
@@ -258,7 +272,7 @@ static int do_assoc_list(int narg, char **args) {
 static void assoc_read(openslide_t *osr, const char *image, FILE *f,
                        int32_t w, int32_t h) {
   png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,
-                                                NULL, NULL, NULL);
+                                                NULL, NULL, warning_callback);
   if (!png_ptr) {
     common_fail("Could not initialize PNG");
   }
