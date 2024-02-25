@@ -104,6 +104,9 @@ bool _openslide_tiff_read_icc_profile(openslide_t *osr,
                                       void *dest,
                                       GError **err);
 
+// set error, appending libtiff error message if one is available
+void _openslide_tiff_error(GError **err, TIFF *tiff, const char *fmt, ...);
+
 
 /* TIFF handles are not thread-safe, so we have a handle cache for
    multithreaded access */

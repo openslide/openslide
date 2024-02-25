@@ -123,6 +123,12 @@ doxygen = find_program(
 )
 
 # Dependency checks
+if tiff_dep.type_name() == 'internal' or cc.has_function('TIFFOpenOptionsSetErrorHandlerExtR', dependencies : tiff_dep)
+  # If libtiff is a sibling subproject, we can't check, so assume a modern
+  # libtiff
+  conf.set('HAVE_TIFF_LOG_CALLBACKS', 1)
+  feature_flags += 'tiff-log-callbacks'
+endif
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
