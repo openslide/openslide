@@ -558,11 +558,17 @@ static const struct _openslide_ops dicom_ops = {
   .destroy = destroy,
 };
 
-static bool dicom_detect(const char *filename,
-                         struct _openslide_tifflike *tl G_GNUC_UNUSED,
+static bool dicom_detect(const char *filename, struct _openslide_tifflike *tl,
                          GError **err) {
-  // some vendors use dual-personality TIFF/DCM files, so we can't just reject
-  // tifflike files
+  if (tl && (g_str_has_suffix(filename, ".tif") ||
+             g_str_has_suffix(filename, ".tiff"))) {
+    // let the generic-tiff driver handle it
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Dual-personality DICOM-TIFF with TIFF filename extension");
+    return false;
+  }
+  // otherwise, ignore any TIFF metadata
+
   g_autoptr(dicom_file) f = dicom_file_new(filename, false, err);
   return f != NULL;
 }
