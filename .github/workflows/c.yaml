@@ -73,18 +73,15 @@ jobs:
                 jpeg-turbo \
                 libtiff \
                 openjpeg \
-                jxrlib \
                 gdk-pixbuf \
                 libdicom \
                 libxml2 \
                 sqlite \
                 cairo \
                 glib \
-                pyyaml \
-                python-requests \
                 xdelta
-            #python3 -m pip install --upgrade pip
-            #python3 -m pip install requests PyYAML
+            python3 -m pip install --upgrade pip
+            python3 -m pip install requests PyYAML
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
@@ -120,7 +117,6 @@ jobs:
                     libjpeg-turbo-devel \
                     libtiff-devel \
                     openjpeg2-devel \
-                    jxrlib-devel \
                     gdk-pixbuf2-modules gdk-pixbuf2-devel \
                     libdicom-devel \
                     libxml2-devel \
@@ -159,7 +155,6 @@ jobs:
                     $jpeg$arch \
                     libtiff-dev$arch \
                     libopenjp2-7-dev$arch \
-                    libjxr-dev$arch \
                     libgdk-pixbuf2.0-dev$arch \
                     libxml2-dev$arch \
                     libsqlite3-dev$arch \
