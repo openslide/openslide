@@ -26,7 +26,6 @@
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-tifflike.h"
 #include "openslide-decode-xml.h"
-#include "openslide-decode-jxr.h"
 
 #include <glib.h>
 #include <stdio.h>
@@ -37,6 +36,8 @@
 #include <tiffio.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
+
+#include "openslide-vendor-zeiss.h"
 
 #define CZI_SEG_ID_LEN   16
 #define CZI_FILEHDR_LEN 544
@@ -493,20 +494,20 @@ static void adjust_coordinate_origin(struct zeiss_ops_data *data) {
   }
 }
 
-/* the uncompressed data in CZI also uses JXR pixel types such as BGR24 or
- * BGR48, thus use struct jxr_decoded for exchanging buffer
+/* the uncompressed data in CZI also uses pixel types such as BGR24 or
+ * BGR48, thus use struct czi_decbuf for exchanging buffer
  */
 static bool czi_uncompressed_read(const char *filename,
                                   int64_t pos, int64_t len,
                                   int32_t pixel_type,
-                                  struct jxr_decoded *dst, GError **err) {
+                                  struct czi_decbuf *dst, GError **err) {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (!f) {
     return false;
   }
 
   if (!_openslide_fseek(f, pos, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't seek to jxr pixel data");
+    g_prefix_error(err, "Couldn't seek to pixel data");
     return false;
   }
 
@@ -534,7 +535,7 @@ static bool czi_uncompressed_read(const char *filename,
 
 static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
                                   struct czi_subblk *sb,
-                                  struct jxr_decoded *dst,
+                                  struct czi_decbuf *dst,
                                   GError **err) {
   struct zisraw_subblk_hdr *hdr;
   char buf[512];
@@ -578,7 +579,8 @@ static bool read_data_from_subblk(const char *filename, int64_t zisraw_offset,
     return czi_uncompressed_read(filename, data_pos, data_size,
                                  sb->pixel_type, dst, NULL);
   case COMP_JXR:
-    return _openslide_jxr_read(filename, data_pos, data_size, dst, NULL);
+    g_warning("JPEG XR is not supported\n");
+    return false;
   case COMP_JPEG:
     g_warning("JPEG is not supported\n");
     return false;
@@ -597,7 +599,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
                       int64_t tid G_GNUC_UNUSED, void *tile_data,
                       void *arg G_GNUC_UNUSED, GError **err) {
   struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
-  struct jxr_decoded dst;
+  struct czi_decbuf dst;
   struct czi_subblk *sb = tile_data;
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   g_autoptr(cairo_surface_t) surface = NULL;
@@ -982,7 +984,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dst,
                                       GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
-  struct jxr_decoded cbuf;
+  struct czi_decbuf cbuf;
 
   switch (img->file_type) {
   case ATT_CZI:

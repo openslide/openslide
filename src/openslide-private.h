@@ -148,9 +148,7 @@ extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
-#ifdef HAVE_LIBJXR
 extern const struct _openslide_format _openslide_format_zeiss;
-#endif
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
