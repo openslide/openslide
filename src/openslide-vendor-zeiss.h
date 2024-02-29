@@ -43,7 +43,7 @@ struct czi_decbuf {
 
 static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   size_t new_size = p->w * p->h * 4;
-  uint32_t *buf = g_slice_alloc(new_size);
+  uint32_t *buf = g_malloc(new_size);
   uint32_t *bp = buf;
   size_t i = 0;
 
@@ -52,7 +52,7 @@ static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
     i += 3;
   }
 
-  g_slice_free1(p->size, p->data);
+  g_free(p->data);
   p->stride = p->w * 4;
   p->pixel_bits = 32;
   p->size = new_size;
@@ -62,7 +62,7 @@ static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
 
 static bool _openslide_convert_48bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   size_t new_size = p->w * p->h * 4;
-  uint32_t *buf = g_slice_alloc(new_size);
+  uint32_t *buf = g_malloc(new_size);
   uint32_t *bp = buf;
   size_t i = 0;
 
@@ -71,7 +71,7 @@ static bool _openslide_convert_48bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
     i += 6;
   }
 
-  g_slice_free1(p->size, p->data);
+  g_free(p->data);
   p->stride = p->w * 4;
   p->pixel_bits = 32;
   p->size = new_size;
