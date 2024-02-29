@@ -29,7 +29,6 @@
   (0xFF000000 | (uint32_t)((p)[1]) | ((uint32_t)((p)[3]) << 8) |               \
    ((uint32_t)((p)[5]) << 16))
 
-
 /* could be shared with JPEG XR decoder in the future */
 struct czi_decbuf {
   uint8_t *data;
@@ -39,7 +38,6 @@ struct czi_decbuf {
   uint32_t stride;
   uint32_t pixel_bits;
 };
-
 
 static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   size_t new_size = p->w * p->h * 4;
@@ -56,7 +54,7 @@ static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   p->stride = p->w * 4;
   p->pixel_bits = 32;
   p->size = new_size;
-  p->data = (uint8_t *) buf;
+  p->data = (uint8_t *)buf;
   return true;
 }
 
@@ -75,7 +73,7 @@ static bool _openslide_convert_48bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   p->stride = p->w * 4;
   p->pixel_bits = 32;
   p->size = new_size;
-  p->data = (uint8_t *) buf;
+  p->data = (uint8_t *)buf;
   return true;
 }
 
