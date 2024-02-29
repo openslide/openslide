@@ -1,10 +1,10 @@
-base: Zeiss/Zeiss-5-JXR.czi
-slide: Zeiss-5-JXR.czi
+base: Zeiss/Zeiss-5-Uncompressed.czi
+slide: Zeiss-5-Uncompressed.czi
 success: true
 vendor: zeiss
 primary: false
 properties:
-  openslide.quickhash-1: 3bf2fe9f1763e731c9c59fc96f5d0fd47b9bd72cb3a3c8dee9c101cb06fff481
+  openslide.quickhash-1: 4056757b119a6ce0b676f817f475d1095ad90644857e9f053794ee48d2833b21
   openslide.vendor: zeiss
 
 regions:
