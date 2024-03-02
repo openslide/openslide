@@ -79,9 +79,9 @@ jobs:
                 sqlite \
                 cairo \
                 glib \
-                xdelta
-            python3 -m pip install --upgrade pip
-            python3 -m pip install requests PyYAML
+                xdelta \
+                python-requests \
+                pyyaml
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
