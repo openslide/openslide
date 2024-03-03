@@ -25,7 +25,7 @@
 #include "openslide-decode-dicom.h"
 
 // implements DcmIO
-struct _dicom_io {
+struct _openslide_dicom_io {
   DcmIOMethods *methods;
   struct _openslide_file *file;
 };
@@ -48,7 +48,7 @@ static void propagate_gerror(DcmError **dcm_error, GError *err) {
 
 static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
   const char *filename = (const char *) client;
-  struct _dicom_io *dio = g_new0(struct _dicom_io, 1);
+  struct _openslide_dicom_io *dio = g_new0(struct _openslide_dicom_io, 1);
 
   GError *tmp_err = NULL;
   dio->file = _openslide_fopen(filename, &tmp_err);
@@ -62,7 +62,7 @@ static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
 }
 
 static void vfs_close(DcmIO *io) {
-  struct _dicom_io *dio = (struct _dicom_io *) io;
+  struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
 
   _openslide_fclose(dio->file);
   g_free(dio);
@@ -70,7 +70,7 @@ static void vfs_close(DcmIO *io) {
 
 static int64_t vfs_read(DcmError **dcm_error G_GNUC_UNUSED, DcmIO *io,
                         char *buffer, int64_t length) {
-  struct _dicom_io *dio = (struct _dicom_io *) io;
+  struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
 
   // openslide VFS has no error return for read()
   return _openslide_fread(dio->file, buffer, length);
@@ -78,7 +78,7 @@ static int64_t vfs_read(DcmError **dcm_error G_GNUC_UNUSED, DcmIO *io,
 
 static int64_t vfs_seek(DcmError **dcm_error, DcmIO *io,
                         int64_t offset, int whence) {
-  struct _dicom_io *dio = (struct _dicom_io *) io;
+  struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
 
   GError *tmp_err = NULL;
   if (!_openslide_fseek(dio->file, offset, whence, &tmp_err)) {
