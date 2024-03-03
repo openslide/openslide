@@ -572,20 +572,7 @@ static tsize_t tiff_do_write(thandle_t th G_GNUC_UNUSED,
 
 static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
   struct tiff_file_handle *hdl = th;
-
-  switch (whence) {
-  case SEEK_SET:
-    hdl->offset = offset;
-    break;
-  case SEEK_CUR:
-    hdl->offset += offset;
-    break;
-  case SEEK_END:
-    hdl->offset = hdl->size + offset;
-    break;
-  default:
-    g_assert_not_reached();
-  }
+  hdl->offset = _openslide_compute_seek(hdl->offset, hdl->size, offset, whence);
   return hdl->offset;
 }
 
