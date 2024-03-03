@@ -3,7 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
- *  Copyright (c) 2022 Benjamin Gilbert
+ *  Copyright (c) 2022-2024 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -57,11 +57,18 @@ struct dicom_file {
 
   GMutex lock;
   DcmFilehandle *filehandle;
+  struct _openslide_dicom_io *dio;
+  uint64_t dio_users;
   const DcmDataSet *file_meta;
   const DcmDataSet *metadata;
   const char *slide_id;
   enum image_format format;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
+};
+
+// g_auto wrapper struct with reference for runtime I/O
+struct dicom_file_io {
+  struct dicom_file *file;
 };
 
 struct dicom_level {
@@ -201,6 +208,30 @@ static void dicom_file_destroy(struct dicom_file *f) {
 typedef struct dicom_file dicom_file;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(dicom_file, dicom_file_destroy)
 
+// get a dicom_file reference for I/O
+static struct dicom_file_io dicom_file_io_get(struct dicom_file *f) {
+  g_mutex_lock(&f->lock);
+  f->dio_users++;
+  g_mutex_unlock(&f->lock);
+
+  struct dicom_file_io fio = {
+    .file = f,
+  };
+  return fio;
+}
+
+// put a dicom_file reference, and close the underlying _openslide_file if idle
+static void dicom_file_io_put(struct dicom_file_io *fio) {
+  g_mutex_lock(&fio->file->lock);
+  if (!--fio->file->dio_users) {
+    _openslide_dicom_io_suspend(fio->file->dio);
+  }
+  g_mutex_unlock(&fio->file->lock);
+}
+
+typedef struct dicom_file_io dicom_file_io;
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(dicom_file_io, dicom_file_io_put)
+
 static bool get_tag_int(const DcmDataSet *dataset,
                         const char *keyword,
                         int64_t *result) {
@@ -326,7 +357,7 @@ static struct dicom_file *dicom_file_new(const char *filename,
   g_autoptr(dicom_file) f = g_new0(struct dicom_file, 1);
   g_mutex_init(&f->lock);
 
-  f->filehandle = _openslide_dicom_open(filename, err);
+  f->filehandle = _openslide_dicom_open(filename, &f->dio, err);
   if (!f->filehandle) {
     return NULL;
   }
@@ -360,6 +391,9 @@ static struct dicom_file *dicom_file_new(const char *filename,
       return NULL;
     }
   }
+
+  // done with I/O for now
+  _openslide_dicom_io_suspend(f->dio);
 
   return g_steal_pointer(&f);
 }
@@ -511,6 +545,7 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                          GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
 
+  g_auto(dicom_file_io) fio G_GNUC_UNUSED = dicom_file_io_get(l->file);
   return _openslide_grid_paint_region(l->grid, cr, NULL,
                                       x / l->base.downsample,
                                       y / l->base.downsample,
@@ -601,6 +636,7 @@ static bool associated_get_argb_data(struct _openslide_associated_image *img,
                                      uint32_t *dest,
                                      GError **err) {
   struct associated *a = (struct associated *) img;
+  g_auto(dicom_file_io) fio G_GNUC_UNUSED = dicom_file_io_get(a->file);
   return decode_frame(a->file, 0, 0, dest, a->base.w, a->base.h, err);
 }
 
