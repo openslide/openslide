@@ -48,13 +48,13 @@ static void propagate_gerror(DcmError **dcm_error, GError *err) {
 
 static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
   const char *filename = (const char *) client;
-  struct _dicom_io *dio = g_new(struct _dicom_io, 1);
+  struct _dicom_io *dio = g_new0(struct _dicom_io, 1);
 
-  GError *err = NULL;
-  dio->file = _openslide_fopen(filename, &err);
+  GError *tmp_err = NULL;
+  dio->file = _openslide_fopen(filename, &tmp_err);
   if (!dio->file) {
     g_free(dio);
-    propagate_gerror(dcm_error, err);
+    propagate_gerror(dcm_error, tmp_err);
     return NULL;
   }
 
@@ -80,17 +80,17 @@ static int64_t vfs_seek(DcmError **dcm_error, DcmIO *io,
                         int64_t offset, int whence) {
   struct _dicom_io *dio = (struct _dicom_io *) io;
 
-  GError *err = NULL;
-  if (!_openslide_fseek(dio->file, offset, whence, &err)) {
-    propagate_gerror(dcm_error, err);
+  GError *tmp_err = NULL;
+  if (!_openslide_fseek(dio->file, offset, whence, &tmp_err)) {
+    propagate_gerror(dcm_error, tmp_err);
     return -1;
   }
 
   // libdicom uses lseek(2) semantics, so it must always return the new file
   // pointer
-  off_t new_position = _openslide_ftell(dio->file, &err);
+  off_t new_position = _openslide_ftell(dio->file, &tmp_err);
   if (new_position < 0) {
-    propagate_gerror(dcm_error, err);
+    propagate_gerror(dcm_error, tmp_err);
   }
 
   return new_position;
@@ -104,7 +104,6 @@ static const DcmIOMethods dicom_open_methods = {
 };
 
 DcmFilehandle *_openslide_dicom_open(const char *filename, GError **err) {
-
   DcmError *dcm_error = NULL;
   DcmIO *io = dcm_io_create(&dcm_error, &dicom_open_methods, (void *) filename);
   if (!io) {
