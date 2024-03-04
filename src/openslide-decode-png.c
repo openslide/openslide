@@ -40,8 +40,10 @@ struct png_ctx {
 };
 
 static void warning_callback(png_struct *png G_GNUC_UNUSED,
-                             const char *message G_GNUC_UNUSED) {
-  //g_debug("%s", message);
+                             const char *message) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_DECODING)) {
+    g_warning("PNG warning: %s", message);
+  }
 }
 
 static void error_callback(png_struct *png, const char *message) {

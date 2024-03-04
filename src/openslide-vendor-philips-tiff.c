@@ -246,8 +246,7 @@ static xmlDoc *parse_xml(TIFF *tiff, GError **err) {
 
   const char *image_desc;
   if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read ImageDescription");
+    _openslide_tiff_error(err, tiff, "Couldn't read ImageDescription");
     return NULL;
   }
   return _openslide_xml_parse(image_desc, err);
@@ -596,8 +595,7 @@ static bool philips_tiff_open(openslide_t *osr,
       // verify that we can read this compression
       uint16_t compression;
       if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Can't read compression scheme");
+        _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
         return false;
       };
       if (!TIFFIsCODECConfigured(compression)) {

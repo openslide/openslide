@@ -655,8 +655,7 @@ static bool create_levels_from_collection(openslide_t *osr,
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
       if (!TIFFGetField(tiff, TIFFTAG_COMPRESSION, &compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Can't read compression scheme");
+        _openslide_tiff_error(err, tiff, "Can't read compression scheme");
         return false;
       }
       if (!TIFFIsCODECConfigured(compression)) {
@@ -767,8 +766,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   // get the xml description
   char *image_desc;
   if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read ImageDescription");
+    _openslide_tiff_error(err, ct.tiff, "Couldn't read ImageDescription");
     return false;
   }
 

@@ -40,6 +40,8 @@ static const struct debug_option {
   enum _openslide_debug_flag flag;
   const char *desc;
 } debug_options[] = {
+  {"decoding", OPENSLIDE_DEBUG_DECODING,
+   "log warnings from format decoding libraries"},
   {"detection", OPENSLIDE_DEBUG_DETECTION, "log format detection errors"},
   {"jpeg-markers", OPENSLIDE_DEBUG_JPEG_MARKERS,
    "verify Hamamatsu restart markers"},

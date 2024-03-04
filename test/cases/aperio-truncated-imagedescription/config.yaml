@@ -7,3 +7,5 @@ error: ASCII value for tag "ImageDescription" does not end in null byte
 slide: CMU-1.svs
 success: false
 vendor: generic-tiff
+# log the warning on libtiff >= 4.5.0 so the test works there
+debug: [decoding]
