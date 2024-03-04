@@ -194,6 +194,8 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  g_autoptr(GHashTable) fds = common_get_open_fds();
+
   openslide_get_version();
 
   if (!openslide_detect_vendor(path)) {
@@ -202,6 +204,7 @@ int main(int argc, char **argv) {
 
   openslide_t *osr = openslide_open(path);
   common_fail_on_error(osr, "Couldn't open %s", path);
+  common_check_open_fds(fds, "Open file descriptor after openslide_open()");
   openslide_close(osr);
 
   osr = openslide_open(path);
@@ -298,6 +301,8 @@ int main(int argc, char **argv) {
     bounds_yy = g_ascii_strtoll(bounds_y, NULL, 10);
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
   }
+
+  common_check_open_fds(fds, "Open file descriptor after reading pixel data");
 
   openslide_close(osr);
 
