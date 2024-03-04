@@ -35,8 +35,6 @@
 #include "openslide-common.h"
 #include "config.h"
 
-#define MAX_LEAK_FD 128
-
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
 			     int64_t w, int64_t h) {
@@ -60,8 +58,8 @@ static gpointer cloexec_thread(const gpointer prog) {
   while (g_atomic_int_get(&leak_test_running)) {
     g_autofree char *out = NULL;
     if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
-          G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL,
-          &out, NULL, NULL, NULL)) {
+          G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL,
+          NULL, &out, NULL, NULL)) {
       g_assert_not_reached();
     }
 
@@ -71,7 +69,7 @@ static gpointer cloexec_thread(const gpointer prog) {
         continue;
       }
       if (g_hash_table_lookup(seen, *line) == NULL) {
-        common_warn("Exec child received leaked fd to %s", *line);
+        fprintf(stderr, "%s\n", *line);
         g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
       }
     }
@@ -80,19 +78,10 @@ static gpointer cloexec_thread(const gpointer prog) {
   return NULL;
 }
 
-static void child_check_open_fds(void) {
-  for (int i = 3; i < MAX_LEAK_FD; i++) {
-    g_autofree char *path = common_get_fd_path(i);
-    if (path != NULL) {
-      printf("%s\n", path);
-    }
-  }
-}
-
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
   // ensure any inherited FDs are not leaked to the child
-  for (int i = 3; i < MAX_LEAK_FD; i++) {
+  for (int i = 3; i < COMMON_MAX_FD; i++) {
     int flags = fcntl(i, F_GETFD);
     if (flags != -1) {
       fcntl(i, F_SETFD, flags | FD_CLOEXEC);
@@ -112,8 +101,6 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   g_thread_join(thr);
 }
 #else /* !NONATOMIC_CLOEXEC && !_WIN32 */
-static void child_check_open_fds(void) {}
-
 static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
                                 void *prog G_GNUC_UNUSED,
                                 int64_t x G_GNUC_UNUSED,
@@ -203,7 +190,7 @@ int main(int argc, char **argv) {
   const char *path = argv[1];
 
   if (g_str_equal(path, "--leak-check--")) {
-    child_check_open_fds();
+    common_check_open_fds(NULL, "Leaked file descriptor to exec child");
     return 0;
   }
 
