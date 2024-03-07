@@ -177,20 +177,7 @@ static tsize_t mem_tiff_write(thandle_t th G_GNUC_UNUSED,
 
 static toff_t mem_tiff_seek(thandle_t th, toff_t offset, int whence) {
   struct mem_tiff *mem = th;
-
-  switch (whence) {
-  case SEEK_SET:
-    mem->offset = offset;
-    break;
-  case SEEK_CUR:
-    mem->offset += offset;
-    break;
-  case SEEK_END:
-    mem->offset = mem->size + offset;
-    break;
-  default:
-    g_assert_not_reached();
-  }
+  mem->offset = _openslide_compute_seek(mem->offset, mem->size, offset, whence);
   return mem->offset;
 }
 

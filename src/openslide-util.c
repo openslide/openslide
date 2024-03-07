@@ -172,6 +172,25 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
   return g_steal_pointer(&dst);
 }
 
+int64_t _openslide_compute_seek(int64_t initial, int64_t length,
+                                int64_t offset, int whence) {
+  int64_t result = initial;
+  switch (whence) {
+  case SEEK_SET:
+    result = offset;
+    break;
+  case SEEK_CUR:
+    result += offset;
+    break;
+  case SEEK_END:
+    result = length + offset;
+    break;
+  default:
+    g_assert_not_reached();
+  }
+  return result;
+}
+
 double _openslide_parse_double(const char *value) {
   // Canonicalize comma to decimal point, since the locale of the
   // originating system sometimes leaks into slide files.
