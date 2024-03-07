@@ -1,0 +1,10 @@
+# successful decode with OpenJPEG warning
+base: Aperio/JP2K-33003-1.svs
+error: "^\\[log\\] OpenJPEG warning: Stream does not end with EOC$"
+slide: JP2K-33003-1.svs
+# log messages are considered failures
+success: false
+vendor: aperio
+debug: [decoding]
+regions:
+  - [0, 0, 2, 100, 100]

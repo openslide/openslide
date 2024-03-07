@@ -1,0 +1,9 @@
+# test libtiff error callback
+base: Generic-TIFF/CMU-1.tiff
+error: "^Cannot read raw tile, last error: TIFFReadRawTile: Read error at row [0-9]+, col [0-9]+; got 19743 bytes, expected 1000000$"
+slide: CMU-1.tiff
+success: false
+vendor: generic-tiff
+requires: [tiff-log-callbacks]
+regions:
+  - [0, 0, 7, 1000, 1000]

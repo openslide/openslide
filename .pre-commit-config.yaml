@@ -52,6 +52,7 @@ repos:
     rev: v1.5.0
     hooks:
       - id: yesqa
+        additional_dependencies: [flake8-bugbear, Flake8-pyproject]
         exclude: ^misc/
 
   - repo: https://github.com/PyCQA/flake8
@@ -104,8 +105,11 @@ repos:
       # sqlite3_open          _openslide_sqlite_open
       # sqlite3_open_v2       _openslide_sqlite_open
       # strtod                _openslide_parse_double
+      # TIFFClientOpenExt     _openslide_tiffcache_get
       # TIFFClientOpen        _openslide_tiffcache_get
+      # TIFFFdOpenExt         _openslide_tiffcache_get
       # TIFFFdOpen            _openslide_tiffcache_get
+      # TIFFOpenExt           _openslide_tiffcache_get
       # TIFFOpen              _openslide_tiffcache_get
       # TIFFSetDirectory      _openslide_tiff_set_dir
       - id: deny-functions
@@ -113,4 +117,4 @@ repos:
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpen|TIFFFdOpen|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

@@ -841,8 +841,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       // verify that we can read this compression (hard fail if not)
       uint16_t compression;
       if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Can't read compression scheme");
+        _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
         return false;
       };
       if (!TIFFIsCODECConfigured(compression)) {

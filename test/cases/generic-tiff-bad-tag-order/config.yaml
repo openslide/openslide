@@ -1,0 +1,9 @@
+# test libtiff warning callback
+base: Generic-TIFF/CMU-1.tiff
+error: "^(\\[log\\] libtiff warning: TIFFReadDirectoryCheckOrder: Invalid TIFF directory; tags are not sorted in ascending order(\n|)){2,}$"
+slide: CMU-1.tiff
+# log output is treated as failure
+success: false
+vendor: generic-tiff
+requires: [tiff-log-callbacks]
+debug: [decoding]

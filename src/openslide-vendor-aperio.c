@@ -434,8 +434,7 @@ static bool aperio_open(openslide_t *osr,
     // check compression
     uint16_t compression;
     if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read compression scheme");
+      _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
       return false;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
@@ -474,8 +473,7 @@ static bool aperio_open(openslide_t *osr,
 
       // get compression
       if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &l->compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Can't read compression scheme");
+        _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
         return false;
       }
 
@@ -483,8 +481,7 @@ static bool aperio_open(openslide_t *osr,
       // an encoder bug
       toff_t *tile_sizes;
       if (!TIFFGetField(ct.tiff, TIFFTAG_TILEBYTECOUNTS, &tile_sizes)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Cannot get tile sizes");
+        _openslide_tiff_error(err, ct.tiff, "Cannot get tile sizes");
         return false;
       }
       l->missing_tiles = g_hash_table_new_full(g_int64_hash, g_int64_equal,
@@ -521,8 +518,7 @@ static bool aperio_open(openslide_t *osr,
   }
   char *image_desc;
   if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read ImageDescription field");
+    _openslide_tiff_error(err, ct.tiff, "Couldn't read ImageDescription field");
     return false;
   }
   g_auto(GStrv) props = g_strsplit(image_desc, "|", -1);

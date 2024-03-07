@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2024 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -20,6 +21,8 @@
  *
  */
 
+#include <config.h>
+
 #include "openslide-private.h"
 #include "openslide-decode-tiff.h"
 #include "openslide-decode-jpeg.h"
@@ -28,6 +31,7 @@
 #include <tiffio.h>
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <math.h>
 #include <cairo.h>
@@ -48,6 +52,7 @@ struct tiff_file_handle {
   struct _openslide_tiffcache *tc;
   int64_t offset;
   int64_t size;
+  char *last_error;
 };
 
 struct associated_image {
@@ -67,8 +72,8 @@ struct associated_image {
   do {									\
     type tmp;								\
     if (!TIFFGetField(tiff, tag, &tmp)) {				\
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,		\
-                  "Cannot get required TIFF tag: %d", tag);		\
+      _openslide_tiff_error(err, tiff,					\
+                            "Cannot get required TIFF tag: %d", tag);	\
       return false;							\
     }									\
     result = tmp;							\
@@ -82,8 +87,7 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
     return true;
   }
   if (!TIFFSetDirectory(tiff, dir)) {  // ci-allow
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot set TIFF directory %d", dir);
+    _openslide_tiff_error(err, tiff, "Cannot set TIFF directory %d", dir);
     return false;
   }
   return true;
@@ -195,8 +199,7 @@ static bool tiff_read_region(TIFF *tiff,
     }
     success = true;
   } else {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "TIFFRGBAImageGet failed");
+    _openslide_tiff_error(err, tiff, "TIFFRGBAImageGet failed");
     memset(dest, 0, w * h * 4);
   }
 
@@ -326,8 +329,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   // get tile size
   toff_t *sizes;
   if (TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes) == 0) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot get tile size");
+    _openslide_tiff_error(err, tiff, "Cannot get tile size");
     return false;  // ok, haven't allocated anything yet
   }
   tsize_t tile_size = sizes[tile_no];
@@ -336,8 +338,7 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   g_autofree tdata_t buf = g_malloc(tile_size);
   tsize_t size = TIFFReadRawTile(tiff, tile_no, buf, tile_size);
   if (size == -1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot read raw tile");
+    _openslide_tiff_error(err, tiff, "Cannot read raw tile");
     return false;
   }
 
@@ -370,8 +371,7 @@ bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
   // get tile size
   toff_t *sizes;
   if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Cannot get tile size");
+    _openslide_tiff_error(err, tiff, "Cannot get tile size");
     return false;
   }
   tsize_t tile_size = sizes[tile_no];
@@ -529,6 +529,23 @@ bool _openslide_tiff_read_icc_profile(openslide_t *osr,
   return true;
 }
 
+void _openslide_tiff_error(GError **err, TIFF *tiff, const char *fmt, ...) {
+  struct tiff_file_handle *hdl = TIFFClientdata(tiff);
+
+  g_autoptr(GString) str = g_string_new(NULL);
+  va_list ap;
+  va_start(ap, fmt);
+  g_string_vprintf(str, fmt, ap);
+  va_end(ap);
+
+  if (hdl->last_error) {
+    g_string_append_printf(str, ", last error: %s", hdl->last_error);
+    g_free(g_steal_pointer(&hdl->last_error));
+  }
+
+  g_set_error_literal(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, str->str);
+}
+
 static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
   struct tiff_file_handle *hdl = th;
 
@@ -572,9 +589,19 @@ static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
   return hdl->offset;
 }
 
+static void tiff_clear_error(struct tiff_file_handle *hdl) {
+  if (hdl->last_error) {
+    if (_openslide_debug(OPENSLIDE_DEBUG_DECODING)) {
+      g_warning("libtiff uncaptured error: %s", hdl->last_error);
+    }
+    g_free(g_steal_pointer(&hdl->last_error));
+  }
+}
+
 static int tiff_do_close(thandle_t th) {
   struct tiff_file_handle *hdl = th;
 
+  tiff_clear_error(hdl);
   g_free(hdl);
   return 0;
 }
@@ -585,19 +612,35 @@ static toff_t tiff_do_size(thandle_t th) {
   return hdl->size;
 }
 
+#ifdef HAVE_TIFF_LOG_CALLBACKS
+static int tiff_do_warning(TIFF *tiff G_GNUC_UNUSED, void *data G_GNUC_UNUSED,
+                           const char *module, const char *fmt, va_list ap) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_DECODING)) {
+    g_autofree char *msg = g_strdup_vprintf(fmt, ap);
+    g_warning("libtiff warning: %s: %s", module, msg);
+  }
+  // stop propagation
+  return 1;
+}
+
+static int tiff_do_error(TIFF *tiff, void *data G_GNUC_UNUSED,
+                         const char *module, const char *fmt, va_list ap) {
+  struct tiff_file_handle *hdl = TIFFClientdata(tiff);
+
+  tiff_clear_error(hdl);
+  GString *str = g_string_new(NULL);
+  g_string_printf(str, "%s: ", module);
+  g_string_append_vprintf(str, fmt, ap);
+  hdl->last_error = g_string_free(str, false);
+  // stop propagation
+  return 1;
+}
+#endif
+
 static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // open
   g_autoptr(_openslide_file) f = _openslide_fopen(tc->filename, err);
   if (f == NULL) {
-    return NULL;
-  }
-
-  // read magic
-  uint8_t buf[4];
-  if (_openslide_fread(f, buf, 4) != 4) {
-    // can't read
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read TIFF magic number for %s", tc->filename);
     return NULL;
   }
 
@@ -608,34 +651,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
     return NULL;
   }
 
-  // check magic
-  // TODO: remove if libtiff gets private error/warning callbacks
-  if (buf[0] != buf[1]) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
-    return NULL;
-  }
-  uint16_t version;
-  switch (buf[0]) {
-  case 'M':
-    // big endian
-    version = (buf[2] << 8) | buf[3];
-    break;
-  case 'I':
-    // little endian
-    version = (buf[3] << 8) | buf[2];
-    break;
-  default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
-    return NULL;
-  }
-  if (version != 42 && version != 43) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a TIFF file: %s", tc->filename);
-    return NULL;
-  }
-
   // allocate
   struct tiff_file_handle *hdl = g_new0(struct tiff_file_handle, 1);
   hdl->tc = tc;
@@ -643,9 +658,19 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
 
   // TIFFOpen
   // mode: m disables mmap to avoid sigbus and other mmap fragility
+#ifdef HAVE_TIFF_LOG_CALLBACKS
+  TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
+  TIFFOpenOptionsSetWarningHandlerExtR(opts, tiff_do_warning, NULL);
+  TIFFOpenOptionsSetErrorHandlerExtR(opts, tiff_do_error, NULL);
+  TIFF *tiff = TIFFClientOpenExt(tc->filename, "rm", hdl,  // ci-allow
+                                 tiff_do_read, tiff_do_write, tiff_do_seek,
+                                 tiff_do_close, tiff_do_size, NULL, NULL, opts);
+  TIFFOpenOptionsFree(opts);
+#else
   TIFF *tiff = TIFFClientOpen(tc->filename, "rm", hdl,  // ci-allow
                               tiff_do_read, tiff_do_write, tiff_do_seek,
                               tiff_do_close, tiff_do_size, NULL, NULL);
+#endif
   if (tiff == NULL) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid TIFF: %s", tc->filename);
@@ -682,7 +707,6 @@ struct _openslide_cached_tiff _openslide_tiffcache_get(struct _openslide_tiffcac
     g_mutex_unlock(&tc->lock);
   }
   struct _openslide_cached_tiff ct = {
-    .tc = tc,
     .tiff = tiff,
   };
   return ct;
@@ -692,23 +716,19 @@ void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct) {
   if (ct == NULL || ct->tiff == NULL) {
     return;
   }
-  struct _openslide_tiffcache *tc = ct->tc;
-  TIFF *tiff = ct->tiff;
+  g_autoptr(TIFF) tiff = ct->tiff;
+  struct tiff_file_handle *hdl = TIFFClientdata(tiff);
+  struct _openslide_tiffcache *tc = hdl->tc;
 
   //g_debug("put TIFF");
   g_mutex_lock(&tc->lock);
   g_assert(tc->outstanding);
   tc->outstanding--;
   if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
-    g_queue_push_head(tc->cache, tiff);
-    tiff = NULL;
+    tiff_clear_error(hdl);
+    g_queue_push_head(tc->cache, g_steal_pointer(&tiff));
   }
   g_mutex_unlock(&tc->lock);
-
-  if (tiff) {
-    //g_debug("too many TIFFs");
-    TIFFClose(tiff);
-  }
 }
 
 void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc) {
