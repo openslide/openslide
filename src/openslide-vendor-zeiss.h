@@ -39,7 +39,7 @@ struct czi_decbuf {
   uint32_t pixel_bits;
 };
 
-static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
+static bool _openslide_bgr24_to_argb32(struct czi_decbuf *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_malloc(new_size);
   uint32_t *bp = buf;
@@ -58,7 +58,7 @@ static bool _openslide_convert_24bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
   return true;
 }
 
-static bool _openslide_convert_48bppbgr_to_cairo24bpprgb(struct czi_decbuf *p) {
+static bool _openslide_bgr48_to_argb32(struct czi_decbuf *p) {
   size_t new_size = p->w * p->h * 4;
   uint32_t *buf = g_malloc(new_size);
   uint32_t *bp = buf;
