@@ -29,13 +29,7 @@
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
-#include "config.h"
 
-#ifdef HAVE_VALGRIND
-#include <valgrind.h>
-#endif
-
-#define MAX_FDS 128
 #define TIME_ITERATIONS 5
 
 static gchar *vendor_check;
@@ -69,14 +63,6 @@ static void check_error(openslide_t *osr) {
   if (error != NULL) {
     fail("%s", error);
   }
-}
-
-static bool in_valgrind(void) {
-#ifdef HAVE_VALGRIND
-  return RUNNING_ON_VALGRIND;
-#else
-  return false;
-#endif
 }
 
 #define CHECK_RET(call, result)			\
@@ -210,13 +196,7 @@ int main(int argc, char **argv) {
   const char *filename = argv[1];
 
   // Record preexisting file descriptors
-  g_autoptr(GHashTable) fds = g_hash_table_new(g_direct_hash, g_direct_equal);
-  for (int i = 0; i < MAX_FDS; i++) {
-    struct stat st;
-    if (!fstat(i, &st)) {
-      g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
-    }
-  }
+  g_autoptr(GHashTable) fds = common_get_open_fds();
 
   g_log_set_handler("OpenSlide", (GLogLevelFlags)
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
@@ -261,20 +241,8 @@ int main(int argc, char **argv) {
   }
 
   // Check for file descriptor leaks
-  for (int i = 0; i < MAX_FDS; i++) {
-    if (!g_hash_table_lookup(fds, GINT_TO_POINTER(i))) {
-      g_autofree char *path = common_get_fd_path(i);
-      if (path != NULL) {
-        if (in_valgrind() && g_str_has_prefix(path, "pipe:")) {
-          // valgrind likes to open pipes
-          continue;
-        }
-        // leaked
-        fprintf(stderr, "Leaked file descriptor to %s\n", path);
-        have_error = true;
-      }
-    }
-  }
+  have_error |=
+    !common_check_open_fds(fds, "Leaked file descriptor after close");
 
   // Do timing run.  The earlier openslide_open() doesn't count because
   // it reads the slide data into the page cache.

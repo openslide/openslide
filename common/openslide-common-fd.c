@@ -37,8 +37,21 @@
 #endif
 
 #include "openslide-common.h"
+#include "config.h"
 
-char *common_get_fd_path(int fd) {
+#ifdef HAVE_VALGRIND
+#include <valgrind.h>
+#endif
+
+static bool in_valgrind(void) {
+#ifdef HAVE_VALGRIND
+  return RUNNING_ON_VALGRIND;
+#else
+  return false;
+#endif
+}
+
+static char *get_fd_path(int fd) {
   struct stat st;
   if (fstat(fd, &st)) {
     return NULL;
@@ -77,4 +90,35 @@ char *common_get_fd_path(int fd) {
 #endif
 
   return g_strdup("<unknown>");
+}
+
+GHashTable *common_get_open_fds(void) {
+  GHashTable *fds = g_hash_table_new(g_direct_hash, g_direct_equal);
+  for (int i = 3; i < COMMON_MAX_FD; i++) {
+    struct stat st;
+    if (!fstat(i, &st)) {
+      g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
+    }
+  }
+  return fds;
+}
+
+bool common_check_open_fds(GHashTable *ignore, const char *msg) {
+  bool ret = true;
+  for (int i = 3; i < COMMON_MAX_FD; i++) {
+    if (ignore && g_hash_table_lookup(ignore, GINT_TO_POINTER(i))) {
+      continue;
+    }
+    g_autofree char *path = get_fd_path(i);
+    if (path) {
+      if (in_valgrind() && g_str_has_prefix(path, "pipe:")) {
+        // valgrind likes to open pipes
+        continue;
+      }
+      // leaked
+      common_warn("%s: %s", msg, path);
+      ret = false;
+    }
+  }
+  return ret;
 }
