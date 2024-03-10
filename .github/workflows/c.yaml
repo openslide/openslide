@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v3.0.1
   tests:
     name: Build
     runs-on: ${{ matrix.os }}
