@@ -387,7 +387,7 @@ static void read_dim_entry(struct zisraw_dim_entry_dv *p,
   }
 }
 
-static int read_dir_entry(GPtrArray *subblks, char *p) {
+static size_t read_dir_entry(GPtrArray *subblks, char *p) {
   struct czi_subblk *sb = g_new0(struct czi_subblk, 1);
   struct zisraw_dir_entry_dv *dv;
   char *b = p;
@@ -439,7 +439,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   }
 
   char *p = buf_dir;
-  int dir_entry_len;
+  size_t dir_entry_len;
   size_t total = 0;
   data->subblks = g_ptr_array_new_full(64, (GDestroyNotify)destroy_subblk);
   for (int i = 0; i < data->nsubblk; i++) {
@@ -496,7 +496,7 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
 
   switch (pixel_type) {
   case PT_BGR48:
-    return _openslide_bgr48_to_argb32(dst);
+    return czi_bgrn_to_xrgb32(dst, 48);
   case PT_GRAY16:
     return false;
   case PT_GRAY8:
@@ -504,7 +504,7 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   default:
     break;
   }
-  return _openslide_bgr24_to_argb32(dst);
+  return czi_bgrn_to_xrgb32(dst, 24);
 }
 
 static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
@@ -1124,6 +1124,8 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
   _openslide_hash_data(quickhash1, buf, CZI_FILEHDR_LEN);
+
+  _openslide_simd_init();
   return true;
 }
 

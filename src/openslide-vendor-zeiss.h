@@ -20,14 +20,7 @@
  */
 #ifndef OPENSLIDE_OPENSLIDE_VENDOR_ZEISS_H_
 #define OPENSLIDE_OPENSLIDE_VENDOR_ZEISS_H_
-
-#define BGR24TOARGB32(p)                                                       \
-  (0xFF000000 | (uint32_t)((p)[0]) | ((uint32_t)((p)[1]) << 8) |               \
-   ((uint32_t)((p)[2]) << 16))
-
-#define BGR48TOARGB32(p)                                                       \
-  (0xFF000000 | (uint32_t)((p)[1]) | ((uint32_t)((p)[3]) << 8) |               \
-   ((uint32_t)((p)[5]) << 16))
+#include "openslide-image.h"
 
 /* could be shared with JPEG XR decoder in the future */
 struct czi_decbuf {
@@ -39,41 +32,23 @@ struct czi_decbuf {
   uint32_t pixel_bits;
 };
 
-static bool _openslide_bgr24_to_argb32(struct czi_decbuf *p) {
-  size_t new_size = p->w * p->h * 4;
-  uint32_t *buf = g_malloc(new_size);
-  uint32_t *bp = buf;
-  size_t i = 0;
-
-  while (i < p->size) {
-    *bp++ = BGR24TOARGB32(&p->data[i]);
-    i += 3;
+static bool czi_bgrn_to_xrgb32(struct czi_decbuf *p, int in_pixel_bits) {
+  if (in_pixel_bits != 24 && in_pixel_bits != 48) {
+    return false;
   }
 
+  size_t new_size = p->w * p->h * 4;
+  g_autofree uint8_t *buf = g_malloc(new_size);
+  if (in_pixel_bits == 24) {
+     _openslide_bgr24_to_xrgb32(p->data, p->size, buf);
+  } else if (in_pixel_bits == 48) {
+    _openslide_bgr48_to_xrgb32(p->data, p->size, buf);
+  }
   g_free(p->data);
   p->stride = p->w * 4;
   p->pixel_bits = 32;
   p->size = new_size;
-  p->data = (uint8_t *)buf;
-  return true;
-}
-
-static bool _openslide_bgr48_to_argb32(struct czi_decbuf *p) {
-  size_t new_size = p->w * p->h * 4;
-  uint32_t *buf = g_malloc(new_size);
-  uint32_t *bp = buf;
-  size_t i = 0;
-
-  while (i < p->size) {
-    *bp++ = BGR48TOARGB32(&p->data[i]);
-    i += 6;
-  }
-
-  g_free(p->data);
-  p->stride = p->w * 4;
-  p->pixel_bits = 32;
-  p->size = new_size;
-  p->data = (uint8_t *)buf;
+  p->data = g_steal_pointer(&buf);
   return true;
 }
 
