@@ -25,12 +25,12 @@ void _openslide_simd_init(void) {
 void _openslide_bgr24_to_xrgb32(uint8_t *src, size_t src_len, uint8_t *dst) {
 #ifdef USE_AVX2
   if (simd_use_avx2) {
-    return _openslide_bgr24_to_xrgb32_avx2(src, src_len, dst);
+    return openslide_bgr24_to_xrgb32_avx2(src, src_len, dst);
   }
 #endif
 #ifdef USE_SSSE3
   if (simd_use_ssse3) {
-    return _openslide_bgr24_to_xrgb32_ssse3(src, src_len, dst);
+    return openslide_bgr24_to_xrgb32_ssse3(src, src_len, dst);
   }
 #endif
   return _openslide_bgr24_to_xrgb32_generic(src, src_len, dst);
@@ -49,7 +49,7 @@ void _openslide_bgr24_to_xrgb32_generic(uint8_t *src, size_t src_len,
 }
 
 void _openslide_bgr48_to_xrgb32_generic(uint8_t *src, size_t src_len,
-                                               uint8_t *dst) {
+                                        uint8_t *dst) {
   uint32_t *p = (uint32_t *)dst;
   size_t i = 0;
   /* one 48-bits pixels a time */

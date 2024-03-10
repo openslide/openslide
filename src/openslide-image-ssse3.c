@@ -4,8 +4,8 @@
 #include "openslide-image.h"
 
 #ifdef USE_SSSE3
-void _openslide_bgr24_to_xrgb32_ssse3(uint8_t *src, size_t src_len,
-                                      uint8_t *dst) {
+void openslide_bgr24_to_xrgb32_ssse3(uint8_t *src, size_t src_len,
+                                     uint8_t *dst) {
   /* four 24-bits pixels a time */
   const int mm_step = 12;
   /* Decrease mm_len by 1 so that the last read is still 16 bytes inside

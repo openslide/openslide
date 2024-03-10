@@ -21,8 +21,8 @@ void _openslide_bgr48_to_xrgb32_generic(uint8_t *src, size_t src_len,
                                         uint8_t *dst);
 void _openslide_bgr24_to_xrgb32_generic(uint8_t *src, size_t src_len,
                                         uint8_t *dst);
-void _openslide_bgr24_to_xrgb32_ssse3(uint8_t *src, size_t src_len,
-                                      uint8_t *dst);
-void _openslide_bgr24_to_xrgb32_avx2(uint8_t *src, size_t src_len,
+void openslide_bgr24_to_xrgb32_ssse3(uint8_t *src, size_t src_len,
                                      uint8_t *dst);
+void openslide_bgr24_to_xrgb32_avx2(uint8_t *src, size_t src_len,
+                                    uint8_t *dst);
 #endif

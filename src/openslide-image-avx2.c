@@ -4,8 +4,8 @@
 #include "openslide-image.h"
 
 #ifdef USE_AVX2
-void _openslide_bgr24_to_xrgb32_avx2(uint8_t *src, size_t src_len,
-                                     uint8_t *dst) {
+void openslide_bgr24_to_xrgb32_avx2(uint8_t *src, size_t src_len,
+                                    uint8_t *dst) {
   /* eight 24-bits pixels a time */
   const int mm_step = 24;
   size_t mm_len = src_len / mm_step - 1;
