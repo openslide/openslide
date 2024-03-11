@@ -160,6 +160,13 @@ if host_machine.cpu_family() == 'x86_64'
   endif
 endif
 
+if host_machine.cpu_family() == 'aarch64'
+  conf.set('CONFIG_OSR_ARCH_ARM64', 1)
+  if get_option('neon')
+    conf.set('USE_NEON', 1)
+  endif
+endif
+
 if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If
   # glib is another subpackage, we can't check, so fail at build time if not.

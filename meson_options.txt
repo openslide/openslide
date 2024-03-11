@@ -65,3 +65,9 @@ option(
   value : true,
   description : 'Use X86 AVX2 intrinsic optimized paths',
 )
+option(
+  'neon',
+  type : 'boolean',
+  value : true,
+  description : 'Use ARM64 Advanced SIMD(Neon) intrinsic optimized paths',
+)

@@ -1,9 +1,10 @@
 
 #include <config.h>
-#include <x86intrin.h>
 #include "openslide-image.h"
 
 #ifdef USE_AVX2
+#include <x86intrin.h>
+
 void openslide_bgr24_to_xrgb32_avx2(uint8_t *src, size_t src_len,
                                     uint8_t *dst) {
   /* eight 24-bits pixels a time */

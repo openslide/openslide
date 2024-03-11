@@ -1,9 +1,10 @@
 
 #include <config.h>
-#include <x86intrin.h>
 #include "openslide-image.h"
 
 #ifdef USE_SSSE3
+#include <x86intrin.h>
+
 void openslide_bgr24_to_xrgb32_ssse3(uint8_t *src, size_t src_len,
                                      uint8_t *dst) {
   /* four 24-bits pixels a time */
