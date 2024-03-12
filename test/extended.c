@@ -35,6 +35,9 @@
 #include "openslide-common.h"
 #include "config.h"
 
+// SHA-256 of no bytes
+#define UNINIT_QUICKHASH "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
 			     int64_t w, int64_t h) {
@@ -252,6 +255,13 @@ int main(int argc, char **argv) {
     property_names++;
   }
   common_fail_on_error(osr, "Reading properties failed");
+
+  // check for uninit quickhash-1
+  const char *quickhash1 =
+    openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_QUICKHASH1);
+  if (quickhash1 && g_str_equal(quickhash1, UNINIT_QUICKHASH)) {
+    common_fail("quickhash-1 exists but no data was hashed");
+  }
 
   // read associated images
   const char * const *associated_image_names =
