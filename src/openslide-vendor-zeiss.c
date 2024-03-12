@@ -1119,7 +1119,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   }
   _openslide_hash_data(quickhash1, buf, CZI_FILEHDR_LEN);
 
-  _openslide_simd_init();
   return true;
 }
 

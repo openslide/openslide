@@ -53,21 +53,3 @@ option(
   value : false,
   description : 'For test suite; do not use',
 )
-option(
-  'ssse3',
-  type : 'boolean',
-  value : true,
-  description : 'Use X86 SSSE3 intrinsic optimized paths',
-)
-option(
-  'avx2',
-  type : 'boolean',
-  value : true,
-  description : 'Use X86 AVX2 intrinsic optimized paths',
-)
-option(
-  'neon',
-  type : 'boolean',
-  value : true,
-  description : 'Use ARM64 Advanced SIMD(Neon) intrinsic optimized paths',
-)

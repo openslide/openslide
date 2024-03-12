@@ -133,40 +133,6 @@ if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
 
-# SIMD checks
-# Meson cannot specify compile arguments for individual files. It causes
-# problems when using -mavx for building, but running on CPUs that do not
-# support AVX. For example, OpenSlide build on i7-7700 fails to run on Core2
-# Duo, with "Illegal instruction" error, even thought the function does not use
-# AVX. The current Meson SIMD module can only assign fixed arguments, which may
-# lead to problems if customization is needed.
-#
-# Perhaps the only solution is to build static libs for avx2 and ssse3
-# separately, each with their own sets of c_args, then link them to OpenSlide.
-# At runtime, OpenSlide can select avx2, ssse3, or non-SIMD based on detected
-# CPU features.
-c_args_ssse3 = ['-g', '-O2']
-c_args_avx2  = ['-g', '-O2']
-if host_machine.cpu_family() == 'x86_64'
-  conf.set('CONFIG_OSR_ARCH_X86_64', 1)
-  if get_option('ssse3')
-    conf.set('USE_SSSE3', cc.has_argument('-mssse3'))
-    c_args_ssse3 += cc.get_supported_arguments('-mssse3')
-  endif
-
-  if get_option('avx2')
-    conf.set('USE_AVX2', cc.has_argument('-mavx2'))
-    c_args_avx2 += cc.get_supported_arguments('-mavx', '-mavx2')
-  endif
-endif
-
-if host_machine.cpu_family() == 'aarch64'
-  conf.set('CONFIG_OSR_ARCH_ARM64', 1)
-  if get_option('neon')
-    conf.set('USE_NEON', 1)
-  endif
-endif
-
 if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If
   # glib is another subpackage, we can't check, so fail at build time if not.
