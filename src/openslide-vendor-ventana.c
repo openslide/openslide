@@ -50,6 +50,9 @@ static const char MAGNIFICATION_KEY[] = "mag";
 
 static const char INITIAL_XML_ISCAN[] = "iScan";
 static const char INITIAL_XML_ALT_ROOT[] = "Metadata";
+static const char ENCODEINFO_XML_ROOT[] = "EncodeInfo";
+static const char SLIDEINFO_XML_ROOT[] = "SlideInfo";
+static const char SCANNER_MODEL_DP_200[] = "VENTANA DP 200";
 
 static const char ATTR_AOI_SCANNED[] = "AOIScanned";
 static const char ATTR_WIDTH[] = "Width";
@@ -66,6 +69,7 @@ static const char ATTR_TILE1[] = "Tile1";
 static const char ATTR_TILE2[] = "Tile2";
 static const char ATTR_OVERLAP_X[] = "OverlapX";
 static const char ATTR_OVERLAP_Y[] = "OverlapY";
+static const char DIRECTION_LEFT[] = "LEFT";
 static const char DIRECTION_RIGHT[] = "RIGHT";
 static const char DIRECTION_UP[] = "UP";
 
@@ -127,8 +131,8 @@ struct joint {
 };
 
 struct tile {
-  struct joint left;
-  struct joint top;
+  double offset_x;
+  double offset_y;
 };
 
 static void destroy_level(struct level *l) {
@@ -296,8 +300,23 @@ static xmlNode *get_initial_xml_iscan(xmlDoc *doc, GError **err) {
     }
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't find iScan element in initial XML");
-    return NULL;
 
+    return NULL;
+  } else if (!xmlStrcmp(root->name, BAD_CAST ENCODEINFO_XML_ROOT)) {
+    for (xmlNode *node = root->children; node; node = node->next) {
+      if (!xmlStrcmp(node->name, BAD_CAST SLIDEINFO_XML_ROOT)) {
+        for (xmlNode *innerNode = node->children; innerNode; 
+              innerNode = innerNode->next) {
+          if (!xmlStrcmp(innerNode->name, BAD_CAST INITIAL_XML_ISCAN)) {
+            // /EncodeInfo/SlideInfo/iScan, found in some slides at level 1
+            return innerNode;
+          }
+        }
+      }
+    }
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't find iScan element in EncodeInfo XML");
+    return NULL;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized root element in initial XML");
@@ -372,8 +391,9 @@ static int width_compare(gconstpointer a, gconstpointer b) {
   }
 }
 
-static bool parse_initial_xml(openslide_t *osr, const char *xml,
-                              GError **err) {
+// Gets the iScan node from a given xml block 
+static bool parse_ventana_iScan_xml(openslide_t *osr, const char *xml,
+                                    GError **err)  {
   // parse
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (!doc) {
@@ -396,6 +416,23 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
     }
   }
 
+  return true;
+
+}
+
+static bool parse_initial_xml(openslide_t *osr, const char *xml,
+                              GError **err) {
+  // parse XML at this level
+  if (!parse_ventana_iScan_xml(osr, xml, err)) {
+    return false;
+  }
+
+  // set background color from iScan node property.
+  char *wp_str = g_hash_table_lookup(osr->properties,
+                                     "ventana.ScanWhitePoint");
+  uint8_t wp = wp_str ? g_ascii_strtoull(wp_str, NULL, 10) : 255;
+  _openslide_set_background_color_prop(osr, wp, wp, wp);
+
   // set standard properties
   _openslide_duplicate_int_prop(osr, "ventana.Magnification",
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
@@ -405,6 +442,7 @@ static bool parse_initial_xml(openslide_t *osr, const char *xml,
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   return true;
+
 }
 
 static bool get_tile_coordinates(const struct area *area,
@@ -443,6 +481,7 @@ static bool get_tile_coordinates(const struct area *area,
 static struct bif *parse_level0_xml(const char *xml,
                                     int64_t tiff_tile_width,
                                     int64_t tiff_tile_height,
+                                    bool is_dp200,
                                     GError **err) {
   // parse
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
@@ -553,24 +592,35 @@ static struct bif *parse_level0_xml(const char *xml,
         return NULL;
       }
 
+      // read joint values
+      struct joint joint;
+      PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_X,
+                                     joint.offset_x, NULL);
+      joint.offset_x *= -1;
+      PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_Y,
+                                     joint.offset_y, NULL);
+      joint.offset_y *= -1;
+      PARSE_INT_ATTRIBUTE_OR_RETURN(joint_info, ATTR_CONFIDENCE,
+                                  joint.confidence, NULL);
+
       // check coordinates against direction, and get joint
       g_autoptr(xmlChar) direction =
         xmlGetProp(joint_info, BAD_CAST ATTR_DIRECTION);
-      struct joint *joint;
       bool ok;
       bool direction_y = false;
       //g_debug("%s, tile1 %"PRId64" %"PRId64", tile2 %"PRId64" %"PRId64, (char *) direction, tile1_col, tile1_row, tile2_col, tile2_row);
-      if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT)) {
-        // get left joint of right tile
+      if (!xmlStrcmp(direction, BAD_CAST DIRECTION_RIGHT) ||
+          !xmlStrcmp(direction, BAD_CAST DIRECTION_LEFT)) {
+        // Get the right tile.
         struct tile *tile =
           &area->tiles[tile2_row * area->tiles_across + tile2_col];
-        joint = &tile->left;
+        tile->offset_x = joint.offset_x;
         ok = (tile2_col == tile1_col + 1 && tile2_row == tile1_row);
       } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_UP)) {
-        // get top joint of bottom tile
+        // Get the top tile.
         struct tile *tile =
           &area->tiles[tile1_row * area->tiles_across + tile1_col];
-        joint = &tile->top;
+        tile->offset_y = joint.offset_y;
         ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
         direction_y = true;
       } else {
@@ -578,6 +628,7 @@ static struct bif *parse_level0_xml(const char *xml,
                     "Bad direction attribute \"%s\"", (char *) direction);
         return NULL;
       }
+
       if (!ok) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected tile join: %s, "
@@ -589,21 +640,21 @@ static struct bif *parse_level0_xml(const char *xml,
 
       // read values
       PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_X,
-                                       joint->offset_x, NULL);
-      joint->offset_x *= -1;
+                                       joint.offset_x, NULL);
+      joint.offset_x *= -1;
       PARSE_DOUBLE_ATTRIBUTE_OR_RETURN(joint_info, ATTR_OVERLAP_Y,
-                                       joint->offset_y, NULL);
-      joint->offset_y *= -1;
+                                       joint.offset_y, NULL);
+      joint.offset_y *= -1;
       PARSE_INT_ATTRIBUTE_OR_RETURN(joint_info, ATTR_CONFIDENCE,
-                                    joint->confidence, NULL);
+                                    joint.confidence, NULL);
 
       // add to totals
       if (direction_y) {
-        total_offset_y += joint->confidence * joint->offset_y;
-        total_y_weight += joint->confidence;
+        total_offset_y += joint.confidence * joint.offset_y;
+        total_y_weight += joint.confidence;
       } else {
-        total_offset_x += joint->confidence * joint->offset_x;
-        total_x_weight += joint->confidence;
+        total_offset_x += joint.confidence * joint.offset_x;
+        total_x_weight += joint.confidence;
       }
     }
   }
@@ -613,8 +664,14 @@ static struct bif *parse_level0_xml(const char *xml,
   bif->num_areas = area_array->len;
   bif->areas =
     (struct area **) g_ptr_array_free(g_steal_pointer(&area_array), false);
-  bif->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
-  bif->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
+  if (is_dp200) {
+    bif->tile_advance_x = tiff_tile_width;
+    bif->tile_advance_y = tiff_tile_height;
+  } else {
+    // Pre-DP 200
+    bif->tile_advance_x = tiff_tile_width + total_offset_x / total_x_weight;
+    bif->tile_advance_y = tiff_tile_height + total_offset_y / total_y_weight;
+  }
   //g_debug("advances: %g %g", bif->tile_advance_x, bif->tile_advance_y);
 
   // Fix area Y coordinates.  The Pos-Y read from the file is the distance
@@ -686,7 +743,8 @@ static bool parse_level_info(const char *desc,
 static struct _openslide_grid *create_bif_grid(openslide_t *osr,
                                                struct bif *bif,
                                                double downsample,
-                                               int64_t tile_w, int64_t tile_h) {
+                                               int64_t tile_w, int64_t tile_h,
+                                               bool is_dp200) {
   double subtile_w = tile_w / downsample;
   double subtile_h = tile_h / downsample;
 
@@ -696,20 +754,51 @@ static struct _openslide_grid *create_bif_grid(openslide_t *osr,
                                    bif->tile_advance_y / downsample,
                                    read_subtile_tilemap, NULL);
 
+  // get start x and y coordinates of the slide as a whole
+  double slide_start_x = INFINITY;
+  double slide_start_y = INFINITY;
+  for (int32_t i = 0; i < bif->num_areas; i++) {
+    double area_start_x = bif->areas[i]->x;
+    double area_start_y = bif->areas[i]->y;
+    slide_start_x = (area_start_x < slide_start_x) ? area_start_x : slide_start_x;
+    slide_start_y = (area_start_y < slide_start_y) ? area_start_y : slide_start_y;
+  }
+
   for (int32_t i = 0; i < bif->num_areas; i++) {
     struct area *area = bif->areas[i];
-    double offset_x =
-      (area->x - area->start_col * bif->tile_advance_x) / downsample;
-    double offset_y =
-      (area->y - area->start_row * bif->tile_advance_y) / downsample;
     //g_debug("ds %g area %d pos %"PRId64" %"PRId64" offset %g %g", downsample, i, area->x, area->y, offset_x, offset_y);
-    for (int64_t row = area->start_row;
-         row < area->start_row + area->tiles_down; row++) {
-      for (int64_t col = area->start_col;
-           col < area->start_col + area->tiles_across; col++) {
+
+    // BIF files can have tiles with overlap, which is adjusted for using an
+    // offset value. Here we accumulate the total offsets in each direction as
+    // we iterate through the tiles to prevent gaps from appearing.
+
+    // Each area has an x and y offset to ensure that it starts at area->x in the tilemap
+    // grid. Without this offset, it will start at the start row/column times the tile width
+    // which is not always correct due to accumulated overlaps/offsets in previous areas
+    double area_offset_x = area->x - (area->start_col * bif->tile_advance_x + slide_start_x);
+    double area_offset_y = area->y - (area->start_row * bif->tile_advance_y + slide_start_y);
+
+    // cumulative offset_y for each column
+    double offset_ys[area->tiles_across];
+    for (int64_t col = 0; col < area->tiles_across; col++) {
+      offset_ys[col] = area_offset_y;
+    }
+
+    for (int64_t row = 0; row < area->tiles_down; row++) {
+      // cumulative offset_x for this row;
+      double offset_x = area_offset_x;
+      for (int64_t col = 0; col < area->tiles_across; col++) {
+        if (is_dp200) {
+          // use the tile offsets only for DP 200 scans.
+          struct tile *tile = &area->tiles[row * area->tiles_across + col];
+          offset_x += tile->offset_x;
+          offset_ys[col] += tile->offset_y;
+        }
         _openslide_grid_tilemap_add_tile(grid,
-                                         col, row,
-                                         offset_x, offset_y,
+                                         area->start_col + col,
+                                         area->start_row + row,
+                                         (offset_x) / downsample,
+                                         (offset_ys[col]) / downsample,
                                          subtile_w, subtile_h,
                                          NULL);
       }
@@ -757,6 +846,27 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   if (!parse_initial_xml(osr, xml, err)) {
     return false;
   }
+
+  char *scanner_model =
+    g_hash_table_lookup(osr->properties, "ventana.ScannerModel");
+  // check level 1 for additional metadata if we're missing a scanner model
+  if (scanner_model == NULL) {
+    GError *tmp_err = NULL;
+    const char *lvl1_xml = _openslide_tifflike_get_buffer(tl, 1, 
+                                                          TIFFTAG_XMLPACKET,
+                                                          &tmp_err);
+    if (lvl1_xml) {
+      parse_ventana_iScan_xml(osr, lvl1_xml, err);
+    } else if (g_error_matches(tmp_err, OPENSLIDE_ERROR,
+                                   OPENSLIDE_ERROR_NO_VALUE)) {
+      // Clear error if it's just no value
+      g_clear_error(&tmp_err);
+    } else {
+      g_propagate_error(err, tmp_err);
+      return false;
+    }
+  }
+  bool is_dp200 = scanner_model && !strcmp(scanner_model, SCANNER_MODEL_DP_200);
 
   // walk directories
   g_autoptr(GPtrArray) level_array =
@@ -817,7 +927,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
             return false;
           }
           // parse
-          bif = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, err);
+          bif = parse_level0_xml(xml, tiffl.tile_w, tiffl.tile_h, is_dp200, err);
           if (!bif) {
             return false;
           }
@@ -867,14 +977,16 @@ static bool ventana_open(openslide_t *osr, const char *filename,
       if (bif) {
         l->grid = create_bif_grid(osr, bif,
                                   downsample,
-                                  tiffl->tile_w, tiffl->tile_h);
+                                  tiffl->tile_w, tiffl->tile_h,
+                                  is_dp200);
         l->subtiles_per_tile = downsample;
         // the format doesn't seem to record the level size, so make it
         // large enough for all the pixels
         double x, y, w, h;
         _openslide_grid_get_bounds(l->grid, &x, &y, &w, &h);
-        l->base.w = ceil(x + w);
-        l->base.h = ceil(y + h);
+        // adjust height and width so it is 16 px aligned on dp200 slides   
+        l->base.w = is_dp200 ? ceil(ceil(x + w) / 16) * 16 : ceil(x + w);
+        l->base.h = is_dp200 ? ceil(ceil(y + h) / 16) * 16 : ceil(y + h);
         // clear tile size hints set by _openslide_tiff_level_init()
         l->base.tile_w = 0;
         l->base.tile_h = 0;
