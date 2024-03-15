@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
@@ -257,6 +258,7 @@ struct zeiss_ops_data {
 
   char *filename;
   struct _openslide_file *file;
+  int64_t filesize;
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
@@ -445,20 +447,24 @@ static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   }
 
   data->nsubblk = GINT32_FROM_LE(hdr->entry_count);
-  len = (size_t)GINT32_FROM_LE(hdr->seg_hdr.allocated_size);
-  len -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
-  g_autofree char *buf_dir = g_malloc(len);
-  if (!czi_freadn_to_buf(data, offset, buf_dir, len, err)) {
+  int64_t seg_size = (int64_t)GINT32_FROM_LE(hdr->seg_hdr.allocated_size);
+  seg_size -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
+  if (seg_size < 0 || (offset + seg_size) > data->filesize) {
+    g_warning("Invalid DirectorySegment size %"PRId64" bytes", seg_size);
+    return false;
+  }
+  g_autofree char *buf_dir = g_malloc(seg_size);
+  if (!czi_freadn_to_buf(data, offset, buf_dir, seg_size, err)) {
     g_error("Couldn't read SubBlockDirectory");
     return false;
   }
 
   char *p = buf_dir;
   size_t dir_entry_len;
-  size_t total = 0;
+  int64_t total = 0;
   data->subblks = g_ptr_array_new_full(64, (GDestroyNotify)destroy_subblk);
   for (int i = 0; i < data->nsubblk; i++) {
-    if (total > len) {
+    if (total > seg_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Read beyond last byte of directory entires");
       return false;
@@ -556,6 +562,10 @@ static bool read_subblk(struct zeiss_ops_data *data,
                      sizeof(struct zisraw_seg_hdr) + offset_meta +
                      GINT32_FROM_LE(hdr->meta_size);
   int64_t data_size = GINT64_FROM_LE(hdr->data_size);
+  if (data_size < 0 || (data_pos + data_size) > data->filesize) {
+    g_warning("Invalid SubBlock data size %"PRId64" bytes", data_size);
+    return false;
+  }
   switch (sb->compression) {
   case COMP_NONE:
     return czi_read_uncompressed(data, data_pos, data_size, sb->pixel_type, dst,
@@ -861,14 +871,18 @@ static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err) {
   offset += len;
 
   struct zisraw_meta_hdr *hdr = (struct zisraw_meta_hdr *)buf;
-  len = (size_t)GINT32_FROM_LE(hdr->xml_size);
-  g_autofree char *xml = g_malloc(len + 1);
-  if (!czi_freadn_to_buf(data, offset, xml, len, err)) {
+  int64_t xml_size = (int64_t)GINT32_FROM_LE(hdr->xml_size);
+  if (xml_size < 0 || (offset + xml_size) > data->filesize) {
+    g_warning("Invalid XML data size %"PRId64" bytes", xml_size);
+    return NULL;
+  }
+  g_autofree char *xml = g_malloc(xml_size + 1);
+  if (!czi_freadn_to_buf(data, offset, xml, xml_size, err)) {
     g_error("Couldn't read MetaBlock xml");
     return NULL;
   }
 
-  xml[len] = '\0';
+  xml[xml_size] = '\0';
   return g_steal_pointer(&xml);
 }
 
@@ -1012,6 +1026,9 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err) {
       if (!data->file) {
         return false;
       }
+      struct stat st;
+      stat(data->filename, &st);
+      data->filesize = st.st_size;
       g_mutex_init(&data->mutex);
       data->zisraw_offset = att_info.data_offset;
       // knowing offset to ZISRAWFILE, now parse the embeded CZI
@@ -1109,6 +1126,9 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   if (!data->file) {
     return false;
   }
+  struct stat st;
+  stat(filename, &st);
+  data->filesize = st.st_size;
   g_mutex_init(&data->mutex);
   data->count_levels = g_hash_table_new_full(g_int64_hash, g_int64_equal,
                                              (GDestroyNotify)g_free, NULL);
