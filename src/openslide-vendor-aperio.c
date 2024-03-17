@@ -399,10 +399,10 @@ static bool aperio_open(openslide_t *osr,
   }
 
   char *image_desc_pre;
-  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc_pre)) {
+  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc_pre)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read ImageDescription field");
-    goto FAIL;
+    return false;
   }
 
   /*
