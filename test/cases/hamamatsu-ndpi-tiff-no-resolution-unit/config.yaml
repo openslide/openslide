@@ -1,7 +1,0 @@
-base: Hamamatsu/CMU-1.ndpi
-slide: CMU-1.ndpi
-success: true
-vendor: hamamatsu
-properties:
-  openslide.mpp-x: null
-  openslide.mpp-y: null

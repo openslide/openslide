@@ -1,0 +1,10 @@
+[wrap-file]
+directory = libdicom-1.0.5
+source_url = https://github.com/ImagingDataCommons/libdicom/releases/download/v1.0.5/libdicom-1.0.5.tar.xz
+source_filename = libdicom-1.0.5.tar.xz
+source_hash = 3b88f267b58009005bc1182d8bd0c4a3218013ce202da722e5e8c9867c6f94f4
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/libdicom_1.0.5-1/libdicom-1.0.5.tar.xz
+wrapdb_version = 1.0.5-1
+
+[provide]
+dependency_names = libdicom

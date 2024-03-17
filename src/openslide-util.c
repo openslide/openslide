@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
- *  Copyright (c) 2015 Benjamin Gilbert
+ *  Copyright (c) 2015-2022 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -20,8 +20,6 @@
  *
  */
 
-#include <config.h>
-
 #include "openslide-private.h"
 
 #include <stdio.h>
@@ -31,11 +29,7 @@
 #include <errno.h>
 #include <glib.h>
 #include <cairo.h>
-
-#ifdef HAVE_FCNTL
-#include <unistd.h>
-#include <fcntl.h>
-#endif
+#include <zlib.h>
 
 #define KEY_FILE_HARD_MAX_SIZE (100 << 20)
 
@@ -51,30 +45,20 @@ static const struct debug_option {
    "verify Hamamatsu restart markers"},
   {"performance", OPENSLIDE_DEBUG_PERFORMANCE,
    "log conditions causing poor performance"},
+  {"search", OPENSLIDE_DEBUG_SEARCH,
+   "log skipped files when searching directory"},
+  {"sql", OPENSLIDE_DEBUG_SQL,
+   "log SQL queries"},
+  {"synthetic", OPENSLIDE_DEBUG_SYNTHETIC,
+   "openslide_open(\"\") opens a synthetic test slide"},
   {"tiles", OPENSLIDE_DEBUG_TILES, "render tile outlines"},
   {NULL, 0, NULL}
 };
 
 static uint32_t debug_flags;
 
-
-guint _openslide_int64_hash(gconstpointer v) {
-  int64_t i = *((const int64_t *) v);
-  return i ^ (i >> 32);
-}
-
-gboolean _openslide_int64_equal(gconstpointer v1, gconstpointer v2) {
-  return *((int64_t *) v1) == *((int64_t *) v2);
-}
-
-void _openslide_int64_free(gpointer data) {
-  g_slice_free(int64_t, data);
-}
-
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err) {
-  char *buf = NULL;
-
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
    * because the load_from_file function incorrectly parses a value when
@@ -93,42 +77,35 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
   max_size = MIN(max_size, KEY_FILE_HARD_MAX_SIZE);
 
-  FILE *f = _openslide_fopen(filename, "rb", err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (f == NULL) {
     return NULL;
   }
 
   // get file size and check against maximum
-  if (fseeko(f, 0, SEEK_END)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
-    goto FAIL;
-  }
-  int64_t size = ftello(f);
+  int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    _openslide_io_error(err, "Couldn't get size of %s", filename);
-    goto FAIL;
+    g_prefix_error(err, "Couldn't get size of %s: ", filename);
+    return NULL;
   }
   if (size > max_size) {
     g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_NOMEM,
                 "Key file %s too large", filename);
-    goto FAIL;
+    return NULL;
   }
 
   // read
-  if (fseeko(f, 0, SEEK_SET)) {
-    _openslide_io_error(err, "Couldn't seek %s", filename);
-    goto FAIL;
-  }
   // catch file size changes
-  buf = g_malloc(size + 1);
+  g_autofree char *buf = g_malloc(size + 1);
   int64_t total = 0;
   size_t cur_len;
-  while ((cur_len = fread(buf + total, 1, size + 1 - total, f)) > 0) {
+  while ((cur_len = _openslide_fread(f, buf + total, size + 1 - total)) > 0) {
     total += cur_len;
   }
-  if (ferror(f) || total != size) {
-    _openslide_io_error(err, "Couldn't read key file %s", filename);
-    goto FAIL;
+  if (total != size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read key file %s", filename);
+    return NULL;
   }
 
   /* skip the UTF-8 BOM if it is present. */
@@ -138,89 +115,59 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
   }
 
   // parse
-  GKeyFile *key_file = g_key_file_new();
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
   if (!g_key_file_load_from_data(key_file,
                                  buf + offset, size - offset,
                                  flags, err)) {
-    g_key_file_free(key_file);
-    goto FAIL;
+    return NULL;
   }
-  g_free(buf);
-  fclose(f);
-  return key_file;
-
-FAIL:
-  g_free(buf);
-  fclose(f);
-  return NULL;
+  return g_steal_pointer(&key_file);
 }
 
-#undef fopen
-static FILE *do_fopen(const char *path, const char *mode, GError **err) {
-  FILE *f;
-
-#ifdef HAVE__WFOPEN
-  wchar_t *path16 = (wchar_t *) g_utf8_to_utf16(path, -1, NULL, NULL, err);
-  if (path16 == NULL) {
-    g_prefix_error(err, "Couldn't open %s: ", path);
-    return NULL;
+static void zlib_error(z_stream *strm, int64_t dst_len, int error_code,
+                       GError **err) {
+  if (error_code == Z_STREAM_END) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read while decompressing: %lu/%"PRId64,
+                strm->total_out, dst_len);
+  } else if (strm->msg) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s (%s)",
+                zError(error_code), strm->msg);
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Decompression failure: %s", zError(error_code));
   }
-  wchar_t *mode16 = (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
-  if (mode16 == NULL) {
-    g_prefix_error(err, "Bad file mode %s: ", mode);
-    g_free(path16);
-    return NULL;
-  }
-  f = _wfopen(path16, mode16);
-  if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
-  }
-  g_free(mode16);
-  g_free(path16);
-#else
-  f = fopen(path, mode);
-  if (f == NULL) {
-    _openslide_io_error(err, "Couldn't open %s", path);
-  }
-#endif
-
-  return f;
 }
-#define fopen _OPENSLIDE_POISON(_openslide_fopen)
 
-FILE *_openslide_fopen(const char *path, const char *mode, GError **err)
-{
-  char *m = g_strconcat(mode, FOPEN_CLOEXEC_FLAG, NULL);
-  FILE *f = do_fopen(path, m, err);
-  g_free(m);
-  if (f == NULL) {
+void *_openslide_inflate_buffer(const void *src, int64_t src_len,
+                                int64_t dst_len,
+                                GError **err) {
+  g_autofree void *dst = g_malloc(dst_len);
+  z_stream strm = {
+    .avail_in = src_len,
+    .avail_out = dst_len,
+    .next_in = (Bytef *) src,
+    .next_out = (Bytef *) dst
+  };
+
+  int64_t error_code = inflateInit(&strm);
+  if (error_code != Z_OK) {
+    zlib_error(&strm, dst_len, error_code, err);
     return NULL;
   }
-
-  /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty.  Not built on Windows. */
-#ifdef HAVE_FCNTL
-  if (!FOPEN_CLOEXEC_FLAG[0]) {
-    int fd = fileno(f);
-    if (fd == -1) {
-      _openslide_io_error(err, "Couldn't fileno() %s", path);
-      fclose(f);
-      return NULL;
-    }
-    long flags = fcntl(fd, F_GETFD);
-    if (flags == -1) {
-      _openslide_io_error(err, "Couldn't F_GETFD %s", path);
-      fclose(f);
-      return NULL;
-    }
-    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC)) {
-      _openslide_io_error(err, "Couldn't F_SETFD %s", path);
-      fclose(f);
-      return NULL;
-    }
+  error_code = inflate(&strm, Z_FINISH);
+  if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
+    inflateEnd(&strm);
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
   }
-#endif
-
-  return f;
+  error_code = inflateEnd(&strm);
+  if (error_code != Z_OK) {
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  return g_steal_pointer(&dst);
 }
 
 #undef g_ascii_strtod
@@ -228,7 +175,7 @@ double _openslide_parse_double(const char *value) {
   // Canonicalize comma to decimal point, since the locale of the
   // originating system sometimes leaks into slide files.
   // This will break if the value includes grouping characters.
-  char *canonical = g_strdup(value);
+  g_autofree char *canonical = g_strdup(value);
   g_strdelimit(canonical, ",", '.');
 
   char *endptr;
@@ -236,10 +183,8 @@ double _openslide_parse_double(const char *value) {
   double result = g_ascii_strtod(canonical, &endptr);
   // fail on overflow/underflow
   if (canonical[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
-    result = NAN;
+    return NAN;
   }
-
-  g_free(canonical);
   return result;
 }
 #define g_ascii_strtod _OPENSLIDE_POISON(_openslide_parse_double)
@@ -327,13 +272,12 @@ bool _openslide_clip_tile(uint32_t *tiledata,
     return true;
   }
 
-  cairo_surface_t *surface =
+  g_autoptr(cairo_surface_t) surface =
     cairo_image_surface_create_for_data((unsigned char *) tiledata,
                                         CAIRO_FORMAT_ARGB32,
                                         tile_w, tile_h,
                                         tile_w * 4);
-  cairo_t *cr = cairo_create(surface);
-  cairo_surface_destroy(surface);
+  g_autoptr(cairo_t) cr = cairo_create(surface);
 
   cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 
@@ -343,10 +287,7 @@ bool _openslide_clip_tile(uint32_t *tiledata,
   cairo_rectangle(cr, 0, clip_h, tile_w, tile_h - clip_h);
   cairo_fill(cr);
 
-  bool success = _openslide_check_cairo_status(cr, err);
-  cairo_destroy(cr);
-
-  return success;
+  return _openslide_check_cairo_status(cr, err);
 }
 
 // note: g_getenv() is not reentrant
@@ -356,7 +297,7 @@ void _openslide_debug_init(void) {
     return;
   }
 
-  char **keywords = g_strsplit(debug_str, ",", 0);
+  g_auto(GStrv) keywords = g_strsplit(debug_str, ",", 0);
   bool printed_help = false;
   for (char **kw = keywords; *kw; kw++) {
     g_strstrip(*kw);
@@ -376,7 +317,6 @@ void _openslide_debug_init(void) {
       }
     }
   }
-  g_strfreev(keywords);
 }
 
 bool _openslide_debug(enum _openslide_debug_flag flag) {

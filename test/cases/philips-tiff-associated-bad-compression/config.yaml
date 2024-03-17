@@ -1,0 +1,5 @@
+base: Philips-TIFF/Philips-2.tiff
+error: "^Can't read macro associated image: Unsupported TIFF compression: 42$"
+slide: Philips-2.tiff
+success: false
+vendor: philips

@@ -1,5 +1,5 @@
 base: Mirax/Mirax2.2-4-BMP.zip
-error: ^Short read loading pixbuf from .*Data0013.dat$
+error: ^Short read loading pixbuf$
 slide: Mirax2.2-4-BMP.mrxs
 success: false
 vendor: mirax

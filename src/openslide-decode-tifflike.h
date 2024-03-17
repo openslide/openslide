@@ -37,12 +37,21 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
 void _openslide_tifflike_destroy(struct _openslide_tifflike *tl);
 
+typedef struct _openslide_tifflike _openslide_tifflike;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tifflike, _openslide_tifflike_destroy)
+
 bool _openslide_tifflike_init_properties_and_hash(openslide_t *osr,
                                                   struct _openslide_tifflike *tl,
                                                   struct _openslide_hash *quickhash1,
                                                   int32_t lowest_resolution_level,
                                                   int32_t property_dir,
                                                   GError **err);
+
+// not included in _openslide_tifflike_init_properties_and_hash because
+// a format's resolution tags might be unreliable
+void _openslide_tifflike_set_resolution_props(openslide_t *osr,
+                                              struct _openslide_tifflike *tl,
+                                              int64_t dir);
 
 // helpful printout?
 void _openslide_tifflike_print(struct _openslide_tifflike *tl);

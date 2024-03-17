@@ -1,0 +1,17 @@
+name: DCO report
+
+on:
+  workflow_run:
+    workflows: ["DCO"]
+    types:
+      - completed
+
+permissions:
+  contents: none
+
+jobs:
+  comment:
+    name: Organization
+    uses: openslide/.github/.github/workflows/dco-report.yml@main
+    secrets:
+      OPENSLIDE_BOT_TOKEN: ${{ secrets.OPENSLIDE_BOT_TOKEN }}

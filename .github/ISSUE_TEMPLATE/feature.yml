@@ -1,0 +1,14 @@
+name: Feature request
+description: Request an enhancement to OpenSlide
+labels: ["enhancement"]
+body:
+  - type: input
+    id: format
+    attributes:
+      label: Slide format
+      placeholder: e.g. SVS, NDPI, MRXS
+  - type: textarea
+    id: details
+    attributes:
+      label: Issue details
+      placeholder: Describe your issue

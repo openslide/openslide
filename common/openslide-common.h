@@ -24,13 +24,13 @@
 
 #include <stdbool.h>
 #include <glib.h>
+#include <openslide.h>
+
+#ifdef OPENSLIDE_PUBLIC
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
+#endif
 
 // cmdline
-
-struct common_usage_info {
-  const char *parameter_string;
-  const char *summary;
-};
 
 void common_fix_argv(int *argc, char ***argv);
 
@@ -38,14 +38,12 @@ bool common_parse_options(GOptionContext *ctx,
                           int *argc, char ***argv,
                           GError **err);
 
-void common_parse_commandline(const struct common_usage_info *info,
-                              int *argc, char ***argv);
-
-void common_usage(const struct common_usage_info *info) G_GNUC_NORETURN;
-
 // fail
 
+void common_warn(const char *fmt, ...);
 void common_fail(const char *fmt, ...) G_GNUC_NORETURN;
+bool common_warn_on_error(openslide_t *osr, const char *fmt, ...);
+void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 // fd
 

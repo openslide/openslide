@@ -32,8 +32,12 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err);
 sqlite3_stmt *_openslide_sqlite_prepare(sqlite3 *db, const char *sql,
                                         GError **err);
 bool _openslide_sqlite_step(sqlite3_stmt *stmt, GError **err);
+void _openslide_sqlite_finalize(sqlite3_stmt *stmt);
 void _openslide_sqlite_propagate_error(sqlite3 *db, GError **err);
 void _openslide_sqlite_propagate_stmt_error(sqlite3_stmt *stmt, GError **err);
 void _openslide_sqlite_close(sqlite3 *db);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(sqlite3, _openslide_sqlite_close)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(sqlite3_stmt, _openslide_sqlite_finalize)
 
 #endif

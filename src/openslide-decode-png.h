@@ -31,4 +31,10 @@ bool _openslide_png_read(const char *filename,
                          int64_t w, int64_t h,
                          GError **err);
 
+bool _openslide_png_decode_buffer(const void *buf,
+                                  int64_t length,
+                                  uint32_t *dest,
+                                  int64_t w, int64_t h,
+                                  GError **err);
+
 #endif

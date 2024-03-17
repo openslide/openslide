@@ -7,75 +7,257 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: 1
+
 jobs:
   tests:
     name: Build
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            container: registry.fedoraproject.org/fedora:latest
+            extra: extra checks
+            sanitize: sanitize
+          - os: ubuntu-latest
+            container: quay.io/centos/centos:stream8
+          - os: ubuntu-latest
+            container: quay.io/centos/centos:stream9
+          - os: ubuntu-latest
+            container: debian:11
+            ignore-cloexec-leaks: ignore CLOEXEC leaks
+          - os: ubuntu-latest
+            container: debian:12
+          - os: ubuntu-20.04
+            ignore-cloexec-leaks: ignore CLOEXEC leaks
+          - os: ubuntu-22.04
+          - os: macos-12
+            sanitize: sanitize
     steps:
-    - name: Check out repo
-      uses: actions/checkout@v2
     - name: Install dependencies
       run: |
         case "${{ matrix.os }}" in
-        ubuntu-latest)
-          sudo apt-get install \
-            gcc make autoconf automake libtool pkg-config \
-            zlib1g-dev \
-            libpng-dev \
-            libjpeg-turbo8-dev \
-            libtiff5-dev \
-            libopenjp2-7-dev \
-            libgdk-pixbuf2.0-dev \
-            libxml2-dev \
-            libsqlite3-dev \
-            libcairo2-dev \
-            libglib2.0-dev \
-            doxygen
-          ;;
-        macos-latest)
-          brew install \
-            gcc make autoconf automake libtool pkg-config \
-            zlib \
-            libpng \
-            jpeg-turbo \
-            libtiff \
-            openjpeg \
-            gdk-pixbuf \
-            libxml2 \
-            sqlite \
-            cairo \
-            glib
-          ;;
+        macos-*)
+            # https://github.com/actions/setup-python/issues/577
+            # https://github.com/q3aiml/ledger/commit/f53b35ae
+            brew list -1 | grep python | while read formula; do
+                brew unlink $formula
+                brew link --overwrite $formula
+            done
+            brew update
+            brew install \
+                meson pkg-config \
+                zlib \
+                libpng \
+                jpeg-turbo \
+                libtiff \
+                openjpeg \
+                gdk-pixbuf \
+                libxml2 \
+                sqlite \
+                cairo \
+                glib \
+                xdelta
+            python3 -m pip install --upgrade pip
+            python3 -m pip install requests PyYAML
+            ;;
+        ubuntu-*)
+            case "${{ matrix.container }}" in
+            *fedora*|*centos*)
+                pyver=3
+                . /etc/os-release
+                case "$VERSION_ID" in
+                8)
+                    dnf install -y 'dnf-command(config-manager)'
+                    dnf config-manager --set-enabled powertools
+                    pyver=38
+                    pydotver=3.8
+                    python=python38
+                    ;;
+                9)
+                    dnf install -y 'dnf-command(config-manager)'
+                    dnf config-manager --set-enabled crb
+                    dnf install -y epel-release epel-next-release
+                    ;;
+                *)
+                    extra="git-core clang doxygen llvm valgrind valgrind-devel"
+                    extra="$extra dnf-plugins-core"
+                    debuginfo=1
+                    ;;
+                esac
+
+                dnf install -y \
+                    gcc git meson pkg-config \
+                    $python python${pyver}-requests python${pyver}-pyyaml \
+                    diffutils \
+                    zlib-devel \
+                    libpng-devel \
+                    libjpeg-turbo-devel \
+                    libtiff-devel \
+                    openjpeg2-devel \
+                    gdk-pixbuf2-modules gdk-pixbuf2-devel \
+                    libxml2-devel \
+                    sqlite-devel \
+                    cairo-devel \
+                    glib2-devel \
+                    xdelta libjpeg-turbo-utils $extra
+
+                if [ -n "$debuginfo" ]; then
+                    dnf debuginfo-install -y cairo fontconfig glib2
+                fi
+                if [ -n "$pydotver" ]; then
+                    alternatives --set python3 "/usr/bin/python${pydotver}"
+                fi
+                ;;
+            *debian*|"")
+                if [ -n "${{ matrix.container }}" ]; then
+                    # Debian container
+                    jpeg=libjpeg-dev
+                else
+                    # Ubuntu, on host
+                    jpeg=libjpeg-turbo8-dev
+                    sudo=sudo
+                fi
+                $sudo apt-get update
+                $sudo apt-get -y install \
+                    gcc git meson pkg-config \
+                    python3-requests python3-yaml \
+                    zlib1g-dev \
+                    libpng-dev \
+                    $jpeg \
+                    libtiff-dev \
+                    libopenjp2-7-dev \
+                    libgdk-pixbuf2.0-dev \
+                    libxml2-dev \
+                    libsqlite3-dev \
+                    libcairo2-dev \
+                    libglib2.0-dev \
+                    xdelta3 libjpeg-turbo-progs
+                ;;
+            esac
         esac
-    - name: Build
-      run: |
-        autoreconf -i
-        ./configure
-        make -j4
-    - name: Check exports
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: cd test && ./driver exports
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    steps:
     - name: Check out repo
-      uses: actions/checkout@v2
-    - name: Install tools
-      run: sudo apt-get install doxygen
+      uses: actions/checkout@v4
+    - name: Check for uninitialized g_auto variables
+      if: matrix.extra
+      run: |
+        git config --global --add safe.directory $GITHUB_WORKSPACE
+        if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
+            echo "Found g_auto* declarations without initializers"
+            exit 1
+        fi
     - name: Build
       run: |
-        basename=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
-        mkdir artifact
-        cd doc
-        doxygen
-        mv html ../artifact/${basename}
-        echo "basename=${basename}" >> $GITHUB_ENV
-    - name: Archive
-      uses: actions/upload-artifact@v2
+        args=
+        if [ -n "${{ matrix.ignore-cloexec-leaks }}" ]; then
+            # Some distro versions have leaky libraries
+            echo "Disabling CLOEXEC leak check"
+            args="-D_nonatomic_cloexec=true"
+        fi
+        if ! meson setup builddir --werror $args; then
+            cat builddir/meson-logs/meson-log.txt
+            exit 1
+        fi
+        ninja -C builddir
+    - name: Check
+      run: |
+        trap "cat builddir/meson-logs/testlog.txt" EXIT
+        meson test -C builddir
+    - name: Docs
+      if: matrix.extra
+      run: |
+        cd builddir
+        ninja doc/html
+        docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
+        mkdir doc-artifact
+        mv doc/html doc-artifact/${docroot}
+        echo "docroot=${docroot}" >> $GITHUB_ENV
+    - name: Archive docs
+      if: matrix.extra
+      uses: actions/upload-artifact@v3
       with:
-        name: ${{ env.basename }}
-        path: artifact
+        name: ${{ env.docroot }}
+        path: builddir/doc-artifact
+    - name: Cache pristine slides
+      uses: actions/cache@v3
+      with:
+        key: pristine
+        path: builddir/test/_slidedata/pristine
+    - name: Check for overlarge tests
+      if: matrix.extra
+      run: |
+        # We don't want to allow arbitrarily large binary diffs into the
+        # repo, where they'll live in the Git history forever.  At the time
+        # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
+        # set the cutoff at 6000.
+        # https://openslide.org/docs/testsuite/#tips
+        THRESHOLD=6000
+        large=$(find test/cases -type f -size +${THRESHOLD}c)
+        if [ -n "$large" ]; then
+            echo "Found test case files larger than $THRESHOLD bytes:"
+            echo "$large"
+            exit 1
+        fi
+    # Can't cache frozen tests because cache doesn't handle sparse files
+    - name: Unpack tests
+      run: |
+        cd builddir/test
+        ./driver unfreeze
+        ./driver unpack nonfrozen
+    - name: Test
+      run: cd builddir/test && ./driver run
+    - name: Sanitize
+      if: matrix.sanitize
+      run: cd builddir/test && ./driver sanitize
+    - name: Valgrind
+      # Valgrind tests are expensive, and maintaining suppressions across
+      # multiple distros can be fiddly.  We might catch some additional bugs
+      # if we enabled this everywhere (mainly when there are different code
+      # paths for different dependency versions) but it doesn't seem worth it.
+      if: matrix.extra
+      run: cd builddir/test && ./driver valgrind
+    - name: Check exports
+      if: matrix.extra
+      run: cd builddir/test && ./driver exports
+
+  windows_setup:
+    name: Set up Windows build
+    runs-on: ubuntu-latest
+    outputs:
+      builder_repo_and_digest: ${{ steps.find.outputs.builder_repo_and_digest }}
+      pkgver: ${{ steps.params.outputs.pkgver }}
+    steps:
+      - name: Find builder container digest
+        id: find
+        uses: openslide/openslide-winbuild/.github/find-container-digest@main
+      - name: Calculate parameters
+        id: params
+        run: |
+          case "${{ github.event_name }}" in
+          pull_request)
+              echo "pkgver=pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              ;;
+          push)
+              echo "pkgver=${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              ;;
+          *)
+              echo "Unknown event type ${{ github.event_name }}"
+              exit 1
+          esac
+
+  windows_build:
+    name: Windows build
+    needs: windows_setup
+    uses: openslide/openslide-winbuild/.github/workflows/windows.yml@main
+    with:
+      builder_repo_and_digest: ${{ needs.windows_setup.outputs.builder_repo_and_digest }}
+      openslide_repo: ${{ github.repository }}
+      openslide_ref: ${{ github.ref }}
+      pkgver: ${{ needs.windows_setup.outputs.pkgver }}
+      werror: true

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://lists.andrew.cmu.edu/mailman/listinfo/openslide-users/
+    about: Ask support questions on the openslide-users mailing list

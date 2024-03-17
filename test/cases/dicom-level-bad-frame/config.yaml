@@ -1,0 +1,7 @@
+base: DICOM/3DHISTECH-1.zip
+error: "^libdicom IO error: End of filehandle - Needed 2 bytes beyond end of filehandle$"
+slide: 000005.dcm
+success: false
+vendor: dicom
+regions:
+  - [0, 0, 8, 100, 100]

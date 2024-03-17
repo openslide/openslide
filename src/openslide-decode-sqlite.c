@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2013 Carnegie Mellon University
+ *  Copyright (c) 2022 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -19,26 +20,29 @@
  *
  */
 
-#include <config.h>
 #include <string.h>
 
 #include "openslide-decode-sqlite.h"
 #include "openslide-private.h"
 
 #define BUSY_TIMEOUT 500  // ms
-#define PROFILE 0
 
-/* Can only use API supported in SQLite 3.6.20 for RHEL 6 compatibility */
+/* Can only use API supported in SQLite 3.26.0 for RHEL 8 compatibility */
 
-#if PROFILE
-// We would like to put this behind a debug flag, but sqlite3_profile() is
-// marked experimental, so we would be risking future build breakage.
-static void profile_callback(void *arg G_GNUC_UNUSED, const char *sql,
-                             sqlite3_uint64 ns) {
-  uint64_t ms = ns / 1e6;
+typedef char sqlite_char;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(sqlite_char, sqlite3_free)
+
+static int profile_callback(unsigned trace_type G_GNUC_UNUSED,
+                            void *ctx G_GNUC_UNUSED,
+                            void *stmt,
+                            void *ns) {
+  sqlite3_stmt *stmtp = stmt;
+  sqlite3_int64 *nsp = ns;
+  uint64_t ms = *nsp / 1e6;
+  g_autoptr(sqlite_char) sql = sqlite3_expanded_sql(stmtp);
   g_debug("%s --> %"PRIu64" ms", sql, ms);
+  return 0;
 }
-#endif
 
 #undef sqlite3_open_v2
 static sqlite3 *do_open(const char *filename, int flags, GError **err) {
@@ -66,9 +70,9 @@ static sqlite3 *do_open(const char *filename, int flags, GError **err) {
 
   sqlite3_busy_timeout(db, BUSY_TIMEOUT);
 
-#if PROFILE
-  sqlite3_profile(db, profile_callback, NULL);
-#endif
+  if (_openslide_debug(OPENSLIDE_DEBUG_SQL)) {
+    sqlite3_trace_v2(db, SQLITE_TRACE_PROFILE, profile_callback, NULL);
+  }
 
   return db;
 }
@@ -78,14 +82,13 @@ sqlite3 *_openslide_sqlite_open(const char *filename, GError **err) {
   // ":" filename prefix is reserved.
   // "file:" prefix invokes URI filename interpretation if enabled, which
   // might have been done globally.
-  char *path;
+  g_autofree char *path = NULL;
   if (g_str_has_prefix(filename, ":") || g_str_has_prefix(filename, "file:")) {
     path = g_strdup_printf("./%s", filename);
   } else {
     path = g_strdup(filename);
   }
   sqlite3 *db = do_open(path, SQLITE_OPEN_READONLY, err);
-  g_free(path);
   return db;
 }
 
@@ -110,6 +113,11 @@ bool _openslide_sqlite_step(sqlite3_stmt *stmt, GError **err) {
     _openslide_sqlite_propagate_stmt_error(stmt, err);
     return false;
   }
+}
+
+// wrapper that returns void for g_autoptr
+void _openslide_sqlite_finalize(sqlite3_stmt *stmt) {
+  sqlite3_finalize(stmt);
 }
 
 // only legal if an error occurred

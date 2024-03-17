@@ -1,0 +1,7 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "No such value: directory 0, tag 270"
+slide: Philips-1.tiff
+success: false
+vendor: generic-tiff
+debug:
+  - detection

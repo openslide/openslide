@@ -14,7 +14,7 @@ function start() {
     fi
 
     ./driver create "$slide" "$testcase"
-    pushd "cases/$testcase"
+    pushd "../../test/cases/$testcase"
     [ -n "$EDITOR" ] && $EDITOR config.yaml
 }
 
@@ -22,6 +22,7 @@ function finish() {
     if [ -n "$testcase" ] ; then
         popd
         ./driver pack $testcase
+        ./driver run $testcase
     fi
     testcase=
 }

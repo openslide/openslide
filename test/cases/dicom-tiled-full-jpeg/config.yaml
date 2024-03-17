@@ -1,0 +1,12 @@
+base: DICOM/3DHISTECH-1.zip
+# ORIGINAL\PRIMARY\VOLUME\NONE
+slide: 000005.dcm
+success: true
+vendor: dicom
+primary: true
+properties:
+  openslide.associated.label.icc-size: "63928"
+  openslide.associated.macro.icc-size: "63928"
+  openslide.icc-size: "63928"
+  openslide.quickhash-1: 95620a2bd3ca53b8bdc0830fe99ad5f9f150d80e202c5e74aec3c905ebbad0cb
+  openslide.vendor: dicom

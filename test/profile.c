@@ -44,14 +44,8 @@ int main(int argc, char **argv) {
   const char *path = argv[1];
   int level = atoi(argv[2]);
 
-  openslide_t *osr = openslide_open(path);
-  if (!osr) {
-    common_fail("Couldn't open %s", path);
-  }
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Open failed: %s", err);
-  }
+  g_autoptr(openslide_t) osr = openslide_open(path);
+  common_fail_on_error(osr, "Couldn't open %s", path);
   if (level >= openslide_get_level_count(osr)) {
     common_fail("No such level: %d", level);
   }
@@ -79,7 +73,7 @@ int main(int argc, char **argv) {
 
   w = MIN(w, MAXWIDTH);
   h = MIN(h, MAXHEIGHT);
-  uint32_t *buf = g_new(uint32_t, BUFWIDTH * BUFHEIGHT);
+  g_autofree uint32_t *buf = g_new(uint32_t, BUFWIDTH * BUFHEIGHT);
 
   printf("Reading (%"PRId64", %"PRId64") in level %d for "
          "%"PRId64" x %"PRId64"\n\n", x, y, level, w, h);
@@ -99,13 +93,7 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION;
 #endif
 
-  err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Read failed: %s", err);
-  }
-
-  g_free(buf);
-  openslide_close(osr);
+  common_fail_on_error(osr, "Read failed");
 
   return 0;
 }

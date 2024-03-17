@@ -1,0 +1,11 @@
+# large slide, so we avoid using it for most tests
+base: Philips-TIFF/Philips-2.tiff
+slide: Philips-2.tiff
+success: true
+vendor: philips
+primary: true
+properties:
+  openslide.associated.macro.height: "1577"
+  openslide.associated.macro.width: "3629"
+  openslide.quickhash-1: 68d2f5ef88b9c9cfd73431df22c457f3e0c6fce6819a840272cb132d395a78dc
+  openslide.vendor: philips

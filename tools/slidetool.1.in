@@ -1,0 +1,184 @@
+.\"
+.\" OpenSlide, a library for reading whole slide image files
+.\"
+.\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023      Benjamin Gilbert
+.\" All rights reserved.
+.\"
+.\" OpenSlide is free software: you can redistribute it and/or modify
+.\" it under the terms of the GNU Lesser General Public License as
+.\" published by the Free Software Foundation, version 2.1.
+.\"
+.\" OpenSlide is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+.\" GNU Lesser General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU Lesser General Public
+.\" License along with OpenSlide. If not, see
+.\" <http://www.gnu.org/licenses/>.
+.\"
+
+
+.\" See man-pages(7) for formatting conventions.
+
+
+.TH SLIDETOOL 1 2023-07-27 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+
+.mso www.tmac
+
+.SH NAME
+slidetool \- Retrieve data from whole slide images
+
+.SH SYNOPSIS
+.BR "slidetool " [ --help "] [" --version ]
+.br
+.B slidetool assoc icc read
+.IR "file name" " [" output-file ]
+.br
+.B slidetool assoc list
+.IR file ...
+.br
+.B slidetool assoc read
+.IR "file name" " [" output-file ]
+.br
+.B slidetool prop get
+.IR "property file" ...
+.br
+.BR "slidetool prop list" " [" --names ]
+.IR file ...
+.br
+.B slidetool region icc read
+.IR file " [" output-file ]
+.br
+.B slidetool region read
+.IR "file x y level width height" " [" output-file ]
+.br
+.B slidetool slide open
+.IR file ...
+.br
+.B slidetool slide quickhash1
+.IR file ...
+.br
+.B slidetool slide vendor
+.IR file ...
+
+.SH DESCRIPTION
+.B slidetool
+uses OpenSlide to retrieve data from whole slide images,
+also known as virtual slide files.
+
+.SS slidetool assoc icc read
+Write the associated image's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
+
+.SS slidetool assoc list
+List associated images for one or more slides.
+Associated images are small non-pyramidal images containing
+additional information about the slide, such as its label.
+
+.SS slidetool assoc read
+Write the associated image with the specified
+.I name
+to a PNG image.
+If
+.I output-file
+is not specified, the image will be written to standard output.
+
+.SS slidetool prop get
+Print a single OpenSlide property value for one or more slides.
+Properties are individual pieces of textual metadata about the slide.
+Properties prefixed with
+.I openslide.
+are defined by OpenSlide;
+others are defined by the individual slide format.
+
+.SS slidetool prop list
+Print all OpenSlide properties for one or more slides.
+
+.SS slidetool region icc read
+Write the slide's ICC color profile to
+.I output-file
+if specified, and otherwise to standard output.
+If no ICC color profile is available, fail.
+
+.SS slidetool region read
+Write a region of the specified
+.I level
+of a slide to a PNG image.
+.I x
+and
+.I y
+are pixel coordinates in level 0, the highest-resolution slide level.
+.I width
+and
+.I height
+are pixel dimensions in the specified
+.IR level .
+If
+.I output-file
+is not specified, the image will be written to standard output.
+
+The dimensions of each level of a slide can be obtained with
+.BR "slidetool prop list" .
+
+.SS slidetool slide open
+Check whether OpenSlide can open one or more slide files.
+
+.SS slidetool slide quickhash1
+Print OpenSlide
+.I quickhash-1
+checksums for one or more slides, in a format similar to
+.BR sha256sum (1).
+.PP
+.I quickhash-1
+is a non-cryptographic, 256-bit hash of a subset of a slide's data.
+It uniquely identifies a particular slide,
+but cannot be used to detect corruption or modification of the slide file.
+.PP
+.I quickhash-1
+is not defined for all slide files supported by OpenSlide.
+If a slide does not have a
+.IR quickhash-1 ,
+"No quickhash-1 available" will be printed.
+
+.SS slidetool slide vendor
+Report the detected OpenSlide vendor name for one or more slide files.
+
+.SH OPTIONS
+.TP
+.B --help
+Display usage summary.
+
+.TP
+.B --names
+For
+.BR "slidetool prop list" ,
+omit property values.
+
+.TP
+.B --version
+Display version and copyright information.
+
+.SH EXIT STATUS
+.B slidetool
+returns 0 on success, 1 if a slide file could not be read,
+or 2 if the arguments are invalid.
+
+.SH COPYRIGHT
+Copyright \(co 2007-2023 Carnegie Mellon University and others
+.PP
+OpenSlide is free software: you can redistribute it and/or modify it
+under the terms of the
+.URL http://gnu.org/licenses/lgpl-2.1.html "GNU Lesser General Public License, version 2.1" .
+.PP
+OpenSlide comes with NO WARRANTY, to the extent permitted by law.
+See the GNU Lesser General Public License for more details.
+
+.SH SEE ALSO
+.BR openslide-quickhash1sum (1),
+.BR openslide-show-properties (1),
+.BR openslide-write-png (1),
+.BR sha256sum (1)

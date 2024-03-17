@@ -1,0 +1,7 @@
+base: Philips-TIFF/Philips-1.tiff
+error: "philips-tiff: Root tag not DataObject"
+slide: Philips-1.tiff
+success: false
+vendor: generic-tiff
+debug:
+  - detection

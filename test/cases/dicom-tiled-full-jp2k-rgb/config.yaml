@@ -1,0 +1,13 @@
+base: DICOM/CMU-1-JP2K-33005.zip
+# DERIVED\PRIMARY\VOLUME\NONE
+slide: DCM_0.dcm
+success: true
+vendor: dicom
+primary: true
+properties:
+  openslide.associated.label.icc-size: "3144"
+  openslide.associated.macro.icc-size: "3144"
+  openslide.associated.thumbnail.icc-size: "3144"
+  openslide.icc-size: "3144"
+  openslide.quickhash-1: 8d3fcfae032e2758633c75fa65a583acf4dd22e0a28872d628947d3937f5c2f8
+  openslide.vendor: dicom

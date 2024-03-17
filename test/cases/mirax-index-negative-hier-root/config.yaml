@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Cannot seek to zoom level pointer 0$
+error: "^Cannot seek to zoom level pointer 0:"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

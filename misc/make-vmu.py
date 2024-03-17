@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 #
 #  OpenSlide, a library for reading whole slide image files
 #
@@ -24,16 +24,15 @@
 # to fool OpenSlide.
 #
 
-from __future__ import division
-from ConfigParser import RawConfigParser
-from fractions import gcd
+from configparser import RawConfigParser
+from math import gcd
 from openslide import OpenSlide
 import struct
 import sys
 
 BUF_HEIGHT = 512
 
-class VmuLevel(object):
+class VmuLevel:
     def __init__(self, osr, level):
         self._osr = osr
         self.level = level
@@ -42,23 +41,23 @@ class VmuLevel(object):
         self.downsample = osr.level_downsamples[level]
 
     def save(self, path):
-        with open(path, 'w') as fh:
+        with open(path, 'wb') as fh:
             # Header
-            fh.write(struct.pack('<2c2x3i8xi4x', 'G', 'N', self.width,
+            fh.write(struct.pack('<2c2x3i8xi4x', b'G', b'N', self.width,
                     self.height, self.column_width, 32))
 
             # Body
-            for col in xrange(self.width // self.column_width):
+            for col in range(self.width // self.column_width):
                 # BUF_HEIGHT rows at a time
-                for i in xrange((self.height + BUF_HEIGHT - 1) // BUF_HEIGHT):
+                for i in range((self.height + BUF_HEIGHT - 1) // BUF_HEIGHT):
                     rows = min(BUF_HEIGHT, self.height - i * BUF_HEIGHT)
                     img = self._osr.read_region(
                             (int(col * self.column_width * self.downsample),
                             int(i * BUF_HEIGHT * self.downsample)),
                             self.level,
                             (self.column_width, rows)).load()
-                    for y in xrange(rows):
-                        for x in xrange(self.column_width):
+                    for y in range(rows):
+                        for x in range(self.column_width):
                             pix = [v << 4 for v in img[x, y]]
                             # FIXME: ignores alpha
                             fh.write(struct.pack('<3h', *pix[0:3]))
@@ -73,7 +72,7 @@ def make_vmu(in_path, out_base):
         l0 = VmuLevel(osr, 0)
         l1 = VmuLevel(osr, osr.get_best_level_for_downsample(32))
         for i, l in enumerate([l0, l1]):
-            print 'Level %d: %d pixels/column' % (i, l.column_width)
+            print(f'Level {i}: {l.column_width} pixels/column')
         l0.save(path_0)
         l1.save(path_1)
 
@@ -89,7 +88,7 @@ def make_vmu(in_path, out_base):
     c = RawConfigParser()
     c.optionxform = str
     c.add_section(section)
-    for k, v in conf.iteritems():
+    for k, v in conf.items():
         c.set(section, k, v)
     with open(path_conf, 'w') as fh:
         c.write(fh)
@@ -97,6 +96,6 @@ def make_vmu(in_path, out_base):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print 'Usage: %s infile outbase' % sys.argv[0]
+        print(f'Usage: {sys.argv[0]} infile outbase')
         sys.exit(1)
     make_vmu(sys.argv[1], sys.argv[2])

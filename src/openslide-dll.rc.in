@@ -1,7 +1,7 @@
 #include "winuser.h"
 #include "winver.h"
 
-2 RT_MANIFEST openslide-dll.manifest
+2 RT_MANIFEST "openslide-dll.manifest"
 
 1 VERSIONINFO
 FILEVERSION @WINDOWS_VERSIONINFO@
@@ -15,7 +15,7 @@ BEGIN
             VALUE "FileDescription",  "OpenSlide library"
             VALUE "FileVersion", "@SUFFIXED_VERSION@"
             VALUE "InternalName", "OpenSlide"
-            VALUE "LegalCopyright", "Copyright \251 2007-2016 Carnegie Mellon University and others.  OpenSlide is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License, version 2.1."
+            VALUE "LegalCopyright", "Copyright \251 2007-2023 Carnegie Mellon University and others.  OpenSlide is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License, version 2.1."
         END
     END
     BLOCK "VarFileInfo"

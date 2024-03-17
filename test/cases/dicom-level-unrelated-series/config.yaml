@@ -1,0 +1,6 @@
+base: DICOM/3DHISTECH-1.zip
+slide: 000005.dcm
+success: true
+vendor: dicom
+properties:
+  openslide.level-count: "9"

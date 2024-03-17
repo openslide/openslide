@@ -20,40 +20,8 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <glib.h>
-#include "openslide.h"
 #include "openslide-common.h"
-#include "config.h"
-
-static const char *version_format = "%s " SUFFIXED_VERSION ", "
-"using OpenSlide %s\n"
-"Copyright (C) 2007-2016 Carnegie Mellon University and others\n"
-"\n"
-"OpenSlide is free software: you can redistribute it and/or modify it under\n"
-"the terms of the GNU Lesser General Public License, version 2.1.\n"
-"<http://gnu.org/licenses/lgpl-2.1.html>\n"
-"\n"
-"OpenSlide comes with NO WARRANTY, to the extent permitted by law.  See the\n"
-"GNU Lesser General Public License for more details.\n";
-
-
-static gboolean show_version;
-
-static const GOptionEntry options[] = {
-  {"version", 0, 0, G_OPTION_ARG_NONE, &show_version, "Show version", NULL},
-  {NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL}
-};
-
-
-static GOptionContext *make_option_context(const struct common_usage_info *info) {
-  GOptionContext *octx = g_option_context_new(info->parameter_string);
-  g_option_context_set_summary(octx, info->summary);
-  g_option_context_add_main_entries(octx, options, NULL);
-  return octx;
-}
 
 static char **fixed_argv;
 
@@ -61,9 +29,17 @@ static void free_argv(void) {
   g_strfreev(fixed_argv);
 }
 
+static gboolean parse_fail(GOptionContext* octx G_GNUC_UNUSED,
+                           GOptionGroup* grp G_GNUC_UNUSED,
+                           gpointer data G_GNUC_UNUSED,
+                           GError** err) {
+  g_set_error(err, G_OPTION_ERROR, G_OPTION_ERROR_FAILED, "boo!");
+  return false;
+}
+
 void common_fix_argv(int *argc, char ***argv) {
   if (fixed_argv == NULL) {
-#ifdef G_OS_WIN32
+#ifdef _WIN32
     fixed_argv = g_win32_get_command_line();
 #else
     fixed_argv = g_strdupv(*argv);
@@ -71,6 +47,16 @@ void common_fix_argv(int *argc, char ***argv) {
     *argc = g_strv_length(fixed_argv);
     *argv = fixed_argv;
     atexit(free_argv);
+
+    // Set prgname for g_get_prgname().  g_option_context_parse() has a bunch
+    // of infrastructure to do this, which cannot be called independently.
+    // Call g_option_context_parse() in a way that fails immediately after
+    // setting prgname.
+    g_autoptr(GOptionContext) octx = g_option_context_new(NULL);
+    GOptionGroup *grp = g_option_group_new("", "", "", NULL, NULL);
+    g_option_group_set_parse_hooks(grp, parse_fail, NULL);
+    g_option_context_set_main_group(octx, grp);
+    g_option_context_parse(octx, argc, argv, NULL);
   }
 }
 
@@ -82,46 +68,4 @@ bool common_parse_options(GOptionContext *ctx,
   bool ret = g_option_context_parse_strv(ctx, argv, err);
   *argc = g_strv_length(*argv);
   return ret;
-}
-
-void common_parse_commandline(const struct common_usage_info *info,
-                              int *argc, char ***argv) {
-  GError *err = NULL;
-
-  GOptionContext *octx = make_option_context(info);
-  common_parse_options(octx, argc, argv, &err);
-  g_option_context_free(octx);
-
-  if (err) {
-    fprintf(stderr, "%s: %s\n\n", g_get_prgname(), err->message);
-    g_error_free(err);
-    common_usage(info);
-
-  } else if (show_version) {
-    fprintf(stderr, version_format, g_get_prgname(), openslide_get_version());
-    exit(0);
-  }
-
-  // Remove "--" arguments; g_option_context_parse() doesn't
-  for (int i = 0; i < *argc; i++) {
-    if (!strcmp((*argv)[i], "--")) {
-      free((*argv)[i]);
-      for (int j = i + 1; j <= *argc; j++) {
-        (*argv)[j - 1] = (*argv)[j];
-      }
-      --*argc;
-      --i;
-    }
-  }
-}
-
-void common_usage(const struct common_usage_info *info) {
-  GOptionContext *octx = make_option_context(info);
-
-  gchar *help = g_option_context_get_help(octx, TRUE, NULL);
-  fprintf(stderr, "%s", help);
-  g_free(help);
-
-  g_option_context_free(octx);
-  exit(2);
 }

@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: ^Can't seek to initial data page$
+error: "^Can't seek to initial data page:"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

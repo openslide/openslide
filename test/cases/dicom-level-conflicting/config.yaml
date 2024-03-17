@@ -1,0 +1,9 @@
+base: DICOM/3DHISTECH-1.zip
+# directory search may happen in any order
+error: '^Reading .*/00001[25].dcm: Slide contains unexpected image \(2.25.328798664539572775474540238582958917(777|988) vs. 2.25.328798664539572775474540238582958917(777|988)\)$'
+slide: 000005.dcm
+success: false
+vendor: dicom
+copy:
+  ? 000015.dcm
+  : 000012.dcm

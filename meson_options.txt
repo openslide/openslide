@@ -1,0 +1,49 @@
+option(
+  'version_suffix',
+  type : 'string',
+  description : 'Suffix to append to the package version string',
+)
+option(
+  'test',
+  type : 'feature',
+  value : 'auto',
+  yield : true,
+  description : 'Build tests',
+)
+option(
+  'doc',
+  type : 'feature',
+  value : 'auto',
+  yield : true,
+  description : 'Enable building documentation (requires Doxygen)'
+)
+option(
+  'check_windows_abi_compat',
+  type : 'feature',
+  value : 'auto',
+  description : 'Test with 4-byte stack alignment on 32-bit Windows',
+)
+option(
+  '_export_internal_symbols',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)
+option(
+  '_gcov',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)
+option(
+  '_nonatomic_cloexec',
+  type : 'boolean',
+  value : false,
+  description : 'For CI; do not use',
+)
+option(
+  '_sanitize',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)
