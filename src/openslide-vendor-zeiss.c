@@ -909,12 +909,12 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
       return false;
     }
 
-    if (g_strcmp0(att.name, name) == 0) {
+    if (g_str_equal(att.name, name)) {
       // + 32 bytes segment header + 256 bytes offset
       att_info->data_offset = att.file_pos + 32 + 256;
-      if (g_strcmp0(att.file_type, "JPG") == 0) {
+      if (g_str_equal(att.file_type, "JPG")) {
         att_info->file_type = ATT_JPG;
-      } else if (g_strcmp0(att.file_type, "CZI") == 0) {
+      } else if (g_str_equal(att.file_type, "CZI")) {
         att_info->file_type = ATT_CZI;
       }
 
