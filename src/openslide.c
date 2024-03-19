@@ -42,6 +42,7 @@ static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 static const struct _openslide_format *formats[] = {
   &_openslide_format_synthetic,
   &_openslide_format_mirax,
+  &_openslide_format_zeiss,
   &_openslide_format_dicom,
   &_openslide_format_hamamatsu_vms_vmu,
   &_openslide_format_hamamatsu_ndpi,
@@ -52,7 +53,6 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_philips_tiff,
   &_openslide_format_ventana,
   &_openslide_format_generic_tiff,
-  &_openslide_format_zeiss,
   NULL,
 };
 
