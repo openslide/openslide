@@ -41,7 +41,7 @@ struct czi_decbuf {
 
 static void _openslide_bgr24_to_xrgb32_generic(uint8_t *src, size_t src_len,
                                                uint8_t *dst) {
-  uint32_t *p = (uint32_t *)dst;
+  uint32_t *p = (uint32_t *) dst;
   size_t i = 0;
   /* one 24-bits pixels a time */
   while (i < src_len) {
@@ -53,7 +53,7 @@ static void _openslide_bgr24_to_xrgb32_generic(uint8_t *src, size_t src_len,
 
 static void _openslide_bgr48_to_xrgb32_generic(uint8_t *src, size_t src_len,
                                                uint8_t *dst) {
-  uint32_t *p = (uint32_t *)dst;
+  uint32_t *p = (uint32_t *) dst;
   size_t i = 0;
   /* one 48-bits pixels a time */
   while (i < src_len) {
