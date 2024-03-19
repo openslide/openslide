@@ -775,10 +775,10 @@ static void init_levels(openslide_t *osr) {
     }
   }
 
-  GList *downsamples = g_hash_table_get_keys(count_levels);
-  GList *p = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
-  downsamples = p;
+  g_autoptr(GList) downsamples = g_hash_table_get_keys(count_levels);
+  downsamples = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
 
+  GList *p = downsamples;
   data->common_downsample = get_common_downsample(data);
   while (p) {
     downsample_i = *((int64_t *) p->data);
@@ -801,7 +801,6 @@ static void init_levels(openslide_t *osr) {
   g_assert(osr->levels == NULL);
   osr->level_count = levels->len;
   osr->levels = (struct _openslide_level **) g_ptr_array_free(levels, false);
-  g_list_free(downsamples);
 }
 
 /* locate offset to metadata, to subblock and attachment directory */
