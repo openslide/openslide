@@ -195,15 +195,6 @@ bool _openslide_freadn_to_buf(struct _openslide_file *file, off_t offset,
   return true;
 }
 
-bool _openslide_readn_to_buf(const char *path, off_t offset, void *buf,
-                             size_t len, GError **err) {
-  g_autoptr(_openslide_file) file = _openslide_fopen(path, err);
-  if (!file) {
-    return false;
-  }
-  return _openslide_freadn_to_buf(file, offset, buf, len, err);
-}
-
 struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {
   g_autoptr(_openslide_dir) d = g_new0(struct _openslide_dir, 1);
   d->dir = g_dir_open(dirname, 0, err);

@@ -360,10 +360,14 @@ static bool zeiss_detect(const char *filename,
     return false;
   }
 
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
+  if (!f) {
+    return false;
+  }
+
   // string ZISRAWFILE occurs once per file, at positon 0
   char sid[CZI_SEG_ID_LEN];
-
-  if (!_openslide_readn_to_buf(filename, 0, sid, CZI_SEG_ID_LEN, err)) {
+  if (!_openslide_freadn_to_buf(f, 0, sid, CZI_SEG_ID_LEN, err)) {
     return false;
   }
   if (!g_str_equal(sid, "ZISRAWFILE")) {
