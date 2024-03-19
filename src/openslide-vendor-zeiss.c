@@ -325,15 +325,11 @@ static bool paint_region(openslide_t *osr, cairo_t *cr, int64_t x, int64_t y,
   struct level *l = (struct level *) level;
   int64_t ds = (int64_t) level->downsample;
   struct _openslide_grid *grid = g_hash_table_lookup(data->grids, &ds);
-  void *unused_args = NULL;
 
-  // need convert level 0 x,y to x,y on current level
-  if (!_openslide_grid_paint_region(grid, cr, &unused_args,
-                                    x / l->base.downsample,
-                                    y / l->base.downsample, level, w, h, err)) {
-    return false;
-  }
-  return true;
+  return _openslide_grid_paint_region(grid, cr, NULL,
+                                      x / l->base.downsample,
+                                      y / l->base.downsample,
+                                      level, w, h, err);
 }
 
 static const struct _openslide_ops zeiss_ops = {
