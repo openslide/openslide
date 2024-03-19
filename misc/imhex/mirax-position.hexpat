@@ -3,8 +3,8 @@
 // TODO: support StitchingIntensityLevel, automatically inflating with
 // https://github.com/Jusb3/ImHex-Zlib-Plugin
 
-#include <std/io.pat>
-#include <std/mem.pat>
+import std.io;
+import std.mem;
 
 #pragma endian little
 
