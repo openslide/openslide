@@ -29,7 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #define CZI_SEG_ID_LEN 16
 #define CZI_FILEHDR_LEN 544
@@ -1086,9 +1085,10 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err) {
       if (!data->file) {
         return false;
       }
-      struct stat st;
-      stat(data->filename, &st);
-      data->filesize = st.st_size;
+      data->filesize = _openslide_fsize(data->file, err);
+      if (data->filesize == -1) {
+        return false;
+      }
       g_mutex_init(&data->mutex);
       data->zisraw_offset = att_info.data_offset;
       // knowing offset to ZISRAWFILE, now parse the embedded CZI
@@ -1186,9 +1186,10 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   if (!data->file) {
     return false;
   }
-  struct stat st;
-  stat(filename, &st);
-  data->filesize = st.st_size;
+  data->filesize = _openslide_fsize(data->file, err);
+  if (data->filesize == -1) {
+    return false;
+  }
   g_mutex_init(&data->mutex);
   data->count_levels = g_hash_table_new_full(g_int64_hash, g_int64_equal,
                                              (GDestroyNotify) g_free, NULL);
