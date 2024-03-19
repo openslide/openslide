@@ -270,17 +270,18 @@ struct zeiss_ops_data {
   int32_t offset_y;
   GPtrArray *subblks;
   GPtrArray *regions;
-  GHashTable *grids;
   GMutex mutex;
 };
 
 struct level {
   struct _openslide_level base;
+  struct _openslide_grid *grid;
   int64_t downsample_i;
   int32_t compression;
 };
 
 static void destroy_level(struct level *l) {
+  _openslide_grid_destroy(l->grid);
   g_free(l);
 }
 
@@ -295,9 +296,6 @@ static void destroy_region(struct z_region *p) {
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   _openslide_fclose(data->file);
   g_free(data->filename);
-  if (data->grids) {
-    g_hash_table_destroy(data->grids);
-  }
   if (data->subblks) {
     g_ptr_array_free(data->subblks, true);
   }
@@ -317,16 +315,13 @@ static void destroy(openslide_t *osr) {
   destroy_ops_data(osr->data);
 }
 
-/* locate a grid based on level and let grid_paint_region do the job */
-static bool paint_region(openslide_t *osr, cairo_t *cr, int64_t x, int64_t y,
-                         struct _openslide_level *level, int32_t w, int32_t h,
+static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
+                         int64_t x, int64_t y,
+                         struct _openslide_level *level,
+                         int32_t w, int32_t h,
                          GError **err) {
-  struct zeiss_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
-  int64_t ds = (int64_t) level->downsample;
-  struct _openslide_grid *grid = g_hash_table_lookup(data->grids, &ds);
-
-  return _openslide_grid_paint_region(grid, cr, NULL,
+  return _openslide_grid_paint_region(l->grid, cr, NULL,
                                       x / l->base.downsample,
                                       y / l->base.downsample,
                                       level, w, h, err);
@@ -682,45 +677,39 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   return true;
 }
 
-static void finish_adding_tiles(void *key G_GNUC_UNUSED, void *value,
-                                void *user_data G_GNUC_UNUSED) {
-  struct _openslide_grid *grid = (struct _openslide_grid *) value;
-  _openslide_grid_range_finish_adding_tiles(grid);
-}
-
 static void init_range_grids(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
-  struct _openslide_grid *grid;
-  struct level *l;
   GPtrArray *subblks = data->subblks;
-  struct czi_subblk *b;
-  int64_t *k;
 
-  data->grids =
-    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
-                          (GDestroyNotify) _openslide_grid_destroy);
+  g_autoptr(GHashTable) grids =
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (int i = 0; i < osr->level_count; i++) {
-    l = (struct level *) osr->levels[i];
-    grid = _openslide_grid_create_range(osr, l->base.tile_w, l->base.tile_h,
-                                        read_tile, NULL);
-    k = g_new(int64_t, 1);
+    struct level *l = (struct level *) osr->levels[i];
+    l->grid = _openslide_grid_create_range(osr,
+                                           l->base.tile_w, l->base.tile_h,
+                                           read_tile, NULL);
+    int64_t *k = g_new(int64_t, 1);
     *k = l->downsample_i;
-    g_hash_table_insert(data->grids, k, grid);
+    g_hash_table_insert(grids, k, l->grid);
   }
 
   for (guint i = 0; i < subblks->len; i++) {
-    b = subblks->pdata[i];
+    struct czi_subblk *b = subblks->pdata[i];
     if (b->downsample_i > data->common_downsample) {
       continue;
     }
 
-    grid = g_hash_table_lookup(data->grids, &b->downsample_i);
+    struct _openslide_grid *grid = g_hash_table_lookup(grids, &b->downsample_i);
+    g_assert(grid);
     _openslide_grid_range_add_tile(grid, (double) b->x1 / b->downsample_i,
                                    (double) b->y1 / b->downsample_i,
                                    (double) b->tw, (double) b->th, b);
   }
 
-  g_hash_table_foreach(data->grids, (GHFunc) finish_adding_tiles, NULL);
+  for (int i = 0; i < osr->level_count; i++) {
+    struct level *l = (struct level *) osr->levels[i];
+    _openslide_grid_range_finish_adding_tiles(l->grid);
+  }
 }
 
 static gint cmp_int64(gpointer a, gpointer b) {
