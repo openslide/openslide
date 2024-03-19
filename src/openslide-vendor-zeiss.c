@@ -432,7 +432,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   int64_t offset = data->zisraw_offset + data->subblk_dir_pos;
   struct zisraw_subblk_dir_hdr hdr;
   if (!czi_freadn_to_buf(data, offset, &hdr, sizeof(hdr), err)) {
-    g_error("Couldn't read FileHeader");
+    g_prefix_error(err, "Couldn't read FileHeader: ");
     return false;
   }
   offset += sizeof(hdr);
@@ -447,12 +447,13 @@ static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   int64_t seg_size = (int64_t) GINT32_FROM_LE(hdr.seg_hdr.allocated_size);
   seg_size -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
   if (seg_size < 0 || (offset + seg_size) > data->filesize) {
-    g_warning("Invalid DirectorySegment size %"PRId64" bytes", seg_size);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid DirectorySegment size %"PRId64" bytes", seg_size);
     return false;
   }
   g_autofree char *buf_dir = g_malloc(seg_size);
   if (!czi_freadn_to_buf(data, offset, buf_dir, seg_size, err)) {
-    g_error("Couldn't read SubBlockDirectory");
+    g_prefix_error(err, "Couldn't read SubBlockDirectory: ");
     return false;
   }
 
@@ -507,7 +508,7 @@ static bool czi_read_uncompressed(struct zeiss_ops_data *data, int64_t pos,
   dst->size = len;
   dst->data = g_malloc(len);
   if (!czi_freadn_to_buf(data, pos, dst->data, len, err)) {
-    g_error("Couldn't read pixel data");
+    g_prefix_error(err, "Couldn't read pixel data: ");
     g_free(dst->data);
     return false;
   }
@@ -531,12 +532,15 @@ static bool read_subblk(struct zeiss_ops_data *data,
   // work with BGR24, BGR48
   if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
     if (sb->pixel_type >= 0 && sb->pixel_type < 14) {
-      g_warning("pixel type %s is not supported",
-                z_pixel_type_names[sb->pixel_type].name);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "pixel type %s is not supported",
+                  z_pixel_type_names[sb->pixel_type].name);
+      return false;
     } else {
-      g_warning("pixel type %d is not supported", sb->pixel_type);
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "pixel type %d is not supported", sb->pixel_type);
+      return false;
     }
-    return false;
   }
 
   dst->w = sb->tw;
@@ -544,11 +548,12 @@ static bool read_subblk(struct zeiss_ops_data *data,
   struct zisraw_subblk_hdr hdr;
   if (!czi_freadn_to_buf(data, zisraw_offset + sb->file_pos,
                          &hdr, sizeof(hdr), err)) {
-    g_error("Couldn't read SubBlock header");
+    g_prefix_error(err, "Couldn't read SubBlock header: ");
     return false;
   }
   if (!g_str_equal(hdr.seg_hdr.sid, "ZISRAWSUBBLOCK")) {
-    g_warning("Invalid SubBlock, SID is not ZISRAWSUBBLOCK");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid SubBlock, SID is not ZISRAWSUBBLOCK");
     return false;
   }
 
@@ -559,7 +564,8 @@ static bool read_subblk(struct zeiss_ops_data *data,
                      GINT32_FROM_LE(hdr.meta_size);
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   if (data_size < 0 || (data_pos + data_size) > data->filesize) {
-    g_warning("Invalid SubBlock data size %"PRId64" bytes", data_size);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid SubBlock data size %"PRId64" bytes", data_size);
     return false;
   }
   switch (sb->compression) {
@@ -567,20 +573,25 @@ static bool read_subblk(struct zeiss_ops_data *data,
     return czi_read_uncompressed(data, data_pos, data_size, sb->pixel_type, dst,
                                  NULL);
   case COMP_JXR:
-    g_warning("JPEG XR is not supported");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "JPEG XR is not supported");
     return false;
   case COMP_JPEG:
-    g_warning("JPEG is not supported");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "JPEG is not supported");
     return false;
   case COMP_LZW:
-    g_warning("LZW is not supported");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "LZW is not supported");
     return false;
   case COMP_ZSTD0:
   case COMP_ZSTD1:
-    g_warning("ZSTD is not supported");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "ZSTD is not supported");
     return false;
   default:
-    g_warning("Unrecognized subblock format");
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unrecognized subblock format");
     return false;
   }
   return true;
@@ -747,7 +758,7 @@ static void init_levels(openslide_t *osr) {
 static bool load_dir_position(struct zeiss_ops_data *data, GError **err) {
   struct zisraw_data_file_hdr hdr;
   if (!czi_freadn_to_buf(data, data->zisraw_offset, &hdr, sizeof(hdr), err)) {
-    g_error("Couldn't read FileHeader");
+    g_prefix_error(err, "Couldn't read FileHeader: ");
     return false;
   }
 
@@ -858,19 +869,20 @@ static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err) {
   int64_t offset = data->zisraw_offset + data->meta_pos;
   struct zisraw_meta_hdr hdr;
   if (!czi_freadn_to_buf(data, offset, &hdr, sizeof(hdr), err)) {
-    g_error("Couldn't read MetaBlock header");
+    g_prefix_error(err, "Couldn't read MetaBlock header: ");
     return NULL;
   }
   offset += sizeof(hdr);
 
   int64_t xml_size = (int64_t) GINT32_FROM_LE(hdr.xml_size);
   if (xml_size < 0 || (offset + xml_size) > data->filesize) {
-    g_warning("Invalid XML data size %"PRId64" bytes", xml_size);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid XML data size %"PRId64" bytes", xml_size);
     return NULL;
   }
   g_autofree char *xml = g_malloc(xml_size + 1);
   if (!czi_freadn_to_buf(data, offset, xml, xml_size, err)) {
-    g_error("Couldn't read MetaBlock xml");
+    g_prefix_error(err, "Couldn't read MetaBlock xml: ");
     return NULL;
   }
 

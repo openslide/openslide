@@ -199,7 +199,6 @@ bool _openslide_readn_to_buf(const char *path, off_t offset, void *buf,
                              size_t len, GError **err) {
   g_autoptr(_openslide_file) file = _openslide_fopen(path, err);
   if (!file) {
-    /* do not use g_warning/g_error, otherwise "driver run" fails */
     return false;
   }
   return _openslide_freadn_to_buf(file, offset, buf, len, err);
