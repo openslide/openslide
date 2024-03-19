@@ -2,13 +2,7 @@ base: Zeiss/Zeiss-5-Uncompressed.czi
 slide: Zeiss-5-Uncompressed.czi
 success: true
 vendor: zeiss
-primary: false
+primary: true
 properties:
   openslide.quickhash-1: 4056757b119a6ce0b676f817f475d1095ad90644857e9f053794ee48d2833b21
   openslide.vendor: zeiss
-
-regions:
-    - [1380, 4000, 0, 512, 512]
-    - [1380, 4000, 4, 512, 512]
-    - [48500, 5000, 0, 512, 512]
-    - [48500, 5000, 4, 512, 512]
