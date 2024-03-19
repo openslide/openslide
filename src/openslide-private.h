@@ -137,6 +137,7 @@ struct _openslide_format {
 };
 
 extern const struct _openslide_format _openslide_format_aperio;
+extern const struct _openslide_format _openslide_format_huron;
 extern const struct _openslide_format _openslide_format_dicom;
 extern const struct _openslide_format _openslide_format_generic_tiff;
 extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
