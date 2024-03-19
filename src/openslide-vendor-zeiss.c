@@ -430,23 +430,21 @@ static size_t read_dir_entry(GPtrArray *subblks, char *p) {
 /* read all data subblocks info (x, y, w, h etc.) from subblock directory */
 static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   int64_t offset = data->zisraw_offset + data->subblk_dir_pos;
-  char buf[512];
-  size_t len = sizeof(struct zisraw_subblk_dir_hdr);
-  if (!czi_freadn_to_buf(data, offset, buf, len, err)) {
+  struct zisraw_subblk_dir_hdr hdr;
+  if (!czi_freadn_to_buf(data, offset, &hdr, sizeof(hdr), err)) {
     g_error("Couldn't read FileHeader");
     return false;
   }
-  offset += len;
+  offset += sizeof(hdr);
 
-  struct zisraw_subblk_dir_hdr *hdr = (struct zisraw_subblk_dir_hdr *) buf;
-  if (!g_str_has_prefix(hdr->seg_hdr.sid, "ZISRAWDIRECTORY")) {
+  if (!g_str_has_prefix(hdr.seg_hdr.sid, "ZISRAWDIRECTORY")) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not SubBlockDirectory");
     return false;
   }
 
-  data->nsubblk = GINT32_FROM_LE(hdr->entry_count);
-  int64_t seg_size = (int64_t) GINT32_FROM_LE(hdr->seg_hdr.allocated_size);
+  data->nsubblk = GINT32_FROM_LE(hdr.entry_count);
+  int64_t seg_size = (int64_t) GINT32_FROM_LE(hdr.seg_hdr.allocated_size);
   seg_size -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
   if (seg_size < 0 || (offset + seg_size) > data->filesize) {
     g_warning("Invalid DirectorySegment size %"PRId64" bytes", seg_size);
@@ -543,24 +541,23 @@ static bool read_subblk(struct zeiss_ops_data *data,
 
   dst->w = sb->tw;
   dst->h = sb->th;
-  size_t len = sizeof(struct zisraw_subblk_hdr);
-  char buf[512];
-  if (!czi_freadn_to_buf(data, zisraw_offset + sb->file_pos, buf, len, err)) {
+  struct zisraw_subblk_hdr hdr;
+  if (!czi_freadn_to_buf(data, zisraw_offset + sb->file_pos,
+                         &hdr, sizeof(hdr), err)) {
     g_error("Couldn't read SubBlock header");
     return false;
   }
-  if (!g_str_has_prefix(buf, "ZISRAWSUBBLOCK")) {
+  if (!g_str_has_prefix(hdr.seg_hdr.sid, "ZISRAWSUBBLOCK")) {
     g_warning("Invalid SubBlock, SID is not ZISRAWSUBBLOCK");
     return false;
   }
 
-  struct zisraw_subblk_hdr *hdr = (struct zisraw_subblk_hdr *) buf;
   int64_t n = MAX(256 - 16 - sb->dir_entry_len, 0);
   int64_t offset_meta = MAX(256, n);
   int64_t data_pos = zisraw_offset + sb->file_pos +
                      sizeof(struct zisraw_seg_hdr) + offset_meta +
-                     GINT32_FROM_LE(hdr->meta_size);
-  int64_t data_size = GINT64_FROM_LE(hdr->data_size);
+                     GINT32_FROM_LE(hdr.meta_size);
+  int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   if (data_size < 0 || (data_pos + data_size) > data->filesize) {
     g_warning("Invalid SubBlock data size %"PRId64" bytes", data_size);
     return false;
@@ -748,17 +745,15 @@ static void init_levels(openslide_t *osr) {
 
 /* locate offset to metadata, to subblock and attachment directory */
 static bool load_dir_position(struct zeiss_ops_data *data, GError **err) {
-  char buf[512];
-  size_t len = sizeof(struct zisraw_data_file_hdr);
-  if (!czi_freadn_to_buf(data, data->zisraw_offset, buf, len, err)) {
+  struct zisraw_data_file_hdr hdr;
+  if (!czi_freadn_to_buf(data, data->zisraw_offset, &hdr, sizeof(hdr), err)) {
     g_error("Couldn't read FileHeader");
     return false;
   }
 
-  struct zisraw_data_file_hdr *hdr = (struct zisraw_data_file_hdr *) buf;
-  data->subblk_dir_pos = GINT64_FROM_LE(hdr->subblk_dir_pos);
-  data->meta_pos = GINT64_FROM_LE(hdr->meta_pos);
-  data->att_dir_pos = GINT64_FROM_LE(hdr->att_dir_pos);
+  data->subblk_dir_pos = GINT64_FROM_LE(hdr.subblk_dir_pos);
+  data->meta_pos = GINT64_FROM_LE(hdr.meta_pos);
+  data->att_dir_pos = GINT64_FROM_LE(hdr.att_dir_pos);
   return true;
 }
 
@@ -861,16 +856,14 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
 
 static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err) {
   int64_t offset = data->zisraw_offset + data->meta_pos;
-  size_t len = sizeof(struct zisraw_meta_hdr);
-  char buf[512];
-  if (!czi_freadn_to_buf(data, offset, buf, len, err)) {
+  struct zisraw_meta_hdr hdr;
+  if (!czi_freadn_to_buf(data, offset, &hdr, sizeof(hdr), err)) {
     g_error("Couldn't read MetaBlock header");
     return NULL;
   }
-  offset += len;
+  offset += sizeof(hdr);
 
-  struct zisraw_meta_hdr *hdr = (struct zisraw_meta_hdr *) buf;
-  int64_t xml_size = (int64_t) GINT32_FROM_LE(hdr->xml_size);
+  int64_t xml_size = (int64_t) GINT32_FROM_LE(hdr.xml_size);
   if (xml_size < 0 || (offset + xml_size) > data->filesize) {
     g_warning("Invalid XML data size %"PRId64" bytes", xml_size);
     return NULL;
@@ -889,8 +882,6 @@ static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err) {
 static bool locate_attachment_by_name(struct zeiss_ops_data *data,
                                       struct czi_att_info *att_info,
                                       const char *name, GError **err) {
-  struct zisraw_att_entry_a1 *att;
-
   g_autoptr(_openslide_file) f = _openslide_fopen(data->filename, err);
   if (!f) {
     return false;
@@ -901,32 +892,29 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
     return false;
   }
 
-  size_t len = sizeof(struct zisraw_att_dir_hdr);
-  char buf[512];
-  if (_openslide_fread(f, buf, len) != len) {
+  struct zisraw_att_dir_hdr hdr;
+  if (_openslide_fread(f, &hdr, sizeof(hdr)) != sizeof(hdr)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read FileHeader");
     return false;
   }
 
-  struct zisraw_att_dir_hdr *hdr = (struct zisraw_att_dir_hdr *) buf;
-  int nattch = GINT32_FROM_LE(hdr->entry_count);
+  int nattch = GINT32_FROM_LE(hdr.entry_count);
 
-  len = sizeof(struct zisraw_att_entry_a1);
   for (int i = 0; i < nattch; i++) {
-    if (_openslide_fread(f, buf, len) != len) {
+    struct zisraw_att_entry_a1 att;
+    if (_openslide_fread(f, &att, sizeof(att)) != sizeof(att)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read attachment directory entry");
       return false;
     }
 
-    att = (struct zisraw_att_entry_a1 *) buf;
-    if (g_strcmp0(att->name, name) == 0) {
+    if (g_strcmp0(att.name, name) == 0) {
       // + 32 bytes segment header + 256 bytes offset
-      att_info->data_offset = att->file_pos + 32 + 256;
-      if (g_strcmp0(att->file_type, "JPG") == 0) {
+      att_info->data_offset = att.file_pos + 32 + 256;
+      if (g_strcmp0(att.file_type, "JPG") == 0) {
         att_info->file_type = ATT_JPG;
-      } else if (g_strcmp0(att->file_type, "CZI") == 0) {
+      } else if (g_strcmp0(att.file_type, "CZI") == 0) {
         att_info->file_type = ATT_CZI;
       }
 
