@@ -19,12 +19,9 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
-#include <config.h>
 
 #include "openslide-private.h"
-#include "openslide-decode-jp2k.h"
 #include "openslide-decode-jpeg.h"
-#include "openslide-decode-tifflike.h"
 #include "openslide-decode-xml.h"
 
 #include <glib.h>
@@ -33,10 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-#include <libxml/tree.h>
-#include <libxml/xpath.h>
-#include <tiffio.h>
 
 #include "openslide-vendor-zeiss.h"
 
@@ -282,11 +275,17 @@ struct level {
   int32_t compression;
 };
 
-static void destroy_level(struct level *l) { g_free(l); }
+static void destroy_level(struct level *l) {
+  g_free(l);
+}
 
-static void destroy_subblk(struct czi_subblk *p) { g_free(p); }
+static void destroy_subblk(struct czi_subblk *p) {
+  g_free(p);
+}
 
-static void destroy_region(struct z_region *p) { g_free(p); }
+static void destroy_region(struct z_region *p) {
+  g_free(p);
+}
 
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   _openslide_fclose(data->file);
@@ -298,10 +297,10 @@ static void destroy_ops_data(struct zeiss_ops_data *data) {
     g_hash_table_destroy(data->grids);
   }
   if (data->subblks) {
-    g_ptr_array_free(data->subblks, TRUE);
+    g_ptr_array_free(data->subblks, true);
   }
   if (data->regions) {
-    g_ptr_array_free(data->regions, TRUE);
+    g_ptr_array_free(data->regions, true);
   }
   g_mutex_clear(&data->mutex);
   g_free(data);
@@ -336,8 +335,8 @@ static bool paint_region(openslide_t *osr, cairo_t *cr, int64_t x, int64_t y,
 }
 
 static const struct _openslide_ops zeiss_ops = {
-    .paint_region = paint_region,
-    .destroy = destroy,
+  .paint_region = paint_region,
+  .destroy = destroy,
 };
 
 static bool czi_freadn_to_buf(struct zeiss_ops_data *data, off_t offset,
@@ -650,8 +649,8 @@ static void init_range_grids(openslide_t *osr) {
   int64_t *k;
 
   data->grids =
-      g_hash_table_new_full(g_int64_hash, g_int64_equal, (GDestroyNotify)g_free,
-                            (GDestroyNotify)_openslide_grid_destroy);
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
+                          (GDestroyNotify) _openslide_grid_destroy);
   for (int i = 0; i < osr->level_count; i++) {
     l = (struct level *)osr->levels[i];
     grid = _openslide_grid_create_range(osr, l->base.tile_w, l->base.tile_h,
@@ -882,7 +881,7 @@ static char *read_czi_meta_xml(struct zeiss_ops_data *data, GError **err) {
     return NULL;
   }
 
-  xml[xml_size] = '\0';
+  xml[xml_size] = 0;
   return g_steal_pointer(&xml);
 }
 
@@ -975,8 +974,8 @@ static void destroy_associated_image(struct _openslide_associated_image *p) {
 }
 
 static const struct _openslide_associated_image_ops zeiss_associated_ops = {
-    .get_argb_data = get_associated_image_data,
-    .destroy = destroy_associated_image,
+  .get_argb_data = get_associated_image_data,
+  .destroy = destroy_associated_image,
 };
 
 static void add_one_associated_image(openslide_t *osr, const char *name,
@@ -1031,14 +1030,14 @@ static bool zeiss_add_associated_image(openslide_t *osr, GError **err) {
       data->filesize = st.st_size;
       g_mutex_init(&data->mutex);
       data->zisraw_offset = att_info.data_offset;
-      // knowing offset to ZISRAWFILE, now parse the embeded CZI
+      // knowing offset to ZISRAWFILE, now parse the embedded CZI
       if (!load_dir_position(data, err)) {
         return false;
       }
       if (!read_subblk_dir(data, err)) {
         return false;
       }
-      // expect the embeded CZI file has only one image subblock
+      // expect the embedded CZI file has only one image subblock
       sb = (struct czi_subblk *)data->subblks->pdata[0];
     }
 
@@ -1166,8 +1165,8 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
 }
 
 const struct _openslide_format _openslide_format_zeiss = {
-    .name = "zeiss",
-    .vendor = "zeiss",
-    .detect = zeiss_detect,
-    .open = zeiss_open,
+  .name = "zeiss",
+  .vendor = "zeiss",
+  .detect = zeiss_detect,
+  .open = zeiss_open,
 };
