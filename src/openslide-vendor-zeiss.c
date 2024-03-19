@@ -366,7 +366,7 @@ static bool zeiss_detect(const char *filename,
   if (!_openslide_readn_to_buf(filename, 0, sid, CZI_SEG_ID_LEN, err)) {
     return false;
   }
-  if (!g_str_has_prefix(sid, "ZISRAWFILE")) {
+  if (!g_str_equal(sid, "ZISRAWFILE")) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not a Zeiss CZI slide");
     return false;
@@ -437,7 +437,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data, GError **err) {
   }
   offset += sizeof(hdr);
 
-  if (!g_str_has_prefix(hdr.seg_hdr.sid, "ZISRAWDIRECTORY")) {
+  if (!g_str_equal(hdr.seg_hdr.sid, "ZISRAWDIRECTORY")) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Not SubBlockDirectory");
     return false;
@@ -547,7 +547,7 @@ static bool read_subblk(struct zeiss_ops_data *data,
     g_error("Couldn't read SubBlock header");
     return false;
   }
-  if (!g_str_has_prefix(hdr.seg_hdr.sid, "ZISRAWSUBBLOCK")) {
+  if (!g_str_equal(hdr.seg_hdr.sid, "ZISRAWSUBBLOCK")) {
     g_warning("Invalid SubBlock, SID is not ZISRAWSUBBLOCK");
     return false;
   }
