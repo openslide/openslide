@@ -931,7 +931,6 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
            "Objective/NominalMagnification/text()");
   set_prop(osr, OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER, obj);
 
-  set_prop(osr, OPENSLIDE_PROPERTY_NAME_VENDOR, "zeiss");
   return true;
 }
 
