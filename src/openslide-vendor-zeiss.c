@@ -271,7 +271,6 @@ struct zeiss_ops_data {
   GPtrArray *subblks;
   GPtrArray *regions;
   GHashTable *grids;
-  GHashTable *count_levels;
   GMutex mutex;
 };
 
@@ -296,9 +295,6 @@ static void destroy_region(struct z_region *p) {
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   _openslide_fclose(data->file);
   g_free(data->filename);
-  if (data->count_levels) {
-    g_hash_table_destroy(data->count_levels);
-  }
   if (data->grids) {
     g_hash_table_destroy(data->grids);
   }
@@ -696,18 +692,6 @@ static void finish_adding_tiles(void *key G_GNUC_UNUSED, void *value,
   _openslide_grid_range_finish_adding_tiles(grid);
 }
 
-static void count_levels(struct zeiss_ops_data *data, int64_t downsample) {
-  int64_t *k;
-  void *unused;
-
-  unused = g_hash_table_lookup(data->count_levels, &downsample);
-  if (!unused) {
-    k = g_new(int64_t, 1);
-    *k = downsample;
-    g_hash_table_insert(data->count_levels, k, NULL);
-  }
-}
-
 static void init_range_grids(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
   struct _openslide_grid *grid;
@@ -780,12 +764,18 @@ static void init_levels(openslide_t *osr) {
   GPtrArray *levels = g_ptr_array_new();
   int64_t downsample_i;
 
+  g_autoptr(GHashTable) count_levels =
+    g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (guint i = 0; i < subblks->len; i++) {
     b = subblks->pdata[i];
-    count_levels(data, b->downsample_i);
+    if (!g_hash_table_lookup(count_levels, &b->downsample_i)) {
+      int64_t *k = g_new(int64_t, 1);
+      *k = b->downsample_i;
+      g_hash_table_insert(count_levels, k, GINT_TO_POINTER(1));
+    }
   }
 
-  GList *downsamples = g_hash_table_get_keys(data->count_levels);
+  GList *downsamples = g_hash_table_get_keys(count_levels);
   GList *p = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
   downsamples = p;
 
@@ -1198,8 +1188,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
   g_mutex_init(&data->mutex);
-  data->count_levels = g_hash_table_new_full(g_int64_hash, g_int64_equal,
-                                             (GDestroyNotify) g_free, NULL);
   if (!load_dir_position(data, err)) {
     return false;
   }
