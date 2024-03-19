@@ -828,12 +828,6 @@ static bool load_dir_position(struct zeiss_ops_data *data, GError **err) {
   return true;
 }
 
-static void set_prop(openslide_t *osr, const char *name, const char *value) {
-  if (value) {
-    g_hash_table_insert(osr->properties, g_strdup(name), g_strdup(value));
-  }
-}
-
 /* parse XML and set standard openslide properties. Also set width, height in
  * ops_data
  */
@@ -929,7 +923,11 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
   g_autofree char *obj = _openslide_xml_xpath_get_string(
       ctx, "/ImageDocument/Metadata/Information/Instrument/Objectives/"
            "Objective/NominalMagnification/text()");
-  set_prop(osr, OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER, obj);
+  if (obj) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                        g_strdup(obj));
+  }
 
   return true;
 }
