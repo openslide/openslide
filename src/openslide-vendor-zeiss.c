@@ -903,18 +903,28 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
   g_autofree char *mpp_x = _openslide_xml_xpath_get_string(
       ctx,
       "/ImageDocument/Metadata/Scaling/Items/Distance[@Id='X']/Value/text()");
-  double d = _openslide_parse_double(mpp_x);
-  char buf[G_ASCII_DTOSTR_BUF_SIZE];
-  g_ascii_dtostr(buf, sizeof(buf), d * 1000000.0);
-  // in um/pixel
-  set_prop(osr, OPENSLIDE_PROPERTY_NAME_MPP_X, buf);
+  if (mpp_x) {
+    double d = _openslide_parse_double(mpp_x);
+    if (!isnan(d)) {
+      // in um/pixel
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                          _openslide_format_double(d * 1000000.0));
+    }
+  }
 
   g_autofree char *mpp_y = _openslide_xml_xpath_get_string(
       ctx,
       "/ImageDocument/Metadata/Scaling/Items/Distance[@Id='Y']/Value/text()");
-  d = _openslide_parse_double(mpp_y);
-  g_ascii_dtostr(buf, sizeof(buf), d * 1000000.0);
-  set_prop(osr, OPENSLIDE_PROPERTY_NAME_MPP_Y, buf);
+  if (mpp_y) {
+    double d = _openslide_parse_double(mpp_y);
+    if (!isnan(d)) {
+      // in um/pixel
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                          _openslide_format_double(d * 1000000.0));
+    }
+  }
 
   g_autofree char *obj = _openslide_xml_xpath_get_string(
       ctx, "/ImageDocument/Metadata/Information/Instrument/Objectives/"
