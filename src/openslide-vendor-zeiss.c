@@ -818,7 +818,6 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
 
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
-    g_printerr("Error: cannot parse XML to xmlDoc\n");
     return false;
   }
 
