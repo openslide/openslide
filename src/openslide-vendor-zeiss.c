@@ -1074,6 +1074,12 @@ static bool zeiss_add_associated_image(openslide_t *osr,
         return false;
       }
       // expect the embedded CZI file has only one image subblock
+      if (data->nsubblk != 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Embedded CZI for associated image \"%s\" has %d subblocks, expected one",
+                    map->czi_name, data->nsubblk);
+        return false;
+      }
       sb = &data->subblks[0];
     }
 
