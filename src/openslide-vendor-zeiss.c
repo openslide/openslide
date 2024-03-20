@@ -174,9 +174,9 @@ struct czi_decbuf {
   uint32_t pixel_bits;
 };
 
-static struct associated_image_mapping {
-  char *czi_name;
-  char *osr_name;
+static const struct associated_image_mapping {
+  const char *czi_name;
+  const char *osr_name;
 } known_associated_images[] = {
     {"Label", "label"},
     {"SlidePreview", "macro"},
@@ -214,9 +214,9 @@ enum z_pixel_type {
   PT_GRAY64,
 };
 
-static struct z_pixel_type_name {
+static const struct z_pixel_type_name {
   int pixel_type;
-  char *name;
+  const char *name;
 } z_pixel_type_names[] = {
     {PT_GRAY8, "GRAY8"},
     {PT_GRAY16, "GRAY16"},
@@ -1061,7 +1061,7 @@ static bool zeiss_add_associated_image(openslide_t *osr,
   struct zeiss_ops_data *outer_data = osr->data;
   struct zeiss_ops_data *data = NULL;
   struct czi_subblk *sb = NULL;
-  struct associated_image_mapping *map = &known_associated_images[0];
+  const struct associated_image_mapping *map = &known_associated_images[0];
   struct czi_att_info att_info;
 
   for (; map->czi_name; map++) {
