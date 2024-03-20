@@ -267,7 +267,7 @@ struct zeiss_ops_data {
   int32_t scene;
   int32_t offset_x;
   int32_t offset_y;
-  GPtrArray *subblks;
+  struct czi_subblk *subblks;
   GPtrArray *regions;
 };
 
@@ -283,19 +283,13 @@ static void destroy_level(struct level *l) {
   g_free(l);
 }
 
-static void destroy_subblk(struct czi_subblk *p) {
-  g_free(p);
-}
-
 static void destroy_region(struct z_region *p) {
   g_free(p);
 }
 
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   g_free(data->filename);
-  if (data->subblks) {
-    g_ptr_array_free(data->subblks, true);
-  }
+  g_free(data->subblks);
   if (data->regions) {
     g_ptr_array_free(data->regions, true);
   }
@@ -403,9 +397,7 @@ static void read_dim_entry(struct zisraw_dim_entry_dv *p,
   }
 }
 
-static size_t read_dir_entry(GPtrArray *subblks, char *b) {
-  struct czi_subblk *sb = g_new0(struct czi_subblk, 1);
-
+static size_t read_dir_entry(struct czi_subblk *sb, char *b) {
   struct zisraw_dir_entry_dv *dv = (struct zisraw_dir_entry_dv *) b;
   sb->pixel_type = GINT32_FROM_LE(dv->pixel_type);
   sb->compression = GINT32_FROM_LE(dv->compression);
@@ -421,7 +413,6 @@ static size_t read_dir_entry(GPtrArray *subblks, char *b) {
 
   nread += ndim * 20;
   sb->dir_entry_len = nread;
-  g_ptr_array_add(subblks, sb);
   return nread;
 }
 
@@ -458,15 +449,20 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
 
   char *p = buf_dir;
   int64_t total = 0;
-  data->subblks = g_ptr_array_new_full(64, (GDestroyNotify) destroy_subblk);
+  data->subblks = g_try_new0(struct czi_subblk, data->nsubblk);
+  if (!data->subblks) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate memory for %d subblocks", data->nsubblk);
+    return false;
+  }
   for (int i = 0; i < data->nsubblk; i++) {
     if (total > seg_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Read beyond last byte of directory entires");
+                  "Read beyond last byte of directory entries");
       return false;
     }
 
-    size_t dir_entry_len = read_dir_entry(data->subblks, p);
+    size_t dir_entry_len = read_dir_entry(&data->subblks[i], p);
     p += dir_entry_len;
     total += dir_entry_len;
   }
@@ -477,10 +473,8 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
  * x,y of other tiles.
  */
 static void adjust_coordinate_origin(struct zeiss_ops_data *data) {
-  GPtrArray *subblks = data->subblks;
-
-  for (guint i = 0; i < subblks->len; i++) {
-    struct czi_subblk *b = subblks->pdata[i];
+  for (int i = 0; i < data->nsubblk; i++) {
+    struct czi_subblk *b = &data->subblks[i];
     if (b->x1 < data->offset_x) {
       data->offset_x = b->x1;
     }
@@ -489,8 +483,8 @@ static void adjust_coordinate_origin(struct zeiss_ops_data *data) {
     }
   }
 
-  for (guint i = 0; i < subblks->len; i++) {
-    struct czi_subblk *b = subblks->pdata[i];
+  for (int i = 0; i < data->nsubblk; i++) {
+    struct czi_subblk *b = &data->subblks[i];
     b->x1 -= data->offset_x;
     b->y1 -= data->offset_y;
   }
@@ -681,7 +675,6 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
 
 static void init_range_grids(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
-  GPtrArray *subblks = data->subblks;
 
   g_autoptr(GHashTable) grids =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
@@ -695,8 +688,8 @@ static void init_range_grids(openslide_t *osr) {
     g_hash_table_insert(grids, k, l->grid);
   }
 
-  for (guint i = 0; i < subblks->len; i++) {
-    struct czi_subblk *b = subblks->pdata[i];
+  for (int i = 0; i < data->nsubblk; i++) {
+    struct czi_subblk *b = &data->subblks[i];
     if (b->downsample_i > data->common_downsample) {
       continue;
     }
@@ -744,13 +737,12 @@ static int64_t get_common_downsample(struct zeiss_ops_data *data) {
 
 static void init_levels(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
-  GPtrArray *subblks = data->subblks;
   GPtrArray *levels = g_ptr_array_new();
 
   g_autoptr(GHashTable) count_levels =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
-  for (guint i = 0; i < subblks->len; i++) {
-    struct czi_subblk *b = subblks->pdata[i];
+  for (int i = 0; i < data->nsubblk; i++) {
+    struct czi_subblk *b = &data->subblks[i];
     if (!g_hash_table_lookup(count_levels, &b->downsample_i)) {
       int64_t *k = g_new(int64_t, 1);
       *k = b->downsample_i;
@@ -1082,7 +1074,7 @@ static bool zeiss_add_associated_image(openslide_t *osr,
         return false;
       }
       // expect the embedded CZI file has only one image subblock
-      sb = (struct czi_subblk *) data->subblks->pdata[0];
+      sb = &data->subblks[0];
     }
 
     add_one_associated_image(osr, map->osr_name, &att_info, sb);
@@ -1105,8 +1097,8 @@ static void init_regions(struct zeiss_ops_data *data) {
     g_ptr_array_add(data->regions, r);
   }
 
-  for (guint i = 0; i < data->subblks->len; i++) {
-    struct czi_subblk *b = data->subblks->pdata[i];
+  for (int i = 0; i < data->nsubblk; i++) {
+    struct czi_subblk *b = &data->subblks[i];
     struct z_region *r = data->regions->pdata[b->scene];
     if (r->max_downsample < b->downsample_i) {
       r->max_downsample = b->downsample_i;
