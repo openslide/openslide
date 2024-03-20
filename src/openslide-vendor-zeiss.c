@@ -240,8 +240,8 @@ enum z_attach_content_file_type {
   ATT_JPG,
 };
 
-// for finding location of each region(scene in CZI's term) and pyramid level
-struct z_region {
+// for finding location of each scene (region) and pyramid level
+struct z_scene {
   int64_t x1;
   int64_t y1;
   int64_t x2;
@@ -264,11 +264,11 @@ struct zeiss_ops_data {
   int32_t nsubblk; // total number of subblocks
   int32_t w;
   int32_t h;
-  int32_t scene;
+  int32_t nscene;
   int32_t offset_x;
   int32_t offset_y;
   struct czi_subblk *subblks;
-  GPtrArray *regions;
+  struct z_scene *scenes;
 };
 
 struct level {
@@ -283,16 +283,10 @@ static void destroy_level(struct level *l) {
   g_free(l);
 }
 
-static void destroy_region(struct z_region *p) {
-  g_free(p);
-}
-
 static void destroy_ops_data(struct zeiss_ops_data *data) {
   g_free(data->filename);
   g_free(data->subblks);
-  if (data->regions) {
-    g_ptr_array_free(data->regions, true);
-  }
+  g_free(data->scenes);
   g_free(data);
 }
 
@@ -726,10 +720,10 @@ static gint cmp_int64(gpointer a, gpointer b) {
 static int64_t get_common_downsample(struct zeiss_ops_data *data) {
   int64_t downsample = INT64_MAX;
 
-  for (int i = 0; i < data->scene; i++) {
-    struct z_region *r = data->regions->pdata[i];
-    if (downsample > r->max_downsample) {
-      downsample = r->max_downsample;
+  for (int i = 0; i < data->nscene; i++) {
+    struct z_scene *s = &data->scenes[i];
+    if (downsample > s->max_downsample) {
+      downsample = s->max_downsample;
     }
   }
   return downsample;
@@ -855,7 +849,7 @@ static bool parse_xml_set_prop(openslide_t *osr, const char *xml,
 
   g_autofree char *size_s = _openslide_xml_xpath_get_string(
       ctx, "/ImageDocument/Metadata/Information/Image/SizeS/text()");
-  data->scene = (int32_t) atol(size_s);
+  data->nscene = (int32_t) atol(size_s);
 
   // in meter/pixel
   g_autofree char *mpp_x = _openslide_xml_xpath_get_string(
@@ -1091,58 +1085,63 @@ static bool zeiss_add_associated_image(openslide_t *osr,
   return true;
 }
 
-/* find region boundaries on level 0, and pyramid levels of each region */
-static void init_regions(struct zeiss_ops_data *data) {
-  data->regions = g_ptr_array_new_full(16, (GDestroyNotify) destroy_region);
-  for (int i = 0; i < data->scene; i++) {
-    struct z_region *r = g_new0(struct z_region, 1);
-    r->x1 = INT64_MAX;
-    r->y1 = INT64_MAX;
-    r->x2 = INT64_MIN;
-    r->y2 = INT64_MIN;
-    g_ptr_array_add(data->regions, r);
+/* find scene boundaries on level 0, and pyramid levels of each scene */
+static bool init_scenes(struct zeiss_ops_data *data, GError **err) {
+  data->scenes = g_try_new0(struct z_scene, data->nscene);
+  if (!data->scenes) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate memory for %d scenes", data->nscene);
+    return false;
+  }
+  for (int i = 0; i < data->nscene; i++) {
+    struct z_scene *s = &data->scenes[i];
+    s->x1 = INT64_MAX;
+    s->y1 = INT64_MAX;
+    s->x2 = INT64_MIN;
+    s->y2 = INT64_MIN;
   }
 
   for (int i = 0; i < data->nsubblk; i++) {
     struct czi_subblk *b = &data->subblks[i];
-    struct z_region *r = data->regions->pdata[b->scene];
-    if (r->max_downsample < b->downsample_i) {
-      r->max_downsample = b->downsample_i;
+    struct z_scene *s = &data->scenes[b->scene];
+    if (s->max_downsample < b->downsample_i) {
+      s->max_downsample = b->downsample_i;
     }
 
-    // only check region boundary on top level
+    // only check scene boundary on top level
     if (b->downsample_i != 1) {
       continue;
     }
 
-    r->x1 = MIN(r->x1, b->x1);
-    r->y1 = MIN(r->y1, b->y1);
-    r->x2 = MAX(r->x2, b->x1 + b->w);
-    r->y2 = MAX(r->y2, b->y1 + b->h);
+    s->x1 = MIN(s->x1, b->x1);
+    s->y1 = MIN(s->y1, b->y1);
+    s->x2 = MAX(s->x2, b->x1 + b->w);
+    s->y2 = MAX(s->y2, b->y1 + b->h);
   }
+  return true;
 }
 
 static void set_region_props(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
 
-  for (int i = 0; i < data->scene; i++) {
-    struct z_region *r = data->regions->pdata[i];
+  for (int i = 0; i < data->nscene; i++) {
+    struct z_scene *s = &data->scenes[i];
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
-        g_strdup_printf("%" PRId64, r->x1));
+        g_strdup_printf("%" PRId64, s->x1));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, i),
-        g_strdup_printf("%" PRId64, r->y1));
+        g_strdup_printf("%" PRId64, s->y1));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, i),
-        g_strdup_printf("%" PRId64, r->x2 - r->x1));
+        g_strdup_printf("%" PRId64, s->x2 - s->x1));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, i),
-        g_strdup_printf("%" PRId64, r->y2 - r->y1));
+        g_strdup_printf("%" PRId64, s->y2 - s->y1));
   }
 }
 
@@ -1182,7 +1181,9 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  init_regions(data);
+  if (!init_scenes(data, err)) {
+    return false;
+  }
   init_levels(osr);
   init_range_grids(osr);
   set_region_props(osr);
