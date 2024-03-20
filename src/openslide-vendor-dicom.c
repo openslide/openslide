@@ -104,7 +104,7 @@ static const char *const RESAMPLED_DERIVED_TYPES[] = {
   "DERIVED", "PRIMARY", "VOLUME", "RESAMPLED", NULL
 };
 
-static const char *const RESAMPLED_ORIGINAL_TYPES = {
+static const char *const RESAMPLED_ORIGINAL_TYPES[] = {
   "ORIGINAL", "PRIMARY", "VOLUME", "RESAMPLED", NULL
 };
 
