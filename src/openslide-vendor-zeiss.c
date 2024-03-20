@@ -653,7 +653,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
                       struct _openslide_level *level G_GNUC_UNUSED,
                       int64_t tid G_GNUC_UNUSED, void *tile_data,
                       void *arg, GError **err) {
-  struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
+  struct zeiss_ops_data *data = osr->data;
   struct _openslide_file *f = arg;
   struct czi_decbuf dst;
   struct czi_subblk *sb = tile_data;
@@ -1035,7 +1035,7 @@ static const struct _openslide_associated_image_ops zeiss_associated_ops = {
 static void add_one_associated_image(openslide_t *osr, const char *name,
                                      struct czi_att_info *att_info,
                                      struct czi_subblk *sb) {
-  struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
+  struct zeiss_ops_data *data = osr->data;
   struct associated_image *img = g_new0(struct associated_image, 1);
 
   img->base.ops = &zeiss_associated_ops;
@@ -1059,7 +1059,7 @@ static void add_one_associated_image(openslide_t *osr, const char *name,
 static bool zeiss_add_associated_image(openslide_t *osr,
                                        struct _openslide_file *f,
                                        GError **err) {
-  struct zeiss_ops_data *outer_data = (struct zeiss_ops_data *) osr->data;
+  struct zeiss_ops_data *outer_data = osr->data;
   struct zeiss_ops_data *data = NULL;
   struct czi_subblk *sb = NULL;
   struct associated_image_mapping *map = &known_associated_images[0];
@@ -1138,7 +1138,7 @@ static void init_regions(struct zeiss_ops_data *data) {
 }
 
 static void set_region_props(openslide_t *osr) {
-  struct zeiss_ops_data *data = (struct zeiss_ops_data *) osr->data;
+  struct zeiss_ops_data *data = osr->data;
   struct z_region *r;
 
   for (int i = 0; i < data->scene; i++) {
