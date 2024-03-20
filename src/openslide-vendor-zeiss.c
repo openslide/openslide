@@ -3,6 +3,7 @@
  *
  *  Copyright (c) 2007-2013 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
+ *  Copyright (c) 2024 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -30,16 +31,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CZI_SEG_ID_LEN 16
 #define CZI_FILEHDR_LEN 544
 #define CZI_SUBBLK_HDR_LEN 288
+
+static const char SID_ZISRAWATTDIR[] = "ZISRAWATTDIR";
+static const char SID_ZISRAWDIRECTORY[] = "ZISRAWDIRECTORY";
+static const char SID_ZISRAWFILE[] = "ZISRAWFILE";
+static const char SID_ZISRAWMETADATA[] = "ZISRAWMETADATA";
+static const char SID_ZISRAWSUBBLOCK[] = "ZISRAWSUBBLOCK";
+
+static const char SCHEMA_A1[] = "A1";
+static const char SCHEMA_DV[] = "DV";
 
 #define DIV_ROUND_CLOSEST(n, d)                                                \
   ((((n) < 0) != ((d) < 0)) ? (((n) - (d) / 2) / (d)) : (((n) + (d) / 2) / (d)))
 
 /* zeiss uses little-endian */
 struct zisraw_seg_hdr {
-  char sid[CZI_SEG_ID_LEN];
+  char sid[16];
   int64_t allocated_size;
   int64_t used_size;
 };
@@ -337,6 +346,17 @@ static bool freadn_to_buf(struct _openslide_file *f, off_t offset,
   return true;
 }
 
+static bool check_magic(const void *found, const char *expected,
+                        GError **err) {
+  // don't expect trailing null byte
+  if (memcmp(expected, found, strlen(expected))) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "No magic string \"%s\" in struct header", expected);
+    return false;
+  }
+  return true;
+}
+
 static bool zeiss_detect(const char *filename,
                          struct _openslide_tifflike *tl, GError **err) {
   // reject TIFFs
@@ -350,14 +370,12 @@ static bool zeiss_detect(const char *filename,
     return false;
   }
 
-  // string ZISRAWFILE occurs once per file, at positon 0
-  char sid[CZI_SEG_ID_LEN];
-  if (!freadn_to_buf(f, 0, sid, CZI_SEG_ID_LEN, err)) {
+  struct zisraw_seg_hdr hdr;
+  if (!freadn_to_buf(f, 0, &hdr, sizeof(hdr), err)) {
     return false;
   }
-  if (!g_str_equal(sid, "ZISRAWFILE")) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a Zeiss CZI slide");
+  if (!check_magic(hdr.sid, SID_ZISRAWFILE, err)) {
+    g_prefix_error(err, "Not a Zeiss CZI file: ");
     return false;
   }
   return true;
@@ -415,6 +433,10 @@ static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
   *p += len;
   *avail -= len;
 
+  if (!check_magic(dv->schema, SCHEMA_DV, err)) {
+    return false;
+  }
+
   sb->pixel_type = GINT32_FROM_LE(dv->pixel_type);
   sb->compression = GINT32_FROM_LE(dv->compression);
   sb->file_pos = GINT64_FROM_LE(dv->file_pos);
@@ -440,9 +462,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
   }
   offset += sizeof(hdr);
 
-  if (!g_str_equal(hdr.seg_hdr.sid, "ZISRAWDIRECTORY")) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not SubBlockDirectory");
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWDIRECTORY, err)) {
     return false;
   }
 
@@ -607,9 +627,7 @@ static bool read_subblk(struct zeiss_ops_data *data,
     g_prefix_error(err, "Couldn't read SubBlock header: ");
     return false;
   }
-  if (!g_str_equal(hdr.seg_hdr.sid, "ZISRAWSUBBLOCK")) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid SubBlock, SID is not ZISRAWSUBBLOCK");
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWSUBBLOCK, err)) {
     return false;
   }
 
@@ -797,6 +815,9 @@ static bool load_dir_position(struct zeiss_ops_data *data,
     g_prefix_error(err, "Couldn't read FileHeader: ");
     return false;
   }
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWFILE, err)) {
+    return false;
+  }
 
   data->subblk_dir_pos = GINT64_FROM_LE(hdr.subblk_dir_pos);
   data->meta_pos = GINT64_FROM_LE(hdr.meta_pos);
@@ -917,6 +938,10 @@ static char *read_czi_meta_xml(struct zeiss_ops_data *data,
   }
   offset += sizeof(hdr);
 
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWMETADATA, err)) {
+    return NULL;
+  }
+
   int64_t xml_size = (int64_t) GINT32_FROM_LE(hdr.xml_size);
   if (xml_size < 0 || (offset + xml_size) > data->filesize) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -953,6 +978,9 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
                 "Couldn't read FileHeader");
     return false;
   }
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
+    return false;
+  }
 
   int nattch = GINT32_FROM_LE(hdr.entry_count);
 
@@ -961,6 +989,9 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
     if (_openslide_fread(f, &att, sizeof(att)) != sizeof(att)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Couldn't read attachment directory entry");
+      return false;
+    }
+    if (!check_magic(att.schema, SCHEMA_A1, err)) {
       return false;
     }
 
