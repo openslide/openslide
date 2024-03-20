@@ -181,20 +181,6 @@ bool _openslide_fexists(const char *path, GError **err G_GNUC_UNUSED) {
   return g_file_test(path, G_FILE_TEST_EXISTS);  // ci-allow
 }
 
-bool _openslide_freadn_to_buf(struct _openslide_file *file, off_t offset,
-                              void *buf, size_t len, GError **err) {
-  if (!_openslide_fseek(file, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't seek to offset %"PRId64":", offset);
-    return false;
-  }
-  if (_openslide_fread(file, buf, len) != len) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read file");
-    return false;
-  }
-  return true;
-}
-
 struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {
   g_autoptr(_openslide_dir) d = g_new0(struct _openslide_dir, 1);
   d->dir = g_dir_open(dirname, 0, err);
