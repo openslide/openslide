@@ -950,11 +950,8 @@ static char *read_czi_meta_xml(struct czi *czi,
 /* find offset to embedded image with @name, such as Label */
 static bool locate_attachment_by_name(struct czi *czi,
                                       struct czi_att_info *att_info,
+                                      struct _openslide_file *f,
                                       const char *name, GError **err) {
-  g_autoptr(_openslide_file) f = _openslide_fopen(czi->filename, err);
-  if (!f) {
-    return false;
-  }
   if (!_openslide_fseek(f, czi->zisraw_offset + czi->att_dir_pos, SEEK_SET,
                         err)) {
     g_prefix_error(err, "Couldn't seek to attachment directory: ");
@@ -1087,7 +1084,8 @@ static bool zeiss_add_associated_images(openslide_t *osr,
   for (; map->czi_name; map++) {
     // read the outermost CZI to get offset to ZISRAWFILE, or to JPEG
     struct czi_att_info att_info = {0};
-    if (!locate_attachment_by_name(outer_czi, &att_info, map->czi_name, err)) {
+    if (!locate_attachment_by_name(outer_czi, &att_info, f,
+                                   map->czi_name, err)) {
       return false;
     }
     if (att_info.data_offset == 0) {
