@@ -195,7 +195,7 @@ struct czi_subblk {
 
 struct associated_image {
   struct _openslide_associated_image base;
-  struct czi *czi;
+  char *filename;
   int64_t data_offset;
   struct czi_subblk *subblk;
   enum czi_attach_content_file_type file_type;
@@ -1013,7 +1013,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dst, GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
 
-  g_autoptr(_openslide_file) f = _openslide_fopen(img->czi->filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(img->filename, err);
   if (!f) {
     return false;
   }
@@ -1039,10 +1039,8 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 
 static void destroy_associated_image(struct _openslide_associated_image *p) {
   struct associated_image *img = (struct associated_image *) p;
-  if (img->subblk) {
-    g_free(img->subblk);
-  }
-
+  g_free(img->subblk);
+  g_free(img->filename);
   g_free(img);
 }
 
@@ -1051,14 +1049,14 @@ static const struct _openslide_associated_image_ops zeiss_associated_ops = {
   .destroy = destroy_associated_image,
 };
 
-static void add_one_associated_image(openslide_t *osr, struct czi *czi,
+static void add_one_associated_image(openslide_t *osr, const char *filename,
                                      const char *name,
                                      struct czi_att_info *att_info,
                                      struct czi_subblk *sb) {
   struct associated_image *img = g_new0(struct associated_image, 1);
 
   img->base.ops = &zeiss_associated_ops;
-  img->czi = czi;
+  img->filename = g_strdup(filename);
   img->file_type = att_info->file_type;
   img->data_offset = att_info->data_offset;
   if (sb) {
@@ -1067,7 +1065,6 @@ static void add_one_associated_image(openslide_t *osr, struct czi *czi,
     img->subblk = g_new0(struct czi_subblk, 1);
     memcpy(img->subblk, sb, sizeof(*sb));
   } else {
-    img->subblk = NULL;
     img->base.w = att_info->w;
     img->base.h = att_info->h;
   }
@@ -1115,7 +1112,8 @@ static bool zeiss_add_associated_images(openslide_t *osr,
       sb = &czi->subblks[0];
     }
 
-    add_one_associated_image(osr, outer_czi, map->osr_name, &att_info, sb);
+    add_one_associated_image(osr, outer_czi->filename, map->osr_name,
+                             &att_info, sb);
   }
   return true;
 }
