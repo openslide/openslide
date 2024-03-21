@@ -446,7 +446,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
   }
 
   data->nsubblk = GINT32_FROM_LE(hdr.entry_count);
-  int64_t seg_size = (int64_t) GINT32_FROM_LE(hdr.seg_hdr.allocated_size);
+  int64_t seg_size = GINT32_FROM_LE(hdr.seg_hdr.used_size);
   seg_size -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
   if (seg_size < 0 || (offset + seg_size) > data->filesize) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -471,6 +471,12 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
     if (!read_dir_entry(&data->subblks[i], &p, &avail, err)) {
       return false;
     }
+  }
+  if (avail) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Found %"PRIu64" trailing bytes after SubBlockDirectory",
+                (uint64_t) avail);
+    return false;
   }
   return true;
 }
