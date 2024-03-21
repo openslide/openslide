@@ -178,7 +178,6 @@ enum zisraw_pyramid_type {
 };
 
 enum czi_attach_content_file_type {
-  ATT_UNKNOWN = 0,
   ATT_CZI,
   ATT_JPG,
 };
@@ -202,13 +201,13 @@ struct associated_image {
   int32_t w, h;
   struct zeiss_ops_data *data;
   struct czi_subblk *subblk;
-  int file_type;
+  enum czi_attach_content_file_type file_type;
 };
 
 struct czi_att_info {
   int64_t data_offset;
   int32_t w, h;
-  int file_type;
+  enum czi_attach_content_file_type file_type;
 };
 
 struct czi_decbuf {
@@ -999,18 +998,27 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
       att_info->data_offset = att.file_pos + sizeof(struct zisraw_seg_att_hdr);
       if (g_str_equal(att.file_type, "JPG")) {
         att_info->file_type = ATT_JPG;
+        if (!_openslide_jpeg_read_dimensions(data->filename,
+                                             att_info->data_offset,
+                                             &att_info->w, &att_info->h,
+                                             err)) {
+          g_prefix_error(err, "Reading JPEG header for attachment \"%s\": ",
+                         name);
+          return false;
+        }
       } else if (g_str_equal(att.file_type, "CZI")) {
         att_info->file_type = ATT_CZI;
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Attachment \"%s\" has unrecognized type \"%s\"",
+                    name, att.file_type);
+        return false;
       }
-
-      break;
+      return true;
     }
   }
 
-  if (att_info->file_type == ATT_JPG) {
-    _openslide_jpeg_read_dimensions(data->filename, att_info->data_offset,
-                                    &att_info->w, &att_info->h, NULL);
-  }
+  // not found; succeed with att_info->data_offset unchanged
   return true;
 }
 
@@ -1039,8 +1047,9 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
     _openslide_jpeg_read(img->data->filename, img->data_offset, dst,
                          img->base.w, img->base.h, err);
     return true;
+  default:
+    g_assert_not_reached();
   }
-  return false;
 }
 
 static void destroy_associated_image(struct _openslide_associated_image *p) {
