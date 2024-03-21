@@ -230,10 +230,10 @@ static const struct associated_image_mapping {
     {NULL, NULL},
 };
 
-static const struct z_pixel_type_name {
+static const struct czi_pixel_type_name {
   int pixel_type;
   const char *name;
-} z_pixel_type_names[] = {
+} czi_pixel_type_names[] = {
     {PT_GRAY8, "GRAY8"},
     {PT_GRAY16, "GRAY16"},
     {PT_GRAY32FLOAT, "GRAY32FLOAT"},
@@ -251,7 +251,7 @@ static const struct z_pixel_type_name {
 };
 
 // for finding location of each scene (region) and pyramid level
-struct z_scene {
+struct czi_scene {
   int64_t x1;
   int64_t y1;
   int64_t x2;
@@ -278,7 +278,7 @@ struct zeiss_ops_data {
   int32_t offset_x;
   int32_t offset_y;
   struct czi_subblk *subblks;
-  struct z_scene *scenes;
+  struct czi_scene *scenes;
 };
 
 struct level {
@@ -607,10 +607,10 @@ static bool read_subblk(struct zeiss_ops_data *data,
   // work with BGR24, BGR48
   if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
     if (sb->pixel_type >= 0 &&
-        sb->pixel_type < (int) G_N_ELEMENTS(z_pixel_type_names)) {
+        sb->pixel_type < (int) G_N_ELEMENTS(czi_pixel_type_names)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "pixel type %s is not supported",
-                  z_pixel_type_names[sb->pixel_type].name);
+                  czi_pixel_type_names[sb->pixel_type].name);
       return false;
     } else {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -756,7 +756,7 @@ static int64_t get_common_downsample(struct zeiss_ops_data *data) {
   int64_t downsample = INT64_MAX;
 
   for (int i = 0; i < data->nscene; i++) {
-    struct z_scene *s = &data->scenes[i];
+    struct czi_scene *s = &data->scenes[i];
     if (downsample > s->max_downsample) {
       downsample = s->max_downsample;
     }
@@ -1134,14 +1134,14 @@ static bool zeiss_add_associated_image(openslide_t *osr,
 
 /* find scene boundaries on level 0, and pyramid levels of each scene */
 static bool init_scenes(struct zeiss_ops_data *data, GError **err) {
-  data->scenes = g_try_new0(struct z_scene, data->nscene);
+  data->scenes = g_try_new0(struct czi_scene, data->nscene);
   if (!data->scenes) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't allocate memory for %d scenes", data->nscene);
     return false;
   }
   for (int i = 0; i < data->nscene; i++) {
-    struct z_scene *s = &data->scenes[i];
+    struct czi_scene *s = &data->scenes[i];
     s->x1 = INT64_MAX;
     s->y1 = INT64_MAX;
     s->x2 = INT64_MIN;
@@ -1150,7 +1150,7 @@ static bool init_scenes(struct zeiss_ops_data *data, GError **err) {
 
   for (int i = 0; i < data->nsubblk; i++) {
     struct czi_subblk *b = &data->subblks[i];
-    struct z_scene *s = &data->scenes[b->scene];
+    struct czi_scene *s = &data->scenes[b->scene];
     if (s->max_downsample < b->downsample_i) {
       s->max_downsample = b->downsample_i;
     }
@@ -1172,7 +1172,7 @@ static void set_region_props(openslide_t *osr) {
   struct zeiss_ops_data *data = osr->data;
 
   for (int i = 0; i < data->nscene; i++) {
-    struct z_scene *s = &data->scenes[i];
+    struct czi_scene *s = &data->scenes[i];
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
