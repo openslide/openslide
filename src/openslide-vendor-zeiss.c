@@ -189,16 +189,13 @@ struct czi_subblk {
   int32_t compression;
   int32_t x1, x2, y1, y2;
   uint32_t w, h, tw, th;
-  int32_t id;
   int32_t dir_entry_len;
-  int8_t channel;
   int8_t scene;
 };
 
 struct associated_image {
   struct _openslide_associated_image base;
   int64_t data_offset;
-  int32_t w, h;
   struct zeiss_ops_data *data;
   struct czi_subblk *subblk;
   enum czi_attach_content_file_type file_type;
@@ -215,8 +212,6 @@ struct czi_decbuf {
   uint32_t w;
   uint32_t h;
   size_t size;
-  uint32_t stride;
-  uint32_t pixel_bits;
 };
 
 static const struct associated_image_mapping {
@@ -284,7 +279,6 @@ struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
   int64_t downsample_i;
-  int32_t compression;
 };
 
 static void destroy_level(struct level *l) {
@@ -409,9 +403,6 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
     sb->h = size;
     sb->th = stored_size;
     sb->y2 = start + size - 1;
-    break;
-  case 'C':
-    sb->channel = start;
     break;
   case 'S':
     sb->scene = start;
@@ -565,8 +556,6 @@ static bool czi_bgrn_to_xrgb32(struct czi_decbuf *p, int in_pixel_bits) {
     bgr48_to_xrgb32(p->data, p->size, buf);
   }
   g_free(p->data);
-  p->stride = p->w * 4;
-  p->pixel_bits = 32;
   p->size = new_size;
   p->data = g_steal_pointer(&buf);
   return true;
