@@ -147,6 +147,42 @@ struct zisraw_att_dir_hdr {
   // followed by AttachementEntryA1 list
 };
 
+enum zisraw_compression {
+  COMP_NONE = 0,
+  COMP_JPEG,
+  COMP_LZW,
+  COMP_JXR = 4,
+  COMP_ZSTD0 = 5,
+  COMP_ZSTD1 = 6,
+  COMP_OTHER,
+};
+
+enum zisraw_pixel_type {
+  PT_GRAY8 = 0,
+  PT_GRAY16,
+  PT_GRAY32FLOAT,
+  PT_BGR24,
+  PT_BGR48,
+  PT_BGR96FLOAT = 8,
+  PT_BGRA32,
+  PT_GRAY64COMPLEX,
+  PT_BGR192COMPLEX,
+  PT_GRAY32,
+  PT_GRAY64,
+};
+
+enum zisraw_pyramid_type {
+  PYR_NONE = 0,
+  PYR_SINGLE,
+  PYR_MULTIPLE,
+};
+
+enum czi_attach_content_file_type {
+  ATT_UNKNOWN = 0,
+  ATT_CZI,
+  ATT_JPG,
+};
+
 struct czi_subblk {
   int64_t file_pos;
   int64_t downsample_i;
@@ -194,36 +230,6 @@ static const struct associated_image_mapping {
     {NULL, NULL},
 };
 
-enum z_pyramid_type {
-  PYR_NONE = 0,
-  PYR_SINGLE,
-  PYR_MULTIPLE,
-};
-
-enum z_compression {
-  COMP_NONE = 0,
-  COMP_JPEG,
-  COMP_LZW,
-  COMP_JXR = 4,
-  COMP_ZSTD0 = 5,
-  COMP_ZSTD1 = 6,
-  COMP_OTHER,
-};
-
-enum z_pixel_type {
-  PT_GRAY8 = 0,
-  PT_GRAY16,
-  PT_GRAY32FLOAT,
-  PT_BGR24,
-  PT_BGR48,
-  PT_BGR96FLOAT = 8,
-  PT_BGRA32,
-  PT_GRAY64COMPLEX,
-  PT_BGR192COMPLEX,
-  PT_GRAY32,
-  PT_GRAY64,
-};
-
 static const struct z_pixel_type_name {
   int pixel_type;
   const char *name;
@@ -242,12 +248,6 @@ static const struct z_pixel_type_name {
     {PT_BGR192COMPLEX, "BGR192COMPLEX"},
     {PT_GRAY32, "GRAY32"},
     {PT_GRAY64, "GRAY64"},
-};
-
-enum z_attach_content_file_type {
-  ATT_UNKNOWN = 0,
-  ATT_CZI,
-  ATT_JPG,
 };
 
 // for finding location of each scene (region) and pyramid level
