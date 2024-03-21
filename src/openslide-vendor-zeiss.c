@@ -446,8 +446,8 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
   }
 
   data->nsubblk = GINT32_FROM_LE(hdr.entry_count);
-  int64_t seg_size = GINT32_FROM_LE(hdr.seg_hdr.used_size);
-  seg_size -= 128; // DirectoryEntryDV list starts at offset 128 of segment data
+  int64_t seg_size =
+    GINT32_FROM_LE(hdr.seg_hdr.used_size) - sizeof(hdr) + sizeof(hdr.seg_hdr);
   if (seg_size < 0 || (offset + seg_size) > data->filesize) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid DirectorySegment size %"PRId64" bytes", seg_size);
@@ -585,7 +585,8 @@ static bool read_subblk(struct zeiss_ops_data *data,
                         struct czi_decbuf *dst, GError **err) {
   // work with BGR24, BGR48
   if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
-    if (sb->pixel_type >= 0 && sb->pixel_type < 14) {
+    if (sb->pixel_type >= 0 &&
+        sb->pixel_type < (int) G_N_ELEMENTS(z_pixel_type_names)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "pixel type %s is not supported",
                   z_pixel_type_names[sb->pixel_type].name);
@@ -966,8 +967,7 @@ static bool locate_attachment_by_name(struct zeiss_ops_data *data,
     }
 
     if (g_str_equal(att.name, name)) {
-      // + 32 bytes segment header + 256 bytes offset
-      att_info->data_offset = att.file_pos + 32 + 256;
+      att_info->data_offset = att.file_pos + sizeof(struct zisraw_seg_att_hdr);
       if (g_str_equal(att.file_type, "JPG")) {
         att_info->file_type = ATT_JPG;
       } else if (g_str_equal(att.file_type, "CZI")) {
