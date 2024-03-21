@@ -32,7 +32,7 @@
 
 #define CZI_SEG_ID_LEN 16
 #define CZI_FILEHDR_LEN 544
-#define MAX_CHANNEL 3
+#define CZI_SUBBLK_HDR_LEN 288
 
 #define DIV_ROUND_CLOSEST(n, d)                                                \
   ((((n) < 0) != ((d) < 0)) ? (((n) - (d) / 2) / (d)) : (((n) + (d) / 2) / (d)))
@@ -82,7 +82,8 @@ struct zisraw_subblk_hdr {
   int32_t meta_size;
   int32_t attach_size;
   int64_t data_size;
-  // followed by DirectoryEntryDV of this subblock
+  // followed by DirectoryEntryDV of this subblock, followed by padding
+  // to 288 bytes, followed by meta (and attach?) and data
 };
 
 // Directory Entry - Schema DV
@@ -612,10 +613,7 @@ static bool read_subblk(struct zeiss_ops_data *data,
     return false;
   }
 
-  int64_t n = MAX(256 - 16 - sb->dir_entry_len, 0);
-  int64_t offset_meta = MAX(256, n);
-  int64_t data_pos = zisraw_offset + sb->file_pos +
-                     sizeof(struct zisraw_seg_hdr) + offset_meta +
+  int64_t data_pos = zisraw_offset + sb->file_pos + CZI_SUBBLK_HDR_LEN +
                      GINT32_FROM_LE(hdr.meta_size);
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   if (data_size < 0 || (data_pos + data_size) > data->filesize) {
