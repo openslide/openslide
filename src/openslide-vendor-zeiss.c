@@ -702,11 +702,12 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   return true;
 }
 
-static void init_range_grids(openslide_t *osr, struct czi *czi) {
+static void init_range_grids(openslide_t *osr, struct czi *czi,
+                             GPtrArray *levels) {
   g_autoptr(GHashTable) grids =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
-  for (int i = 0; i < osr->level_count; i++) {
-    struct level *l = (struct level *) osr->levels[i];
+  for (guint i = 0; i < levels->len; i++) {
+    struct level *l = levels->pdata[i];
     l->grid = _openslide_grid_create_range(osr,
                                            l->base.tile_w, l->base.tile_h,
                                            read_tile, NULL);
@@ -728,8 +729,8 @@ static void init_range_grids(openslide_t *osr, struct czi *czi) {
                                    (double) b->tw, (double) b->th, b);
   }
 
-  for (int i = 0; i < osr->level_count; i++) {
-    struct level *l = (struct level *) osr->levels[i];
+  for (guint i = 0; i < levels->len; i++) {
+    struct level *l = levels->pdata[i];
     _openslide_grid_range_finish_adding_tiles(l->grid);
   }
 }
@@ -762,9 +763,7 @@ static int64_t get_common_downsample(struct czi *czi) {
   return downsample;
 }
 
-static void init_levels(openslide_t *osr, struct czi *czi) {
-  GPtrArray *levels = g_ptr_array_new();
-
+static GPtrArray *create_levels(struct czi *czi) {
   g_autoptr(GHashTable) count_levels =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (int i = 0; i < czi->nsubblk; i++) {
@@ -779,6 +778,7 @@ static void init_levels(openslide_t *osr, struct czi *czi) {
   g_autoptr(GList) downsamples = g_hash_table_get_keys(count_levels);
   downsamples = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
 
+  GPtrArray *levels = g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
   GList *p = downsamples;
   czi->common_downsample = get_common_downsample(czi);
   while (p) {
@@ -799,9 +799,7 @@ static void init_levels(openslide_t *osr, struct czi *czi) {
     p = p->next;
   }
 
-  g_assert(osr->levels == NULL);
-  osr->level_count = levels->len;
-  osr->levels = (struct _openslide_level **) g_ptr_array_free(levels, false);
+  return levels;
 }
 
 /* locate offset to metadata, to subblock and attachment directory */
@@ -1216,8 +1214,8 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   if (!init_scenes(czi, err)) {
     return false;
   }
-  init_levels(osr, czi);
-  init_range_grids(osr, czi);
+  g_autoptr(GPtrArray) levels = create_levels(czi);
+  init_range_grids(osr, czi, levels);
   set_region_props(osr, czi);
   if (!zeiss_add_associated_images(osr, czi, filename, f, err)) {
     return false;
@@ -1231,6 +1229,10 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
 
   // store osr data
   g_assert(osr->data == NULL);
+  g_assert(osr->levels == NULL);
+  osr->level_count = levels->len;
+  osr->levels = (struct _openslide_level **)
+    g_ptr_array_free(g_steal_pointer(&levels), false);
   struct zeiss_ops_data *data = g_new0(struct zeiss_ops_data, 1);
   data->czi = g_steal_pointer(&czi);
   data->filename = g_strdup(filename);
