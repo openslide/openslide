@@ -258,8 +258,6 @@ struct czi {
   // Russian doll, it can embed other CZI files. Non-zero value is the
   // offset to embedded CZI file
   int64_t zisraw_offset;
-
-  char *filename;
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
@@ -280,13 +278,17 @@ struct level {
   int64_t downsample_i;
 };
 
+struct zeiss_ops_data {
+  struct czi *czi;
+  char *filename;
+};
+
 static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
 
 static void destroy_czi(struct czi *czi) {
-  g_free(czi->filename);
   g_free(czi->subblks);
   g_free(czi->scenes);
   g_free(czi);
@@ -301,7 +303,10 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 
   if (osr->data) {
-    destroy_czi(osr->data);
+    struct zeiss_ops_data *data = osr->data;
+    destroy_czi(data->czi);
+    g_free(data->filename);
+    g_free(data);
   }
 }
 
@@ -310,10 +315,10 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
                          struct _openslide_level *level,
                          int32_t w, int32_t h,
                          GError **err) {
-  struct czi *czi = osr->data;
+  struct zeiss_ops_data *data = osr->data;
   struct level *l = (struct level *) level;
 
-  g_autoptr(_openslide_file) f = _openslide_fopen(czi->filename, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(data->filename, err);
   if (!f) {
     return false;
   }
@@ -665,7 +670,8 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
                       struct _openslide_level *level G_GNUC_UNUSED,
                       int64_t tid G_GNUC_UNUSED, void *tile_data,
                       void *arg, GError **err) {
-  struct czi *czi = osr->data;
+  struct zeiss_ops_data *data = osr->data;
+  struct czi *czi = data->czi;
   struct _openslide_file *f = arg;
   struct czi_subblk *sb = tile_data;
 
@@ -1074,6 +1080,7 @@ static void add_one_associated_image(openslide_t *osr, const char *filename,
 
 static bool zeiss_add_associated_images(openslide_t *osr,
                                         struct czi *outer_czi,
+                                        const char *filename,
                                         struct _openslide_file *f,
                                         GError **err) {
   const struct associated_image_mapping *map = &known_associated_images[0];
@@ -1093,7 +1100,6 @@ static bool zeiss_add_associated_images(openslide_t *osr,
     struct czi_subblk *sb = NULL;
     if (att_info.file_type == ATT_CZI) {
       czi = g_new0(struct czi, 1);
-      czi->filename = g_strdup(outer_czi->filename);
       czi->zisraw_offset = att_info.data_offset;
       // knowing offset to ZISRAWFILE, now parse the embedded CZI
       if (!load_dir_position(czi, f, err)) {
@@ -1112,8 +1118,7 @@ static bool zeiss_add_associated_images(openslide_t *osr,
       sb = &czi->subblks[0];
     }
 
-    add_one_associated_image(osr, outer_czi->filename, map->osr_name,
-                             &att_info, sb);
+    add_one_associated_image(osr, filename, map->osr_name, &att_info, sb);
   }
   return true;
 }
@@ -1187,7 +1192,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   g_autoptr(czi) czi = g_new0(struct czi, 1);
   czi->offset_x = G_MAXINT32;
   czi->offset_y = G_MAXINT32;
-  czi->filename = g_strdup(filename);
   if (!load_dir_position(czi, f, err)) {
     return false;
   }
@@ -1210,7 +1214,7 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   init_levels(osr, czi);
   init_range_grids(osr, czi);
   set_region_props(osr, czi);
-  if (!zeiss_add_associated_images(osr, czi, f, err)) {
+  if (!zeiss_add_associated_images(osr, czi, filename, f, err)) {
     return false;
   }
 
@@ -1222,7 +1226,10 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
 
   // store osr data
   g_assert(osr->data == NULL);
-  osr->data = g_steal_pointer(&czi);
+  struct zeiss_ops_data *data = g_new0(struct zeiss_ops_data, 1);
+  data->czi = g_steal_pointer(&czi);
+  data->filename = g_strdup(filename);
+  osr->data = data;
   osr->ops = &zeiss_ops;
 
   return true;
