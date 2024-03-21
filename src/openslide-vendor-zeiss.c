@@ -362,13 +362,23 @@ static bool zeiss_detect(const char *filename,
   return true;
 }
 
-static void read_dim_entry(struct zisraw_dim_entry_dv *p,
-                           struct czi_subblk *sb) {
-  int start = GINT32_FROM_LE(p->start);
-  int size = GINT32_FROM_LE(p->size);
-  int stored_size = GINT32_FROM_LE(p->stored_size);
+static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
+                           GError **err) {
+  const size_t len = sizeof(struct zisraw_dim_entry_dv);
+  if (*avail < len) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Premature end of directory when reading dimension");
+    return false;
+  }
+  struct zisraw_dim_entry_dv *dim = (struct zisraw_dim_entry_dv *) *p;
+  *p += len;
+  *avail -= len;
 
-  switch (p->dimension[0]) {
+  int start = GINT32_FROM_LE(dim->start);
+  int size = GINT32_FROM_LE(dim->size);
+  int stored_size = GINT32_FROM_LE(dim->stored_size);
+
+  switch (dim->dimension[0]) {
   case 'X':
     sb->x1 = start;
     sb->w = size;
@@ -389,25 +399,33 @@ static void read_dim_entry(struct zisraw_dim_entry_dv *p,
     sb->scene = start;
     break;
   }
+  return true;
 }
 
-static size_t read_dir_entry(struct czi_subblk *sb, char *b) {
-  struct zisraw_dir_entry_dv *dv = (struct zisraw_dir_entry_dv *) b;
+static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
+                           GError **err) {
+  const size_t len = sizeof(struct zisraw_dir_entry_dv);
+  if (*avail < len) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Premature end of directory when reading directory entry");
+    return false;
+  }
+  struct zisraw_dir_entry_dv *dv = (struct zisraw_dir_entry_dv *) *p;
+  *p += len;
+  *avail -= len;
+
   sb->pixel_type = GINT32_FROM_LE(dv->pixel_type);
   sb->compression = GINT32_FROM_LE(dv->compression);
   sb->file_pos = GINT64_FROM_LE(dv->file_pos);
-
-  size_t nread = sizeof(struct zisraw_dir_entry_dv);
   int32_t ndim = GINT32_FROM_LE(dv->ndimensions);
-  b += nread; // the first entry of dimensions
-  for (int i = 0; i < ndim; i++) {
-    read_dim_entry((struct zisraw_dim_entry_dv *) b, sb);
-    b += 20;
-  }
 
-  nread += ndim * 20;
-  sb->dir_entry_len = nread;
-  return nread;
+  for (int i = 0; i < ndim; i++) {
+    if (!read_dim_entry(sb, p, avail, err)) {
+      return false;
+    }
+  }
+  sb->dir_entry_len = *p - (char *) dv;
+  return true;
 }
 
 /* read all data subblocks info (x, y, w, h etc.) from subblock directory */
@@ -442,7 +460,7 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
   }
 
   char *p = buf_dir;
-  int64_t total = 0;
+  size_t avail = seg_size;
   data->subblks = g_try_new0(struct czi_subblk, data->nsubblk);
   if (!data->subblks) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -450,15 +468,9 @@ static bool read_subblk_dir(struct zeiss_ops_data *data,
     return false;
   }
   for (int i = 0; i < data->nsubblk; i++) {
-    if (total > seg_size) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Read beyond last byte of directory entries");
+    if (!read_dir_entry(&data->subblks[i], &p, &avail, err)) {
       return false;
     }
-
-    size_t dir_entry_len = read_dir_entry(&data->subblks[i], p);
-    p += dir_entry_len;
-    total += dir_entry_len;
   }
   return true;
 }
