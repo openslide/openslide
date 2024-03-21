@@ -230,7 +230,7 @@ static const struct associated_image_mapping {
 };
 
 static const struct czi_pixel_type_name {
-  int pixel_type;
+  enum zisraw_pixel_type pixel_type;
   const char *name;
 } czi_pixel_type_names[] = {
     {PT_GRAY8, "GRAY8"},
