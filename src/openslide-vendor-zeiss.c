@@ -207,13 +207,6 @@ struct czi_att_info {
   enum czi_attach_content_file_type file_type;
 };
 
-struct czi_decbuf {
-  uint8_t *data;
-  uint32_t w;
-  uint32_t h;
-  size_t size;
-};
-
 static const struct associated_image_mapping {
   const char *czi_name;
   const char *osr_name;
@@ -544,60 +537,51 @@ static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
   }
 }
 
-static void czi_bgrn_to_argb32(struct czi_decbuf *p, int in_pixel_bits) {
-  size_t new_size = p->w * p->h * 4;
-  g_autofree uint32_t *buf = g_malloc(new_size);
-  switch (in_pixel_bits) {
-  case 24:
-    bgr24_to_argb32(p->data, p->size, buf);
+static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
+                                  int64_t len, int32_t pixel_type,
+                                  uint32_t *dst, int32_t w, int32_t h,
+                                  GError **err) {
+  void (*convert)(uint8_t *, size_t, uint32_t *);
+  int64_t pixels;
+  switch (pixel_type) {
+  case PT_BGR24:
+    convert = bgr24_to_argb32;
+    pixels = len / 3;
     break;
-  case 48:
-    bgr48_to_argb32(p->data, p->size, buf);
+  case PT_BGR48:
+    convert = bgr48_to_argb32;
+    pixels = len / 6;
     break;
   default:
     g_assert_not_reached();
   }
-  g_free(p->data);
-  p->size = new_size;
-  p->data = g_steal_pointer(&buf);
-}
 
-/* the uncompressed data in CZI also uses pixel types such as BGR24 or
- * BGR48, thus use struct czi_decbuf for exchanging buffer
- */
-static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
-                                  int64_t len, int32_t pixel_type,
-                                  struct czi_decbuf *dst, GError **err) {
-  dst->size = len;
-  dst->data = g_try_malloc(len);
-  if (!dst->data) {
+  if ((int64_t) w * h != pixels) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Can't read %"PRId64" pixels into a %"PRId32"x%"PRId32" image",
+                pixels, w, h);
+    return false;
+  }
+
+  g_autofree uint8_t *src = g_try_malloc(len);
+  if (!src) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't allocate %"PRId64" bytes for uncompressed pixels",
                 len);
     return false;
   }
-  if (!freadn_to_buf(f, pos, dst->data, len, err)) {
+  if (!freadn_to_buf(f, pos, src, len, err)) {
     g_prefix_error(err, "Couldn't read pixel data: ");
-    g_free(dst->data);
     return false;
   }
 
-  switch (pixel_type) {
-  case PT_BGR24:
-    czi_bgrn_to_argb32(dst, 24);
-    break;
-  case PT_BGR48:
-    czi_bgrn_to_argb32(dst, 48);
-    break;
-  default:
-    g_assert_not_reached();
-  }
+  convert(src, len, dst);
   return true;
 }
 
-static bool read_subblk(struct _openslide_file *f,
-                        int64_t zisraw_offset, struct czi_subblk *sb,
-                        struct czi_decbuf *dst, GError **err) {
+// dst must be sb->tw * sb->th * 4 bytes
+static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
+                        struct czi_subblk *sb, uint32_t *dst, GError **err) {
   // work with BGR24, BGR48
   if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
     if (sb->pixel_type >= 0 &&
@@ -613,8 +597,6 @@ static bool read_subblk(struct _openslide_file *f,
     }
   }
 
-  dst->w = sb->tw;
-  dst->h = sb->th;
   struct zisraw_subblk_hdr hdr;
   if (!freadn_to_buf(f, zisraw_offset + sb->file_pos,
                      &hdr, sizeof(hdr), err)) {
@@ -631,7 +613,7 @@ static bool read_subblk(struct _openslide_file *f,
   switch (sb->compression) {
   case COMP_NONE:
     return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
-                                 err);
+                                 sb->tw, sb->th, err);
   case COMP_JXR:
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "JPEG XR is not supported");
@@ -658,34 +640,31 @@ static bool read_subblk(struct _openslide_file *f,
 }
 
 static bool read_tile(openslide_t *osr, cairo_t *cr,
-                      struct _openslide_level *level G_GNUC_UNUSED,
-                      int64_t tid G_GNUC_UNUSED, void *tile_data,
+                      struct _openslide_level *level,
+                      int64_t tid, void *tile_data,
                       void *arg, GError **err) {
   struct zeiss_ops_data *data = osr->data;
   struct czi *czi = data->czi;
   struct _openslide_file *f = arg;
   struct czi_subblk *sb = tile_data;
 
-  // file position of a subblock is unique
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
-  int64_t key_x = czi->zisraw_offset + sb->file_pos;
-  unsigned char *img = (unsigned char *) _openslide_cache_get(
-      osr->cache, 0, key_x, 0, &cache_entry);
-  if (!img) {
-    struct czi_decbuf dst;
-    if (!read_subblk(f, czi->zisraw_offset, sb, &dst, err)) {
+  uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tid, 0,
+                                            &cache_entry);
+  if (!tiledata) {
+    g_autofree uint32_t *buf = g_malloc(sb->tw * sb->th * 4);
+    if (!read_subblk(f, czi->zisraw_offset, sb, buf, err)) {
       return false;
     }
-
-    // _openslide_cache_entry_unref will free data
-    _openslide_cache_put(osr->cache, 0, key_x, 0, dst.data, dst.size,
-                         &cache_entry);
-    img = (unsigned char *) dst.data;
+    tiledata = g_steal_pointer(&buf);
+    _openslide_cache_put(osr->cache, level, tid, 0, tiledata,
+                         sb->tw * sb->th * 4, &cache_entry);
   }
 
   g_autoptr(cairo_surface_t) surface =
-    cairo_image_surface_create_for_data(img, CAIRO_FORMAT_ARGB32, sb->tw,
-                                        sb->th, sb->tw * 4);
+    cairo_image_surface_create_for_data((unsigned char *) tiledata,
+                                        CAIRO_FORMAT_ARGB32,
+                                        sb->tw, sb->th, sb->tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
   return true;
@@ -1027,15 +1006,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 
   switch (img->file_type) {
   case ATT_CZI:
-    ; // make compiler happy
-    struct czi_decbuf cbuf;
-    if (!read_subblk(f, img->data_offset, img->subblk, &cbuf, err)) {
-      return false;
-    }
-
-    memcpy(dst, cbuf.data, cbuf.size);
-    g_free(cbuf.data);
-    return true;
+    return read_subblk(f, img->data_offset, img->subblk, dst, err);
   case ATT_JPG:
     return _openslide_jpeg_read_file(f, img->data_offset, dst,
                                      img->base.w, img->base.h, err);
