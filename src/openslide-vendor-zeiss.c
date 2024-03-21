@@ -266,8 +266,6 @@ struct czi {
   int32_t w;
   int32_t h;
   int32_t nscene;
-  int32_t offset_x;
-  int32_t offset_y;
   struct czi_subblk *subblks;
   struct czi_scene *scenes;
 };
@@ -506,20 +504,23 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
  * x,y of other tiles.
  */
 static void adjust_coordinate_origin(struct czi *czi) {
+  int32_t offset_x = G_MAXINT32;
+  int32_t offset_y = G_MAXINT32;
+
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    if (b->x1 < czi->offset_x) {
-      czi->offset_x = b->x1;
+    if (b->x1 < offset_x) {
+      offset_x = b->x1;
     }
-    if (b->y1 < czi->offset_y) {
-      czi->offset_y = b->y1;
+    if (b->y1 < offset_y) {
+      offset_y = b->y1;
     }
   }
 
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    b->x1 -= czi->offset_x;
-    b->y1 -= czi->offset_y;
+    b->x1 -= offset_x;
+    b->y1 -= offset_y;
   }
 }
 
@@ -1190,8 +1191,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   }
 
   g_autoptr(czi) czi = g_new0(struct czi, 1);
-  czi->offset_x = G_MAXINT32;
-  czi->offset_y = G_MAXINT32;
   if (!load_dir_position(czi, f, err)) {
     return false;
   }
