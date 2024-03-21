@@ -822,6 +822,19 @@ static bool load_dir_position(struct czi *czi,
   return true;
 }
 
+static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
+                              GError **err) {
+  g_autoptr(czi) czi = g_new0(struct czi, 1);
+  czi->zisraw_offset = offset;
+  if (!load_dir_position(czi, f, err)) {
+    return NULL;
+  }
+  if (!read_subblk_dir(czi, f, err)) {
+    return NULL;
+  }
+  return g_steal_pointer(&czi);
+}
+
 /* parse XML and set standard openslide properties. Also set width, height in
  * czi
  */
@@ -1100,13 +1113,8 @@ static bool zeiss_add_associated_images(openslide_t *osr,
     g_autoptr(czi) czi = NULL;
     struct czi_subblk *sb = NULL;
     if (att_info.file_type == ATT_CZI) {
-      czi = g_new0(struct czi, 1);
-      czi->zisraw_offset = att_info.data_offset;
-      // knowing offset to ZISRAWFILE, now parse the embedded CZI
-      if (!load_dir_position(czi, f, err)) {
-        return false;
-      }
-      if (!read_subblk_dir(czi, f, err)) {
+      czi = create_czi(f, att_info.data_offset, err);
+      if (!czi) {
         return false;
       }
       // expect the embedded CZI file has only one image subblock
@@ -1190,13 +1198,11 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  g_autoptr(czi) czi = g_new0(struct czi, 1);
-  if (!load_dir_position(czi, f, err)) {
+  g_autoptr(czi) czi = create_czi(f, 0, err);
+  if (!czi) {
     return false;
   }
-  if (!read_subblk_dir(czi, f, err)) {
-    return false;
-  }
+
   adjust_coordinate_origin(czi);
 
   g_autofree char *xml = read_czi_meta_xml(czi, f, err);
