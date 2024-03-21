@@ -260,7 +260,6 @@ struct czi {
   int64_t zisraw_offset;
 
   char *filename;
-  int64_t filesize;
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
@@ -337,7 +336,8 @@ static bool freadn_to_buf(struct _openslide_file *f, off_t offset,
   }
   if (_openslide_fread(f, buf, len) != len) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Short read of file");
+                "Short read: wanted %"PRIu64" bytes at offset %"PRId64,
+                (uint64_t) len, (int64_t) offset);
     return false;
   }
   return true;
@@ -463,12 +463,13 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   czi->nsubblk = GINT32_FROM_LE(hdr.entry_count);
   int64_t seg_size =
     GINT32_FROM_LE(hdr.seg_hdr.used_size) - sizeof(hdr) + sizeof(hdr.seg_hdr);
-  if (seg_size < 0 || (offset + seg_size) > czi->filesize) {
+  g_autofree char *buf_dir = g_try_malloc(seg_size);
+  if (!buf_dir) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid DirectorySegment size %"PRId64" bytes", seg_size);
+                "Couldn't allocate %"PRId64" bytes for SubBlockDirectory",
+                seg_size);
     return false;
   }
-  g_autofree char *buf_dir = g_malloc(seg_size);
   if (!freadn_to_buf(f, offset, buf_dir, seg_size, err)) {
     g_prefix_error(err, "Couldn't read SubBlockDirectory: ");
     return false;
@@ -572,7 +573,13 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
                                   int64_t len, int32_t pixel_type,
                                   struct czi_decbuf *dst, GError **err) {
   dst->size = len;
-  dst->data = g_malloc(len);
+  dst->data = g_try_malloc(len);
+  if (!dst->data) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %"PRId64" bytes for uncompressed pixels",
+                len);
+    return false;
+  }
   if (!freadn_to_buf(f, pos, dst->data, len, err)) {
     g_prefix_error(err, "Couldn't read pixel data: ");
     g_free(dst->data);
@@ -592,8 +599,7 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   return czi_bgrn_to_xrgb32(dst, 24);
 }
 
-static bool read_subblk(struct czi *czi,
-                        struct _openslide_file *f,
+static bool read_subblk(struct _openslide_file *f,
                         int64_t zisraw_offset, struct czi_subblk *sb,
                         struct czi_decbuf *dst, GError **err) {
   // work with BGR24, BGR48
@@ -626,11 +632,6 @@ static bool read_subblk(struct czi *czi,
   int64_t data_pos = zisraw_offset + sb->file_pos + CZI_SUBBLK_HDR_LEN +
                      GINT32_FROM_LE(hdr.meta_size);
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
-  if (data_size < 0 || (data_pos + data_size) > czi->filesize) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid SubBlock data size %"PRId64" bytes", data_size);
-    return false;
-  }
   switch (sb->compression) {
   case COMP_NONE:
     return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
@@ -675,7 +676,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
       osr->cache, 0, key_x, 0, &cache_entry);
   if (!img) {
     struct czi_decbuf dst;
-    if (!read_subblk(czi, f, czi->zisraw_offset, sb, &dst, err)) {
+    if (!read_subblk(f, czi->zisraw_offset, sb, &dst, err)) {
       return false;
     }
 
@@ -929,13 +930,14 @@ static char *read_czi_meta_xml(struct czi *czi,
     return NULL;
   }
 
-  int64_t xml_size = (int64_t) GINT32_FROM_LE(hdr.xml_size);
-  if (xml_size < 0 || (offset + xml_size) > czi->filesize) {
+  int64_t xml_size = GINT32_FROM_LE(hdr.xml_size);
+  g_autofree char *xml = g_try_malloc(xml_size + 1);
+  if (!xml) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid XML data size %"PRId64" bytes", xml_size);
+                "Couldn't allocate %"PRId64" bytes for metadata XML",
+                xml_size + 1);
     return NULL;
   }
-  g_autofree char *xml = g_malloc(xml_size + 1);
   if (!freadn_to_buf(f, offset, xml, xml_size, err)) {
     g_prefix_error(err, "Couldn't read MetaBlock xml: ");
     return NULL;
@@ -1024,7 +1026,7 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
   case ATT_CZI:
     ; // make compiler happy
     struct czi_decbuf cbuf;
-    if (!read_subblk(img->czi, f, img->data_offset, img->subblk, &cbuf, err)) {
+    if (!read_subblk(f, img->data_offset, img->subblk, &cbuf, err)) {
       return false;
     }
 
@@ -1098,10 +1100,6 @@ static bool zeiss_add_associated_images(openslide_t *osr,
     if (att_info.file_type == ATT_CZI) {
       czi = g_new0(struct czi, 1);
       czi->filename = g_strdup(outer_czi->filename);
-      czi->filesize = _openslide_fsize(f, err);
-      if (czi->filesize == -1) {
-        return false;
-      }
       czi->zisraw_offset = att_info.data_offset;
       // knowing offset to ZISRAWFILE, now parse the embedded CZI
       if (!load_dir_position(czi, f, err)) {
@@ -1195,10 +1193,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   czi->offset_x = G_MAXINT32;
   czi->offset_y = G_MAXINT32;
   czi->filename = g_strdup(filename);
-  czi->filesize = _openslide_fsize(f, err);
-  if (czi->filesize == -1) {
-    return false;
-  }
   if (!load_dir_position(czi, f, err)) {
     return false;
   }
