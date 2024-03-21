@@ -524,52 +524,42 @@ static void adjust_coordinate_origin(struct czi *czi) {
   }
 }
 
-#define BGR24TOXRGB32(p)						\
-  (0xFF000000 | (uint32_t)((p)[0]) | ((uint32_t)((p)[1]) << 8) |	\
-   ((uint32_t)((p)[2]) << 16))
-
-#define BGR48TOXRGB32(p)						\
-  (0xFF000000 | (uint32_t)((p)[1]) | ((uint32_t)((p)[3]) << 8) |	\
-   ((uint32_t)((p)[5]) << 16))
-
-static void bgr24_to_xrgb32(uint8_t *src, size_t src_len, uint8_t *dst) {
-  uint32_t *p = (uint32_t *) dst;
-  size_t i = 0;
-  /* one 24-bits pixels a time */
-  while (i < src_len) {
-    *p++ = BGR24TOXRGB32(src);
-    i += 3;
-    src += 3;
+static void bgr24_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
+  // one 24-bit pixel at a time
+  for (size_t i = 0; i < src_len; i += 3, src += 3) {
+    *dst++ = (0xFF000000 |
+              (uint32_t)(src[0]) |
+              ((uint32_t)(src[1]) << 8) |
+              ((uint32_t)(src[2]) << 16));
   }
 }
 
-static void bgr48_to_xrgb32(uint8_t *src, size_t src_len, uint8_t *dst) {
-  uint32_t *p = (uint32_t *) dst;
-  size_t i = 0;
-  /* one 48-bits pixels a time */
-  while (i < src_len) {
-    *p++ = BGR48TOXRGB32(src);
-    i += 6;
-    src += 6;
+static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
+  // one 48-bit pixel at a time
+  for (size_t i = 0; i < src_len; i += 6, src += 6) {
+    *dst++ = (0xFF000000 |
+              (uint32_t)(src[1]) |
+              ((uint32_t)(src[3]) << 8) |
+              ((uint32_t)(src[5]) << 16));
   }
 }
 
-static bool czi_bgrn_to_xrgb32(struct czi_decbuf *p, int in_pixel_bits) {
-  if (in_pixel_bits != 24 && in_pixel_bits != 48) {
-    return false;
-  }
-
+static void czi_bgrn_to_argb32(struct czi_decbuf *p, int in_pixel_bits) {
   size_t new_size = p->w * p->h * 4;
-  g_autofree uint8_t *buf = g_malloc(new_size);
-  if (in_pixel_bits == 24) {
-    bgr24_to_xrgb32(p->data, p->size, buf);
-  } else if (in_pixel_bits == 48) {
-    bgr48_to_xrgb32(p->data, p->size, buf);
+  g_autofree uint32_t *buf = g_malloc(new_size);
+  switch (in_pixel_bits) {
+  case 24:
+    bgr24_to_argb32(p->data, p->size, buf);
+    break;
+  case 48:
+    bgr48_to_argb32(p->data, p->size, buf);
+    break;
+  default:
+    g_assert_not_reached();
   }
   g_free(p->data);
   p->size = new_size;
   p->data = g_steal_pointer(&buf);
-  return true;
 }
 
 /* the uncompressed data in CZI also uses pixel types such as BGR24 or
@@ -593,16 +583,16 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   }
 
   switch (pixel_type) {
-  case PT_BGR48:
-    return czi_bgrn_to_xrgb32(dst, 48);
-  case PT_GRAY16:
-    return false;
-  case PT_GRAY8:
-    return false;
-  default:
+  case PT_BGR24:
+    czi_bgrn_to_argb32(dst, 24);
     break;
+  case PT_BGR48:
+    czi_bgrn_to_argb32(dst, 48);
+    break;
+  default:
+    g_assert_not_reached();
   }
-  return czi_bgrn_to_xrgb32(dst, 24);
+  return true;
 }
 
 static bool read_subblk(struct _openslide_file *f,
@@ -641,7 +631,7 @@ static bool read_subblk(struct _openslide_file *f,
   switch (sb->compression) {
   case COMP_NONE:
     return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
-                                 NULL);
+                                 err);
   case COMP_JXR:
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "JPEG XR is not supported");
@@ -693,10 +683,9 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
     img = (unsigned char *) dst.data;
   }
 
-  int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, sb->tw);
   g_autoptr(cairo_surface_t) surface =
-    cairo_image_surface_create_for_data(img, CAIRO_FORMAT_RGB24, sb->tw,
-                                        sb->th, stride);
+    cairo_image_surface_create_for_data(img, CAIRO_FORMAT_ARGB32, sb->tw,
+                                        sb->th, sb->tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
   return true;
