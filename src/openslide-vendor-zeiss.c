@@ -393,6 +393,10 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   int size = GINT32_FROM_LE(dim->size);
   int stored_size = GINT32_FROM_LE(dim->stored_size);
 
+  if (dim->dimension[1]) {
+    // unrecognized multi-character dimension name; skip
+    return true;
+  }
   switch (dim->dimension[0]) {
   case 'X':
     sb->x1 = start;
@@ -591,12 +595,12 @@ static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
     if (sb->pixel_type >= 0 &&
         sb->pixel_type < (int) G_N_ELEMENTS(czi_pixel_type_names)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "pixel type %s is not supported",
+                  "Pixel type %s is not supported",
                   czi_pixel_type_names[sb->pixel_type].name);
       return false;
     } else {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "pixel type %d is not supported", sb->pixel_type);
+                  "Pixel type %d is not supported", sb->pixel_type);
       return false;
     }
   }
