@@ -720,51 +720,54 @@ static bool init_range_grids(openslide_t *osr, struct czi *czi,
   return true;
 }
 
-static gint cmp_int64(gpointer a, gpointer b) {
-  int64_t *x = (int64_t *) a;
-  int64_t *y = (int64_t *) b;
+static int compare_level_downsamples(const void *a, const void *b) {
+  struct level *la = *(struct level **) a;
+  struct level *lb = *(struct level **) b;
 
-  if (*x == *y) {
+  if (la->downsample_i == lb->downsample_i) {
     return 0;
   }
-  return (*x < *y) ? -1 : 1;
+  return (la->downsample_i < lb->downsample_i) ? -1 : 1;
+}
+
+// replace with g_hash_table_get_values_as_ptr_array() once we have glib 2.76+
+static GPtrArray *hash_values_to_ptr_array(GHashTable *hash) {
+  GPtrArray *arr = g_ptr_array_new_full(g_hash_table_size(hash), NULL);
+  g_autoptr(GList) l = g_hash_table_get_values(hash);
+  for (GList *p = l; p; p = p->next) {
+    g_ptr_array_add(arr, p->data);
+  }
+  return arr;
 }
 
 static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
-  g_autoptr(GHashTable) count_levels =
+  g_autoptr(GHashTable) level_hash =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    if (!g_hash_table_lookup(count_levels, &b->downsample_i)) {
+    if (b->downsample_i > max_downsample) {
+      continue;
+    }
+
+    struct level *l = g_hash_table_lookup(level_hash, &b->downsample_i);
+    if (!l) {
+      l = g_new0(struct level, 1);
+      l->base.downsample = b->downsample_i;
+      l->base.w = czi->w / l->base.downsample;
+      l->base.h = czi->h / l->base.downsample;
+      l->downsample_i = b->downsample_i;
+      l->base.tile_w = 256;
+      l->base.tile_h = 256;
+
       int64_t *k = g_new(int64_t, 1);
       *k = b->downsample_i;
-      g_hash_table_insert(count_levels, k, GINT_TO_POINTER(1));
+      g_hash_table_insert(level_hash, k, l);
     }
   }
 
-  g_autoptr(GList) downsamples = g_hash_table_get_keys(count_levels);
-  downsamples = g_list_sort(downsamples, (GCompareFunc) cmp_int64);
-
-  GPtrArray *levels = g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
-  GList *p = downsamples;
-  while (p) {
-    int64_t downsample_i = *((int64_t *) p->data);
-    if (downsample_i > max_downsample) {
-      break;
-    }
-
-    struct level *l = g_new0(struct level, 1);
-    l->base.downsample = (double) downsample_i;
-    l->base.w = czi->w / l->base.downsample;
-    l->base.h = czi->h / l->base.downsample;
-    l->downsample_i = downsample_i;
-    l->base.tile_w = 256;
-    l->base.tile_h = 256;
-
-    g_ptr_array_add(levels, l);
-    p = p->next;
-  }
-
+  GPtrArray *levels = hash_values_to_ptr_array(level_hash);
+  g_ptr_array_set_free_func(levels, (GDestroyNotify) destroy_level);
+  g_ptr_array_sort(levels, compare_level_downsamples);
   return levels;
 }
 
