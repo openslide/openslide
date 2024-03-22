@@ -152,8 +152,8 @@ enum zisraw_compression {
   COMP_JPEG,
   COMP_LZW,
   COMP_JXR = 4,
-  COMP_ZSTD0 = 5,
-  COMP_ZSTD1 = 6,
+  COMP_ZSTD0,
+  COMP_ZSTD1,
   COMP_OTHER,
 };
 
@@ -216,24 +216,38 @@ static const struct associated_image_mapping {
   {"Thumbnail", "thumbnail"},
 };
 
+static const struct czi_compression_name {
+  enum zisraw_compression compression;
+  const char *name;
+} czi_compression_names[] = {
+  {COMP_NONE, "uncompressed"},
+  {COMP_JPEG, "JPEG"},
+  {COMP_LZW, "LZW"},
+  {3, "type 3"},
+  {COMP_JXR, "JPEG XR"},
+  {COMP_ZSTD0, "zstd v0"},
+  {COMP_ZSTD1, "zstd v1"},
+  {COMP_OTHER, "unknown"},
+};
+
 static const struct czi_pixel_type_name {
   enum zisraw_pixel_type pixel_type;
   const char *name;
 } czi_pixel_type_names[] = {
-    {PT_GRAY8, "GRAY8"},
-    {PT_GRAY16, "GRAY16"},
-    {PT_GRAY32FLOAT, "GRAY32FLOAT"},
-    {PT_BGR24, "BGR24"},
-    {PT_BGR48, "BGR48"},
-    {5, "5"},
-    {6, "6"},
-    {7, "7"},
-    {PT_BGR96FLOAT, "BGR96FLOAT"},
-    {PT_BGRA32, "BGRA32"},
-    {PT_GRAY64COMPLEX, "GRAY64COMPLEX"},
-    {PT_BGR192COMPLEX, "BGR192COMPLEX"},
-    {PT_GRAY32, "GRAY32"},
-    {PT_GRAY64, "GRAY64"},
+  {PT_GRAY8, "GRAY8"},
+  {PT_GRAY16, "GRAY16"},
+  {PT_GRAY32FLOAT, "GRAY32FLOAT"},
+  {PT_BGR24, "BGR24"},
+  {PT_BGR48, "BGR48"},
+  {5, "5"},
+  {6, "6"},
+  {7, "7"},
+  {PT_BGR96FLOAT, "BGR96FLOAT"},
+  {PT_BGRA32, "BGRA32"},
+  {PT_GRAY64COMPLEX, "GRAY64COMPLEX"},
+  {PT_BGR192COMPLEX, "BGR192COMPLEX"},
+  {PT_GRAY32, "GRAY32"},
+  {PT_GRAY64, "GRAY64"},
 };
 
 // for finding location of each scene (region) and pyramid level
@@ -578,11 +592,12 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   return true;
 }
 
-// dst must be sb->tw * sb->th * 4 bytes
-static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
-                        struct czi_subblk *sb, uint32_t *dst, GError **err) {
-  // work with BGR24, BGR48
-  if (sb->pixel_type != PT_BGR24 && sb->pixel_type != PT_BGR48) {
+static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
+  switch (sb->pixel_type) {
+  case PT_BGR24:
+  case PT_BGR48:
+    break;
+  default:
     if (sb->pixel_type >= 0 &&
         sb->pixel_type < (int) G_N_ELEMENTS(czi_pixel_type_names)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -596,6 +611,28 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
     }
   }
 
+  switch (sb->compression) {
+  case COMP_NONE:
+    break;
+  default:
+    if (sb->compression >= 0 &&
+        sb->compression < (int) G_N_ELEMENTS(czi_compression_names)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "%s compression is not supported",
+                  czi_compression_names[sb->compression].name);
+      return false;
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Compression %d is not supported", sb->compression);
+      return false;
+    }
+  }
+  return true;
+}
+
+// dst must be sb->tw * sb->th * 4 bytes
+static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
+                        struct czi_subblk *sb, uint32_t *dst, GError **err) {
   struct zisraw_subblk_hdr hdr;
   if (!freadn_to_buf(f, zisraw_offset + sb->file_pos,
                      &hdr, sizeof(hdr), err)) {
@@ -613,27 +650,8 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   case COMP_NONE:
     return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
                                  sb->tw, sb->th, err);
-  case COMP_JXR:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "JPEG XR is not supported");
-    return false;
-  case COMP_JPEG:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "JPEG is not supported");
-    return false;
-  case COMP_LZW:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "LZW is not supported");
-    return false;
-  case COMP_ZSTD0:
-  case COMP_ZSTD1:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "ZSTD is not supported");
-    return false;
   default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unrecognized subblock format");
-    return false;
+    g_assert_not_reached();
   }
   return true;
 }
@@ -669,8 +687,8 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   return true;
 }
 
-static void init_range_grids(openslide_t *osr, struct czi *czi,
-                             GPtrArray *levels) {
+static bool init_range_grids(openslide_t *osr, struct czi *czi,
+                             GPtrArray *levels, GError **err) {
   g_autoptr(GHashTable) grids =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (guint i = 0; i < levels->len; i++) {
@@ -688,6 +706,9 @@ static void init_range_grids(openslide_t *osr, struct czi *czi,
     if (b->downsample_i > czi->common_downsample) {
       continue;
     }
+    if (!validate_subblk(b, err)) {
+      return false;
+    }
 
     struct _openslide_grid *grid = g_hash_table_lookup(grids, &b->downsample_i);
     g_assert(grid);
@@ -700,6 +721,7 @@ static void init_range_grids(openslide_t *osr, struct czi *czi,
     struct level *l = levels->pdata[i];
     _openslide_grid_range_finish_adding_tiles(l->grid);
   }
+  return true;
 }
 
 static gint cmp_int64(gpointer a, gpointer b) {
@@ -1081,6 +1103,10 @@ static bool zeiss_add_associated_images(openslide_t *osr,
         return false;
       }
       sb = &czi->subblks[0];
+      if (!validate_subblk(sb, err)) {
+        g_prefix_error(err, "Adding associated image \"%s\": ", map->czi_name);
+        return false;
+      }
     }
 
     add_one_associated_image(osr, filename, map->osr_name, &att_info, sb);
@@ -1173,7 +1199,9 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
   g_autoptr(GPtrArray) levels = create_levels(czi);
-  init_range_grids(osr, czi, levels);
+  if (!init_range_grids(osr, czi, levels, err)) {
+    return false;
+  }
   set_region_props(osr, czi);
   if (!zeiss_add_associated_images(osr, czi, filename, f, err)) {
     return false;
