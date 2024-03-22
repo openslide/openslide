@@ -250,15 +250,6 @@ static const struct czi_pixel_type_name {
   {PT_GRAY64, "GRAY64"},
 };
 
-// for finding location of each scene (region) and pyramid level
-struct czi_scene {
-  int64_t x1;
-  int64_t y1;
-  int64_t x2;
-  int64_t y2;
-  int64_t max_downsample;
-};
-
 struct czi {
   // offset to ZISRAWFILE, one for each file, usually 0. CZI file is like
   // Russian doll, it can embed other CZI files. Non-zero value is the
@@ -267,13 +258,11 @@ struct czi {
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
-  int64_t common_downsample;
   int32_t nsubblk; // total number of subblocks
   int32_t w;
   int32_t h;
   int32_t nscene;
   struct czi_subblk *subblks;
-  struct czi_scene *scenes;
 };
 
 struct level {
@@ -294,7 +283,6 @@ static void destroy_level(struct level *l) {
 
 static void destroy_czi(struct czi *czi) {
   g_free(czi->subblks);
-  g_free(czi->scenes);
   g_free(czi);
 }
 typedef struct czi czi;
@@ -701,9 +689,17 @@ static bool init_range_grids(openslide_t *osr, struct czi *czi,
     g_hash_table_insert(grids, k, l->grid);
   }
 
+  if (!levels->len) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Found no levels in slide");
+    return false;
+  }
+  struct level *last_l = levels->pdata[levels->len - 1];
+
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    if (b->downsample_i > czi->common_downsample) {
+    if (b->downsample_i > last_l->downsample_i) {
+      // subblock from a level that was omitted because not all scenes have it
       continue;
     }
     if (!validate_subblk(b, err)) {
@@ -734,25 +730,7 @@ static gint cmp_int64(gpointer a, gpointer b) {
   return (*x < *y) ? -1 : 1;
 }
 
-/* Scenes on a slide may have different sizes and pyramid levels. For example,
- * rat kidney is likely to have more levels than a mouse kidney on the same
- * slide. Find the maximum downsample value available on all scenes and use it
- * to set the total levels. It helps deepzoom to show all sections on a slide
- * at max zoom out.
- */
-static int64_t get_common_downsample(struct czi *czi) {
-  int64_t downsample = INT64_MAX;
-
-  for (int i = 0; i < czi->nscene; i++) {
-    struct czi_scene *s = &czi->scenes[i];
-    if (downsample > s->max_downsample) {
-      downsample = s->max_downsample;
-    }
-  }
-  return downsample;
-}
-
-static GPtrArray *create_levels(struct czi *czi) {
+static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
   g_autoptr(GHashTable) count_levels =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (int i = 0; i < czi->nsubblk; i++) {
@@ -769,10 +747,9 @@ static GPtrArray *create_levels(struct czi *czi) {
 
   GPtrArray *levels = g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
   GList *p = downsamples;
-  czi->common_downsample = get_common_downsample(czi);
   while (p) {
     int64_t downsample_i = *((int64_t *) p->data);
-    if (downsample_i > czi->common_downsample) {
+    if (downsample_i > max_downsample) {
       break;
     }
 
@@ -1114,62 +1091,81 @@ static bool zeiss_add_associated_images(openslide_t *osr,
   return true;
 }
 
-/* find scene boundaries on level 0, and pyramid levels of each scene */
-static bool init_scenes(struct czi *czi, GError **err) {
-  czi->scenes = g_try_new0(struct czi_scene, czi->nscene);
-  if (!czi->scenes) {
+// add region bounds props for each scene; compute common max downsample
+static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
+                                 int64_t *max_downsample_OUT,
+                                 GError **err) {
+  // allocate scene arrays
+  g_autofree int64_t *x1 = g_try_new(int64_t, czi->nscene);
+  g_autofree int64_t *y1 = g_try_new(int64_t, czi->nscene);
+  g_autofree int64_t *x2 = g_try_new(int64_t, czi->nscene);
+  g_autofree int64_t *y2 = g_try_new(int64_t, czi->nscene);
+  g_autofree int64_t *max_downsample = g_try_new0(int64_t, czi->nscene);
+  if (!x1 || !y1 || !x2 || !y2 || !max_downsample) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't allocate memory for %d scenes", czi->nscene);
     return false;
   }
   for (int i = 0; i < czi->nscene; i++) {
-    struct czi_scene *s = &czi->scenes[i];
-    s->x1 = INT64_MAX;
-    s->y1 = INT64_MAX;
-    s->x2 = INT64_MIN;
-    s->y2 = INT64_MIN;
+    x1[i] = INT64_MAX;
+    y1[i] = INT64_MAX;
+    x2[i] = INT64_MIN;
+    y2[i] = INT64_MIN;
   }
 
+  // walk subblocks, build up scene info
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    struct czi_scene *s = &czi->scenes[b->scene];
-    if (s->max_downsample < b->downsample_i) {
-      s->max_downsample = b->downsample_i;
+    if (b->scene < 0 || b->scene >= czi->nscene) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Subblock %d specifies out-of-range scene %d", i, b->scene);
+      return false;
     }
+    max_downsample[b->scene] = MAX(max_downsample[b->scene], b->downsample_i);
 
-    // only check scene boundary on top level
-    if (b->downsample_i != 1) {
-      continue;
+    // only check scene boundary on bottom level
+    if (b->downsample_i == 1) {
+      x1[b->scene] = MIN(x1[b->scene], b->x1);
+      y1[b->scene] = MIN(y1[b->scene], b->y1);
+      x2[b->scene] = MAX(x2[b->scene], b->x1 + b->w);
+      y2[b->scene] = MAX(y2[b->scene], b->y1 + b->h);
     }
-
-    s->x1 = MIN(s->x1, b->x1);
-    s->y1 = MIN(s->y1, b->y1);
-    s->x2 = MAX(s->x2, b->x1 + b->w);
-    s->y2 = MAX(s->y2, b->y1 + b->h);
   }
-  return true;
-}
 
-static void set_region_props(openslide_t *osr, struct czi *czi) {
+  // walk scenes, add properties and compute common downsample
+  *max_downsample_OUT = INT64_MAX;
   for (int i = 0; i < czi->nscene; i++) {
-    struct czi_scene *s = &czi->scenes[i];
+    if (!max_downsample[i]) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "No subblocks for scene %d", i);
+      return false;
+    }
+
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_X, i),
-        g_strdup_printf("%" PRId64, s->x1));
+        g_strdup_printf("%" PRId64, x1[i]));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_Y, i),
-        g_strdup_printf("%" PRId64, s->y1));
+        g_strdup_printf("%" PRId64, y1[i]));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_WIDTH, i),
-        g_strdup_printf("%" PRId64, s->x2 - s->x1));
+        g_strdup_printf("%" PRId64, x2[i] - x1[i]));
     g_hash_table_insert(
         osr->properties,
         g_strdup_printf(_OPENSLIDE_PROPERTY_NAME_TEMPLATE_REGION_HEIGHT, i),
-        g_strdup_printf("%" PRId64, s->y2 - s->y1));
+        g_strdup_printf("%" PRId64, y2[i] - y1[i]));
+
+    // Scenes on a slide may have different pyramid depths.  For example,
+    // rat kidney is likely to have more levels than a mouse kidney on the
+    // same slide.  Find the maximum downsample value available on all
+    // scenes and use it to set the total levels.  This ensures we show all
+    // sections on a slide at max zoom out.
+    *max_downsample_OUT = MIN(*max_downsample_OUT, max_downsample[i]);
   }
+  return true;
 }
 
 static bool zeiss_open(openslide_t *osr, const char *filename,
@@ -1195,14 +1191,16 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  if (!init_scenes(czi, err)) {
+  int64_t max_downsample;
+  if (!read_scenes_set_prop(osr, czi, &max_downsample, err)) {
     return false;
   }
-  g_autoptr(GPtrArray) levels = create_levels(czi);
+
+  g_autoptr(GPtrArray) levels = create_levels(czi, max_downsample);
   if (!init_range_grids(osr, czi, levels, err)) {
     return false;
   }
-  set_region_props(osr, czi);
+
   if (!zeiss_add_associated_images(osr, czi, filename, f, err)) {
     return false;
   }
