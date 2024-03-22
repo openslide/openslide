@@ -211,10 +211,9 @@ static const struct associated_image_mapping {
   const char *czi_name;
   const char *osr_name;
 } known_associated_images[] = {
-    {"Label", "label"},
-    {"SlidePreview", "macro"},
-    {"Thumbnail", "thumbnail"},
-    {NULL, NULL},
+  {"Label", "label"},
+  {"SlidePreview", "macro"},
+  {"Thumbnail", "thumbnail"},
 };
 
 static const struct czi_pixel_type_name {
@@ -1055,9 +1054,8 @@ static bool zeiss_add_associated_images(openslide_t *osr,
                                         const char *filename,
                                         struct _openslide_file *f,
                                         GError **err) {
-  const struct associated_image_mapping *map = &known_associated_images[0];
-
-  for (; map->czi_name; map++) {
+  for (int i = 0; i < (int) G_N_ELEMENTS(known_associated_images); i++) {
+    const struct associated_image_mapping *map = &known_associated_images[i];
     // read the outermost CZI to get offset to ZISRAWFILE, or to JPEG
     struct czi_att_info att_info = {0};
     if (!locate_attachment_by_name(outer_czi, &att_info, f,
