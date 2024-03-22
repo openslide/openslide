@@ -269,6 +269,8 @@ struct level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
   int64_t downsample_i;
+  uint32_t max_tile_w;
+  uint32_t max_tile_h;
 };
 
 struct zeiss_ops_data {
@@ -681,8 +683,10 @@ static bool init_range_grids(openslide_t *osr, struct czi *czi,
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (guint i = 0; i < levels->len; i++) {
     struct level *l = levels->pdata[i];
+    // assume the largest tile dimensions are the routine ones, and smaller
+    // tiles are at boundaries
     l->grid = _openslide_grid_create_range(osr,
-                                           l->base.tile_w, l->base.tile_h,
+                                           l->max_tile_w, l->max_tile_h,
                                            read_tile, NULL);
     int64_t *k = g_new(int64_t, 1);
     *k = l->downsample_i;
@@ -756,13 +760,14 @@ static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
       l->base.w = czi->w / l->base.downsample;
       l->base.h = czi->h / l->base.downsample;
       l->downsample_i = b->downsample_i;
-      l->base.tile_w = 256;
-      l->base.tile_h = 256;
 
       int64_t *k = g_new(int64_t, 1);
       *k = b->downsample_i;
       g_hash_table_insert(level_hash, k, l);
     }
+
+    l->max_tile_w = MAX(l->max_tile_w, b->tw);
+    l->max_tile_h = MAX(l->max_tile_h, b->th);
   }
 
   GPtrArray *levels = hash_values_to_ptr_array(level_hash);
