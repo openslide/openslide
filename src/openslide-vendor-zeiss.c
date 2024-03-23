@@ -461,7 +461,7 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
 
   czi->nsubblk = GINT32_FROM_LE(hdr.entry_count);
   int64_t seg_size =
-    GINT32_FROM_LE(hdr.seg_hdr.used_size) - sizeof(hdr) + sizeof(hdr.seg_hdr);
+    GINT64_FROM_LE(hdr.seg_hdr.used_size) - sizeof(hdr) + sizeof(hdr.seg_hdr);
   g_autofree char *buf_dir = g_try_malloc(seg_size);
   if (!buf_dir) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -974,7 +974,8 @@ static bool locate_attachment_by_name(struct czi *czi,
     }
 
     if (g_str_equal(att.name, name)) {
-      att_info->data_offset = att.file_pos + sizeof(struct zisraw_seg_att_hdr);
+      att_info->data_offset =
+        GINT64_FROM_LE(att.file_pos) + sizeof(struct zisraw_seg_att_hdr);
       if (g_str_equal(att.file_type, "JPG")) {
         att_info->file_type = ATT_JPG;
         if (!_openslide_jpeg_read_file_dimensions(f, att_info->data_offset,
