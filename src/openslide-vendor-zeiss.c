@@ -811,9 +811,7 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
   return g_steal_pointer(&czi);
 }
 
-/* parse XML and set standard openslide properties. Also set width, height in
- * czi
- */
+// parse XML, set CZI parameters and OpenSlide properties
 static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                const char *xml, GError **err) {
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
@@ -861,52 +859,61 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
   */
   g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
 
-  g_autofree char *size_x = _openslide_xml_xpath_get_string(
-      ctx, "/ImageDocument/Metadata/Information/Image/SizeX/text()");
-  czi->w = (int32_t) atol(size_x);
+  czi->w =
+    _openslide_xml_xpath_parse_int(ctx,
+                                   "/ImageDocument/Metadata/Information/Image"
+                                   "/SizeX/text()", err);
+  if (czi->w == -1) {
+    return false;
+  }
 
-  g_autofree char *size_y = _openslide_xml_xpath_get_string(
-      ctx, "/ImageDocument/Metadata/Information/Image/SizeY/text()");
-  czi->h = (int32_t) atol(size_y);
+  czi->h =
+    _openslide_xml_xpath_parse_int(ctx,
+                                   "/ImageDocument/Metadata/Information/Image"
+                                   "/SizeY/text()", err);
+  if (czi->h == -1) {
+    return false;
+  }
 
-  g_autofree char *size_s = _openslide_xml_xpath_get_string(
-      ctx, "/ImageDocument/Metadata/Information/Image/SizeS/text()");
-  czi->nscene = (int32_t) atol(size_s);
+  czi->nscene =
+    _openslide_xml_xpath_parse_int(ctx,
+                                   "/ImageDocument/Metadata/Information/Image"
+                                   "/SizeS/text()", err);
+  if (czi->nscene == -1) {
+    return false;
+  }
 
   // in meter/pixel
-  g_autofree char *mpp_x = _openslide_xml_xpath_get_string(
-      ctx,
-      "/ImageDocument/Metadata/Scaling/Items/Distance[@Id='X']/Value/text()");
-  if (mpp_x) {
-    double d = _openslide_parse_double(mpp_x);
-    if (!isnan(d)) {
-      // in um/pixel
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                          _openslide_format_double(d * 1000000.0));
-    }
+  double d =
+    _openslide_xml_xpath_parse_double(ctx,
+                                      "/ImageDocument/Metadata/Scaling/Items"
+                                      "/Distance[@Id='X']/Value/text()", NULL);
+  if (!isnan(d)) {
+    // in um/pixel
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                        _openslide_format_double(d * 1000000.0));
   }
 
-  g_autofree char *mpp_y = _openslide_xml_xpath_get_string(
-      ctx,
-      "/ImageDocument/Metadata/Scaling/Items/Distance[@Id='Y']/Value/text()");
-  if (mpp_y) {
-    double d = _openslide_parse_double(mpp_y);
-    if (!isnan(d)) {
-      // in um/pixel
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                          _openslide_format_double(d * 1000000.0));
-    }
+  d =
+    _openslide_xml_xpath_parse_double(ctx,
+                                      "/ImageDocument/Metadata/Scaling/Items"
+                                      "/Distance[@Id='Y']/Value/text()", NULL);
+  if (!isnan(d)) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                        _openslide_format_double(d * 1000000.0));
   }
 
-  g_autofree char *obj = _openslide_xml_xpath_get_string(
-      ctx, "/ImageDocument/Metadata/Information/Instrument/Objectives/"
-           "Objective/NominalMagnification/text()");
-  if (obj) {
+  d =
+    _openslide_xml_xpath_parse_double(ctx,
+                                     "/ImageDocument/Metadata/Information"
+                                     "/Instrument/Objectives/Objective"
+                                     "/NominalMagnification/text()", NULL);
+  if (!isnan(d)) {
     g_hash_table_insert(osr->properties,
                         g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                        g_strdup(obj));
+                        _openslide_format_double(d));
   }
 
   return true;

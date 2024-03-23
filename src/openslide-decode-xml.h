@@ -56,6 +56,12 @@ xmlNode *_openslide_xml_xpath_get_node(xmlXPathContext *ctx,
 char *_openslide_xml_xpath_get_string(xmlXPathContext *ctx,
                                       const char *xpath);
 
+int64_t _openslide_xml_xpath_parse_int(xmlXPathContext *ctx,
+                                       const char *xpath, GError **err);
+
+double _openslide_xml_xpath_parse_double(xmlXPathContext *ctx,
+                                         const char *xpath, GError **err);
+
 void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,
