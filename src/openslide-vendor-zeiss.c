@@ -51,10 +51,10 @@ struct zisraw_seg_hdr {
   char sid[16];
   int64_t allocated_size;
   int64_t used_size;
-};
+} __attribute__((__packed__));
 
 // beginning of a CZI file, SID = ZISRAWFILE
-struct __attribute__((__packed__)) zisraw_data_file_hdr {
+struct zisraw_data_file_hdr {
   struct zisraw_seg_hdr seg_hdr;
   int32_t major;
   int32_t minor;
@@ -67,7 +67,7 @@ struct __attribute__((__packed__)) zisraw_data_file_hdr {
   int64_t meta_pos;
   int32_t update_pending;
   int64_t att_dir_pos;
-};
+} __attribute__((__packed__));
 
 // SubBlockDirectorySegment, SID = ZISRAWDIRECTORY
 struct zisraw_subblk_dir_hdr {
@@ -75,7 +75,7 @@ struct zisraw_subblk_dir_hdr {
   int32_t entry_count;
   char _reserved[124];
   // followed by DirectoryEntryDV list
-};
+} __attribute__((__packed__));
 
 // Metadata segment, SID = ZISRAWMETADATA
 struct zisraw_meta_hdr {
@@ -83,7 +83,7 @@ struct zisraw_meta_hdr {
   int32_t xml_size;
   int32_t _attach_size;
   char _reserved[248];
-};
+} __attribute__((__packed__));
 
 // SubBlock segment, SID = ZISRAWSUBBLOCK
 struct zisraw_subblk_hdr {
@@ -93,10 +93,10 @@ struct zisraw_subblk_hdr {
   int64_t data_size;
   // followed by DirectoryEntryDV of this subblock, followed by padding
   // to 288 bytes, followed by meta (and attach?) and data
-};
+} __attribute__((__packed__));
 
 // Directory Entry - Schema DV
-struct __attribute__((__packed__)) zisraw_dir_entry_dv {
+struct zisraw_dir_entry_dv {
   char schema[2];
   int32_t pixel_type;
   int64_t file_pos;
@@ -107,7 +107,7 @@ struct __attribute__((__packed__)) zisraw_dir_entry_dv {
   char _reserved2[4];
   int32_t ndimensions;
   // followed by variable length array of zisraw_dim_entry_dv
-};
+} __attribute__((__packed__));
 
 // DimensionEntryDV1
 struct zisraw_dim_entry_dv {
@@ -116,10 +116,10 @@ struct zisraw_dim_entry_dv {
   int32_t size;
   float start_coordinate;
   int32_t stored_size;
-};
+} __attribute__((__packed__));
 
 // AttachmentEntry - Schema A1
-struct __attribute__((__packed__)) zisraw_att_entry_a1 {
+struct zisraw_att_entry_a1 {
   char schema[2];
   char _reserved2[10];
   int64_t file_pos;
@@ -127,17 +127,17 @@ struct __attribute__((__packed__)) zisraw_att_entry_a1 {
   char guid[16];
   char file_type[8]; // ZIP, ZISRAW, JPG etc.
   char name[80];     // Thumbnail, Label, SlidePreview etc.
-};
+} __attribute__((__packed__));
 
 // Attachment Segment, SID = ZISRAWATTACH
-struct __attribute__((__packed__)) zisraw_seg_att_hdr {
+struct zisraw_seg_att_hdr {
   struct zisraw_seg_hdr seg_hdr;
   int32_t data_size;
   char _reserved1[12];
   struct zisraw_att_entry_a1 att_entry;
   char _reserved2[112];
   // followed by data
-};
+} __attribute__((__packed__));
 
 // AttachmentDirectory Segment, SID = ZISRAWATTDIR
 struct zisraw_att_dir_hdr {
@@ -145,7 +145,7 @@ struct zisraw_att_dir_hdr {
   int32_t entry_count;
   char _reserved[252];
   // followed by AttachementEntryA1 list
-};
+} __attribute__((__packed__));
 
 enum zisraw_compression {
   COMP_NONE = 0,
