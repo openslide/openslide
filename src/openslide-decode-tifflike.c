@@ -680,7 +680,7 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   while (diroff != 0) {
     // read a directory
     struct tiff_directory *d = read_directory(f, &diroff,
-                                              NULL,
+                                              first_dir,
                                               loop_detector,
                                               bigtiff, tl->ndpi, big_endian,
                                               err);
