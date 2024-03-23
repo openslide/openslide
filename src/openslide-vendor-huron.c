@@ -228,8 +228,6 @@ static const struct _openslide_ops huron_ops = {
 static bool huron_detect(const char *filename G_GNUC_UNUSED,
                           struct _openslide_tifflike *tl, GError **err) {
 
-  printf("Huron detect\n");
-  
   //ensure we have a TIFF
   if (!tl) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -257,7 +255,6 @@ static bool huron_detect(const char *filename G_GNUC_UNUSED,
     return false;
   }
 
-  printf("Its a Huron\n");
   return true;
 }
 
