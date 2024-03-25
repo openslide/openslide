@@ -1044,9 +1044,8 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
     g_free(cbuf.data);
     return true;
   case ATT_JPG:
-    _openslide_jpeg_read(img->data->filename, img->data_offset, dst,
-                         img->base.w, img->base.h, err);
-    return true;
+    return _openslide_jpeg_read(img->data->filename, img->data_offset, dst,
+                                img->base.w, img->base.h, err);
   default:
     g_assert_not_reached();
   }
