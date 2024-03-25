@@ -988,10 +988,9 @@ static bool locate_attachment_by_name(struct czi *czi,
       att_info->data_offset = att.file_pos + sizeof(struct zisraw_seg_att_hdr);
       if (g_str_equal(att.file_type, "JPG")) {
         att_info->file_type = ATT_JPG;
-        if (!_openslide_jpeg_read_dimensions(czi->filename,
-                                             att_info->data_offset,
-                                             &att_info->w, &att_info->h,
-                                             err)) {
+        if (!_openslide_jpeg_read_file_dimensions(f, att_info->data_offset,
+                                                  &att_info->w, &att_info->h,
+                                                  err)) {
           g_prefix_error(err, "Reading JPEG header for attachment \"%s\": ",
                          name);
           return false;
@@ -1034,8 +1033,8 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
     g_free(cbuf.data);
     return true;
   case ATT_JPG:
-    return _openslide_jpeg_read(img->czi->filename, img->data_offset, dst,
-                                img->base.w, img->base.h, err);
+    return _openslide_jpeg_read_file(f, img->data_offset, dst,
+                                     img->base.w, img->base.h, err);
   default:
     g_assert_not_reached();
   }
