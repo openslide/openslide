@@ -92,6 +92,10 @@ repos:
       # line to skip the check.
       #
       # Deprecated function   Replacement
+      # atof                  _openslide_parse_double
+      # atoi                  g_ascii_strtoll
+      # atol                  g_ascii_strtoll
+      # atoll                 g_ascii_strtoll
       # fclose                _openslide_fclose
       # fopen                 _openslide_fopen
       # fread                 _openslide_fread
@@ -105,6 +109,12 @@ repos:
       # sqlite3_open          _openslide_sqlite_open
       # sqlite3_open_v2       _openslide_sqlite_open
       # strtod                _openslide_parse_double
+      # strtoimax             g_ascii_strtoll
+      # strtol                g_ascii_strtoll
+      # strtoll               g_ascii_strtoll
+      # strtoul               g_ascii_strtoull
+      # strtoull              g_ascii_strtoull
+      # strtoumax             g_ascii_strtoull
       # TIFFClientOpenExt     _openslide_tiffcache_get
       # TIFFClientOpen        _openslide_tiffcache_get
       # TIFFFdOpenExt         _openslide_tiffcache_get
@@ -117,4 +127,4 @@ repos:
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|atoi|atol|atoll|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
