@@ -529,24 +529,6 @@ static bool zeiss_detect(const char *filename,
   return true;
 }
 
-/* locate offset to metadata, to subblock and attachment directory */
-static bool load_dir_position(struct czi *czi,
-                              struct _openslide_file *f, GError **err) {
-  struct zisraw_data_file_hdr hdr;
-  if (!freadn_to_buf(f, czi->zisraw_offset, &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Couldn't read FileHeader: ");
-    return false;
-  }
-  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWFILE, err)) {
-    return false;
-  }
-
-  czi->subblk_dir_pos = GINT64_FROM_LE(hdr.subblk_dir_pos);
-  czi->meta_pos = GINT64_FROM_LE(hdr.meta_pos);
-  czi->att_dir_pos = GINT64_FROM_LE(hdr.att_dir_pos);
-  return true;
-}
-
 static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
                            GError **err) {
   const size_t len = sizeof(struct zisraw_dim_entry_dv);
@@ -672,11 +654,21 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
 
 static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
                               GError **err) {
+  struct zisraw_data_file_hdr hdr;
+  if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
+    g_prefix_error(err, "Couldn't read FileHeader: ");
+    return false;
+  }
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWFILE, err)) {
+    return false;
+  }
+
   g_autoptr(czi) czi = g_new0(struct czi, 1);
   czi->zisraw_offset = offset;
-  if (!load_dir_position(czi, f, err)) {
-    return NULL;
-  }
+  czi->subblk_dir_pos = GINT64_FROM_LE(hdr.subblk_dir_pos);
+  czi->meta_pos = GINT64_FROM_LE(hdr.meta_pos);
+  czi->att_dir_pos = GINT64_FROM_LE(hdr.att_dir_pos);
+
   if (!read_subblk_dir(czi, f, err)) {
     return NULL;
   }
