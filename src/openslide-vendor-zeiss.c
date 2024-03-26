@@ -963,17 +963,9 @@ static int compare_level_downsamples(const void *a, const void *b) {
   return (la->downsample_i < lb->downsample_i) ? -1 : 1;
 }
 
-// replace with g_hash_table_get_values_as_ptr_array() once we have glib 2.76+
-static GPtrArray *hash_values_to_ptr_array(GHashTable *hash) {
-  GPtrArray *arr = g_ptr_array_new_full(g_hash_table_size(hash), NULL);
-  g_autoptr(GList) l = g_hash_table_get_values(hash);
-  for (GList *p = l; p; p = p->next) {
-    g_ptr_array_add(arr, p->data);
-  }
-  return arr;
-}
-
 static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
+  g_autoptr(GPtrArray) levels =
+    g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
   g_autoptr(GHashTable) level_hash =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
   for (int i = 0; i < czi->nsubblk; i++) {
@@ -990,6 +982,7 @@ static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
       l->base.h = czi->h / l->base.downsample;
       l->downsample_i = b->downsample_i;
 
+      g_ptr_array_add(levels, l);
       int64_t *k = g_new(int64_t, 1);
       *k = b->downsample_i;
       g_hash_table_insert(level_hash, k, l);
@@ -998,11 +991,8 @@ static GPtrArray *create_levels(struct czi *czi, int64_t max_downsample) {
     l->max_tile_w = MAX(l->max_tile_w, b->tw);
     l->max_tile_h = MAX(l->max_tile_h, b->th);
   }
-
-  GPtrArray *levels = hash_values_to_ptr_array(level_hash);
-  g_ptr_array_set_free_func(levels, (GDestroyNotify) destroy_level);
   g_ptr_array_sort(levels, compare_level_downsamples);
-  return levels;
+  return g_steal_pointer(&levels);
 }
 
 static bool init_range_grids(openslide_t *osr, struct czi *czi,
