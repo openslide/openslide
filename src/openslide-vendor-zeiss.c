@@ -1098,34 +1098,10 @@ static bool locate_attachment_by_name(struct czi *czi,
   return true;
 }
 
-static void add_one_associated_image(openslide_t *osr, const char *filename,
-                                     const char *name,
-                                     struct czi_att_info *att_info,
-                                     struct czi_subblk *sb) {
-  struct associated_image *img = g_new0(struct associated_image, 1);
-
-  img->base.ops = &zeiss_associated_ops;
-  img->filename = g_strdup(filename);
-  img->file_type = att_info->file_type;
-  img->data_offset = att_info->data_offset;
-  if (sb) {
-    img->base.w = sb->tw;
-    img->base.h = sb->th;
-    img->subblk = g_new0(struct czi_subblk, 1);
-    memcpy(img->subblk, sb, sizeof(*sb));
-  } else {
-    img->base.w = att_info->w;
-    img->base.h = att_info->h;
-  }
-
-  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
-}
-
-static bool zeiss_add_associated_images(openslide_t *osr,
-                                        struct czi *outer_czi,
-                                        const char *filename,
-                                        struct _openslide_file *f,
-                                        GError **err) {
+static bool add_associated_images(openslide_t *osr, struct czi *outer_czi,
+                                  const char *filename,
+                                  struct _openslide_file *f,
+                                  GError **err) {
   for (int i = 0; i < (int) G_N_ELEMENTS(known_associated_images); i++) {
     const struct associated_image_mapping *map = &known_associated_images[i];
     // read the outermost CZI to get offset to ZISRAWFILE, or to JPEG
@@ -1159,7 +1135,21 @@ static bool zeiss_add_associated_images(openslide_t *osr,
       }
     }
 
-    add_one_associated_image(osr, filename, map->osr_name, &att_info, sb);
+    struct associated_image *img = g_new0(struct associated_image, 1);
+    img->base.ops = &zeiss_associated_ops;
+    img->filename = g_strdup(filename);
+    img->file_type = att_info.file_type;
+    img->data_offset = att_info.data_offset;
+    if (sb) {
+      img->base.w = sb->tw;
+      img->base.h = sb->th;
+      img->subblk = g_new(struct czi_subblk, 1);
+      memcpy(img->subblk, sb, sizeof(*sb));
+    } else {
+      img->base.w = att_info.w;
+      img->base.h = att_info.h;
+    }
+    g_hash_table_insert(osr->associated_images, g_strdup(map->osr_name), img);
   }
   return true;
 }
@@ -1197,7 +1187,7 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  if (!zeiss_add_associated_images(osr, czi, filename, f, err)) {
+  if (!add_associated_images(osr, czi, filename, f, err)) {
     return false;
   }
 
