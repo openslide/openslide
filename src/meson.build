@@ -73,6 +73,7 @@ openslide_sources = [
   'openslide-vendor-synthetic.c',
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
+  'openslide-vendor-zeiss.c',
 ]
 libopenslide = library('openslide',
   openslide_sources,

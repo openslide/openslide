@@ -1,0 +1,8 @@
+base: Zeiss/Zeiss-5-Uncompressed.czi
+slide: Zeiss-5-Uncompressed.czi
+success: true
+vendor: zeiss
+primary: true
+properties:
+  openslide.quickhash-1: 4056757b119a6ce0b676f817f475d1095ad90644857e9f053794ee48d2833b21
+  openslide.vendor: zeiss
