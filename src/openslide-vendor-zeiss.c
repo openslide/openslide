@@ -1037,16 +1037,10 @@ static bool locate_attachment_by_name(struct czi *czi,
                                       struct czi_att_info *att_info,
                                       struct _openslide_file *f,
                                       const char *name, GError **err) {
-  if (!_openslide_fseek(f, czi->zisraw_offset + czi->att_dir_pos, SEEK_SET,
-                        err)) {
-    g_prefix_error(err, "Couldn't seek to attachment directory: ");
-    return false;
-  }
-
   struct zisraw_att_dir_hdr hdr;
-  if (_openslide_fread(f, &hdr, sizeof(hdr)) != sizeof(hdr)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read FileHeader");
+  if (!freadn_to_buf(f, czi->zisraw_offset + czi->att_dir_pos, &hdr,
+                     sizeof(hdr), err)) {
+    g_prefix_error(err, "Reading attachment dir header: ");
     return false;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
