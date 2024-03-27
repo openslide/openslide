@@ -220,17 +220,6 @@ static const struct associated_image_mapping {
   {"Thumbnail", "thumbnail"},
 };
 
-enum czi_attach_content_file_type {
-  ATT_CZI,
-  ATT_JPG,
-};
-
-struct czi_att_info {
-  int64_t data_offset;
-  int32_t w, h;
-  enum czi_attach_content_file_type file_type;
-};
-
 struct czi_subblk {
   int64_t file_pos;
   int64_t downsample_i;
@@ -489,11 +478,16 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
   }
 }
 
-static void destroy_associated_image(struct _openslide_associated_image *p) {
-  struct associated_image *img = (struct associated_image *) p;
+static void _destroy_associated_image(struct associated_image *img) {
   g_free(img->subblk);
   g_free(img->filename);
   g_free(img);
+}
+typedef struct associated_image associated_image;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(associated_image, _destroy_associated_image)
+
+static void destroy_associated_image(struct _openslide_associated_image *p) {
+  _destroy_associated_image((struct associated_image *) p);
 }
 
 static const struct _openslide_associated_image_ops zeiss_associated_ops = {
@@ -1032,71 +1026,69 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
   return g_steal_pointer(&levels);
 }
 
-static bool locate_attachment_by_name(struct czi *czi,
-                                      struct czi_att_info *att_info,
-                                      struct _openslide_file *f,
-                                      const char *name, GError **err);
+static bool add_one_associated_image(openslide_t *osr, const char *filename,
+                                     struct _openslide_file *f,
+                                     const char *name, const char *file_type,
+                                     int64_t data_offset, GError **err) {
+  g_autoptr(associated_image) img = g_new0(struct associated_image, 1);
+  img->base.ops = &zeiss_associated_ops;
+  img->filename = g_strdup(filename);
+  img->data_offset = data_offset;
 
-static bool add_associated_images(openslide_t *osr, struct czi *outer_czi,
-                                  const char *filename,
-                                  struct _openslide_file *f,
-                                  GError **err) {
-  for (int i = 0; i < (int) G_N_ELEMENTS(known_associated_images); i++) {
-    const struct associated_image_mapping *map = &known_associated_images[i];
-    // read the outermost CZI to get offset to ZISRAWFILE, or to JPEG
-    struct czi_att_info att_info = {0};
-    if (!locate_attachment_by_name(outer_czi, &att_info, f,
-                                   map->czi_name, err)) {
+  if (g_str_equal(file_type, "JPG")) {
+    int32_t w, h;
+    if (!_openslide_jpeg_read_file_dimensions(f, data_offset, &w, &h, err)) {
+      g_prefix_error(err, "Reading JPEG header for associated image \"%s\": ",
+                     name);
       return false;
     }
-    if (att_info.data_offset == 0) {
-      continue;
+    img->base.w = w;
+    img->base.h = h;
+  } else if (g_str_equal(file_type, "CZI")) {
+    g_autoptr(czi) czi = create_czi(f, data_offset, err);
+    if (!czi) {
+      g_prefix_error(err, "Reading CZI for associated image \"%s\": ", name);
+      return false;
     }
-
-    g_autoptr(czi) czi = NULL;
-    struct czi_subblk *sb = NULL;
-    if (att_info.file_type == ATT_CZI) {
-      czi = create_czi(f, att_info.data_offset, err);
-      if (!czi) {
-        return false;
-      }
-      // expect the embedded CZI file has only one image subblock
-      if (czi->nsubblk != 1) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Embedded CZI for associated image \"%s\" has %d subblocks, expected one",
-                    map->czi_name, czi->nsubblk);
-        return false;
-      }
-      sb = &czi->subblks[0];
-      if (!validate_subblk(sb, err)) {
-        g_prefix_error(err, "Adding associated image \"%s\": ", map->czi_name);
-        return false;
-      }
+    if (czi->nsubblk != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Embedded CZI for associated image \"%s\" has %d subblocks, expected one",
+                  name, czi->nsubblk);
+      return false;
     }
-
-    struct associated_image *img = g_new0(struct associated_image, 1);
-    img->base.ops = &zeiss_associated_ops;
-    img->filename = g_strdup(filename);
-    img->data_offset = att_info.data_offset;
-    if (sb) {
-      img->base.w = sb->tw;
-      img->base.h = sb->th;
-      img->subblk = g_new(struct czi_subblk, 1);
-      memcpy(img->subblk, sb, sizeof(*sb));
-    } else {
-      img->base.w = att_info.w;
-      img->base.h = att_info.h;
+    struct czi_subblk *sb = &czi->subblks[0];
+    if (!validate_subblk(sb, err)) {
+      g_prefix_error(err, "Adding associated image \"%s\": ", name);
+      return false;
     }
-    g_hash_table_insert(osr->associated_images, g_strdup(map->osr_name), img);
+    img->base.w = sb->tw;
+    img->base.h = sb->th;
+    img->subblk = g_memdup(sb, sizeof(*sb));
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Associated image \"%s\" has unrecognized type \"%s\"",
+                name, file_type);
+    return false;
   }
+  g_hash_table_insert(osr->associated_images, g_strdup(name),
+                      g_steal_pointer(&img));
   return true;
 }
 
-/* find offset to embedded image with @name, such as Label */
-static bool locate_attachment_by_name(struct czi *czi,
-                                      struct czi_att_info *att_info,
-                                      struct _openslide_file *f,
-                                      const char *name, GError **err) {
+static const char *get_associated_image_name_for_attachment(const char *name) {
+  for (int i = 0; i < (int) G_N_ELEMENTS(known_associated_images); i++) {
+    if (g_str_equal(name, known_associated_images[i].czi_name)) {
+      return known_associated_images[i].osr_name;
+    }
+  }
+  return NULL;
+}
+
+static bool add_associated_images(openslide_t *osr, struct czi *czi,
+                                  const char *filename,
+                                  struct _openslide_file *f,
+                                  GError **err) {
+  // read attachment directory header
   struct zisraw_att_dir_hdr hdr;
   if (!freadn_to_buf(f, czi->zisraw_offset + czi->att_dir_pos, &hdr,
                      sizeof(hdr), err)) {
@@ -1107,44 +1099,34 @@ static bool locate_attachment_by_name(struct czi *czi,
     return false;
   }
 
+  // walk directory
+  int64_t att_offset = _openslide_ftell(f, err);
+  if (att_offset == -1) {
+    return false;
+  }
   int nattch = GINT32_FROM_LE(hdr.entry_count);
-
   for (int i = 0; i < nattch; i++) {
+    // read entry
     struct zisraw_att_entry_a1 att;
-    if (_openslide_fread(f, &att, sizeof(att)) != sizeof(att)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read attachment directory entry");
+    if (!freadn_to_buf(f, att_offset, &att, sizeof(att), err)) {
+      g_prefix_error(err, "Reading attachment directory entry: ");
       return false;
     }
     if (!check_magic(att.schema, SCHEMA_A1, err)) {
       return false;
     }
+    att_offset += sizeof(att);
 
-    if (g_str_equal(att.name, name)) {
-      att_info->data_offset =
-        GINT64_FROM_LE(att.file_pos) + sizeof(struct zisraw_seg_att_hdr);
-      if (g_str_equal(att.file_type, "JPG")) {
-        att_info->file_type = ATT_JPG;
-        if (!_openslide_jpeg_read_file_dimensions(f, att_info->data_offset,
-                                                  &att_info->w, &att_info->h,
-                                                  err)) {
-          g_prefix_error(err, "Reading JPEG header for attachment \"%s\": ",
-                         name);
-          return false;
-        }
-      } else if (g_str_equal(att.file_type, "CZI")) {
-        att_info->file_type = ATT_CZI;
-      } else {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Attachment \"%s\" has unrecognized type \"%s\"",
-                    name, att.file_type);
-        return false;
-      }
-      return true;
+    // if it's a known associated image, add it
+    const char *name = get_associated_image_name_for_attachment(att.name);
+    if (name &&
+        !add_one_associated_image(osr, filename, f, name, att.file_type,
+                                  GINT64_FROM_LE(att.file_pos) +
+                                  sizeof(struct zisraw_seg_att_hdr),
+                                  err)) {
+      return false;
     }
   }
-
-  // not found; succeed with att_info->data_offset unchanged
   return true;
 }
 
