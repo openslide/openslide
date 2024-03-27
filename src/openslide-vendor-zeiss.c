@@ -1032,61 +1032,10 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
   return g_steal_pointer(&levels);
 }
 
-/* find offset to embedded image with @name, such as Label */
 static bool locate_attachment_by_name(struct czi *czi,
                                       struct czi_att_info *att_info,
                                       struct _openslide_file *f,
-                                      const char *name, GError **err) {
-  struct zisraw_att_dir_hdr hdr;
-  if (!freadn_to_buf(f, czi->zisraw_offset + czi->att_dir_pos, &hdr,
-                     sizeof(hdr), err)) {
-    g_prefix_error(err, "Reading attachment dir header: ");
-    return false;
-  }
-  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
-    return false;
-  }
-
-  int nattch = GINT32_FROM_LE(hdr.entry_count);
-
-  for (int i = 0; i < nattch; i++) {
-    struct zisraw_att_entry_a1 att;
-    if (_openslide_fread(f, &att, sizeof(att)) != sizeof(att)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't read attachment directory entry");
-      return false;
-    }
-    if (!check_magic(att.schema, SCHEMA_A1, err)) {
-      return false;
-    }
-
-    if (g_str_equal(att.name, name)) {
-      att_info->data_offset =
-        GINT64_FROM_LE(att.file_pos) + sizeof(struct zisraw_seg_att_hdr);
-      if (g_str_equal(att.file_type, "JPG")) {
-        att_info->file_type = ATT_JPG;
-        if (!_openslide_jpeg_read_file_dimensions(f, att_info->data_offset,
-                                                  &att_info->w, &att_info->h,
-                                                  err)) {
-          g_prefix_error(err, "Reading JPEG header for attachment \"%s\": ",
-                         name);
-          return false;
-        }
-      } else if (g_str_equal(att.file_type, "CZI")) {
-        att_info->file_type = ATT_CZI;
-      } else {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Attachment \"%s\" has unrecognized type \"%s\"",
-                    name, att.file_type);
-        return false;
-      }
-      return true;
-    }
-  }
-
-  // not found; succeed with att_info->data_offset unchanged
-  return true;
-}
+                                      const char *name, GError **err);
 
 static bool add_associated_images(openslide_t *osr, struct czi *outer_czi,
                                   const char *filename,
@@ -1140,6 +1089,62 @@ static bool add_associated_images(openslide_t *osr, struct czi *outer_czi,
     }
     g_hash_table_insert(osr->associated_images, g_strdup(map->osr_name), img);
   }
+  return true;
+}
+
+/* find offset to embedded image with @name, such as Label */
+static bool locate_attachment_by_name(struct czi *czi,
+                                      struct czi_att_info *att_info,
+                                      struct _openslide_file *f,
+                                      const char *name, GError **err) {
+  struct zisraw_att_dir_hdr hdr;
+  if (!freadn_to_buf(f, czi->zisraw_offset + czi->att_dir_pos, &hdr,
+                     sizeof(hdr), err)) {
+    g_prefix_error(err, "Reading attachment dir header: ");
+    return false;
+  }
+  if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
+    return false;
+  }
+
+  int nattch = GINT32_FROM_LE(hdr.entry_count);
+
+  for (int i = 0; i < nattch; i++) {
+    struct zisraw_att_entry_a1 att;
+    if (_openslide_fread(f, &att, sizeof(att)) != sizeof(att)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't read attachment directory entry");
+      return false;
+    }
+    if (!check_magic(att.schema, SCHEMA_A1, err)) {
+      return false;
+    }
+
+    if (g_str_equal(att.name, name)) {
+      att_info->data_offset =
+        GINT64_FROM_LE(att.file_pos) + sizeof(struct zisraw_seg_att_hdr);
+      if (g_str_equal(att.file_type, "JPG")) {
+        att_info->file_type = ATT_JPG;
+        if (!_openslide_jpeg_read_file_dimensions(f, att_info->data_offset,
+                                                  &att_info->w, &att_info->h,
+                                                  err)) {
+          g_prefix_error(err, "Reading JPEG header for attachment \"%s\": ",
+                         name);
+          return false;
+        }
+      } else if (g_str_equal(att.file_type, "CZI")) {
+        att_info->file_type = ATT_CZI;
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Attachment \"%s\" has unrecognized type \"%s\"",
+                    name, att.file_type);
+        return false;
+      }
+      return true;
+    }
+  }
+
+  // not found; succeed with att_info->data_offset unchanged
   return true;
 }
 
