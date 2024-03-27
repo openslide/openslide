@@ -262,7 +262,6 @@ struct associated_image {
   char *filename;
   int64_t data_offset;
   struct czi_subblk *subblk;
-  enum czi_attach_content_file_type file_type;
 };
 
 struct level {
@@ -482,14 +481,11 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
     return false;
   }
 
-  switch (img->file_type) {
-  case ATT_CZI:
+  if (img->subblk) {
     return read_subblk(f, img->data_offset, img->subblk, dst, err);
-  case ATT_JPG:
+  } else {
     return _openslide_jpeg_read_file(f, img->data_offset, dst,
                                      img->base.w, img->base.h, err);
-  default:
-    g_assert_not_reached();
   }
 }
 
@@ -1138,7 +1134,6 @@ static bool add_associated_images(openslide_t *osr, struct czi *outer_czi,
     struct associated_image *img = g_new0(struct associated_image, 1);
     img->base.ops = &zeiss_associated_ops;
     img->filename = g_strdup(filename);
-    img->file_type = att_info.file_type;
     img->data_offset = att_info.data_offset;
     if (sb) {
       img->base.w = sb->tw;
