@@ -1213,7 +1213,7 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
 }
 
 const struct _openslide_format _openslide_format_zeiss = {
-  .name = "zeiss",
+  .name = "zeiss-czi",
   .vendor = "zeiss",
   .detect = zeiss_detect,
   .open = zeiss_open,
