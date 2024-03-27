@@ -80,6 +80,11 @@ struct dicom_level {
   double pixel_spacing_y;
   double objective_lens_power;
 
+  // the size of the underlying DICOM level ... we may need to crop levels
+  // from this size down to base.w base.h
+  int64_t w;
+  int64_t h;
+
   struct dicom_file *file;
 };
 
@@ -768,7 +773,7 @@ static struct dicom_level *find_level_by_dimensions(GPtrArray *level_array,
                                                     int64_t w, int64_t h) {
   for (guint i = 0; i < level_array->len; i++) {
     struct dicom_level *l = (struct dicom_level *) level_array->pdata[i];
-    if (l->base.w == w && l->base.h == h) {
+    if (l->w == w && l->h == h) {
       return l;
     }
   }
@@ -783,9 +788,10 @@ static bool add_level(openslide_t *osr,
   g_autoptr(dicom_level) l = g_new0(struct dicom_level, 1);
   l->file = f;
 
-  // dimensions
-  if (!get_tag_int(f->metadata, TotalPixelMatrixColumns, &l->base.w) ||
-      !get_tag_int(f->metadata, TotalPixelMatrixRows, &l->base.h) ||
+  // dimensions ... DICOM does not require edge tiles to be cropped, so we
+  // may have to crop on tile read
+  if (!get_tag_int(f->metadata, TotalPixelMatrixColumns, &l->w) ||
+      !get_tag_int(f->metadata, TotalPixelMatrixRows, &l->h) ||
       !get_tag_int(f->metadata, Columns, &l->base.tile_w) ||
       !get_tag_int(f->metadata, Rows, &l->base.tile_h)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -815,8 +821,8 @@ static bool add_level(openslide_t *osr,
   }
 
   // grid
-  int64_t tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
-  int64_t tiles_down = (l->base.h / l->base.tile_h) + !!(l->base.h % l->base.tile_h);
+  int64_t tiles_across = (l->w / l->base.tile_w) + !!(l->w % l->base.tile_w);
+  int64_t tiles_down = (l->h / l->base.tile_h) + !!(l->h % l->base.tile_h);
   l->grid = _openslide_grid_create_simple(osr,
                                           tiles_across, tiles_down,
                                           l->base.tile_w, l->base.tile_h,
@@ -826,7 +832,7 @@ static bool add_level(openslide_t *osr,
   // duplicated a file; ignore it.  otherwise there's something about this
   // slide we don't understand and we must fail
   struct dicom_level *previous =
-    find_level_by_dimensions(level_array, l->base.w, l->base.h);
+    find_level_by_dimensions(level_array, l->w, l->h);
   if (previous) {
     return ensure_sop_instance_uids_equal(f, previous->file, err);
   }
@@ -1063,11 +1069,19 @@ static void add_properties(openslide_t *osr, struct dicom_level *level0) {
   add_properties_dataset(level0->file->metadata, 0, &iter);
 }
 
-static gint compare_level_width(const void *a, const void *b) {
+static gint compare_level_resolution(const void *a, const void *b) {
   const struct dicom_level *aa = *((const struct dicom_level **) a);
   const struct dicom_level *bb = *((const struct dicom_level **) b);
 
-  return bb->base.w - aa->base.w;
+  // sort by pixel spacing, if available, otherwise fall back to width in
+  // pixels ... some DICOMs use uncropped tiles, so width in pixels can be
+  // misleading
+  if (aa->pixel_spacing_x && bb->pixel_spacing_x) {
+	  return 1.0 / bb->pixel_spacing_x - 1.0 / aa->pixel_spacing_x;
+  }
+  else {
+	  return bb->w - aa->w;
+  }
 }
 
 static bool dicom_open(openslide_t *osr,
@@ -1138,11 +1152,27 @@ static bool dicom_open(openslide_t *osr,
     return false;
   }
 
-  // sort levels by width
-  g_ptr_array_sort(level_array, compare_level_width);
+  g_ptr_array_sort(level_array, compare_level_resolution);
 
   struct dicom_level *level0 = level_array->pdata[0];
   add_properties(osr, level0);
+
+  // compute downsamples ... we use pixelspacing for this, if possible
+  for (guint i = 0; i < level_array->len; i++) {
+    struct dicom_level *level = level_array->pdata[i];
+
+    if (level0->pixel_spacing_x && level->pixel_spacing_x) {
+      level->base.downsample = level->pixel_spacing_x / level0->pixel_spacing_x;
+    }
+    else {
+      level->base.downsample = (double) level0->w / (double) level->w;
+    }
+
+    // now we have downsample we can compute the level dimensions that
+    // openslide expects
+    level->base.w = level0->w / level->base.downsample;
+    level->base.h = level0->h / level->base.downsample;
+  }
 
   (void) get_icc_profile(level0->file, &osr->icc_profile_size);
 
