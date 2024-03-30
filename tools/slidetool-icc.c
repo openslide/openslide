@@ -46,7 +46,7 @@ static int do_icc_read(int narg, char **args) {
 
   g_auto(output) out = open_output(outfile);
   if (fwrite(icc, icc_size, 1, out.fp) < 1) {
-    common_fail("Can't write %s: %s", outfile, strerror(errno));
+    common_fail("Can't write %s: %s", outfile, g_strerror(errno));
   }
 
   return 0;
@@ -74,7 +74,7 @@ static int do_assoc_icc_read(int narg, char **args) {
 
   g_auto(output) out = open_output(outfile);
   if (fwrite(icc, icc_size, 1, out.fp) < 1) {
-    common_fail("Can't write %s: %s", outfile, strerror(errno));
+    common_fail("Can't write %s: %s", outfile, g_strerror(errno));
   }
 
   return 0;

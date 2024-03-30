@@ -93,6 +93,8 @@ repos:
       # atoi                  g_ascii_strtoll
       # atol                  g_ascii_strtoll
       # atoll                 g_ascii_strtoll
+      # strerror              g_strerror
+      # strerror_l            g_strerror
       # strtoimax             g_ascii_strtoll
       # strtol                g_ascii_strtoll
       # strtoll               g_ascii_strtoll
@@ -104,7 +106,7 @@ repos:
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\W)(atoi|atol|atoll|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+        entry: "(^|\\W)(atoi|atol|atoll|strerror|strerror_l|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
 
       # Prevent use of functions with mandatory wrappers in OpenSlide.
       # Wrapper implementations can add "// ci-allow" on the same line to
