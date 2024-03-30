@@ -26,10 +26,13 @@ jobs:
           python-version: '3.12'
       - name: Run pre-commit hooks
         uses: pre-commit/action@v3.0.1
-  tests:
+
+  build:
     name: Build
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
+    outputs:
+      dist-base: ${{ steps.dist.outputs.dist-base }}
     strategy:
       matrix:
         include:
@@ -223,6 +226,23 @@ jobs:
       with:
         name: ${{ steps.docs.outputs.doc-base }}
         path: artifacts/docs
+    - name: Dist
+      id: dist
+      if: matrix.extra
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        meson dist -C builddir
+        dist="openslide-dist-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)"
+        mkdir -p "artifacts/dist/$dist"
+        mv builddir/meson-dist/*.tar.xz "artifacts/dist/$dist"
+        echo "dist-base=$dist" >> $GITHUB_OUTPUT
+    - name: Archive dist
+      if: matrix.extra
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.dist.outputs.dist-base }}
+        path: artifacts/dist
+        compression-level: 0
     - name: Cache pristine slides
       uses: actions/cache@v4
       with:
@@ -283,3 +303,35 @@ jobs:
       suffix: ${{ needs.windows_setup.outputs.suffix }}
       werror: true
       windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
+
+  release:
+    name: Release
+    if: github.ref_type == 'tag'
+    needs: [build, windows_build]
+    runs-on: ubuntu-latest
+    concurrency: release-${{ github.ref }}
+    permissions:
+      contents: write
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ${{ needs.build.outputs.dist-base }}
+        merge-multiple: true
+    - name: Release to GitHub
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        version=$(echo "${{ github.ref_name }}" | sed "s/^v//")
+        tar xf "${{ needs.build.outputs.dist-base }}/openslide-${version}.tar.xz"
+        echo -e "## Full changelog\n" > changes
+        awk -e '/^## / && ok {exit}' \
+            -e '/^## / {ok=1; next}' \
+            -e 'ok {print}' \
+            "openslide-${version}/CHANGELOG.md" >> changes
+        gh release create --draft --latest --verify-tag \
+            --repo "${{ github.repository }}" \
+            --title "OpenSlide $version" \
+            --notes-file changes \
+            "${{ github.ref_name }}" \
+            "${{ needs.build.outputs.dist-base }}/"*
