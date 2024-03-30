@@ -214,15 +214,15 @@ jobs:
         cd builddir
         ninja doc/html
         docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
-        mkdir doc-artifact
-        mv doc/html doc-artifact/${docroot}
+        mkdir -p ../artifacts/docs
+        mv doc/html ../artifacts/docs/${docroot}
         echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
     - name: Archive docs
       if: matrix.extra
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.docs.outputs.doc-base }}
-        path: builddir/doc-artifact
+        path: artifacts/docs
     - name: Cache pristine slides
       uses: actions/cache@v4
       with:
