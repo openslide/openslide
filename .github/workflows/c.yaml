@@ -80,8 +80,12 @@ jobs:
                 cairo \
                 glib \
                 xdelta \
-                python-requests \
                 pyyaml
+            # Install Python packages that Homebrew does not wish to maintain.
+            # Use --break-system-packages so pip doesn't refuse to install
+            # outside a virtualenv.
+            python3 -m pip install --break-system-packages \
+                requests
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
