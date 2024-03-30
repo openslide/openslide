@@ -208,6 +208,7 @@ jobs:
         trap "cat builddir/meson-logs/testlog.txt" EXIT
         meson test -C builddir
     - name: Docs
+      id: docs
       if: matrix.extra
       run: |
         cd builddir
@@ -215,12 +216,12 @@ jobs:
         docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
         mkdir doc-artifact
         mv doc/html doc-artifact/${docroot}
-        echo "docroot=${docroot}" >> $GITHUB_ENV
+        echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
     - name: Archive docs
       if: matrix.extra
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.docroot }}
+        name: ${{ steps.docs.outputs.doc-base }}
         path: builddir/doc-artifact
     - name: Cache pristine slides
       uses: actions/cache@v4
