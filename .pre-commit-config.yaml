@@ -87,15 +87,31 @@ repos:
         types: [c]
         entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
 
-      # Prevent use of dangerous functions and functions with mandatory
-      # wrappers.  Wrapper implementations can add "// ci-allow" on the same
-      # line to skip the check.
+      # Prevent use of dangerous functions.
       #
       # Deprecated function   Replacement
-      # atof                  _openslide_parse_double
       # atoi                  g_ascii_strtoll
       # atol                  g_ascii_strtoll
       # atoll                 g_ascii_strtoll
+      # strtoimax             g_ascii_strtoll
+      # strtol                g_ascii_strtoll
+      # strtoll               g_ascii_strtoll
+      # strtoul               g_ascii_strtoull
+      # strtoull              g_ascii_strtoull
+      # strtoumax             g_ascii_strtoull
+      - id: deny-prohibited
+        name: Check for calls to prohibited functions
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(^|\\W)(atoi|atol|atoll|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+
+      # Prevent use of functions with mandatory wrappers in OpenSlide.
+      # Wrapper implementations can add "// ci-allow" on the same line to
+      # skip the check.
+      #
+      # Deprecated function   Replacement
+      # atof                  _openslide_parse_double
       # fclose                _openslide_fclose
       # fopen                 _openslide_fopen
       # fread                 _openslide_fread
@@ -109,12 +125,6 @@ repos:
       # sqlite3_open          _openslide_sqlite_open
       # sqlite3_open_v2       _openslide_sqlite_open
       # strtod                _openslide_parse_double
-      # strtoimax             g_ascii_strtoll
-      # strtol                g_ascii_strtoll
-      # strtoll               g_ascii_strtoll
-      # strtoul               g_ascii_strtoull
-      # strtoull              g_ascii_strtoull
-      # strtoumax             g_ascii_strtoull
       # TIFFClientOpenExt     _openslide_tiffcache_get
       # TIFFClientOpen        _openslide_tiffcache_get
       # TIFFFdOpenExt         _openslide_tiffcache_get
@@ -122,9 +132,9 @@ repos:
       # TIFFOpenExt           _openslide_tiffcache_get
       # TIFFOpen              _openslide_tiffcache_get
       # TIFFSetDirectory      _openslide_tiff_set_dir
-      - id: deny-functions
-        name: Check for calls to prohibited functions
+      - id: deny-wrapped
+        name: Check for calls to wrapped functions
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(atof|atoi|atol|atoll|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

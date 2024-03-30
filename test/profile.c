@@ -37,11 +37,11 @@ int main(int argc, char **argv) {
     common_fail("Usage: %s <slide> <level>", argv[0]);
   }
   const char *path = argv[1];
-  int level = atoi(argv[2]);
+  int level = g_ascii_strtoll(argv[2], NULL, 10);
 
   g_autoptr(openslide_t) osr = openslide_open(path);
   common_fail_on_error(osr, "Couldn't open %s", path);
-  if (level >= openslide_get_level_count(osr)) {
+  if (level < 0 || level >= openslide_get_level_count(osr)) {
     common_fail("No such level: %d", level);
   }
 
