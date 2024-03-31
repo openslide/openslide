@@ -87,14 +87,20 @@ repos:
         types: [c]
         entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
 
-      # Prevent use of dangerous functions.
+      # Prevent use of dangerous or deprecated functions.
       #
       # Deprecated function   Replacement
       # atoi                  g_ascii_strtoll
       # atol                  g_ascii_strtoll
       # atoll                 g_ascii_strtoll
+      # calloc                g_new0
+      # free                  g_free
+      # malloc                g_malloc
+      # realloc               g_realloc
+      # strdup                g_strdup
       # strerror              g_strerror
       # strerror_l            g_strerror
+      # strndup               g_strndup
       # strtoimax             g_ascii_strtoll
       # strtol                g_ascii_strtoll
       # strtoll               g_ascii_strtoll
@@ -106,7 +112,7 @@ repos:
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\W)(atoi|atol|atoll|strerror|strerror_l|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|malloc|realloc|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
 
       # Prevent use of functions with mandatory wrappers in OpenSlide.
       # Wrapper implementations can add "// ci-allow" on the same line to
