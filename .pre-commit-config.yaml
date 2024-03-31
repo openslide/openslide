@@ -95,6 +95,14 @@ repos:
       # atoll                 g_ascii_strtoll
       # calloc                g_new0
       # free                  g_free
+      # g_slice_alloc0        g_malloc0
+      # g_slice_alloc         g_malloc
+      # g_slice_copy          g_memdup
+      # g_slice_dup           g_memdup
+      # g_slice_free1         g_free
+      # g_slice_free          g_free
+      # g_slice_new0          g_new0
+      # g_slice_new           g_new0
       # malloc                g_malloc
       # realloc               g_realloc
       # strdup                g_strdup
@@ -112,7 +120,7 @@ repos:
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|malloc|realloc|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
 
       # Prevent use of functions with mandatory wrappers in OpenSlide.
       # Wrapper implementations can add "// ci-allow" on the same line to
