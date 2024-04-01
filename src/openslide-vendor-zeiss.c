@@ -531,31 +531,41 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   *p += len;
   *avail -= len;
 
+  char name[sizeof(dim->dimension) + 1];
+  memcpy(name, dim->dimension, sizeof(dim->dimension));
+  name[sizeof(name) - 1] = 0;
+
   int start = GINT32_FROM_LE(dim->start);
   int size = GINT32_FROM_LE(dim->size);
   int stored_size = GINT32_FROM_LE(dim->stored_size);
 
-  if (dim->dimension[1]) {
-    // unrecognized multi-character dimension name; skip
-    return true;
-  }
-  switch (dim->dimension[0]) {
-  case 'X':
+  if (g_str_equal(name, "X")) {
     sb->x1 = start;
     sb->w = size;
     sb->tw = stored_size;
     sb->x2 = start + size - 1;
     sb->downsample_i = DIV_ROUND_CLOSEST(size, stored_size);
-    break;
-  case 'Y':
+  } else if (g_str_equal(name, "Y")) {
     sb->y1 = start;
     sb->h = size;
     sb->th = stored_size;
     sb->y2 = start + size - 1;
-    break;
-  case 'S':
+  } else if (g_str_equal(name, "S")) {
     sb->scene = start;
-    break;
+  } else if (g_str_equal(name, "C")) {
+    // channel
+    if (start) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Nonzero subblock channel %d", start);
+      return false;
+    }
+  } else if (g_str_equal(name, "M")) {
+    // mosaic tile index in drawing stack; highest number is frontmost
+    // ignore for now
+  } else {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unrecognized subblock dimension \"%s\"", name);
+    return false;
   }
   return true;
 }
