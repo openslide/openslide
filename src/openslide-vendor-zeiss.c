@@ -226,6 +226,8 @@ struct czi_subblk {
   int32_t pixel_type;
   int32_t compression;
   int32_t x1, x2, y1, y2;
+  // higher z-index overlaps a lower z-index
+  int32_t z;
   uint32_t w, h, tw, th;
   int32_t dir_entry_len;
   int8_t scene;
@@ -561,7 +563,7 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
     }
   } else if (g_str_equal(name, "M")) {
     // mosaic tile index in drawing stack; highest number is frontmost
-    // ignore for now
+    sb->z = start;
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized subblock dimension \"%s\"", name);
@@ -1023,8 +1025,10 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
 
     struct level *l = g_hash_table_lookup(level_hash, &b->downsample_i);
     g_assert(l);
-    _openslide_grid_range_add_tile(l->grid, (double) b->x1 / b->downsample_i,
+    _openslide_grid_range_add_tile(l->grid,
+                                   (double) b->x1 / b->downsample_i,
                                    (double) b->y1 / b->downsample_i,
+                                   b->z,
                                    (double) b->tw, (double) b->th, b);
   }
 

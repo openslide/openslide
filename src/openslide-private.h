@@ -258,7 +258,7 @@ struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
                                                      GDestroyNotify destroy_tile);
 
 void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
-                                    double x, double y,
+                                    double x, double y, double z,
                                     double w, double h,
                                     void *data);
 
