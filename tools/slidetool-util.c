@@ -30,7 +30,7 @@ struct output open_output(const char *filename) {
   if (filename) {
     FILE *fp = fopen(filename, "wb");
     if (!fp) {
-      common_fail("Can't open %s for writing: %s", filename, strerror(errno));
+      common_fail("Can't open %s for writing: %s", filename, g_strerror(errno));
     }
     out.fp = fp;
   } else {
@@ -45,11 +45,11 @@ struct output open_output(const char *filename) {
 void _close_output(struct output *out) {
   if (out->fp != stdout) {
     if (fclose(out->fp)) {
-      common_fail("Can't close output: %s", strerror(errno));
+      common_fail("Can't close output: %s", g_strerror(errno));
     }
   } else {
     if (fflush(out->fp)) {
-      common_fail("Can't flush stdout: %s", strerror(errno));
+      common_fail("Can't flush stdout: %s", g_strerror(errno));
     }
   }
 }
