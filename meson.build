@@ -46,6 +46,15 @@ versions = {
 # Compiler flags
 cc = meson.get_compiler('c')
 cc_native = meson.get_compiler('c', native : true)
+if host_machine.system() == 'darwin' and not cc.has_header('stdio.h')
+  # Certain compiler checks fail with -arch x86_64 -arch arm64, which could
+  # produce unexpected results e.g. disabling the TIFF error callback API.
+  # Detect and avoid this.  Universal binaries can be built by compiling
+  # separately for each architecture and combining the results with lipo.
+  # https://github.com/mesonbuild/meson/issues/5290
+  # https://github.com/mesonbuild/meson/issues/8206
+  error('Basic environment check failed.  Check compiler flags; building for multiple CPU architectures is not supported.')
+endif
 add_project_arguments(
   cc.get_supported_arguments(
     '-Wstrict-prototypes',
