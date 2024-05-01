@@ -1,7 +1,7 @@
 #pragma description MIRAX Index.dat
 
-#include <std/io.pat>
-#include <std/mem.pat>
+import std.io;
+import std.mem;
 
 #pragma endian little
 #pragma eval_depth 1024
