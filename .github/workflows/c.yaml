@@ -37,7 +37,9 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            container: registry.fedoraproject.org/fedora:latest
+            # Pin to Fedora 39
+            # https://bugzilla.redhat.com/show_bug.cgi?id=2278106
+            container: registry.fedoraproject.org/fedora:39
             extra: extra checks
             sanitize: sanitize
           - os: ubuntu-latest
