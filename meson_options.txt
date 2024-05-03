@@ -30,12 +30,6 @@ option(
   description : 'For test suite; do not use',
 )
 option(
-  '_filter_external_symbols',
-  type : 'boolean',
-  value : false,
-  description : 'For openslide-bin; do not use',
-)
-option(
   '_gcov',
   type : 'boolean',
   value : false,
