@@ -111,8 +111,6 @@ jobs:
                     ;;
                 *)
                     extra="clang doxygen llvm dnf-plugins-core"
-                    # https://bugzilla.redhat.com/show_bug.cgi?id=2278106
-                    extra="$extra lld"
                     debuginfo=1
                     ;;
                 esac
@@ -265,12 +263,7 @@ jobs:
       run: cd builddir/test && ./driver run
     - name: Sanitize
       if: matrix.sanitize
-      run: |
-        # https://bugzilla.redhat.com/show_bug.cgi?id=2278106
-        if [[ "${{ matrix.container }}" = *fedora* ]]; then
-            export CC_LD=lld
-        fi
-        cd builddir/test && ./driver sanitize
+      run: cd builddir/test && ./driver sanitize
     - name: Check exports
       if: matrix.extra
       run: cd builddir/test && ./driver exports
