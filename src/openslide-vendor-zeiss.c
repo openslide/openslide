@@ -658,21 +658,16 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   return true;
 }
 
-/* the topleft-most tile has none-zero (x, y), use its x,y as offset to adjust
- * x,y of other tiles.
- */
+// adjust tile coordinates relative to the top-left tile (which may have
+// negative X)
 static void adjust_coordinate_origin(struct czi *czi) {
   int32_t offset_x = G_MAXINT32;
   int32_t offset_y = G_MAXINT32;
 
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    if (b->x < offset_x) {
-      offset_x = b->x;
-    }
-    if (b->y < offset_y) {
-      offset_y = b->y;
-    }
+    offset_x = MIN(offset_x, b->x);
+    offset_y = MIN(offset_y, b->y);
   }
 
   for (int i = 0; i < czi->nsubblk; i++) {
@@ -704,6 +699,7 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
   if (!read_subblk_dir(czi, f, err)) {
     return NULL;
   }
+  adjust_coordinate_origin(czi);
   return g_steal_pointer(&czi);
 }
 
@@ -1171,8 +1167,6 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   if (!czi) {
     return false;
   }
-
-  adjust_coordinate_origin(czi);
 
   g_autofree char *xml = read_czi_meta_xml(czi, f, err);
   if (!xml) {
