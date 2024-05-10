@@ -234,7 +234,7 @@ struct czi_subblk {
   int32_t compression;
   // higher z-index overlaps a lower z-index
   int32_t x, y, z;
-  uint32_t tw, th;
+  uint32_t w, h;
   int32_t dir_entry_len;
   int8_t scene;
 };
@@ -390,7 +390,7 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   return true;
 }
 
-// dst must be sb->tw * sb->th * 4 bytes
+// dst must be sb->w * sb->h * 4 bytes
 static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
                         struct czi_subblk *sb, uint32_t *dst, GError **err) {
   struct zisraw_subblk_hdr hdr;
@@ -409,7 +409,7 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   switch (sb->compression) {
   case COMP_NONE:
     return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
-                                 sb->tw, sb->th, err);
+                                 sb->w, sb->h, err);
   default:
     g_assert_not_reached();
   }
@@ -429,19 +429,19 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tid, 0,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(sb->tw * sb->th * 4);
+    g_autofree uint32_t *buf = g_malloc(sb->w * sb->h * 4);
     if (!read_subblk(f, czi->zisraw_offset, sb, buf, err)) {
       return false;
     }
     tiledata = g_steal_pointer(&buf);
     _openslide_cache_put(osr->cache, level, tid, 0, tiledata,
-                         sb->tw * sb->th * 4, &cache_entry);
+                         sb->w * sb->h * 4, &cache_entry);
   }
 
   g_autoptr(cairo_surface_t) surface =
     cairo_image_surface_create_for_data((unsigned char *) tiledata,
                                         CAIRO_FORMAT_ARGB32,
-                                        sb->tw, sb->th, sb->tw * 4);
+                                        sb->w, sb->h, sb->w * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
   return true;
@@ -551,11 +551,11 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
 
   if (g_str_equal(name, "X")) {
     sb->x = start;
-    sb->tw = stored_size;
+    sb->w = stored_size;
     sb->downsample_i = DIV_ROUND_CLOSEST(size, stored_size);
   } else if (g_str_equal(name, "Y")) {
     sb->y = start;
-    sb->th = stored_size;
+    sb->h = stored_size;
   } else if (g_str_equal(name, "S")) {
     sb->scene = start;
   } else if (g_str_equal(name, "C")) {
@@ -882,8 +882,8 @@ static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
     if (b->downsample_i == 1) {
       x1[b->scene] = MIN(x1[b->scene], b->x);
       y1[b->scene] = MIN(y1[b->scene], b->y);
-      x2[b->scene] = MAX(x2[b->scene], b->x + b->tw);
-      y2[b->scene] = MAX(y2[b->scene], b->y + b->th);
+      x2[b->scene] = MAX(x2[b->scene], b->x + b->w);
+      y2[b->scene] = MAX(y2[b->scene], b->y + b->h);
     }
   }
 
@@ -998,8 +998,8 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
       g_hash_table_insert(level_hash, k, l);
     }
 
-    l->max_tile_w = MAX(l->max_tile_w, b->tw);
-    l->max_tile_h = MAX(l->max_tile_h, b->th);
+    l->max_tile_w = MAX(l->max_tile_w, b->w);
+    l->max_tile_h = MAX(l->max_tile_h, b->h);
   }
   if (!levels->len) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -1044,8 +1044,7 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
     _openslide_grid_range_add_tile(l->grid,
                                    (double) b->x / b->downsample_i,
                                    (double) b->y / b->downsample_i,
-                                   b->z,
-                                   (double) b->tw, (double) b->th, b);
+                                   b->z, b->w, b->h, b);
   }
 
   // postprocess grids
@@ -1091,8 +1090,8 @@ static bool add_one_associated_image(openslide_t *osr, const char *filename,
       g_prefix_error(err, "Adding associated image \"%s\": ", name);
       return false;
     }
-    img->base.w = sb->tw;
-    img->base.h = sb->th;
+    img->base.w = sb->w;
+    img->base.h = sb->h;
     img->subblk = g_memdup(sb, sizeof(*sb));
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
