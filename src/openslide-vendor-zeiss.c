@@ -232,9 +232,8 @@ struct czi_subblk {
   int64_t downsample_i;
   int32_t pixel_type;
   int32_t compression;
-  int32_t x1, x2, y1, y2;
   // higher z-index overlaps a lower z-index
-  int32_t z;
+  int32_t x, y, z;
   uint32_t w, h, tw, th;
   int32_t dir_entry_len;
   int8_t scene;
@@ -551,16 +550,14 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   int stored_size = GINT32_FROM_LE(dim->stored_size);
 
   if (g_str_equal(name, "X")) {
-    sb->x1 = start;
+    sb->x = start;
     sb->w = size;
     sb->tw = stored_size;
-    sb->x2 = start + size - 1;
     sb->downsample_i = DIV_ROUND_CLOSEST(size, stored_size);
   } else if (g_str_equal(name, "Y")) {
-    sb->y1 = start;
+    sb->y = start;
     sb->h = size;
     sb->th = stored_size;
-    sb->y2 = start + size - 1;
   } else if (g_str_equal(name, "S")) {
     sb->scene = start;
   } else if (g_str_equal(name, "C")) {
@@ -697,18 +694,18 @@ static void adjust_coordinate_origin(struct czi *czi) {
 
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    if (b->x1 < offset_x) {
-      offset_x = b->x1;
+    if (b->x < offset_x) {
+      offset_x = b->x;
     }
-    if (b->y1 < offset_y) {
-      offset_y = b->y1;
+    if (b->y < offset_y) {
+      offset_y = b->y;
     }
   }
 
   for (int i = 0; i < czi->nsubblk; i++) {
     struct czi_subblk *b = &czi->subblks[i];
-    b->x1 -= offset_x;
-    b->y1 -= offset_y;
+    b->x -= offset_x;
+    b->y -= offset_y;
   }
 }
 
@@ -885,10 +882,10 @@ static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
 
     // only check scene boundary on bottom level
     if (b->downsample_i == 1) {
-      x1[b->scene] = MIN(x1[b->scene], b->x1);
-      y1[b->scene] = MIN(y1[b->scene], b->y1);
-      x2[b->scene] = MAX(x2[b->scene], b->x1 + b->w);
-      y2[b->scene] = MAX(y2[b->scene], b->y1 + b->h);
+      x1[b->scene] = MIN(x1[b->scene], b->x);
+      y1[b->scene] = MIN(y1[b->scene], b->y);
+      x2[b->scene] = MAX(x2[b->scene], b->x + b->w);
+      y2[b->scene] = MAX(y2[b->scene], b->y + b->h);
     }
   }
 
@@ -1047,8 +1044,8 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
     struct level *l = g_hash_table_lookup(level_hash, &b->downsample_i);
     g_assert(l);
     _openslide_grid_range_add_tile(l->grid,
-                                   (double) b->x1 / b->downsample_i,
-                                   (double) b->y1 / b->downsample_i,
+                                   (double) b->x / b->downsample_i,
+                                   (double) b->y / b->downsample_i,
                                    b->z,
                                    (double) b->tw, (double) b->th, b);
   }
