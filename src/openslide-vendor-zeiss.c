@@ -1013,7 +1013,9 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
   }
   g_ptr_array_sort(levels, compare_level_downsamples);
 
-  // now that we know bucket sizes, create grids
+  // now that we know bucket sizes, create grids.  also collect max tile size
+  uint32_t max_tile_w = 0;
+  uint32_t max_tile_h = 0;
   for (guint i = 0; i < levels->len; i++) {
     struct level *l = levels->pdata[i];
     // assume the largest tile dimensions are the routine ones, and smaller
@@ -1021,7 +1023,15 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
     l->grid = _openslide_grid_create_range(osr,
                                            l->max_tile_w, l->max_tile_h,
                                            read_tile, NULL);
+    max_tile_w = MAX(max_tile_w, l->max_tile_w);
+    max_tile_h = MAX(max_tile_h, l->max_tile_h);
   }
+
+  // start cache with custom size that can hold at least two tiles
+  uint64_t default_cache_size =
+    MAX(DEFAULT_CACHE_SIZE, 2 * 4 * max_tile_w * max_tile_h);
+  osr->cache = _openslide_cache_binding_create(default_cache_size);
+  //g_debug("Default cache size: %"PRIu64, default_cache_size);
 
   // add subblocks to grids
   for (int i = 0; i < czi->nsubblk; i++) {
