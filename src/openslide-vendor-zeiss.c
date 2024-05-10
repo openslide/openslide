@@ -234,7 +234,7 @@ struct czi_subblk {
   int32_t compression;
   // higher z-index overlaps a lower z-index
   int32_t x, y, z;
-  uint32_t w, h, tw, th;
+  uint32_t tw, th;
   int32_t dir_entry_len;
   int8_t scene;
 };
@@ -551,12 +551,10 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
 
   if (g_str_equal(name, "X")) {
     sb->x = start;
-    sb->w = size;
     sb->tw = stored_size;
     sb->downsample_i = DIV_ROUND_CLOSEST(size, stored_size);
   } else if (g_str_equal(name, "Y")) {
     sb->y = start;
-    sb->h = size;
     sb->th = stored_size;
   } else if (g_str_equal(name, "S")) {
     sb->scene = start;
@@ -884,8 +882,8 @@ static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
     if (b->downsample_i == 1) {
       x1[b->scene] = MIN(x1[b->scene], b->x);
       y1[b->scene] = MIN(y1[b->scene], b->y);
-      x2[b->scene] = MAX(x2[b->scene], b->x + b->w);
-      y2[b->scene] = MAX(y2[b->scene], b->y + b->h);
+      x2[b->scene] = MAX(x2[b->scene], b->x + b->tw);
+      y2[b->scene] = MAX(y2[b->scene], b->y + b->th);
     }
   }
 
