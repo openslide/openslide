@@ -658,6 +658,30 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   return true;
 }
 
+/* the topleft-most tile has none-zero (x, y), use its x,y as offset to adjust
+ * x,y of other tiles.
+ */
+static void adjust_coordinate_origin(struct czi *czi) {
+  int32_t offset_x = G_MAXINT32;
+  int32_t offset_y = G_MAXINT32;
+
+  for (int i = 0; i < czi->nsubblk; i++) {
+    struct czi_subblk *b = &czi->subblks[i];
+    if (b->x < offset_x) {
+      offset_x = b->x;
+    }
+    if (b->y < offset_y) {
+      offset_y = b->y;
+    }
+  }
+
+  for (int i = 0; i < czi->nsubblk; i++) {
+    struct czi_subblk *b = &czi->subblks[i];
+    b->x -= offset_x;
+    b->y -= offset_y;
+  }
+}
+
 static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
                               GError **err) {
   struct zisraw_data_file_hdr hdr;
@@ -681,30 +705,6 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
     return NULL;
   }
   return g_steal_pointer(&czi);
-}
-
-/* the topleft-most tile has none-zero (x, y), use its x,y as offset to adjust
- * x,y of other tiles.
- */
-static void adjust_coordinate_origin(struct czi *czi) {
-  int32_t offset_x = G_MAXINT32;
-  int32_t offset_y = G_MAXINT32;
-
-  for (int i = 0; i < czi->nsubblk; i++) {
-    struct czi_subblk *b = &czi->subblks[i];
-    if (b->x < offset_x) {
-      offset_x = b->x;
-    }
-    if (b->y < offset_y) {
-      offset_y = b->y;
-    }
-  }
-
-  for (int i = 0; i < czi->nsubblk; i++) {
-    struct czi_subblk *b = &czi->subblks[i];
-    b->x -= offset_x;
-    b->y -= offset_y;
-  }
 }
 
 static char *read_czi_meta_xml(struct czi *czi,
