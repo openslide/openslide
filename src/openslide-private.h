@@ -295,13 +295,15 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
 struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
+#define DEFAULT_CACHE_SIZE (1024*1024*32)
+
 // create/release
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_release(openslide_cache_t *cache);
 
 // binding a cache to an openslide_t
-struct _openslide_cache_binding *_openslide_cache_binding_create(void);
+struct _openslide_cache_binding *_openslide_cache_binding_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
                                   openslide_cache_t *cache);
