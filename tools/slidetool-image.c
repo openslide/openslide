@@ -214,7 +214,7 @@ static int do_write_png(int narg, char **args) {
   const char *slide = args[0];
   int64_t x = g_ascii_strtoll(args[1], NULL, 10);
   int64_t y = g_ascii_strtoll(args[2], NULL, 10);
-  int32_t level = strtol(args[3], NULL, 10);
+  int32_t level = g_ascii_strtoll(args[3], NULL, 10);
   int64_t width = g_ascii_strtoll(args[4], NULL, 10);
   int64_t height = g_ascii_strtoll(args[5], NULL, 10);
   const char *output = args[6];
@@ -228,7 +228,7 @@ static int do_region_read(int narg, char **args) {
   const char *slide = args[0];
   int64_t x = g_ascii_strtoll(args[1], NULL, 10);
   int64_t y = g_ascii_strtoll(args[2], NULL, 10);
-  int32_t level = strtol(args[3], NULL, 10);
+  int32_t level = g_ascii_strtoll(args[3], NULL, 10);
   int64_t width = g_ascii_strtoll(args[4], NULL, 10);
   int64_t height = g_ascii_strtoll(args[5], NULL, 10);
   const char *output = narg >= 7 ? args[6] : NULL;

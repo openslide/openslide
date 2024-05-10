@@ -25,11 +25,14 @@ jobs:
         with:
           python-version: '3.12'
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
-  tests:
+        uses: pre-commit/action@v3.0.1
+
+  build:
     name: Build
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
+    outputs:
+      dist-base: ${{ steps.dist.outputs.dist-base }}
     strategy:
       matrix:
         include:
@@ -52,7 +55,7 @@ jobs:
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
-          - os: macos-12
+          - os: macos-14
             sanitize: sanitize
     steps:
     - name: Install dependencies
@@ -80,8 +83,12 @@ jobs:
                 cairo \
                 glib \
                 xdelta \
-                python-requests \
                 pyyaml
+            # Install Python packages that Homebrew does not wish to maintain.
+            # Use --break-system-packages so pip doesn't refuse to install
+            # outside a virtualenv.
+            python3 -m pip install --break-system-packages \
+                requests
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
@@ -130,6 +137,10 @@ jobs:
                 fi
                 if [ -n "$pydotver" ]; then
                     alternatives --set python3 "/usr/bin/python${pydotver}"
+                fi
+                if [ "$ID" = fedora ]; then
+                    # https://bugzilla.redhat.com/show_bug.cgi?id=2278106
+                    dnf upgrade -y --enablerepo=updates-testing binutils
                 fi
                 ;;
             *debian*|"")
@@ -208,20 +219,38 @@ jobs:
         trap "cat builddir/meson-logs/testlog.txt" EXIT
         meson test -C builddir
     - name: Docs
+      id: docs
       if: matrix.extra
       run: |
         cd builddir
         ninja doc/html
         docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
-        mkdir doc-artifact
-        mv doc/html doc-artifact/${docroot}
-        echo "docroot=${docroot}" >> $GITHUB_ENV
+        mkdir -p ../artifacts/docs
+        mv doc/html ../artifacts/docs/${docroot}
+        echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
     - name: Archive docs
       if: matrix.extra
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.docroot }}
-        path: builddir/doc-artifact
+        name: ${{ steps.docs.outputs.doc-base }}
+        path: artifacts/docs
+    - name: Dist
+      id: dist
+      if: matrix.extra
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        meson dist -C builddir
+        dist="openslide-dist-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)"
+        mkdir -p "artifacts/dist/$dist"
+        mv builddir/meson-dist/*.tar.xz "artifacts/dist/$dist"
+        echo "dist-base=$dist" >> $GITHUB_OUTPUT
+    - name: Archive dist
+      if: matrix.extra
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.dist.outputs.dist-base }}
+        path: artifacts/dist
+        compression-level: 0
     - name: Cache pristine slides
       uses: actions/cache@v4
       with:
@@ -263,7 +292,9 @@ jobs:
               echo "suffix=$(date +%Y%m%d).pr.${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           push)
-              echo "suffix=$(date +%Y%m%d).${GITHUB_REF#refs/heads/}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              ref="${GITHUB_REF#refs/heads/}"
+              ref="${ref#refs/tags/}"
+              echo "suffix=$(date +%Y%m%d).${ref}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           *)
               echo "Unknown event type ${{ github.event_name }}"
@@ -280,3 +311,35 @@ jobs:
       suffix: ${{ needs.windows_setup.outputs.suffix }}
       werror: true
       windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
+
+  release:
+    name: Release
+    if: github.ref_type == 'tag'
+    needs: [build, windows_build]
+    runs-on: ubuntu-latest
+    concurrency: release-${{ github.ref }}
+    permissions:
+      contents: write
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ${{ needs.build.outputs.dist-base }}
+        merge-multiple: true
+    - name: Release to GitHub
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        version=$(echo "${{ github.ref_name }}" | sed "s/^v//")
+        tar xf "${{ needs.build.outputs.dist-base }}/openslide-${version}.tar.xz"
+        echo -e "## Full changelog\n" > changes
+        awk -e '/^## / && ok {exit}' \
+            -e '/^## / {ok=1; next}' \
+            -e 'ok {print}' \
+            "openslide-${version}/CHANGELOG.md" >> changes
+        gh release create --draft --latest --verify-tag \
+            --repo "${{ github.repository }}" \
+            --title "OpenSlide $version" \
+            --notes-file changes \
+            "${{ github.ref_name }}" \
+            "${{ needs.build.outputs.dist-base }}/"*

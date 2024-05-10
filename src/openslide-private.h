@@ -158,6 +158,11 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
                                 GError **err);
 
+/* Compute the new offset after seeking a file with the specified initial
+   offset and length. */
+int64_t _openslide_compute_seek(int64_t initial, int64_t length,
+                                int64_t offset, int whence);
+
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */
 double _openslide_parse_double(const char *value);

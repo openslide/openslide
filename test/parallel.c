@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  int threads = atoi(argv[2]);
+  int threads = g_ascii_strtoll(argv[2], NULL, 10);
   if (threads < 1) {
     printf("Invalid thread count\n");
     return 1;

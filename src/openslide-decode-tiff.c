@@ -50,6 +50,7 @@ struct _openslide_tiffcache {
 // not thread-safe, like libtiff
 struct tiff_file_handle {
   struct _openslide_tiffcache *tc;
+  struct _openslide_file *f;
   int64_t offset;
   int64_t size;
   char *last_error;
@@ -549,16 +550,20 @@ void _openslide_tiff_error(GError **err, TIFF *tiff, const char *fmt, ...) {
 static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
   struct tiff_file_handle *hdl = th;
 
-  // don't leave the file handle open between calls
-  // also ensures FD_CLOEXEC is set
-  g_autoptr(_openslide_file) f = _openslide_fopen(hdl->tc->filename, NULL);
-  if (f == NULL) {
-    return 0;
+  // Open the file handle on first use.  cached_tiff_put will close it so it
+  // doesn't stay open across API calls.  Also ensures FD_CLOEXEC is set.
+  if (!hdl->f) {
+    g_autoptr(_openslide_file) f = _openslide_fopen(hdl->tc->filename, NULL);
+    if (!f) {
+      return 0;
+    }
+    // restore file position
+    if (!_openslide_fseek(f, hdl->offset, SEEK_SET, NULL)) {
+      return 0;
+    }
+    hdl->f = g_steal_pointer(&f);
   }
-  if (!_openslide_fseek(f, hdl->offset, SEEK_SET, NULL)) {
-    return 0;
-  }
-  int64_t rsize = _openslide_fread(f, buf, size);
+  int64_t rsize = _openslide_fread(hdl->f, buf, size);
   hdl->offset += rsize;
   return rsize;
 }
@@ -572,21 +577,15 @@ static tsize_t tiff_do_write(thandle_t th G_GNUC_UNUSED,
 
 static toff_t tiff_do_seek(thandle_t th, toff_t offset, int whence) {
   struct tiff_file_handle *hdl = th;
-
-  switch (whence) {
-  case SEEK_SET:
-    hdl->offset = offset;
-    break;
-  case SEEK_CUR:
-    hdl->offset += offset;
-    break;
-  case SEEK_END:
-    hdl->offset = hdl->size + offset;
-    break;
-  default:
-    g_assert_not_reached();
+  int64_t new_offset =
+    _openslide_compute_seek(hdl->offset, hdl->size, offset, whence);
+  if (hdl->f) {
+    if (!_openslide_fseek(hdl->f, new_offset, SEEK_SET, NULL)) {
+      return -1;
+    }
   }
-  return hdl->offset;
+  hdl->offset = new_offset;
+  return new_offset;
 }
 
 static void tiff_clear_error(struct tiff_file_handle *hdl) {
@@ -602,6 +601,9 @@ static int tiff_do_close(thandle_t th) {
   struct tiff_file_handle *hdl = th;
 
   tiff_clear_error(hdl);
+  if (hdl->f) {
+    _openslide_fclose(hdl->f);
+  }
   g_free(hdl);
   return 0;
 }
@@ -654,6 +656,7 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // allocate
   struct tiff_file_handle *hdl = g_new0(struct tiff_file_handle, 1);
   hdl->tc = tc;
+  hdl->f = g_steal_pointer(&f);
   hdl->size = size;
 
   // TIFFOpen
@@ -726,6 +729,9 @@ void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct) {
   tc->outstanding--;
   if (g_queue_get_length(tc->cache) < HANDLE_CACHE_MAX) {
     tiff_clear_error(hdl);
+    if (hdl->f) {
+      _openslide_fclose(g_steal_pointer(&hdl->f));
+    }
     g_queue_push_head(tc->cache, g_steal_pointer(&tiff));
   }
   g_mutex_unlock(&tc->lock);

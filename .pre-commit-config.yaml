@@ -87,11 +87,47 @@ repos:
         types: [c]
         entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
 
-      # Prevent use of dangerous functions and functions with mandatory
-      # wrappers.  Wrapper implementations can add "// ci-allow" on the same
-      # line to skip the check.
+      # Prevent use of dangerous or deprecated functions.
       #
       # Deprecated function   Replacement
+      # atoi                  g_ascii_strtoll
+      # atol                  g_ascii_strtoll
+      # atoll                 g_ascii_strtoll
+      # calloc                g_new0
+      # free                  g_free
+      # g_slice_alloc0        g_malloc0
+      # g_slice_alloc         g_malloc
+      # g_slice_copy          g_memdup
+      # g_slice_dup           g_memdup
+      # g_slice_free1         g_free
+      # g_slice_free          g_free
+      # g_slice_new0          g_new0
+      # g_slice_new           g_new0
+      # malloc                g_malloc
+      # realloc               g_realloc
+      # strdup                g_strdup
+      # strerror              g_strerror
+      # strerror_l            g_strerror
+      # strndup               g_strndup
+      # strtoimax             g_ascii_strtoll
+      # strtol                g_ascii_strtoll
+      # strtoll               g_ascii_strtoll
+      # strtoul               g_ascii_strtoull
+      # strtoull              g_ascii_strtoull
+      # strtoumax             g_ascii_strtoull
+      - id: deny-prohibited
+        name: Check for calls to prohibited functions
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+
+      # Prevent use of functions with mandatory wrappers in OpenSlide.
+      # Wrapper implementations can add "// ci-allow" on the same line to
+      # skip the check.
+      #
+      # Deprecated function   Replacement
+      # atof                  _openslide_parse_double
       # fclose                _openslide_fclose
       # fopen                 _openslide_fopen
       # fread                 _openslide_fread
@@ -112,9 +148,9 @@ repos:
       # TIFFOpenExt           _openslide_tiffcache_get
       # TIFFOpen              _openslide_tiffcache_get
       # TIFFSetDirectory      _openslide_tiff_set_dir
-      - id: deny-functions
-        name: Check for calls to prohibited functions
+      - id: deny-wrapped
+        name: Check for calls to wrapped functions
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

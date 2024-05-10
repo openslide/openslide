@@ -10,7 +10,9 @@ openslide_common = static_library(
   dependencies : [
     openslide_dep,
     glib_dep,
+    valgrind_dep,
   ],
+  include_directories : config_h_include,
 )
 
 openslide_common_dep = declare_dependency(
