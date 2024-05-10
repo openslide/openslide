@@ -4,5 +4,5 @@ success: true
 vendor: zeiss
 primary: true
 properties:
-  openslide.quickhash-1: 4056757b119a6ce0b676f817f475d1095ad90644857e9f053794ee48d2833b21
+  openslide.quickhash-1: b085249786ac3dae62bc71eeda5d53679651eda3119e414626f9267446448206
   openslide.vendor: zeiss

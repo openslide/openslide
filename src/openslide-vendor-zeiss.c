@@ -21,6 +21,13 @@
  *
  */
 
+/*
+ * Zeiss CZI support
+ *
+ * quickhash comes from file header UUIDs and the metadata XML
+ *
+ */
+
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
@@ -31,7 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CZI_FILEHDR_LEN 544
+#define CZI_GUID_LEN 16
 #define CZI_SUBBLK_HDR_LEN 288
 
 static const char SID_ZISRAWATTDIR[] = "ZISRAWATTDIR";
@@ -60,8 +67,8 @@ struct zisraw_data_file_hdr {
   int32_t minor;
   int32_t _reserved1;
   int32_t _reserved2;
-  char primary_file_guid[16];
-  char file_guid[16];
+  char primary_file_guid[CZI_GUID_LEN];
+  char file_guid[CZI_GUID_LEN];
   int32_t file_part; // this causes off-align
   int64_t subblk_dir_pos;
   int64_t meta_pos;
@@ -124,7 +131,7 @@ struct zisraw_att_entry_a1 {
   char _reserved2[10];
   int64_t file_pos;
   int32_t _file_part;
-  char guid[16];
+  char guid[CZI_GUID_LEN];
   char file_type[8]; // ZIP, ZISRAW, JPG etc.
   char name[80];     // Thumbnail, Label, SlidePreview etc.
 } __attribute__((__packed__));
@@ -234,6 +241,8 @@ struct czi_subblk {
 };
 
 struct czi {
+  uint8_t primary_file_guid[CZI_GUID_LEN];
+  uint8_t file_guid[CZI_GUID_LEN];
   // offset to ZISRAWFILE, one for each file, usually 0. CZI file is like
   // Russian doll, it can embed other CZI files. Non-zero value is the
   // offset to embedded CZI file
@@ -666,6 +675,8 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
   }
 
   g_autoptr(czi) czi = g_new0(struct czi, 1);
+  memcpy(czi->primary_file_guid, hdr.primary_file_guid, CZI_GUID_LEN);
+  memcpy(czi->file_guid, hdr.file_guid, CZI_GUID_LEN);
   czi->zisraw_offset = offset;
   czi->subblk_dir_pos = GINT64_FROM_LE(hdr.subblk_dir_pos);
   czi->meta_pos = GINT64_FROM_LE(hdr.meta_pos);
@@ -1181,11 +1192,10 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  char buf[CZI_FILEHDR_LEN];
-  if (!freadn_to_buf(f, 0, buf, CZI_FILEHDR_LEN, err)) {
-    return false;
-  }
-  _openslide_hash_data(quickhash1, buf, CZI_FILEHDR_LEN);
+  // compute quickhash
+  _openslide_hash_data(quickhash1, czi->primary_file_guid, CZI_GUID_LEN);
+  _openslide_hash_data(quickhash1, czi->file_guid, CZI_GUID_LEN);
+  _openslide_hash_string(quickhash1, xml);
 
   // store osr data
   g_assert(osr->data == NULL);
