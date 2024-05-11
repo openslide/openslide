@@ -541,10 +541,7 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   *p += len;
   *avail -= len;
 
-  char name[sizeof(dim->dimension) + 1];
-  memcpy(name, dim->dimension, sizeof(dim->dimension));
-  name[sizeof(name) - 1] = 0;
-
+  g_autofree char *name = g_strndup(dim->dimension, sizeof(dim->dimension));
   int start = GINT32_FROM_LE(dim->start);
   int size = GINT32_FROM_LE(dim->size);
   int stored_size = GINT32_FROM_LE(dim->stored_size);
@@ -1142,10 +1139,14 @@ static bool add_associated_images(openslide_t *osr, struct czi *czi,
     }
     att_offset += sizeof(att);
 
+    g_autofree char *file_type =
+      g_strndup(att.file_type, sizeof(att.file_type));
+    g_autofree char *name = g_strndup(att.name, sizeof(att.name));
+
     // if it's a known associated image, add it
-    const char *name = get_associated_image_name_for_attachment(att.name);
-    if (name &&
-        !add_one_associated_image(osr, filename, f, name, att.file_type,
+    const char *os_name = get_associated_image_name_for_attachment(name);
+    if (os_name &&
+        !add_one_associated_image(osr, filename, f, os_name, file_type,
                                   GINT64_FROM_LE(att.file_pos) +
                                   sizeof(struct zisraw_seg_att_hdr),
                                   err)) {
