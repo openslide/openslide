@@ -227,6 +227,13 @@ static const struct associated_image_mapping {
   {"Thumbnail", "thumbnail"},
 };
 
+static const char * const metadata_property_xpaths[] = {
+  "/ImageDocument/Metadata/AttachmentInfos",
+  "/ImageDocument/Metadata/DisplaySetting",
+  "/ImageDocument/Metadata/Information",
+  "/ImageDocument/Metadata/Scaling",
+};
+
 struct czi_subblk {
   int64_t file_pos;
   int64_t downsample_i;
@@ -731,6 +738,101 @@ static char *read_czi_meta_xml(struct czi *czi,
   return g_steal_pointer(&xml);
 }
 
+static char *get_xml_element_name(GPtrArray *path, xmlNode *node) {
+  const char *name = (const char *) node->name;
+
+  g_autofree char *name_plural = g_strdup_printf("%ss", name);
+  char *parent_name = path->pdata[path->len - 1];
+  if (g_str_equal(parent_name, name_plural) ||
+      (g_str_equal(parent_name, "Items") && g_str_equal(name, "Distance"))) {
+    // element array member: a path of the form "[...].Scenes.Scene", or as
+    // a special case, "[...].Items.Distance"
+    // find an XML attribute to use as a name
+    g_autoptr(xmlChar) id = xmlGetProp(node, BAD_CAST "Id");
+    if (!id) {
+      id = xmlGetProp(node, BAD_CAST "Name");
+    }
+    if (!id) {
+      // can't find unique identifier; skip the element
+      //g_debug("Couldn't find identifier for list item with parent %s", parent_name);
+      return NULL;
+    }
+    return g_strdup((char *) id);
+  }
+
+  // normal element
+  return g_strdup(name);
+}
+
+static void add_xml_props(openslide_t *osr, xmlDoc *doc, GPtrArray *path,
+                          xmlNode *node) {
+  // If we don't know a good name for a property, skip it rather than use a
+  // bad name.  We can always add properties, but existing ones are a
+  // compatibility constraint.
+
+  if (xmlNodeIsText(node)) {
+    // text node (which has no children); add property if non-blank
+    if (!xmlIsBlankNode(node)) {
+      // glib >= 2.74 has g_ptr_array_new_null_terminated()
+      g_ptr_array_add(path, NULL);
+      char *name = g_strjoinv(".", (char **) path->pdata);
+      g_ptr_array_remove_index(path, path->len - 1);
+
+      g_hash_table_insert(osr->properties, name,
+                          g_strdup((char *) node->content));
+    }
+    return;
+  }
+
+  // add path component
+  char *name = get_xml_element_name(path, node);
+  g_assert(name);
+  g_ptr_array_add(path, name);
+
+  // add properties for attributes
+  for (xmlAttr *attr = node->properties; attr; attr = attr->next) {
+    g_ptr_array_add(path, g_strdup((char *) attr->name));
+    add_xml_props(osr, doc, path, attr->children);
+    g_ptr_array_remove_index(path, path->len - 1);
+  }
+
+  // build a set of children to skip: those where multiple children have the
+  // same name (otherwise their properties would clobber each other)
+  g_autoptr(GHashTable) child_names =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  g_autoptr(GHashTable) child_skip =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  for (xmlNode *child = node->children; child; child = child->next) {
+    if (xmlNodeIsText(child)) {
+      continue;
+    }
+    char *child_name = get_xml_element_name(path, child);
+    if (child_name && !g_hash_table_add(child_names, child_name)) {
+      g_hash_table_add(child_skip, g_strdup(child_name));
+    }
+  }
+
+  // descend children
+  for (xmlNode *child = node->children; child; child = child->next) {
+    if (!xmlNodeIsText(child)) {
+      g_autofree char *child_name = get_xml_element_name(path, child);
+      if (!child_name) {
+        // list element that we don't know how to uniquely rename
+        continue;
+      }
+      if (g_hash_table_lookup(child_skip, child_name)) {
+        // duplicate name
+        //g_debug("Skipping duplicate element: %s", child_name);
+        continue;
+      }
+    }
+    add_xml_props(osr, doc, path, child);
+  }
+
+  // drop path component
+  g_ptr_array_remove_index(path, path->len - 1);
+}
+
 // parse XML, set CZI parameters and OpenSlide properties
 static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                const char *xml, GError **err) {
@@ -778,6 +880,16 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                           Value
   */
   g_autoptr(xmlXPathContext) ctx = _openslide_xml_xpath_create(doc);
+
+  g_autoptr(GPtrArray) path = g_ptr_array_new_full(16, g_free);
+  g_ptr_array_add(path, g_strdup("zeiss"));
+  for (unsigned i = 0; i < G_N_ELEMENTS(metadata_property_xpaths); i++) {
+    xmlNode *node =
+      _openslide_xml_xpath_get_node(ctx, metadata_property_xpaths[i]);
+    if (node) {
+      add_xml_props(osr, doc, path, node);
+    }
+  }
 
   czi->w =
     _openslide_xml_xpath_parse_int(ctx,
