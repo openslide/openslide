@@ -141,59 +141,6 @@ char *_openslide_xml_xpath_get_string(xmlXPathContext *ctx,
   return NULL;
 }
 
-int64_t _openslide_xml_xpath_parse_int(xmlXPathContext *ctx,
-                                       const char *xpath, GError **err) {
-  g_autoptr(xmlXPathObject) result =
-    xmlXPathEvalExpression(BAD_CAST xpath, ctx);
-  if (!result || !result->nodesetval) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "No integer result for \"%s\"", xpath);
-    return -1;
-  }
-  if (result->nodesetval->nodeNr != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%d != 1 integer results for \"%s\"",
-                result->nodesetval->nodeNr, xpath);
-    return -1;
-  }
-
-  g_autoptr(xmlChar) value = xmlXPathCastToString(result);
-  int64_t parsed;
-  if (!_openslide_parse_int64((char *) value, &parsed)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid integer value for \"%s\"", xpath);
-    return -1;
-  }
-  return parsed;
-}
-
-double _openslide_xml_xpath_parse_double(xmlXPathContext *ctx,
-                                         const char *xpath, GError **err) {
-  g_autoptr(xmlXPathObject) result =
-    xmlXPathEvalExpression(BAD_CAST xpath, ctx);
-  if (!result || !result->nodesetval) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "No floating-point result for \"%s\"", xpath);
-    return NAN;
-  }
-  if (result->nodesetval->nodeNr != 1) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "%d != 1 floating-point results for \"%s\"",
-                result->nodesetval->nodeNr, xpath);
-    return NAN;
-  }
-
-  g_autoptr(xmlChar) value = xmlXPathCastToString(result);
-  // use our own parser instead of trusting xmlXPathCastToNumber()
-  double parsed = _openslide_parse_double((char *) value);
-  if (isnan(parsed)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Invalid floating-point value for \"%s\"", xpath);
-    return NAN;
-  }
-  return parsed;
-}
-
 void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         xmlXPathContext *ctx,
                                         const char *property_name,

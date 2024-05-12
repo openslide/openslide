@@ -866,11 +866,13 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                         Tracks
                             Track
                             Track
+                    ObjectiveSettings
+                        <ObjectiveRef Id="Objective:1"/>
                 Instrument
                     Microscopes
                         <Microscope Id="Microscope:1" Name="Axioscan 7">
                     Objectives
-                        Objective
+                        <Objective Id="Objective:1">
                             NominalMagnification  (objective-power)
               Scaling
                   Items
@@ -891,61 +893,60 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
     }
   }
 
-  czi->w =
-    _openslide_xml_xpath_parse_int(ctx,
-                                   "/ImageDocument/Metadata/Information/Image"
-                                   "/SizeX/text()", err);
-  if (czi->w == -1) {
+  const char *size_x =
+    g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeX");
+  const char *size_y =
+    g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeY");
+  const char *size_s =
+    g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeS");
+  if (!size_x || !size_y || !size_s) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read image dimensions");
     return false;
   }
-
-  czi->h =
-    _openslide_xml_xpath_parse_int(ctx,
-                                   "/ImageDocument/Metadata/Information/Image"
-                                   "/SizeY/text()", err);
-  if (czi->h == -1) {
+  int64_t w, h, nscene;
+  if (!_openslide_parse_int64(size_x, &w) ||
+      !_openslide_parse_int64(size_y, &h) ||
+      !_openslide_parse_int64(size_s, &nscene)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't parse image dimensions");
     return false;
   }
-
-  czi->nscene =
-    _openslide_xml_xpath_parse_int(ctx,
-                                   "/ImageDocument/Metadata/Information/Image"
-                                   "/SizeS/text()", err);
-  if (czi->nscene == -1) {
-    return false;
-  }
+  czi->w = w;
+  czi->h = h;
+  czi->nscene = nscene;
 
   // in meter/pixel
-  double d =
-    _openslide_xml_xpath_parse_double(ctx,
-                                      "/ImageDocument/Metadata/Scaling/Items"
-                                      "/Distance[@Id='X']/Value/text()", NULL);
-  if (!isnan(d)) {
-    // in um/pixel
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                        _openslide_format_double(d * 1000000.0));
+  const char *meters =
+    g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.X.Value");
+  if (meters) {
+    double d = _openslide_parse_double(meters);
+    if (!isnan(d)) {
+      // in um/pixel
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
+                          _openslide_format_double(d * 1000000.0));
+    }
   }
 
-  d =
-    _openslide_xml_xpath_parse_double(ctx,
-                                      "/ImageDocument/Metadata/Scaling/Items"
-                                      "/Distance[@Id='Y']/Value/text()", NULL);
-  if (!isnan(d)) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                        _openslide_format_double(d * 1000000.0));
+  meters = g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.Y.Value");
+  if (meters) {
+    double d = _openslide_parse_double(meters);
+    if (!isnan(d)) {
+      g_hash_table_insert(osr->properties,
+                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
+                          _openslide_format_double(d * 1000000.0));
+    }
   }
 
-  d =
-    _openslide_xml_xpath_parse_double(ctx,
-                                     "/ImageDocument/Metadata/Information"
-                                     "/Instrument/Objectives/Objective"
-                                     "/NominalMagnification/text()", NULL);
-  if (!isnan(d)) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                        _openslide_format_double(d));
+  char *objective_id = g_hash_table_lookup(osr->properties,
+                                           "zeiss.Information.Image.ObjectiveSettings.ObjectiveRef.Id");
+  if (objective_id) {
+    g_autofree char *objective_key =
+      g_strdup_printf("zeiss.Information.Instrument.Objectives.%s.NominalMagnification",
+                      objective_id);
+    _openslide_duplicate_double_prop(osr, objective_key,
+                                     OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
   }
 
   return true;

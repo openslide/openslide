@@ -4,6 +4,7 @@ success: true
 vendor: zeiss
 primary: true
 properties:
+  openslide.objective-power: "10"
   openslide.quickhash-1: b085249786ac3dae62bc71eeda5d53679651eda3119e414626f9267446448206
   openslide.vendor: zeiss
   # XML attribute; path contains list item; value is used as path component
