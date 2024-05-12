@@ -174,16 +174,6 @@ endif
 
 # Test suite options
 visibility = get_option('_export_internal_symbols') ? '' : 'hidden'
-libopenslide_link_args = (
-  # On macOS, openslide-bin needs to keep non-OpenSlide symbols out of the
-  # combined dylib, but it can't do it via global link options without
-  # breaking the exports of the OpenSlide Java JNI library.  Until Meson
-  # allows passing compiler flags to individual subprojects, provide a
-  # workaround here.
-  # https://github.com/mesonbuild/meson/issues/11002
-  get_option('_filter_external_symbols') and host_machine.system() == 'darwin'
-  ? ['-Wl,-exported_symbol,_openslide_*'] : []
-)
 if get_option('_gcov')
   add_project_arguments(
     '-O0',
