@@ -191,6 +191,31 @@ int64_t _openslide_compute_seek(int64_t initial, int64_t length,
   return result;
 }
 
+bool _openslide_parse_int64(const char *value, int64_t *result) {
+  char *endptr;
+  errno = 0;
+  *result = g_ascii_strtoll(value, &endptr, 10);  // ci-allow
+  // fail on overflow/underflow
+  if (value[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
+    *result = 0;
+    return false;
+  }
+  return true;
+}
+
+bool _openslide_parse_uint64(const char *value, uint64_t *result,
+                             unsigned base) {
+  char *endptr;
+  errno = 0;
+  *result = g_ascii_strtoull(value, &endptr, base);  // ci-allow
+  // fail on overflow
+  if (value[0] == 0 || endptr[0] != 0 || errno == ERANGE) {
+    *result = 0;
+    return false;
+  }
+  return true;
+}
+
 double _openslide_parse_double(const char *value) {
   // Canonicalize comma to decimal point, since the locale of the
   // originating system sometimes leaks into slide files.
@@ -221,14 +246,11 @@ void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
   g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
   char *value = g_hash_table_lookup(osr->properties, src);
-  if (value && value[0]) {
-    char *endptr;
-    int64_t result = g_ascii_strtoll(value, &endptr, 10);
-    if (endptr[0] == 0) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(dest),
-                          g_strdup_printf("%"PRId64, result));
-    }
+  int64_t result;
+  if (value && _openslide_parse_int64(value, &result)) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(dest),
+                        g_strdup_printf("%"PRId64, result));
   }
 }
 

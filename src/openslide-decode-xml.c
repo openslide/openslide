@@ -63,9 +63,8 @@ int64_t _openslide_xml_parse_int_attr(xmlNode *node, const char *name,
     return -1;
   }
 
-  gchar *endptr;
-  int64_t result = g_ascii_strtoll((gchar *) value, &endptr, 10);
-  if (value[0] == 0 || endptr[0] != 0) {
+  int64_t result;
+  if (!_openslide_parse_int64((char *) value, &result)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid integer attribute \"%s\"", name);
     return -1;

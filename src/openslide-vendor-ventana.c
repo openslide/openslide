@@ -664,9 +664,7 @@ static bool parse_level_info(const char *desc,
   }
 
   // parse level
-  gchar *endptr;
-  *level = g_ascii_strtoll(level_str, &endptr, 10);
-  if (level_str[0] == 0 || endptr[0] != 0) {
+  if (!_openslide_parse_int64(level_str, level)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Invalid level number");
     return false;
