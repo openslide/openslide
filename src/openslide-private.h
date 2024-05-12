@@ -163,6 +163,13 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
 int64_t _openslide_compute_seek(int64_t initial, int64_t length,
                                 int64_t offset, int whence);
 
+/* Parse string to int64_t, returning false on failure. */
+bool _openslide_parse_int64(const char *value, int64_t *result);
+
+/* Parse string to uint64_t, returning false on failure. */
+bool _openslide_parse_uint64(const char *value, uint64_t *result,
+                             unsigned base);
+
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */
 double _openslide_parse_double(const char *value);

@@ -38,7 +38,6 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 #include <string.h>
-#include <errno.h>
 
 static const char MAGIC_BYTES[] = "SVGigaPixelImage";
 
@@ -189,10 +188,8 @@ static char *make_tileid(int64_t x, int64_t y,
 static bool _parse_tileid_column(const char *tileid, const char *col,
                                  int64_t *result,
                                  GError **err) {
-  char *endptr;
-  errno = 0;
-  int64_t val = g_ascii_strtoll(col, &endptr, 10);
-  if (*col == 0 || *endptr != 0 || errno == ERANGE || val < 0) {
+  int64_t val;
+  if (!_openslide_parse_int64(col, &val) || val < 0) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Bad field value in tile ID %s", tileid);
     return false;
