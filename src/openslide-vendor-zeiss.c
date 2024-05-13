@@ -67,8 +67,8 @@ struct zisraw_data_file_hdr {
   int32_t minor;
   int32_t _reserved1;
   int32_t _reserved2;
-  char primary_file_guid[CZI_GUID_LEN];
-  char file_guid[CZI_GUID_LEN];
+  uint8_t primary_file_guid[CZI_GUID_LEN];
+  uint8_t file_guid[CZI_GUID_LEN];
   int32_t file_part; // this causes off-align
   int64_t subblk_dir_pos;
   int64_t meta_pos;
@@ -131,7 +131,7 @@ struct zisraw_att_entry_a1 {
   char _reserved2[10];
   int64_t file_pos;
   int32_t _file_part;
-  char guid[CZI_GUID_LEN];
+  uint8_t guid[CZI_GUID_LEN];
   char file_type[8]; // ZIP, ZISRAW, JPG etc.
   char name[80];     // Thumbnail, Label, SlidePreview etc.
 } __attribute__((__packed__));
