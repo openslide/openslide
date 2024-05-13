@@ -453,7 +453,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   return true;
 }
 
-static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
+static bool paint_region(openslide_t *osr, cairo_t *cr,
                          int64_t x, int64_t y,
                          struct _openslide_level *level,
                          int32_t w, int32_t h,
@@ -476,7 +476,6 @@ static const struct _openslide_ops zeiss_ops = {
   .destroy = destroy,
 };
 
-/* @dst is pre-allocated by openslide, size 4 * w * h */
 static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dst, GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
@@ -689,10 +688,10 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
   struct zisraw_data_file_hdr hdr;
   if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
     g_prefix_error(err, "Couldn't read file header: ");
-    return false;
+    return NULL;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWFILE, err)) {
-    return false;
+    return NULL;
   }
 
   g_autoptr(czi) czi = g_new0(struct czi, 1);
@@ -1072,8 +1071,8 @@ static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
 }
 
 static int compare_level_downsamples(const void *a, const void *b) {
-  struct level *la = *(struct level **) a;
-  struct level *lb = *(struct level **) b;
+  const struct level *la = *(const struct level **) a;
+  const struct level *lb = *(const struct level **) b;
 
   if (la->downsample_i == lb->downsample_i) {
     return 0;
@@ -1123,7 +1122,7 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
   // now that we know bucket sizes, create grids.  also collect max tile size
   uint32_t max_tile_w = 0;
   uint32_t max_tile_h = 0;
-  for (guint i = 0; i < levels->len; i++) {
+  for (unsigned i = 0; i < levels->len; i++) {
     struct level *l = levels->pdata[i];
     // assume the largest tile dimensions are the routine ones, and smaller
     // tiles are at boundaries
@@ -1159,7 +1158,7 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
   }
 
   // postprocess grids
-  for (guint i = 0; i < levels->len; i++) {
+  for (unsigned i = 0; i < levels->len; i++) {
     struct level *l = levels->pdata[i];
     _openslide_grid_range_finish_adding_tiles(l->grid);
   }
@@ -1259,9 +1258,9 @@ static bool add_associated_images(openslide_t *osr, struct czi *czi,
     g_autofree char *name = g_strndup(att.name, sizeof(att.name));
 
     // if it's a known associated image, add it
-    const char *os_name = get_associated_image_name_for_attachment(name);
-    if (os_name &&
-        !add_one_associated_image(osr, filename, f, os_name, file_type,
+    const char *osr_name = get_associated_image_name_for_attachment(name);
+    if (osr_name &&
+        !add_one_associated_image(osr, filename, f, osr_name, file_type,
                                   GINT64_FROM_LE(att.file_pos) +
                                   sizeof(struct zisraw_seg_att_hdr),
                                   err)) {
@@ -1272,7 +1271,7 @@ static bool add_associated_images(openslide_t *osr, struct czi *czi,
 }
 
 static bool zeiss_open(openslide_t *osr, const char *filename,
-                       struct _openslide_tifflike *t G_GNUC_UNUSED,
+                       struct _openslide_tifflike *tl G_GNUC_UNUSED,
                        struct _openslide_hash *quickhash1, GError **err) {
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
   if (!f) {
