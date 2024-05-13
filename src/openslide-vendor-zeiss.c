@@ -605,6 +605,11 @@ static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
       return false;
     }
   }
+  if (!sb->w || !sb->h) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Missing X or Y dimension in directory entry");
+    return false;
+  }
   return true;
 }
 
