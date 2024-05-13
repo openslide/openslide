@@ -36,7 +36,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
-#include <errno.h>
 
 static const char TRESTLE_SOFTWARE[] = "MedScan";
 static const char OVERLAPS_XY[] = "OverlapsXY=";
@@ -226,14 +225,16 @@ static void parse_trestle_image_description(openslide_t *osr,
       int i = 0;
       // skip fieldname
       for (char **cur_str2 = second_pass + 1; *cur_str2 != NULL; cur_str2++) {
-        overlaps[i] = g_ascii_strtoull(*cur_str2, NULL, 10);
+        uint64_t result;
+        _openslide_parse_uint64(*cur_str2, &result, 10);
+        overlaps[i] = result;
         i++;
       }
     } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
       // found background color
-      errno = 0;
-      uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
-      if (bg || !errno) {
+      uint64_t bg;
+      if (_openslide_parse_uint64((*cur_str) + strlen(BACKGROUND_COLOR),
+                                  &bg, 16)) {
         _openslide_set_background_color_prop(osr,
                                              (bg >> 16) & 0xFF,
                                              (bg >> 8) & 0xFF,

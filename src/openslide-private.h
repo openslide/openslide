@@ -162,6 +162,13 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
 int64_t _openslide_compute_seek(int64_t initial, int64_t length,
                                 int64_t offset, int whence);
 
+/* Parse string to int64_t, returning false on failure. */
+bool _openslide_parse_int64(const char *value, int64_t *result);
+
+/* Parse string to uint64_t, returning false on failure. */
+bool _openslide_parse_uint64(const char *value, uint64_t *result,
+                             unsigned base);
+
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */
 double _openslide_parse_double(const char *value);
@@ -262,7 +269,7 @@ struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
                                                      GDestroyNotify destroy_tile);
 
 void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
-                                    double x, double y,
+                                    double x, double y, double z,
                                     double w, double h,
                                     void *data);
 
@@ -294,13 +301,15 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
 struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
+#define DEFAULT_CACHE_SIZE (1024*1024*32)
+
 // create/release
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_release(openslide_cache_t *cache);
 
 // binding a cache to an openslide_t
-struct _openslide_cache_binding *_openslide_cache_binding_create(void);
+struct _openslide_cache_binding *_openslide_cache_binding_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
                                   openslide_cache_t *cache);

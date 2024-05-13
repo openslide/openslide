@@ -90,9 +90,9 @@ repos:
       # Prevent use of dangerous or deprecated functions.
       #
       # Deprecated function   Replacement
-      # atoi                  g_ascii_strtoll
-      # atol                  g_ascii_strtoll
-      # atoll                 g_ascii_strtoll
+      # atoi                  _openslide_parse_int64 or g_ascii_strtoll
+      # atol                  _openslide_parse_int64 or g_ascii_strtoll
+      # atoll                 _openslide_parse_int64 or g_ascii_strtoll
       # calloc                g_new0
       # free                  g_free
       # g_slice_alloc0        g_malloc0
@@ -109,12 +109,12 @@ repos:
       # strerror              g_strerror
       # strerror_l            g_strerror
       # strndup               g_strndup
-      # strtoimax             g_ascii_strtoll
-      # strtol                g_ascii_strtoll
-      # strtoll               g_ascii_strtoll
-      # strtoul               g_ascii_strtoull
-      # strtoull              g_ascii_strtoull
-      # strtoumax             g_ascii_strtoull
+      # strtoimax             _openslide_parse_int64 or g_ascii_strtoll
+      # strtol                _openslide_parse_int64 or g_ascii_strtoll
+      # strtoll               _openslide_parse_int64 or g_ascii_strtoll
+      # strtoul               _openslide_parse_uint64 or g_ascii_strtoull
+      # strtoull              _openslide_parse_uint64 or g_ascii_strtoull
+      # strtoumax             _openslide_parse_uint64 or g_ascii_strtoull
       - id: deny-prohibited
         name: Check for calls to prohibited functions
         language: pygrep
@@ -136,6 +136,8 @@ repos:
       # ftello                _openslide_ftell
       # ftell                 _openslide_ftell
       # g_ascii_strtod        _openslide_parse_double
+      # g_ascii_strtoll       _openslide_parse_int64
+      # g_ascii_strtoull      _openslide_parse_uint64
       # g_file_test           _openslide_fexists
       # sqlite3_close         _openslide_sqlite_close
       # sqlite3_open          _openslide_sqlite_open
@@ -153,4 +155,4 @@ repos:
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

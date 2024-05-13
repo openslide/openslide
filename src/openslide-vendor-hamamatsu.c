@@ -1812,9 +1812,22 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       int layer;
       int col;
       int row;
+      int64_t tmp;
+      bool ok = true;
 
       g_auto(GStrv) split = g_strsplit(suffix, ",", 0);
-      switch (g_strv_length(split)) {
+      unsigned splitlen = g_strv_length(split);
+
+      // skip ')' in last item
+      if (splitlen) {
+        char *last = split[splitlen - 1];
+        unsigned lastlen = strlen(last);
+        if (lastlen && last[lastlen - 1] == ')') {
+          last[lastlen - 1] = 0;
+        }
+      }
+
+      switch (splitlen) {
       case 0:
 	// all zero
 	layer = 0;
@@ -1825,7 +1838,8 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
       case 1:
 	// (z)
 	// first item, skip '('
-	layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
+	ok &= _openslide_parse_int64(split[0] + 1, &tmp);
+	layer = tmp;
 	col = 0;
 	row = 0;
 	break;
@@ -1834,16 +1848,21 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
 	// (x,y)
 	layer = 0;
 	// first item, skip '('
-	col = g_ascii_strtoll(split[0] + 1, NULL, 10);
-	row = g_ascii_strtoll(split[1], NULL, 10);
+	ok &= _openslide_parse_int64(split[0] + 1, &tmp);
+	col = tmp;
+	ok &= _openslide_parse_int64(split[1], &tmp);
+	row = tmp;
 	break;
 
       case 3:
         // (z,x,y)
         // first item, skip '('
-        layer = g_ascii_strtoll(split[0] + 1, NULL, 10);
-        col = g_ascii_strtoll(split[1], NULL, 10);
-        row = g_ascii_strtoll(split[2], NULL, 10);
+        ok &= _openslide_parse_int64(split[0] + 1, &tmp);
+        layer = tmp;
+        ok &= _openslide_parse_int64(split[1], &tmp);
+        col = tmp;
+        ok &= _openslide_parse_int64(split[2], &tmp);
+        row = tmp;
         break;
 
       default:
@@ -1851,6 +1870,12 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unknown number of image dimensions: %d",
                     g_strv_length(split));
+        return false;
+      }
+
+      if (!ok) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Couldn't parse image dimensions: %s", suffix);
         return false;
       }
 
