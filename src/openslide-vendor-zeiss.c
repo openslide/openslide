@@ -402,7 +402,7 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   struct zisraw_subblk_hdr hdr;
   if (!freadn_to_buf(f, zisraw_offset + sb->file_pos,
                      &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Couldn't read SubBlock header: ");
+    g_prefix_error(err, "Couldn't read subblock header: ");
     return false;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWSUBBLOCK, err)) {
@@ -619,7 +619,7 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   int64_t offset = czi->zisraw_offset + czi->subblk_dir_pos;
   struct zisraw_subblk_dir_hdr hdr;
   if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Couldn't read FileHeader: ");
+    g_prefix_error(err, "Couldn't read subblock directory header: ");
     return false;
   }
   offset += sizeof(hdr);
@@ -634,12 +634,12 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   g_autofree char *buf_dir = g_try_malloc(seg_size);
   if (!buf_dir) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't allocate %"PRId64" bytes for SubBlockDirectory",
+                "Couldn't allocate %"PRId64" bytes for subblock directory",
                 seg_size);
     return false;
   }
   if (!freadn_to_buf(f, offset, buf_dir, seg_size, err)) {
-    g_prefix_error(err, "Couldn't read SubBlockDirectory: ");
+    g_prefix_error(err, "Couldn't read subblock directory: ");
     return false;
   }
 
@@ -658,7 +658,7 @@ static bool read_subblk_dir(struct czi *czi, struct _openslide_file *f,
   }
   if (avail) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Found %"PRIu64" trailing bytes after SubBlockDirectory",
+                "Found %"PRIu64" trailing bytes after subblock directory",
                 (uint64_t) avail);
     return false;
   }
@@ -688,7 +688,7 @@ static struct czi *create_czi(struct _openslide_file *f, int64_t offset,
                               GError **err) {
   struct zisraw_data_file_hdr hdr;
   if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Couldn't read FileHeader: ");
+    g_prefix_error(err, "Couldn't read file header: ");
     return false;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWFILE, err)) {
@@ -715,7 +715,7 @@ static char *read_czi_meta_xml(struct czi *czi,
   int64_t offset = czi->zisraw_offset + czi->meta_pos;
   struct zisraw_meta_hdr hdr;
   if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Couldn't read MetaBlock header: ");
+    g_prefix_error(err, "Couldn't read metadata header: ");
     return NULL;
   }
   offset += sizeof(hdr);
@@ -733,7 +733,7 @@ static char *read_czi_meta_xml(struct czi *czi,
     return NULL;
   }
   if (!freadn_to_buf(f, offset, xml, xml_size, err)) {
-    g_prefix_error(err, "Couldn't read MetaBlock xml: ");
+    g_prefix_error(err, "Couldn't read metadata XML: ");
     return NULL;
   }
 
@@ -841,6 +841,7 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                const char *xml, GError **err) {
   g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
+    g_prefix_error(err, "Couldn't parse metadata XML: ");
     return false;
   }
 
@@ -1231,7 +1232,7 @@ static bool add_associated_images(openslide_t *osr, struct czi *czi,
   struct zisraw_att_dir_hdr hdr;
   int64_t offset = czi->zisraw_offset + czi->att_dir_pos;
   if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
-    g_prefix_error(err, "Reading attachment dir header: ");
+    g_prefix_error(err, "Reading attachment directory header: ");
     return false;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
