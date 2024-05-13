@@ -1229,32 +1229,29 @@ static bool add_associated_images(openslide_t *osr, struct czi *czi,
                                   GError **err) {
   // read attachment directory header
   struct zisraw_att_dir_hdr hdr;
-  if (!freadn_to_buf(f, czi->zisraw_offset + czi->att_dir_pos, &hdr,
-                     sizeof(hdr), err)) {
+  int64_t offset = czi->zisraw_offset + czi->att_dir_pos;
+  if (!freadn_to_buf(f, offset, &hdr, sizeof(hdr), err)) {
     g_prefix_error(err, "Reading attachment dir header: ");
     return false;
   }
   if (!check_magic(hdr.seg_hdr.sid, SID_ZISRAWATTDIR, err)) {
     return false;
   }
+  offset += sizeof(hdr);
 
   // walk directory
-  int64_t att_offset = _openslide_ftell(f, err);
-  if (att_offset == -1) {
-    return false;
-  }
   int nattch = GINT32_FROM_LE(hdr.entry_count);
   for (int i = 0; i < nattch; i++) {
     // read entry
     struct zisraw_att_entry_a1 att;
-    if (!freadn_to_buf(f, att_offset, &att, sizeof(att), err)) {
+    if (!freadn_to_buf(f, offset, &att, sizeof(att), err)) {
       g_prefix_error(err, "Reading attachment directory entry: ");
       return false;
     }
     if (!check_magic(att.schema, SCHEMA_A1, err)) {
       return false;
     }
-    att_offset += sizeof(att);
+    offset += sizeof(att);
 
     g_autofree char *file_type =
       g_strndup(att.file_type, sizeof(att.file_type));
