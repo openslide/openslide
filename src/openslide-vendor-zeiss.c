@@ -1081,7 +1081,9 @@ static int compare_level_downsamples(const void *a, const void *b) {
 }
 
 static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
-                                int64_t max_downsample, GError **err) {
+                                int64_t max_downsample,
+                                uint64_t *default_cache_size_OUT,
+                                GError **err) {
   // walk subblocks, create a level struct for each valid downsample
   g_autoptr(GPtrArray) levels =
     g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
@@ -1131,11 +1133,10 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
     max_tile_h = MAX(max_tile_h, l->max_tile_h);
   }
 
-  // start cache with custom size that can hold at least two tiles
-  uint64_t default_cache_size =
+  // select cache size large enough to hold at least two tiles
+  *default_cache_size_OUT =
     MAX(DEFAULT_CACHE_SIZE, 2 * 4 * max_tile_w * max_tile_h);
-  osr->cache = _openslide_cache_binding_create(default_cache_size);
-  //g_debug("Default cache size: %"PRIu64, default_cache_size);
+  //g_debug("Default cache size: %"PRIu64, *default_cache_size_OUT);
 
   // add subblocks to grids
   for (int i = 0; i < czi->nsubblk; i++) {
@@ -1298,7 +1299,9 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  g_autoptr(GPtrArray) levels = create_levels(osr, czi, max_downsample, err);
+  uint64_t default_cache_size;
+  g_autoptr(GPtrArray) levels =
+    create_levels(osr, czi, max_downsample, &default_cache_size, err);
   if (!levels) {
     return false;
   }
@@ -1315,6 +1318,7 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   // store osr data
   g_assert(osr->data == NULL);
   g_assert(osr->levels == NULL);
+  g_assert(osr->cache == NULL);
   osr->level_count = levels->len;
   osr->levels = (struct _openslide_level **)
     g_ptr_array_free(g_steal_pointer(&levels), false);
@@ -1323,6 +1327,7 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
   data->filename = g_strdup(filename);
   osr->data = data;
   osr->ops = &zeiss_ops;
+  osr->cache = _openslide_cache_binding_create(default_cache_size);
 
   return true;
 }
