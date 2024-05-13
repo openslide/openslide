@@ -242,7 +242,6 @@ struct czi_subblk {
   // higher z-index overlaps a lower z-index
   int32_t x, y, z;
   uint32_t w, h;
-  int32_t dir_entry_len;
   int8_t scene;
 };
 
@@ -606,7 +605,6 @@ static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
       return false;
     }
   }
-  sb->dir_entry_len = *p - (char *) dv;
   return true;
 }
 
