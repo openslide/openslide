@@ -1,0 +1,21 @@
+base: Zeiss/Zeiss-5-Uncompressed.czi
+slide: Zeiss-5-Uncompressed.czi
+success: true
+vendor: zeiss
+primary: true
+properties:
+  openslide.objective-power: "10"
+  openslide.quickhash-1: b085249786ac3dae62bc71eeda5d53679651eda3119e414626f9267446448206
+  openslide.vendor: zeiss
+  # XML attribute; path contains list item; value is used as path component
+  "zeiss.AttachmentInfos.Label:1.Id": "Label:1"
+  # XML element; path contains multiple list items
+  "zeiss.AttachmentInfos.Label:1.Label.Barcodes.Barcode:1.Content": "3348"
+  # XML attribute in a different enumerated subtree, not used as path component
+  "zeiss.DisplaySetting.Channels.Channel:0.Name": Bright
+  # XML attribute in a different enumerated subtree, used to extract objective
+  # power
+  zeiss.Information.Image.ObjectiveSettings.ObjectiveRef.Id: "Objective:1"
+  # XML element in a different enumerated subtree; Scaling.Items is a
+  # hardcoded special case
+  zeiss.Scaling.Items.X.Value: "3.4591494502960332E-07"

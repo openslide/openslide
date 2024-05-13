@@ -18,6 +18,7 @@ OpenSlide can read brightfield whole slide images in [several formats][]:
 * [Sakura][] (`.svslide`)
 * [Trestle][] (`.tif`)
 * [Ventana][] (`.bif`, `.tif`)
+* [Zeiss][] (`.czi`)
 * [Generic tiled TIFF][] (`.tif`)
 
 OpenSlide can also provide access to ICC profiles, textual metadata, and
@@ -33,6 +34,7 @@ associated images such as a slide label and thumbnail.
 [Sakura]: https://openslide.org/formats/sakura/
 [Trestle]: https://openslide.org/formats/trestle/
 [Ventana]: https://openslide.org/formats/ventana/
+[Zeiss]: https://openslide.org/formats/zeiss/
 [Generic tiled TIFF]: https://openslide.org/formats/generic-tiff/
 
 
