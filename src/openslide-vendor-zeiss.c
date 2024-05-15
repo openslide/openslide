@@ -466,7 +466,7 @@ static bool czi_zstd_read(struct _openslide_file *f, int64_t pos, int64_t len,
   }
 
   size_t img_len = w * h * pixel_bytes;
-  g_autofree uint8_t *img = _openslide_zstd_decompress(
+  g_autofree uint8_t *img = _openslide_zstd_decompress_buffer(
       inbuf + hdr.size, len - hdr.size, img_len, err);
   if (img == NULL) {
     return false;

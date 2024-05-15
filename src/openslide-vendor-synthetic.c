@@ -241,7 +241,7 @@ static bool decode_xml(const void *data, uint32_t len,
 static bool decode_zstd(const void *data, uint32_t len,
                         uint32_t *dest, GError **err) {
   g_autofree uint32_t *buf =
-    _openslide_zstd_decompress(data, len, IMAGE_BUFSIZE, err);
+    _openslide_zstd_decompress_buffer(data, len, IMAGE_BUFSIZE, err);
   if (!buf) {
     return false;
   }
