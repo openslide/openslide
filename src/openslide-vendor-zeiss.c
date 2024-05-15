@@ -959,6 +959,9 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
 static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
                                  int64_t *max_downsample_OUT,
                                  GError **err) {
+  // init out-argument
+  *max_downsample_OUT = INT64_MAX;
+
   // allocate scene arrays
   g_autofree int64_t *x1 = g_try_new(int64_t, czi->nscene);
   g_autofree int64_t *y1 = g_try_new(int64_t, czi->nscene);
@@ -997,7 +1000,6 @@ static bool read_scenes_set_prop(openslide_t *osr, struct czi *czi,
   }
 
   // walk scenes, add properties and compute common downsample
-  *max_downsample_OUT = INT64_MAX;
   for (int i = 0; i < czi->nscene; i++) {
     if (!max_downsample[i]) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
