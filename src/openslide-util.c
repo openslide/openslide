@@ -30,6 +30,7 @@
 #include <glib.h>
 #include <cairo.h>
 #include <zlib.h>
+#include <zstd.h>
 
 #define KEY_FILE_HARD_MAX_SIZE (100 << 20)
 
@@ -167,6 +168,22 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
   error_code = inflateEnd(&strm);
   if (error_code != Z_OK) {
     zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  return g_steal_pointer(&dst);
+}
+
+void *_openslide_zstd_decompress(const void *src, size_t src_len,
+                                 size_t dst_len, GError **err) {
+  uint64_t uncomppressed_size = ZSTD_getFrameContentSize(src, src_len);
+  g_assert(uncomppressed_size <= dst_len);
+
+  g_autofree void *dst = g_malloc(dst_len);
+  size_t rc = ZSTD_decompress(dst, dst_len, src, src_len);
+  if (ZSTD_isError(rc)) {
+    const char *zstd_msg = ZSTD_getErrorName(rc);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "ZSTD_decompress error %s", zstd_msg);
     return NULL;
   }
   return g_steal_pointer(&dst);

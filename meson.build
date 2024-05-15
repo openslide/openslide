@@ -123,6 +123,7 @@ dicom_dep      = dependency(
   fallback : ['libdicom', 'libdicom_dep'],
   version : '>=1.0.0',
 )
+zstd_dep       = dependency('libzstd')
 valgrind_dep   = dependency('valgrind', required : false)
 
 doxygen = find_program(
