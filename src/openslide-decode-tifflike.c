@@ -165,18 +165,6 @@ static uint32_t get_value_size(uint16_t type, uint64_t *count) {
   }
 }
 
-// Re-add implied high-order bits to a 32-bit offset.
-// Heuristic: maximize high-order bits while keeping the offset below diroff.
-static uint64_t fix_offset_ndpi(uint64_t diroff, uint64_t offset) {
-  uint64_t result = (diroff & ~(uint64_t) UINT32_MAX) | (offset & UINT32_MAX);
-  if (result >= diroff) {
-    // ensure result doesn't wrap around
-    result = MIN(result - UINT32_MAX - 1, result);
-  }
-  //g_debug("diroff %"PRIx64": %"PRIx64" -> %"PRIx64, diroff, offset, result);
-  return result;
-}
-
 #define ALLOC_VALUES_OR_FAIL(OUT, TYPE, COUNT) do {			\
     OUT = g_try_new(TYPE, COUNT);					\
     if (!OUT) {								\
@@ -390,7 +378,6 @@ static void tiff_item_destroy(gpointer data) {
 
 static struct tiff_directory *read_directory(struct _openslide_file *f,
                                              uint64_t *diroff,
-                                             struct tiff_directory *first_dir,
                                              GHashTable *loop_detector,
                                              bool bigtiff,
                                              bool ndpi,
@@ -478,15 +465,48 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     }
 
     // read in the value/offset
-    uint8_t value[bigtiff ? 8 : 4];
-    if (_openslide_fread(f, value, sizeof(value)) != sizeof(value)) {
+    uint8_t value[(bigtiff || ndpi) ? 8 : 4];
+    size_t read_size = (bigtiff ? 8 : 4);
+
+    if (fread(value, read_size, 1, f) != 1) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read value/offset");
       return NULL;
     }
+    
+    bool is_value = (value_size * count <= read_size);
+
+    // in ndpi files all values/offsets have a 4 byte extension at the end of the IFD
+    // append this to the current value/offset
+    if (ndpi) {
+      // seek to value/offset extension
+      if (!_openslide_fseek(f, off+(12L*dircount)+(4L*n)+10L, SEEK_SET, err)) {
+        g_prefix_error(err, "Cannot seek to value/offset extension: ");
+        return NULL;
+      }
+
+      // read in the value/offset extension
+      if (fread(value+4, 4, 1, f) != 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Cannot read value/offset extension");
+        return NULL;
+      }
+
+      // if the value/offset contains the value and the extension is nonzero, update the value size and item type
+      if (is_value && (value[4] > 0 || value[5] > 0 || value[6] > 0 || value[7] > 0)) {
+        value_size = 8;
+        item->type = TIFF_LONG8;
+      }
+
+      // seek back to the tag's position in the IFD
+      if (!_openslide_fseek(f, off+(12L*(n+1))+2L, SEEK_SET, err)) {
+        g_prefix_error(err, "Seeking back to IFD failed: ");
+        return NULL;
+      }
+    }
 
     // does value/offset contain the value?
-    if (value_size * count <= sizeof(value)) {
+    if (is_value) {
       // yes
       fix_byte_order(value, value_size, count, big_endian);
       if (!set_item_values(item, value, err)) {
@@ -495,7 +515,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
 
     } else {
       // no; store offset
-      if (bigtiff) {
+      if (bigtiff || ndpi) {
         memcpy(&item->offset, value, 8);
         fix_byte_order(&item->offset, sizeof(item->offset), 1, big_endian);
       } else {
@@ -503,19 +523,6 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
         memcpy(&off32, value, 4);
         fix_byte_order(&off32, sizeof(off32), 1, big_endian);
         item->offset = off32;
-      }
-
-      if (ndpi) {
-        // heuristically set high-order bits of offset
-        // if this tag has the same offset in the first IFD, reuse that value
-        struct tiff_item *first_dir_item = NULL;
-        if (first_dir) {
-          first_dir_item = g_hash_table_lookup(first_dir->items,
-                                               GINT_TO_POINTER(tag));
-        }
-        if (!first_dir_item || first_dir_item->offset != item->offset) {
-          item->offset = fix_offset_ndpi(off, item->offset);
-        }
       }
     }
   }
@@ -611,7 +618,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   if (!bigtiff && diroff != 0) {
     uint64_t trial_diroff = diroff;
     struct tiff_directory *d = read_directory(f, &trial_diroff,
-                                              NULL,
                                               loop_detector,
                                               bigtiff, true, big_endian,
                                               NULL);
@@ -645,7 +651,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   while (diroff != 0) {
     // read a directory
     struct tiff_directory *d = read_directory(f, &diroff,
-                                              first_dir,
                                               loop_detector,
                                               bigtiff, tl->ndpi, big_endian,
                                               err);
@@ -941,16 +946,6 @@ bool _openslide_tifflike_is_tiled(struct _openslide_tifflike *tl,
                                   int64_t dir) {
   return _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILEWIDTH) &&
          _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_TILELENGTH);
-}
-
-uint64_t _openslide_tifflike_uint_fix_offset_ndpi(struct _openslide_tifflike *tl,
-                                                  int64_t dir, uint64_t offset) {
-  g_assert(dir >= 0 && dir < tl->directories->len);
-  if (!tl->ndpi) {
-    return offset;
-  }
-  struct tiff_directory *d = tl->directories->pdata[dir];
-  return fix_offset_ndpi(d->offset, offset);
 }
 
 static const char *store_string_property(struct _openslide_tifflike *tl,
