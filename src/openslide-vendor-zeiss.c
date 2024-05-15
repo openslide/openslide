@@ -994,21 +994,29 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeY");
   const char *size_s =
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeS");
-  if (!size_x || !size_y || !size_s) {
+  if (!size_x || !size_y) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read image dimensions");
     return false;
   }
   int64_t w, h, nscene;
   if (!_openslide_parse_int64(size_x, &w) ||
-      !_openslide_parse_int64(size_y, &h) ||
-      !_openslide_parse_int64(size_s, &nscene)) {
+      !_openslide_parse_int64(size_y, &h)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't parse image dimensions");
     return false;
   }
   czi->w = w;
   czi->h = h;
+
+  /* some czi file may not have SizeS, e.g. SlidePreview */
+  if (!size_s) {
+    nscene = 1;
+  } else if (!_openslide_parse_int64(size_s, &nscene)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't parse image scene dimension");
+    return false;
+  }
   czi->nscene = nscene;
 
   // in meter/pixel
