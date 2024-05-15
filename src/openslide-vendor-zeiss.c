@@ -360,127 +360,130 @@ static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
   }
 }
 
-/* czi zstd1 compression mode has an option to pack less significant bytes of
- * 16 bits pixels in the first half of image array, and more significant bytes
- * in the second half of image array.
- */
-static void _openslide_restore_czi_zstd1(uint8_t *src, size_t src_len,
-                                         uint8_t *dst) {
-  size_t half_len = src_len / 2;
-  uint8_t *p = dst;
-  uint8_t *slo = src;
-  uint8_t *shi = src + half_len;
-  for (size_t i = 0; i < half_len; i++) {
-    *p++ = *slo++;
-    *p++ = *shi++;
-  }
-}
-
-static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
-                                  int64_t len, int32_t pixel_type,
-                                  uint32_t *dst, int32_t w, int32_t h,
-                                  GError **err) {
+static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
+                         int32_t compression, int32_t pixel_type,
+                         uint32_t *dst, int32_t w, int32_t h,
+                         GError **err) {
+  // figure out what to do with pixel type
   void (*convert)(uint8_t *, size_t, uint32_t *);
-  int64_t pixels;
+  int bytes_per_pixel;
   switch (pixel_type) {
   case PT_BGR24:
     convert = bgr24_to_argb32;
-    pixels = len / 3;
+    bytes_per_pixel = 3;
     break;
   case PT_BGR48:
     convert = bgr48_to_argb32;
-    pixels = len / 6;
+    bytes_per_pixel = 6;
+    break;
+  default:
+    g_assert_not_reached();
+  }
+  const int64_t pixel_bytes = w * h * bytes_per_pixel;
+
+  // read from file
+  g_autofree uint8_t *file_data = g_try_malloc(len);
+  if (!file_data) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %"PRId64" bytes for image data", len);
+    return false;
+  }
+  if (!freadn_to_buf(f, pos, file_data, len, err)) {
+    g_prefix_error(err, "Couldn't read image data: ");
+    return false;
+  }
+
+  // process compression
+  uint8_t *src = file_data;
+  g_autofree uint8_t *decompressed_data = NULL;
+  bool do_hilo = false;
+  switch (compression) {
+  case COMP_NONE:
+    // file_data will be directly converted to ARGB, without any decompression
+    // step, so make sure the input and output sizes match
+    if (pixel_bytes != len) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Can't read %"PRId64" pixels into a %"PRId32"x%"PRId32
+                  " image", len / bytes_per_pixel, w, h);
+      return false;
+    }
+    break;
+  case COMP_ZSTD1:
+    // parse zstd1 header
+    ;  // make compiler happy
+    const struct zisraw_zstd_payload_hdr *hdr =
+      (const struct zisraw_zstd_payload_hdr *) src;
+    // check that we can read the size field, then use it to check that we
+    // can read the whole header
+    if (len < (int64_t) sizeof(hdr->size) || len < hdr->size) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Image data length %"PRId64" too small for zstd header", len);
+      return false;
+    }
+    switch (hdr->size) {
+    case 1:
+      break;
+    case 3:
+      if (hdr->chunk_type != 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Unexpected zstd chunk type: %d", hdr->chunk_type);
+        return false;
+      }
+      do_hilo = hdr->is_hi_low_pack & 1;
+      break;
+    default:
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unexpected zstd header length: %u", hdr->size);
+      return false;
+    }
+    src += hdr->size;
+    len -= hdr->size;
+    // fall through
+  case COMP_ZSTD0:
+    // decompress
+    decompressed_data =
+      _openslide_zstd_decompress_buffer(src, len, pixel_bytes, err);
+    if (!decompressed_data) {
+      g_prefix_error(err, "Decompressing pixel data: ");
+      return false;
+    }
+    src = decompressed_data;
     break;
   default:
     g_assert_not_reached();
   }
 
-  if ((int64_t) w * h != pixels) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't read %"PRId64" pixels into a %"PRId32"x%"PRId32" image",
-                pixels, w, h);
-    return false;
+  // zstd1 compression has an option to pack less significant bytes of 16-
+  // bit pixels in the first half of the image array, and more significant
+  // bytes in the second half of the image array.  Undo this.
+  g_autofree uint8_t *unhilo_data = NULL;
+  if (do_hilo) {
+    if (pixel_bytes % 2) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Can't perform HiLo unpacking with an odd number of bytes "
+                  "%"PRId64, pixel_bytes);
+      return false;
+    }
+    int64_t half_bytes = pixel_bytes / 2;
+    unhilo_data = g_try_malloc(pixel_bytes);
+    if (!unhilo_data) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't allocate %"PRId64" bytes for HiLo unpacking",
+                  pixel_bytes);
+      return false;
+    }
+    uint8_t *p = unhilo_data;
+    uint8_t *slo = src;
+    uint8_t *shi = src + half_bytes;
+    for (int64_t i = 0; i < half_bytes; i++) {
+      *p++ = *slo++;
+      *p++ = *shi++;
+    }
+    src = unhilo_data;
   }
 
-  g_autofree uint8_t *src = g_try_malloc(len);
-  if (!src) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't allocate %"PRId64" bytes for uncompressed pixels",
-                len);
-    return false;
-  }
-  if (!freadn_to_buf(f, pos, src, len, err)) {
-    g_prefix_error(err, "Couldn't read pixel data: ");
-    return false;
-  }
-
-  convert(src, len, dst);
-  return true;
-}
-
-static bool parse_zstd_payload_hdr(struct zisraw_zstd_payload_hdr *hdr,
-                                   char *buf) {
-  memcpy(hdr, buf, sizeof(struct zisraw_zstd_payload_hdr));
-  if (hdr->size == 1) {
-    return true;
-  } else if (hdr->size == 3 && hdr->chunk_type == 1) {
-    /* czi only cares the lowest bit */
-    hdr->is_hi_low_pack &= 1;
-    return true;
-  }
-
-  return false;
-}
-
-static bool czi_zstd_read(struct _openslide_file *f, int64_t pos, int64_t len,
-                          int32_t pixel_type, uint32_t *dst, int32_t w,
-                          int32_t h, int32_t compression, GError **err) {
-  void (*convert)(uint8_t *, size_t, uint32_t *);
-  int pixel_bytes;
-  switch (pixel_type) {
-  case PT_BGR24:
-    convert = bgr24_to_argb32;
-    pixel_bytes = 3;
-    break;
-  case PT_BGR48:
-    convert = bgr48_to_argb32;
-    pixel_bytes = 6;
-    break;
-  default:
-    g_assert_not_reached();
-  }
-
-  g_autofree char *inbuf = g_malloc(len);
-  if (!freadn_to_buf(f, pos, inbuf, len, err)) {
-    g_prefix_error(err, "Couldn't read czi zstd compressed payload: ");
-    return false;
-  }
-
-  struct zisraw_zstd_payload_hdr hdr;
-  hdr.size = 0; /* zstd0 compression doesn't add prefix header */
-  hdr.is_hi_low_pack = 0;
-  if (compression == COMP_ZSTD1 && !parse_zstd_payload_hdr(&hdr, inbuf)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't parse czi zstd1 compressed payload header");
-    return false;
-  }
-
-  size_t img_len = w * h * pixel_bytes;
-  g_autofree uint8_t *img = _openslide_zstd_decompress_buffer(
-      inbuf + hdr.size, len - hdr.size, img_len, err);
-  if (img == NULL) {
-    return false;
-  }
-
-  /* restore image modified by czi zstd1 high low byte pack trick */
-  if (hdr.is_hi_low_pack == 1) {
-    g_autofree uint8_t *tmp = g_malloc(img_len);
-    _openslide_restore_czi_zstd1(img, img_len, tmp);
-    convert(tmp, img_len, dst);
-  } else {
-    convert(img, img_len, dst);
-  }
-
+  // convert pixels to ARGB
+  convert(src, pixel_bytes, dst);
   return true;
 }
 
@@ -502,12 +505,10 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   switch (sb->compression) {
   case COMP_NONE:
-    return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
-                                 sb->w, sb->h, err);
   case COMP_ZSTD0:
   case COMP_ZSTD1:
-    return czi_zstd_read(f, data_pos, data_size, sb->pixel_type, dst,
-                         sb->w, sb->h, sb->compression, err);
+    return czi_read_raw(f, data_pos, data_size, sb->compression, sb->pixel_type,
+                        dst, sb->w, sb->h, err);
   default:
     g_assert_not_reached();
   }
