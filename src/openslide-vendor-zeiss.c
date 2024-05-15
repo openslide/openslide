@@ -154,11 +154,11 @@ struct zisraw_att_dir_hdr {
   // followed by AttachementEntryA1 list
 } __attribute__((__packed__));
 
-struct czi_zstd_payload_hdr {
+struct zisraw_zstd_payload_hdr {
   uint8_t size;           /* either 1 or 3 */
   uint8_t chunk_type;     /* the only valid type is 1 */
   uint8_t is_hi_low_pack; /* whether high low byte packing is used */
-};
+} __attribute__((__packed__));
 
 enum zisraw_compression {
   COMP_NONE = 0,
@@ -418,9 +418,9 @@ static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
   return true;
 }
 
-static bool parse_czi_zstd_payload_hdr(struct czi_zstd_payload_hdr *hdr,
-                                       char *buf) {
-  memcpy(hdr, buf, sizeof(struct czi_zstd_payload_hdr));
+static bool parse_zstd_payload_hdr(struct zisraw_zstd_payload_hdr *hdr,
+                                   char *buf) {
+  memcpy(hdr, buf, sizeof(struct zisraw_zstd_payload_hdr));
   if (hdr->size == 1) {
     return true;
   } else if (hdr->size == 3 && hdr->chunk_type == 1) {
@@ -456,10 +456,10 @@ static bool czi_zstd_read(struct _openslide_file *f, int64_t pos, int64_t len,
     return false;
   }
 
-  struct czi_zstd_payload_hdr hdr;
+  struct zisraw_zstd_payload_hdr hdr;
   hdr.size = 0; /* zstd0 compression doesn't add prefix header */
   hdr.is_hi_low_pack = 0;
-  if (compression == COMP_ZSTD1 && !parse_czi_zstd_payload_hdr(&hdr, inbuf)) {
+  if (compression == COMP_ZSTD1 && !parse_zstd_payload_hdr(&hdr, inbuf)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't parse czi zstd1 compressed payload header");
     return false;
