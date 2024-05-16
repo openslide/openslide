@@ -119,6 +119,24 @@ struct MetadataSegment {
 };
 
 
+struct ZstdPayloadHeader {
+    u8 size;
+    if (size > 1) {
+        u8 chunk_type;
+        u8 is_hi_low_pack;
+    }
+    padding[size - 3];
+} [[format_read("format_zstd_payload_header")]];
+
+fn format_zstd_payload_header(ZstdPayloadHeader hdr) {
+    if (hdr.size > 1) {
+        return std::format("hilo={}", hdr.is_hi_low_pack);
+    } else {
+        return "hilo=0";
+    }
+};
+
+
 struct DimensionEntry {
     String<4> dimension;
     s32 start;
@@ -175,7 +193,12 @@ struct SubBlockSegment {
     DirectoryEntry entry;
     padding[288 - ($ - addressof(this))];
     std::mem::Bytes<meta_size> meta;
-    std::mem::Bytes<data_size> data;
+    if (entry.compression == Compression::COMP_ZSTD1) {
+        ZstdPayloadHeader zstd;
+        std::mem::Bytes<data_size - zstd.size> data;
+    } else {
+        std::mem::Bytes<data_size> data;
+    }
 };
 
 
