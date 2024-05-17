@@ -58,7 +58,6 @@ from typing import (
     BinaryIO,
     NewType,
     Protocol,
-    TypeVar,
     cast,
 )
 from urllib.parse import urljoin
@@ -100,9 +99,6 @@ RESET = '\033[1;0m'
 
 _commands = []
 _command_funcs = {}
-
-
-TestCaseT = TypeVar('TestCaseT', bound='TestCase')
 
 
 class Skip:
@@ -456,7 +452,7 @@ class TestCase:
 
     @classmethod
     @lru_cache
-    def list(cls: type[TestCaseT], pattern: str = '*') -> list[TestCaseT]:
+    def list(cls, pattern: str = '*') -> list[TestCase]:
         '''Return a list of tests matching the specified pattern.'''
         return [
             cls(path.name)
