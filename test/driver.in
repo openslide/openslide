@@ -716,6 +716,58 @@ class TestCase:
         return ok, msg
 
 
+def _s3_upload_public(
+    bucket: str,
+    key: str,
+    fh: BinaryIO,
+    content_type: str = 'application/octet-stream',
+) -> str:
+    '''Upload public content to the specified S3 bucket and key.  Return
+    a public URL.'''
+    import boto3
+
+    s3 = boto3.client('s3')
+    # Calculate public URL
+    region = (
+        s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
+        or 'us-east-1'
+    )
+    url = f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/{key}'
+    # Skip re-uploading existing objects
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return url
+    except s3.exceptions.ClientError as e:
+        # https://github.com/boto/boto3/issues/2442
+        if e.response['Error']['Code'] != '404':
+            raise
+    # Set up progress reporting
+    length = fh.seek(0, os.SEEK_END)
+    last_update = 0.0
+    uploaded = 0
+
+    def progress(count: int) -> None:
+        nonlocal last_update, uploaded
+        uploaded += count
+        now = curtime()
+        if now - last_update >= 1:
+            print(f'Uploading {uploaded >> 20}/{length >> 20} MB...\r', end='')
+            sys.stdout.flush()
+            last_update = now
+
+    # Upload object
+    fh.seek(0)
+    s3.upload_fileobj(
+        fh,
+        bucket,
+        key,
+        Callback=progress,
+        ExtraArgs={'ContentType': content_type},
+    )
+    print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
+    return url
+
+
 def _download(url: str, name: str, fh: BinaryIO) -> str:
     '''Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
@@ -1073,58 +1125,6 @@ def _fusefs_run() -> None:
         pyfuse3.close(unmount=False)
         raise
     pyfuse3.close()
-
-
-def _s3_upload_public(
-    bucket: str,
-    key: str,
-    fh: BinaryIO,
-    content_type: str = 'application/octet-stream',
-) -> str:
-    '''Upload public content to the specified S3 bucket and key.  Return
-    a public URL.'''
-    import boto3
-
-    s3 = boto3.client('s3')
-    # Calculate public URL
-    region = (
-        s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
-        or 'us-east-1'
-    )
-    url = f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/{key}'
-    # Skip re-uploading existing objects
-    try:
-        s3.head_object(Bucket=bucket, Key=key)
-        return url
-    except s3.exceptions.ClientError as e:
-        # https://github.com/boto/boto3/issues/2442
-        if e.response['Error']['Code'] != '404':
-            raise
-    # Set up progress reporting
-    length = fh.seek(0, os.SEEK_END)
-    last_update = 0.0
-    uploaded = 0
-
-    def progress(count: int) -> None:
-        nonlocal last_update, uploaded
-        uploaded += count
-        now = curtime()
-        if now - last_update >= 1:
-            print(f'Uploading {uploaded >> 20}/{length >> 20} MB...\r', end='')
-            sys.stdout.flush()
-            last_update = now
-
-    # Upload object
-    fh.seek(0)
-    s3.upload_fileobj(
-        fh,
-        bucket,
-        key,
-        Callback=progress,
-        ExtraArgs={'ContentType': content_type},
-    )
-    print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
-    return url
 
 
 @_command
