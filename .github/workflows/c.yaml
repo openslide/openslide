@@ -56,7 +56,7 @@ jobs:
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: ubuntu-24.04
-          - os: macos-14
+          - os: macos-latest
             sanitize: sanitize
     steps:
     - name: Install dependencies
