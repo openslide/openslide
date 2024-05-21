@@ -1007,10 +1007,7 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                 "Couldn't parse image dimensions");
     return false;
   }
-  czi->w = w;
-  czi->h = h;
-
-  /* some czi file may not have SizeS, e.g. SlidePreview */
+  // some CZI files may not have SizeS, e.g. extracted SlidePreview
   if (!size_s) {
     nscene = 1;
   } else if (!_openslide_parse_int64(size_s, &nscene)) {
@@ -1018,6 +1015,8 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                 "Couldn't parse image scene dimension");
     return false;
   }
+  czi->w = w;
+  czi->h = h;
   czi->nscene = nscene;
 
   // in meter/pixel
