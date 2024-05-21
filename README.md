@@ -76,6 +76,7 @@ To build OpenSlide, you will need:
 - OpenJPEG ≥ 2.1
 - SQLite ≥ 3.14
 - zlib
+- Zstandard
 
 Then:
 
