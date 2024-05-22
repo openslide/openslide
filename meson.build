@@ -105,6 +105,7 @@ endforeach
 # Dependencies
 feature_flags = []
 zlib_dep       = dependency('zlib')
+zstd_dep       = dependency('libzstd')
 jpeg_dep       = dependency('libjpeg')
 png_dep        = dependency('libpng', version : '>1.2')
 openjpeg_dep   = dependency('libopenjp2', version : '>=2.1.0')

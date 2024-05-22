@@ -154,6 +154,12 @@ struct zisraw_att_dir_hdr {
   // followed by AttachementEntryA1 list
 } __attribute__((__packed__));
 
+struct zisraw_zstd_payload_hdr {
+  uint8_t size;           /* either 1 or 3 */
+  uint8_t chunk_type;     /* the only valid type is 1 */
+  uint8_t is_hi_low_pack; /* whether high low byte packing is used */
+} __attribute__((__packed__));
+
 enum zisraw_compression {
   COMP_NONE = 0,
   COMP_JPEG,
@@ -354,45 +360,130 @@ static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
   }
 }
 
-static bool czi_read_uncompressed(struct _openslide_file *f, int64_t pos,
-                                  int64_t len, int32_t pixel_type,
-                                  uint32_t *dst, int32_t w, int32_t h,
-                                  GError **err) {
+static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
+                         int32_t compression, int32_t pixel_type,
+                         uint32_t *dst, int32_t w, int32_t h,
+                         GError **err) {
+  // figure out what to do with pixel type
   void (*convert)(uint8_t *, size_t, uint32_t *);
-  int64_t pixels;
+  int bytes_per_pixel;
   switch (pixel_type) {
   case PT_BGR24:
     convert = bgr24_to_argb32;
-    pixels = len / 3;
+    bytes_per_pixel = 3;
     break;
   case PT_BGR48:
     convert = bgr48_to_argb32;
-    pixels = len / 6;
+    bytes_per_pixel = 6;
+    break;
+  default:
+    g_assert_not_reached();
+  }
+  const int64_t pixel_bytes = w * h * bytes_per_pixel;
+
+  // read from file
+  g_autofree uint8_t *file_data = g_try_malloc(len);
+  if (!file_data) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %"PRId64" bytes for image data", len);
+    return false;
+  }
+  if (!freadn_to_buf(f, pos, file_data, len, err)) {
+    g_prefix_error(err, "Couldn't read image data: ");
+    return false;
+  }
+
+  // process compression
+  uint8_t *src = file_data;
+  g_autofree uint8_t *decompressed_data = NULL;
+  bool do_hilo = false;
+  switch (compression) {
+  case COMP_NONE:
+    // file_data will be directly converted to ARGB, without any decompression
+    // step, so make sure the input and output sizes match
+    if (pixel_bytes != len) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Can't read %"PRId64" pixels into a %"PRId32"x%"PRId32
+                  " image", len / bytes_per_pixel, w, h);
+      return false;
+    }
+    break;
+  case COMP_ZSTD1:
+    // parse zstd1 header
+    ;  // make compiler happy
+    const struct zisraw_zstd_payload_hdr *hdr =
+      (const struct zisraw_zstd_payload_hdr *) src;
+    // check that we can read the size field, then use it to check that we
+    // can read the whole header
+    if (len < (int64_t) sizeof(hdr->size) || len < hdr->size) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Image data length %"PRId64" too small for zstd header", len);
+      return false;
+    }
+    switch (hdr->size) {
+    case 1:
+      break;
+    case 3:
+      if (hdr->chunk_type != 1) {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "Unexpected zstd chunk type: %d", hdr->chunk_type);
+        return false;
+      }
+      do_hilo = hdr->is_hi_low_pack & 1;
+      break;
+    default:
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unexpected zstd header length: %u", hdr->size);
+      return false;
+    }
+    src += hdr->size;
+    len -= hdr->size;
+    // fall through
+  case COMP_ZSTD0:
+    // decompress
+    decompressed_data =
+      _openslide_zstd_decompress_buffer(src, len, pixel_bytes, err);
+    if (!decompressed_data) {
+      g_prefix_error(err, "Decompressing pixel data: ");
+      return false;
+    }
+    src = decompressed_data;
     break;
   default:
     g_assert_not_reached();
   }
 
-  if ((int64_t) w * h != pixels) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't read %"PRId64" pixels into a %"PRId32"x%"PRId32" image",
-                pixels, w, h);
-    return false;
+  // zstd1 compression has an option to pack less significant bytes of 16-
+  // bit pixels in the first half of the image array, and more significant
+  // bytes in the second half of the image array.  Undo this.
+  g_autofree uint8_t *unhilo_data = NULL;
+  if (do_hilo) {
+    if (pixel_bytes % 2) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Can't perform HiLo unpacking with an odd number of bytes "
+                  "%"PRId64, pixel_bytes);
+      return false;
+    }
+    int64_t half_bytes = pixel_bytes / 2;
+    unhilo_data = g_try_malloc(pixel_bytes);
+    if (!unhilo_data) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't allocate %"PRId64" bytes for HiLo unpacking",
+                  pixel_bytes);
+      return false;
+    }
+    uint8_t *p = unhilo_data;
+    uint8_t *slo = src;
+    uint8_t *shi = src + half_bytes;
+    for (int64_t i = 0; i < half_bytes; i++) {
+      *p++ = *slo++;
+      *p++ = *shi++;
+    }
+    src = unhilo_data;
   }
 
-  g_autofree uint8_t *src = g_try_malloc(len);
-  if (!src) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't allocate %"PRId64" bytes for uncompressed pixels",
-                len);
-    return false;
-  }
-  if (!freadn_to_buf(f, pos, src, len, err)) {
-    g_prefix_error(err, "Couldn't read pixel data: ");
-    return false;
-  }
-
-  convert(src, len, dst);
+  // convert pixels to ARGB
+  convert(src, pixel_bytes, dst);
   return true;
 }
 
@@ -414,8 +505,10 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   switch (sb->compression) {
   case COMP_NONE:
-    return czi_read_uncompressed(f, data_pos, data_size, sb->pixel_type, dst,
-                                 sb->w, sb->h, err);
+  case COMP_ZSTD0:
+  case COMP_ZSTD1:
+    return czi_read_raw(f, data_pos, data_size, sb->compression, sb->pixel_type,
+                        dst, sb->w, sb->h, err);
   default:
     g_assert_not_reached();
   }
@@ -902,17 +995,24 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeY");
   const char *size_s =
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeS");
-  if (!size_x || !size_y || !size_s) {
+  if (!size_x || !size_y) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read image dimensions");
     return false;
   }
   int64_t w, h, nscene;
   if (!_openslide_parse_int64(size_x, &w) ||
-      !_openslide_parse_int64(size_y, &h) ||
-      !_openslide_parse_int64(size_s, &nscene)) {
+      !_openslide_parse_int64(size_y, &h)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't parse image dimensions");
+    return false;
+  }
+  // some CZI files may not have SizeS, e.g. extracted SlidePreview
+  if (!size_s) {
+    nscene = 1;
+  } else if (!_openslide_parse_int64(size_s, &nscene)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't parse image scene dimension");
     return false;
   }
   czi->w = w;
@@ -1055,6 +1155,8 @@ static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
 
   switch (sb->compression) {
   case COMP_NONE:
+  case COMP_ZSTD0:
+  case COMP_ZSTD1:
     break;
   default:
     if (sb->compression >= 0 &&

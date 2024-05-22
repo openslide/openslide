@@ -73,6 +73,7 @@ jobs:
             brew install \
                 meson pkg-config \
                 zlib \
+                zstd \
                 libpng \
                 jpeg-turbo \
                 libtiff \
@@ -121,6 +122,7 @@ jobs:
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
+                    libzstd-devel \
                     libpng-devel \
                     libjpeg-turbo-devel \
                     libtiff-devel \
@@ -159,6 +161,7 @@ jobs:
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
                     zlib1g-dev$arch \
+                    libzstd-dev$arch \
                     libpng-dev$arch \
                     $jpeg$arch \
                     libtiff-dev$arch \

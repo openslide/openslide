@@ -30,6 +30,7 @@
 #include <glib.h>
 #include <cairo.h>
 #include <zlib.h>
+#include <zstd.h>
 
 #define KEY_FILE_HARD_MAX_SIZE (100 << 20)
 
@@ -167,6 +168,30 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
   error_code = inflateEnd(&strm);
   if (error_code != Z_OK) {
     zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  return g_steal_pointer(&dst);
+}
+
+void *_openslide_zstd_decompress_buffer(const void *src, int64_t src_len,
+                                        int64_t dst_len, GError **err) {
+  g_autofree void *dst = g_try_malloc(dst_len);
+  if (!dst) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %"PRId64" bytes for zstd decompression",
+                dst_len);
+    return NULL;
+  }
+  size_t rc = ZSTD_decompress(dst, dst_len, src, src_len);
+  if (ZSTD_isError(rc)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "zstd decompression error: %s", ZSTD_getErrorName(rc));
+    return NULL;
+  }
+  if ((int64_t) rc != dst_len) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read while decompressing: %"PRIu64"/%"PRId64,
+                (uint64_t) rc, dst_len);
     return NULL;
   }
   return g_steal_pointer(&dst);

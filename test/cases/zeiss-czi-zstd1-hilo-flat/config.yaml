@@ -1,0 +1,5 @@
+base: Zeiss/Zeiss-5-SlidePreview-Zstd1-HiLo.czi
+slide: Zeiss-5-SlidePreview-Zstd1-HiLo.czi
+success: true
+primary: true
+vendor: zeiss
