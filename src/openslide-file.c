@@ -122,24 +122,30 @@ struct _openslide_file *_openslide_fopen(const char *path, GError **err)
   return file;
 }
 
-size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
+// returns 0/NULL on EOF and 0/non-NULL on I/O error
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size,
+                        GError **err) {
   char *bufp = buf;
   size_t total = 0;
   while (total < size) {
     size_t count = fread(bufp + total, 1, size - total, file->fp);  // ci-allow
     if (count == 0) {
-      return total;
+      break;
     }
     total += count;
+  }
+  if (total == 0 && ferror(file->fp)) {
+    g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_IO, "I/O error");
   }
   return total;
 }
 
 bool _openslide_fread_exact(struct _openslide_file *file,
                             void *buf, size_t size, GError **err) {
-  size_t count = _openslide_fread(file, buf, size);
-  if (!count && ferror(file->fp)) {
-    g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_IO, "I/O error");
+  GError *tmp_err = NULL;
+  size_t count = _openslide_fread(file, buf, size, &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
     return false;
   } else if (count < size) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,

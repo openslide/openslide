@@ -201,7 +201,8 @@ bool _openslide_clip_tile(uint32_t *tiledata,
 struct _openslide_file;
 
 struct _openslide_file *_openslide_fopen(const char *path, GError **err);
-size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size);
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size,
+                        GError **err);
 bool _openslide_fread_exact(struct _openslide_file *file,
                             void *buf, size_t size, GError **err);
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
