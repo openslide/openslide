@@ -32,6 +32,7 @@
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
 #include "openslide-image.h"
+#include "openslide-decode-jxr.h"
 
 #include <glib.h>
 #include <math.h>
@@ -466,6 +467,22 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
   return true;
 }
 
+static bool czi_read_jxr(struct _openslide_file *f, int64_t pos, int64_t len,
+                         uint32_t *dst, int64_t dst_len, GError **err) {
+  g_autofree uint8_t *file_data = g_try_malloc(len);
+  if (!file_data) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %" PRId64 " bytes for image data", len);
+    return false;
+  }
+  if (!freadn_to_buf(f, pos, file_data, len, err)) {
+    g_prefix_error(err, "Couldn't read image data: ");
+    return false;
+  }
+
+  return _openslide_jxr_decode_buf(file_data, len, dst, dst_len, err);
+}
+
 // dst must be sb->w * sb->h * 4 bytes
 static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
                         struct czi_subblk *sb, uint32_t *dst, GError **err) {
@@ -488,6 +505,8 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   case COMP_ZSTD1:
     return czi_read_raw(f, data_pos, data_size, sb->compression, sb->pixel_type,
                         dst, sb->w, sb->h, err);
+  case COMP_JXR:
+    return czi_read_jxr(f, data_pos, data_size, dst, sb->w * sb->h * 4, err);
   default:
     g_assert_not_reached();
   }
@@ -1136,6 +1155,7 @@ static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
   case COMP_NONE:
   case COMP_ZSTD0:
   case COMP_ZSTD1:
+  case COMP_JXR:
     break;
   default:
     if (sb->compression >= 0 &&
