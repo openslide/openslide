@@ -27,4 +27,7 @@
 
 bool _openslide_jxr_decode_buf(const void *src, int64_t src_len, uint32_t *dst,
                                int64_t dst_len, GError **err);
+
+bool _openslide_jxr_dim(const void *data, size_t data_len, uint32_t *width,
+                        uint32_t *height);
 #endif
