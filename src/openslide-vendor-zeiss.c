@@ -489,8 +489,9 @@ static int64_t get_subblock_data_offset(char *buf, size_t len,
                                         struct czi_subblk *sb) {
   g_assert(len >= sizeof(struct zisraw_subblk_hdr));
   struct zisraw_subblk_hdr *hdr = (struct zisraw_subblk_hdr *) buf;
-  int64_t n = MAX(256 - 16 - sb->dir_entry_len, 0);
-  int64_t offset_meta = MAX(256, n);
+  int64_t offset_dir_entry = 16;
+  // segment before metadata has minimum length 256
+  int64_t offset_meta = MAX(256, offset_dir_entry + sb->dir_entry_len);
   return sizeof(struct zisraw_seg_hdr) + offset_meta +
          GINT32_FROM_LE(hdr->meta_size);
 }
