@@ -673,6 +673,10 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   } else if (g_str_equal(name, "M")) {
     // mosaic tile index in drawing stack; highest number is frontmost
     sb->z = start;
+  } else if (g_str_equal(name, "B")) {
+    // nothing to do
+    // Block index in segmented experiments. Not sure its meaning. It has
+    // been dropped. Ignore B dimension enables OpenSlide read old CZI files.
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized subblock dimension \"%s\"", name);
