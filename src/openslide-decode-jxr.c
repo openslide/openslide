@@ -171,3 +171,44 @@ Cleanup:
   return (jerr < 0) ? false : true;
 }
 
+static bool short_header_flag(uint8_t *data) {
+  return data[10] & 0x80;
+}
+
+/* parse jpeg xr header to get width and height */
+bool _openslide_jxr_dim(const void *data, size_t data_len, uint32_t *width,
+                        uint32_t *height) {
+  uint8_t *p = (uint8_t *) data;
+  uint8_t *s = NULL;
+  /* locate beginning of JXR image stream instead of parsing IFD. Cannot use
+   * strstr() because there may be many zeros before WMPHOTO magic. */
+  for (size_t i = 0; i < (data_len - 8); i++, p++) {
+    if (*(p + 0) == 'W' && *(p + 1) == 'M' && *(p + 2) == 'P' &&
+        *(p + 3) == 'H' && *(p + 4) == 'O' && *(p + 5) == 'T' &&
+        *(p + 6) == 'O' && *(p + 7) == '\0') {
+
+      s = p;
+      break;
+    }
+  }
+
+  if (s == NULL) {
+    g_warning("JPEG XR magic WMPHOTO not found");
+    return false;
+  }
+
+  uint32_t width1, height1; /* width, height minus 1 */
+  if (short_header_flag(s)) {
+    /* per JXR doc: u(n) unsigned integer using n bits, where MSB is the left
+     * most bit. */
+    width1 = GUINT16_FROM_BE(*(uint16_t *) (s + 12));
+    height1 = GUINT16_FROM_BE(*(uint16_t *) (s + 14));
+  } else {
+    width1 = GUINT32_FROM_BE(*(uint32_t *) (s + 12));
+    height1 = GUINT32_FROM_BE(*(uint32_t *) (s + 16));
+  }
+
+  *width = width1 + 1;
+  *height = height1 + 1;
+  return true;
+}

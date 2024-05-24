@@ -683,6 +683,40 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   return true;
 }
 
+static bool read_tile_size_from_jxr(struct _openslide_file *f, struct czi *czi,
+                                    GError **err) {
+  struct czi_subblk *sb;
+  int64_t data_offset;
+  uint32_t w;
+  uint32_t h;
+  static const int buf_len = 512;
+  char buf[buf_len];
+  for (int i = 0; i < czi->nsubblk; i++) {
+    sb = &czi->subblks[i];
+    if (sb->compression != COMP_JXR) {
+      continue;
+    }
+
+    if (!freadn_to_buf(f, sb->file_pos, buf, buf_len, err)) {
+      return false;
+    }
+
+    data_offset =
+        get_subblock_data_offset(buf, sizeof(struct zisraw_subblk_hdr), sb);
+    memset(buf, 0, buf_len);
+    if (!freadn_to_buf(f, sb->file_pos + data_offset, buf, buf_len, err)) {
+      return false;
+    }
+
+    if (_openslide_jxr_dim(buf, buf_len, &w, &h) &&
+        (w != sb->w || h != sb->h)) {
+      sb->w = w;
+      sb->h = h;
+    }
+  }
+  return true;
+}
+
 static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
                            GError **err) {
   const size_t len = sizeof(struct zisraw_dir_entry_dv);
@@ -1435,6 +1469,20 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
   if (!parse_xml_set_prop(osr, czi, xml, err)) {
+    return false;
+  }
+
+  /* The tile size stored in subblock directory entry may be wrong if
+   * compressed with JPEG XR. See
+   * https://forum.image.sc/t/would-anyone-have-a-palm-czi-example-file/85900/11
+   *
+   * Parsing tile size from JXR image stream generates lots of small random
+   * reads, which slows down CZI file opening significantly, if the slide
+   * file is not on a fast storage.
+   *
+   * Only do it if ZEN software version < 2.0 (a wild guess).
+   */
+  if (czi->zen_version < 2000 && !read_tile_size_from_jxr(f, czi, err)) {
     return false;
   }
 
