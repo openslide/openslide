@@ -41,7 +41,6 @@
 #include <string.h>
 
 #define CZI_GUID_LEN 16
-#define CZI_SUBBLK_HDR_LEN 288
 
 static const char SID_ZISRAWATTDIR[] = "ZISRAWATTDIR";
 static const char SID_ZISRAWDIRECTORY[] = "ZISRAWDIRECTORY";
@@ -247,6 +246,7 @@ struct czi_subblk {
   int64_t downsample_i;
   int32_t pixel_type;
   int32_t compression;
+  int32_t dir_entry_len;
   // higher z-index overlaps a lower z-index
   int32_t x, y, z;
   uint32_t w, h;
@@ -485,6 +485,17 @@ static bool czi_read_jxr(struct _openslide_file *f, int64_t pos, int64_t len,
   return _openslide_jxr_decode_buf(file_data, len, dst, dst_len, err);
 }
 
+/* get data offset by parsing a buffer contains subblock header */
+static int64_t get_subblock_data_offset(char *buf, size_t len,
+                                        struct czi_subblk *sb) {
+  g_assert(len >= sizeof(struct zisraw_subblk_hdr));
+  struct zisraw_subblk_hdr *hdr = (struct zisraw_subblk_hdr *) buf;
+  int64_t n = MAX(256 - 16 - sb->dir_entry_len, 0);
+  int64_t offset_meta = MAX(256, n);
+  return sizeof(struct zisraw_seg_hdr) + offset_meta +
+         GINT32_FROM_LE(hdr->meta_size);
+}
+
 // dst must be sb->w * sb->h * 4 bytes
 static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
                         struct czi_subblk *sb, uint32_t *dst, GError **err) {
@@ -498,8 +509,8 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
     return false;
   }
 
-  int64_t data_pos = zisraw_offset + sb->file_pos + CZI_SUBBLK_HDR_LEN +
-                     GINT32_FROM_LE(hdr.meta_size);
+  int64_t data_pos = zisraw_offset + sb->file_pos +
+                     get_subblock_data_offset((char *) &hdr, sizeof(hdr), sb);
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   switch (sb->compression) {
   case COMP_NONE:
@@ -697,6 +708,9 @@ static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
       return false;
     }
   }
+
+  sb->dir_entry_len = sizeof(struct zisraw_dir_entry_dv) + ndim * 20;
+
   if (!sb->w || !sb->h) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Missing X or Y dimension in directory entry");
