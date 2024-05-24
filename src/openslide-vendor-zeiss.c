@@ -31,6 +31,7 @@
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
+#include "openslide-image.h"
 
 #include <glib.h>
 #include <math.h>
@@ -338,26 +339,6 @@ static bool check_magic(const void *found, const char *expected,
   return true;
 }
 
-static void bgr24_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
-  // one 24-bit pixel at a time
-  for (size_t i = 0; i < src_len; i += 3, src += 3) {
-    *dst++ = (0xFF000000 |
-              (uint32_t)(src[0]) |
-              ((uint32_t)(src[1]) << 8) |
-              ((uint32_t)(src[2]) << 16));
-  }
-}
-
-static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
-  // one 48-bit pixel at a time
-  for (size_t i = 0; i < src_len; i += 6, src += 6) {
-    *dst++ = (0xFF000000 |
-              (uint32_t)(src[1]) |
-              ((uint32_t)(src[3]) << 8) |
-              ((uint32_t)(src[5]) << 16));
-  }
-}
-
 static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
                          int32_t compression, int32_t pixel_type,
                          uint32_t *dst, int32_t w, int32_t h,
@@ -367,11 +348,11 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
   int bytes_per_pixel;
   switch (pixel_type) {
   case PT_BGR24:
-    convert = bgr24_to_argb32;
+    convert = _openslide_bgr24_to_argb32;
     bytes_per_pixel = 3;
     break;
   case PT_BGR48:
-    convert = bgr48_to_argb32;
+    convert = _openslide_bgr48_to_argb32;
     bytes_per_pixel = 6;
     break;
   default:
