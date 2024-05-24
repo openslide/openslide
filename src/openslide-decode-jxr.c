@@ -135,12 +135,12 @@ bool _openslide_jxr_decode_buf(const void *src, int64_t src_len, uint32_t *dst,
   uint32_t stride =
       rect.Width *
       ((MAX(get_bits_per_pixel(&fmt), get_bits_per_pixel(&fmt_out)) + 7) / 8);
-  size_t unjxr_len = stride * rect.Height;
+  int64_t unjxr_len = stride * rect.Height;
   unjxr = g_try_malloc(unjxr_len);
   if (!unjxr) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't allocate %" PRId64 " bytes for decoding JXR",
-                dst_len);
+                unjxr_len);
     return false;
   }
 
