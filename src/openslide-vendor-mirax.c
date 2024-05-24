@@ -415,7 +415,7 @@ static char *read_string_from_file(struct _openslide_file *f, int len) {
   g_autofree char *str = g_malloc(len + 1);
   str[len] = '\0';
 
-  if (_openslide_fread(f, str, len) != (size_t) len) {
+  if (!_openslide_fread_exact(f, str, len, NULL)) {
     return NULL;
   }
   return g_steal_pointer(&str);
@@ -423,7 +423,7 @@ static char *read_string_from_file(struct _openslide_file *f, int len) {
 
 static bool read_le_int32_from_file_with_result(struct _openslide_file *f,
                                                 int32_t *OUT) {
-  if (_openslide_fread(f, OUT, 4) != 4) {
+  if (!_openslide_fread_exact(f, OUT, 4, NULL)) {
     return false;
   }
 
@@ -911,9 +911,8 @@ static void *read_record_data(const char *path,
   }
 
   g_autofree void *buffer = g_malloc(size);
-  if (_openslide_fread(f, buffer, size) != (size_t) size) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Error while reading data");
+  if (!_openslide_fread_exact(f, buffer, size, err)) {
+    g_prefix_error(err, "Error while reading data: ");
     return NULL;
   }
 

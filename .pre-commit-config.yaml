@@ -130,7 +130,7 @@ repos:
       # atof                  _openslide_parse_double
       # fclose                _openslide_fclose
       # fopen                 _openslide_fopen
-      # fread                 _openslide_fread
+      # fread                 _openslide_fread or _openslide_fread_exact
       # fseeko                _openslide_fseek
       # fseek                 _openslide_fseek
       # ftello                _openslide_ftell

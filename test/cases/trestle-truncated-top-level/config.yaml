@@ -1,5 +1,5 @@
 base: Trestle/CMU-1.zip
-error: "^Cannot hash TIFF tiles: Can't read from .*CMU-1.tif$"
+error: "^Cannot hash TIFF tiles: Short read of file .*CMU-1.tif: 0 < 4096$"
 slide: CMU-1.tif
 success: false
 vendor: trestle

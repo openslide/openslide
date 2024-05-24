@@ -103,10 +103,13 @@ static int64_t vfs_read(DcmError **dcm_error, DcmIO *io,
   GError *tmp_err = NULL;
   if (!ensure_file(dio, &tmp_err)) {
     propagate_gerror(dcm_error, tmp_err);
-    return 0;
+    return -1;
   }
-  // openslide VFS has no error return for read()
-  int64_t count = _openslide_fread(dio->file, buffer, length);
+  int64_t count = _openslide_fread(dio->file, buffer, length, &tmp_err);
+  if (tmp_err) {
+    propagate_gerror(dcm_error, tmp_err);
+    return -1;
+  }
   dio->offset += count;
   return count;
 }
