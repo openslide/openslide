@@ -168,9 +168,8 @@ enum OpenSlideHamamatsuError {
   // JPEG does not contain restart markers
   OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
 };
-static GQuark _openslide_hamamatsu_error_quark(void) {
-  return g_quark_from_string("openslide-hamamatsu-error-quark");
-}
+static G_DEFINE_QUARK(openslide-hamamatsu-error-quark,
+                      _openslide_hamamatsu_error)
 #define OPENSLIDE_HAMAMATSU_ERROR _openslide_hamamatsu_error_quark()
 
 /*
