@@ -23,7 +23,6 @@
 #define OPENSLIDE_OPENSLIDE_DECODE_TIFFLIKE_H_
 
 #include "openslide-private.h"
-#include "openslide-hash.h"
 
 #include <stdio.h>
 #include <stdint.h>

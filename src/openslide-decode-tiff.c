@@ -36,8 +36,6 @@
 #include <math.h>
 #include <cairo.h>
 
-#include "openslide-hash.h"
-
 #define HANDLE_CACHE_MAX 32
 
 struct _openslide_tiffcache {
