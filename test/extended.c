@@ -50,6 +50,39 @@ static void test_image_fetch(openslide_t *osr,
                        x, y, w, h);
 }
 
+static void test_read_associated_images(openslide_t *osr) {
+  const char * const *associated_image_names =
+    openslide_get_associated_image_names(osr);
+  common_fail_on_error(osr, "Listing associated images failed");
+  while (*associated_image_names) {
+    int64_t w, h;
+    const char *name = *associated_image_names;
+    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+
+    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
+    openslide_read_associated_image(osr, name, buf);
+
+    int64_t icc_len =
+      openslide_get_associated_image_icc_profile_size(osr, name);
+    if (icc_len >= 0) {
+      g_autofree void *buf = g_malloc(icc_len);
+      openslide_read_associated_image_icc_profile(osr, name, buf);
+    }
+
+    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
+    associated_image_names++;
+  }
+}
+
+static void test_read_icc_profile(openslide_t *osr) {
+  int64_t icc_len = openslide_get_icc_profile_size(osr);
+  if (icc_len >= 0) {
+    g_autofree void *buf = g_malloc(icc_len);
+    openslide_read_icc_profile(osr, buf);
+  }
+  common_fail_on_error(osr, "Reading ICC profile failed");
+}
+
 #if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
 static gint leak_test_running;  /* atomic ops only */
 
@@ -263,36 +296,9 @@ int main(int argc, char **argv) {
     common_fail("quickhash-1 exists but no data was hashed");
   }
 
-  // read associated images
-  const char * const *associated_image_names =
-    openslide_get_associated_image_names(osr);
-  common_fail_on_error(osr, "Listing associated images failed");
-  while (*associated_image_names) {
-    int64_t w, h;
-    const char *name = *associated_image_names;
-    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+  test_read_associated_images(osr);
 
-    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
-    openslide_read_associated_image(osr, name, buf);
-
-    int64_t icc_len =
-      openslide_get_associated_image_icc_profile_size(osr, name);
-    if (icc_len >= 0) {
-      g_autofree void *buf = g_malloc(icc_len);
-      openslide_read_associated_image_icc_profile(osr, name, buf);
-    }
-
-    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
-    associated_image_names++;
-  }
-
-  // read ICC profile
-  int64_t icc_len = openslide_get_icc_profile_size(osr);
-  if (icc_len >= 0) {
-    g_autofree void *buf = g_malloc(icc_len);
-    openslide_read_icc_profile(osr, buf);
-  }
-  common_fail_on_error(osr, "Reading ICC profile failed");
+  test_read_icc_profile(osr);
 
   test_image_fetch(osr, -10, -10, 200, 200);
   test_image_fetch(osr, w/2, h/2, 500, 500);
