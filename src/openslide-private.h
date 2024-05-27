@@ -218,7 +218,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)
 struct _openslide_dir;
 
 struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err);
-const char *_openslide_dir_next(struct _openslide_dir *d);
+const char *_openslide_dir_next(struct _openslide_dir *d, GError **err);
 void _openslide_dir_close(struct _openslide_dir *d);
 
 typedef struct _openslide_dir _openslide_dir;

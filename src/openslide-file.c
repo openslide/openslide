@@ -42,6 +42,7 @@ struct _openslide_file {
 
 struct _openslide_dir {
   GDir *dir;
+  char *path;
 };
 
 static void wrap_fclose(FILE *fp) {
@@ -214,16 +215,23 @@ struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {
   if (!d->dir) {
     return NULL;
   }
+  d->path = g_strdup(dirname);
   return g_steal_pointer(&d);
 }
 
-const char *_openslide_dir_next(struct _openslide_dir *d) {
-  return g_dir_read_name(d->dir);
+const char *_openslide_dir_next(struct _openslide_dir *d, GError **err) {
+  errno = 0;
+  const char *ret = g_dir_read_name(d->dir);
+  if (!ret && errno) {
+    io_error(err, "Reading directory %s", d->path);
+  }
+  return ret;
 }
 
 void _openslide_dir_close(struct _openslide_dir *d) {
   if (d->dir) {
     g_dir_close(d->dir);
   }
+  g_free(d->path);
   g_free(d);
 }
