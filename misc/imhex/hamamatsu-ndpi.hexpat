@@ -14,7 +14,7 @@ import type.magic;
 struct TIFFHeader {
     type::Magic<"II"> Magic;
     type::Magic<"\x2a\0"> Version;
-    u32 Offset;
+    u64 Offset;
 };
 
 enum TIFFFieldType : u16 {
@@ -66,6 +66,7 @@ enum TIFFTag : u16 {
     YOffsetFromSlideCentre = 0xff8f,
     ZOffsetFromSlideCentre = 0xff90,
     OptimisationLow = 0xff92,
+    OptimisationHigh = 0xff98,
     SerialNumber = 0xffa2,
     NDPIMetadata = 0xffa9,
 };
@@ -80,12 +81,26 @@ struct ValueArray<T, auto Count> {
 } [[inline]];
 
 struct ValueOffset<T, auto Count> {
+    u32 ValueOffsetHigh @ addressof(parent.parent) + 12 * parent.parent.NumberDirectoryEntries + 4 * std::core::array_index() + 10;
     u64 Size = sizeof(T) * Count;
-    if (Size <= 4) {
-        ValueArray<T, Count> ValueArray;
-        padding[4 - Size];
+    // 0xffb3 (ASCII) is an offset even when the value fits in 4 bytes
+    if (Size <= 4 && parent.Tag != 0xffb3) {
+        // no simple way to append two separate byte arrays into a
+        // ValueArray, so support the case we care about (StripOffsets and
+        // StripByteCounts) and don't support value extensions on inline
+        // values otherwise
+        if (parent.Type == TIFFFieldType::LONG && Count == 1) {
+            u32 ValueOffsetLow;
+            u64 Value = (ValueOffsetHigh << 32) | ValueOffsetLow [[export]];
+        } else if (ValueOffsetHigh) {
+            std::error(std::format("Unsupported value offset extension in tag {}", parent.Tag));
+        } else {
+            ValueArray<T, Count> ValueArray;
+            padding[4 - Size];
+        }
     } else {
-        u32 Offset;
+        u32 ValueOffsetLow;
+        u64 Offset = (ValueOffsetHigh << 32) | ValueOffsetLow [[export]];
         ValueArray<T, Count> ValueArray @ Offset;
     }
 } [[inline]];
@@ -129,17 +144,16 @@ struct IFD {
     u64 Number = currentIFD;
     u16 NumberDirectoryEntries;
     IFDEntry DirectoryEntry[NumberDirectoryEntries];
-    u32 NextIFD;
+    u64 NextIFD;
 
     try {
         u64 OffsetField = get_field(DirectoryEntry, TIFFTag::StripOffsets);
         u64 ByteCountField = get_field(DirectoryEntry, TIFFTag::StripByteCounts);
-        u64 Count = std::core::member_count(DirectoryEntry[OffsetField].ValueOffset.ValueArray.Values);
-        if (Count != 1) {
-            std::warning(std::format("IFD {} strip count {} != 1", currentIFD, Count));
+        if (DirectoryEntry[OffsetField].Count != 1) {
+            std::warning(std::format("IFD {} strip count {} != 1", currentIFD, DirectoryEntry[OffsetField].Count));
         }
-        u64 Offset = DirectoryEntry[OffsetField].ValueOffset.ValueArray.Value;
-        u64 ByteCount = DirectoryEntry[ByteCountField].ValueOffset.ValueArray.Value;
+        u64 Offset = DirectoryEntry[OffsetField].ValueOffset.Value;
+        u64 ByteCount = DirectoryEntry[ByteCountField].ValueOffset.Value;
         std::mem::Bytes<ByteCount> ImageData @ Offset;
     } catch {}
 } [[name(std::format("IFD {}", Number))]];
