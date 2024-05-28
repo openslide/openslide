@@ -2236,19 +2236,14 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
             _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW, NULL);
           const uint64_t *unreliable_mcu_starts_high =
             _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH, NULL);
-          if (unreliable_mcu_starts_low && unreliable_mcu_starts_high) {
+          if (unreliable_mcu_starts_low) {
             jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
             for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+              uint64_t start_high = unreliable_mcu_starts_high ?
+                (unreliable_mcu_starts_high[tile] << 32) : 0;
               jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file + unreliable_mcu_starts_low[tile] +
-                (unreliable_mcu_starts_high[tile] << 32);
-              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
-            }
-          } else if (unreliable_mcu_starts_low) {
-            jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
-            for (int64_t tile = 0; tile < mcu_start_count; tile++) {
-              jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file + unreliable_mcu_starts_low[tile];
+                jp->start_in_file +
+                (unreliable_mcu_starts_low[tile] | start_high);
               //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
             }
           } else {
