@@ -61,6 +61,13 @@ enum TIFFTag : u16 {
     DateTime = 0x0132,
     YCbCrSubSampling = 0x0212,
     ReferenceBlackWhite = 0x0214,
+    SourceLens = 0xff8d,
+    XOffsetFromSlideCentre = 0xff8e,
+    YOffsetFromSlideCentre = 0xff8f,
+    ZOffsetFromSlideCentre = 0xff90,
+    OptimisationLow = 0xff92,
+    SerialNumber = 0xffa2,
+    NDPIMetadata = 0xffa9,
 };
 
 struct ValueArray<T, auto Count> {
