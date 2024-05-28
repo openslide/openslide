@@ -41,7 +41,7 @@ jobs:
             extra: extra checks
             sanitize: sanitize
           - os: ubuntu-latest
-            container: quay.io/centos/centos:stream8
+            container: quay.io/almalinuxorg/almalinux:8
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
@@ -94,14 +94,14 @@ jobs:
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
-            *fedora*|*centos*)
+            *fedora*|*centos*|*almalinux*)
                 pyver=3
                 . /etc/os-release
                 case "$VERSION_ID" in
-                8)
+                8.*)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
-                    dnf install -y epel-release epel-next-release
+                    dnf install -y epel-release
                     pyver=38
                     pydotver=3.8
                     python=python38
