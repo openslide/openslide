@@ -428,6 +428,29 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
                                    OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(tiff_item_destroy));
   d->offset = off;
 
+  // preload NDPI value extensions
+  g_autofree uint8_t *ndpi_value_ext = NULL;
+  if (ndpi) {
+    ndpi_value_ext = g_try_malloc(4 * dircount);
+    if (!ndpi_value_ext) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't allocate for value/offset extensions");
+      return NULL;
+    }
+    if (!_openslide_fseek(f, 12 * dircount + 8, SEEK_CUR, err)) {
+      g_prefix_error(err, "Cannot seek to value/offset extensions: ");
+      return NULL;
+    }
+    if (!_openslide_fread_exact(f, ndpi_value_ext, 4 * dircount, err)) {
+      g_prefix_error(err, "Cannot read value/offset extensions: ");
+      return NULL;
+    }
+    if (!_openslide_fseek(f, off + 2, SEEK_SET, err)) {
+      g_prefix_error(err, "Cannot seek back to directory: ");
+      return NULL;
+    }
+  }
+
   // read all directory entries
   for (uint64_t n = 0; n < dircount; n++) {
     uint16_t tag = read_uint(f, 2, big_endian, &ok);
@@ -479,18 +502,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     // of the IFD
     // append this to the current value/offset
     if (ndpi) {
-      // seek to value/offset extension
-      if (!_openslide_fseek(f, off + (12L * dircount) + (4L * n) + 10L,
-                            SEEK_SET, err)) {
-        g_prefix_error(err, "Cannot seek to value/offset extension: ");
-        return NULL;
-      }
-
-      // read in the value/offset extension
-      if (!_openslide_fread_exact(f, value + 4, 4, err)) {
-        g_prefix_error(err, "Cannot read value/offset extension: ");
-        return NULL;
-      }
+      g_assert(ndpi_value_ext);
+      memcpy(value + 4, ndpi_value_ext + 4 * n, 4);
 
       // if the value/offset contains the value and the extension is
       // nonzero, update the value size and item type
@@ -498,12 +511,6 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
           (value[4] > 0 || value[5] > 0 || value[6] > 0 || value[7] > 0)) {
         value_size = 8;
         item->type = TIFF_LONG8;
-      }
-
-      // seek back to the tag's position in the IFD
-      if (!_openslide_fseek(f, off + (12L * (n + 1)) + 2L, SEEK_SET, err)) {
-        g_prefix_error(err, "Seeking back to IFD failed: ");
-        return NULL;
       }
     }
 
