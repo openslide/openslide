@@ -1,0 +1,7 @@
+base: Zeiss/Zeiss-5-Uncompressed.czi
+error: "^Can't read 5065898 pixels into a 2056x2464 image$"
+slide: Zeiss-5-Uncompressed.czi
+success: false
+vendor: zeiss
+regions:
+  - [0, 0, 0, 100, 100]

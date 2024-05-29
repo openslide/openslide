@@ -37,10 +37,12 @@
 
 struct _openslide_file {
   FILE *fp;
+  char *path;
 };
 
 struct _openslide_dir {
   GDir *dir;
+  char *path;
 };
 
 static void wrap_fclose(FILE *fp) {
@@ -119,27 +121,49 @@ struct _openslide_file *_openslide_fopen(const char *path, GError **err)
 
   struct _openslide_file *file = g_new0(struct _openslide_file, 1);
   file->fp = g_steal_pointer(&f);
+  file->path = g_strdup(path);
   return file;
 }
 
-size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size) {
+// returns 0/NULL on EOF and 0/non-NULL on I/O error
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size,
+                        GError **err) {
   char *bufp = buf;
   size_t total = 0;
   while (total < size) {
     size_t count = fread(bufp + total, 1, size - total, file->fp);  // ci-allow
     if (count == 0) {
-      return total;
+      break;
     }
     total += count;
   }
+  if (total == 0 && ferror(file->fp)) {
+    g_set_error(err, G_FILE_ERROR, G_FILE_ERROR_IO,
+                "I/O error reading file %s", file->path);
+  }
   return total;
+}
+
+bool _openslide_fread_exact(struct _openslide_file *file,
+                            void *buf, size_t size, GError **err) {
+  GError *tmp_err = NULL;
+  size_t count = _openslide_fread(file, buf, size, &tmp_err);
+  if (tmp_err) {
+    g_propagate_error(err, tmp_err);
+    return false;
+  } else if (count < size) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Short read of file %s: %"PRIu64" < %"PRIu64,
+                file->path, (uint64_t) count, (uint64_t) size);
+    return false;
+  }
+  return true;
 }
 
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err) {
   if (fseeko(file->fp, offset, whence)) {  // ci-allow
-    g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "%s", g_strerror(errno));
+    io_error(err, "Couldn't seek file %s", file->path);
     return false;
   }
   return true;
@@ -148,8 +172,7 @@ bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
 off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
   off_t ret = ftello(file->fp);  // ci-allow
   if (ret == -1) {
-    g_set_error(err, G_FILE_ERROR, g_file_error_from_errno(errno),
-                "%s", g_strerror(errno));
+    io_error(err, "Couldn't get offset of %s", file->path);
   }
   return ret;
 }
@@ -157,16 +180,20 @@ off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
 off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
   off_t orig = _openslide_ftell(file, err);
   if (orig == -1) {
+    g_prefix_error(err, "Couldn't get size: ");
     return -1;
   }
   if (!_openslide_fseek(file, 0, SEEK_END, err)) {
+    g_prefix_error(err, "Couldn't get size: ");
     return -1;
   }
   off_t ret = _openslide_ftell(file, err);
   if (ret == -1) {
+    g_prefix_error(err, "Couldn't get size: ");
     return -1;
   }
   if (!_openslide_fseek(file, orig, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't get size: ");
     return -1;
   }
   return ret;
@@ -174,6 +201,7 @@ off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
 
 void _openslide_fclose(struct _openslide_file *file) {
   fclose(file->fp);  // ci-allow
+  g_free(file->path);
   g_free(file);
 }
 
@@ -187,16 +215,23 @@ struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err) {
   if (!d->dir) {
     return NULL;
   }
+  d->path = g_strdup(dirname);
   return g_steal_pointer(&d);
 }
 
-const char *_openslide_dir_next(struct _openslide_dir *d) {
-  return g_dir_read_name(d->dir);
+const char *_openslide_dir_next(struct _openslide_dir *d, GError **err) {
+  errno = 0;
+  const char *ret = g_dir_read_name(d->dir);
+  if (!ret && errno) {
+    io_error(err, "Reading directory %s", d->path);
+  }
+  return ret;
 }
 
 void _openslide_dir_close(struct _openslide_dir *d) {
   if (d->dir) {
     g_dir_close(d->dir);
   }
+  g_free(d->path);
   g_free(d);
 }

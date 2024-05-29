@@ -303,8 +303,14 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
   if (f == NULL) {
     return false;
   }
-  if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
+  return _openslide_jpeg_read_file_dimensions(f, offset, w, h, err);
+}
+
+bool _openslide_jpeg_read_file_dimensions(struct _openslide_file *f,
+                                          int64_t offset,
+                                          int32_t *w, int32_t *h,
+                                          GError **err) {
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     return false;
   }
 
@@ -375,8 +381,15 @@ bool _openslide_jpeg_read(const char *filename,
   if (f == NULL) {
     return false;
   }
-  if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
+  return _openslide_jpeg_read_file(f, offset, dest, w, h, err);
+}
+
+bool _openslide_jpeg_read_file(struct _openslide_file *f,
+                               int64_t offset,
+                               uint32_t *dest,
+                               int32_t w, int32_t h,
+                               GError **err) {
+  if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     return false;
   }
 

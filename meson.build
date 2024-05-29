@@ -105,6 +105,7 @@ endforeach
 # Dependencies
 feature_flags = []
 zlib_dep       = dependency('zlib')
+zstd_dep       = dependency('libzstd')
 jpeg_dep       = dependency('libjpeg')
 png_dep        = dependency('libpng', version : '>1.2')
 openjpeg_dep   = dependency('libopenjp2', version : '>=2.1.0')
@@ -148,27 +149,6 @@ if glib_dep.type_name() != 'internal'
   # glib only offers autoptr macros when the compiler supports them.
   if not cc.has_header_symbol('glib.h', 'g_autofree', dependencies : glib_dep)
     error('OpenSlide requires the GNU C "cleanup" attribute.')
-  endif
-endif
-
-# Test configuration
-test_cflags = declare_dependency()
-if not get_option('test').disabled() and not get_option('check_windows_abi_compat').disabled()
-  # gcc assumes Win32 stack frames are 16-byte-aligned by default, but the
-  # Win32 ABI only requires 4-byte alignment.  If gcc emits aligned SSE
-  # instructions that access the stack, this can cause GPFs if we're called by
-  # a program compiled by a different compiler such as MSVC.  The user is
-  # responsible for choosing compiler options appropriate for their desired
-  # ABI, but this is a sufficiently insidious error that it's worth checking
-  # in the test suite by default.  We do that by compiling the test programs
-  # with 4-byte stack alignment on Win32.  We allow the user to disable that
-  # behavior, however, in case they don't care about ABI compatibility with
-  # other compilers.
-  if host_machine.system() == 'windows' and host_machine.cpu_family() == 'x86'
-    message('Configuring tests with 4-byte stack alignment')
-    test_cflags = declare_dependency(
-      compile_args : cc.get_supported_arguments('-mpreferred-stack-boundary=2'),
-    )
   endif
 endif
 

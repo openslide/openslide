@@ -563,7 +563,7 @@ static tsize_t tiff_do_read(thandle_t th, tdata_t buf, tsize_t size) {
     }
     hdl->f = g_steal_pointer(&f);
   }
-  int64_t rsize = _openslide_fread(hdl->f, buf, size);
+  int64_t rsize = _openslide_fread(hdl->f, buf, size, NULL);
   hdl->offset += rsize;
   return rsize;
 }
@@ -649,7 +649,6 @@ static TIFF *tiff_open(struct _openslide_tiffcache *tc, GError **err) {
   // get size
   int64_t size = _openslide_fsize(f, err);
   if (size == -1) {
-    g_prefix_error(err, "Couldn't get size of %s: ", tc->filename);
     return NULL;
   }
 

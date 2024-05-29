@@ -127,7 +127,7 @@ static struct gdkpixbuf_ctx *gdkpixbuf_ctx_new(const char *format,
 }
 
 static bool gdkpixbuf_read(const char *format,
-                           size_t (*read_callback)(void *out, void *in, size_t size),
+                           size_t (*read_callback)(void *out, void *in, size_t size, GError **err),
                            void *callback_data,
                            uint64_t length,
                            uint32_t *dest,
@@ -148,10 +148,15 @@ static bool gdkpixbuf_read(const char *format,
   // read data
   g_autofree void *buf = g_malloc(BUFSIZE);
   while (length) {
-    size_t count = read_callback(buf, callback_data, MIN(length, BUFSIZE));
-    if (!count) {
+    GError *tmp_err = NULL;
+    size_t count =
+      read_callback(buf, callback_data, MIN(length, BUFSIZE), &tmp_err);
+    if (tmp_err) {
+      g_propagate_prefixed_error(err, tmp_err, "Loading pixbuf: ");
+      return false;
+    } else if (!count) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Short read loading pixbuf");
+                  "EOF loading pixbuf");
       return false;
     }
     if (!gdk_pixbuf_loader_write(ctx->loader, buf, count, err)) {
@@ -189,8 +194,9 @@ static bool gdkpixbuf_read(const char *format,
   return true;
 }
 
-static size_t file_read_callback(void *out, void *in, size_t size) {
-  return _openslide_fread(in, out, size);
+static size_t file_read_callback(void *out, void *in, size_t size,
+                                 GError **err) {
+  return _openslide_fread(in, out, size, err);
 }
 
 bool _openslide_gdkpixbuf_read(const char *format,
@@ -205,7 +211,6 @@ bool _openslide_gdkpixbuf_read(const char *format,
     return false;
   }
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't fseek %s: ", filename);
     return false;
   }
   return gdkpixbuf_read(format, file_read_callback, f, length,
@@ -218,7 +223,8 @@ struct mem {
   size_t len;
 };
 
-static size_t mem_read_callback(void *out, void *in, size_t size) {
+static size_t mem_read_callback(void *out, void *in, size_t size,
+                                GError **err G_GNUC_UNUSED) {
   struct mem *mem = in;
   size_t count = MIN(size, mem->len - mem->off);
   memcpy(out, mem->buf + mem->off, count);

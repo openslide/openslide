@@ -41,7 +41,7 @@ jobs:
             extra: extra checks
             sanitize: sanitize
           - os: ubuntu-latest
-            container: quay.io/centos/centos:stream8
+            container: quay.io/almalinuxorg/almalinux:8
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
@@ -55,7 +55,8 @@ jobs:
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
-          - os: macos-14
+          - os: ubuntu-24.04
+          - os: macos-latest
             sanitize: sanitize
     steps:
     - name: Install dependencies
@@ -72,6 +73,7 @@ jobs:
             brew install \
                 meson pkg-config \
                 zlib \
+                zstd \
                 libpng \
                 jpeg-turbo \
                 libtiff \
@@ -92,14 +94,14 @@ jobs:
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
-            *fedora*|*centos*)
+            *fedora*|*centos*|*almalinux*)
                 pyver=3
                 . /etc/os-release
                 case "$VERSION_ID" in
-                8)
+                8.*)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
-                    dnf install -y epel-release epel-next-release
+                    dnf install -y epel-release
                     pyver=38
                     pydotver=3.8
                     python=python38
@@ -120,6 +122,7 @@ jobs:
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
+                    libzstd-devel \
                     libpng-devel \
                     libjpeg-turbo-devel \
                     libtiff-devel \
@@ -158,6 +161,7 @@ jobs:
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
                     zlib1g-dev$arch \
+                    libzstd-dev$arch \
                     libpng-dev$arch \
                     $jpeg$arch \
                     libtiff-dev$arch \

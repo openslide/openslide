@@ -1,5 +1,5 @@
 base: Hamamatsu-vms/CMU-1.zip
-error: "^Can't validate JPEG 3: Couldn't read JPEG marker length at 20$"
+error: "^Can't validate JPEG 3: Couldn't read JPEG marker length at 20: Short read of file .*\\(1,1\\).jpg: 0 < 2$"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false
 vendor: hamamatsu

@@ -2,7 +2,6 @@ test_deps = [
   declare_dependency(
     include_directories : config_h_include,
   ),
-  test_cflags,
   openslide_dep,
   openslide_common_dep,
   glib_dep,

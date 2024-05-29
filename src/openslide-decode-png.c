@@ -187,7 +187,8 @@ static bool png_read(png_rw_ptr read_callback, void *callback_data,
 
 static void file_read_callback(png_struct *png, png_byte *buf, png_size_t len) {
   struct _openslide_file *f = png_get_io_ptr(png);
-  if (_openslide_fread(f, buf, len) != len) {
+  if (!_openslide_fread_exact(f, buf, len, NULL)) {
+    // passing a dynamic string would leak it
     png_error(png, "Read failed");
   }
 }
@@ -202,7 +203,6 @@ bool _openslide_png_read(const char *filename,
     return false;
   }
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't fseek %s: ", filename);
     return false;
   }
   return png_read(file_read_callback, f, dest, w, h, err);

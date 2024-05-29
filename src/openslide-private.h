@@ -149,6 +149,7 @@ extern const struct _openslide_format _openslide_format_sakura;
 extern const struct _openslide_format _openslide_format_synthetic;
 extern const struct _openslide_format _openslide_format_trestle;
 extern const struct _openslide_format _openslide_format_ventana;
+extern const struct _openslide_format _openslide_format_zeiss;
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
@@ -158,10 +159,20 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
                                 GError **err);
 
+void *_openslide_zstd_decompress_buffer(const void *src, int64_t src_len,
+                                        int64_t dst_len, GError **err);
+
 /* Compute the new offset after seeking a file with the specified initial
    offset and length. */
 int64_t _openslide_compute_seek(int64_t initial, int64_t length,
                                 int64_t offset, int whence);
+
+/* Parse string to int64_t, returning false on failure. */
+bool _openslide_parse_int64(const char *value, int64_t *result);
+
+/* Parse string to uint64_t, returning false on failure. */
+bool _openslide_parse_uint64(const char *value, uint64_t *result,
+                             unsigned base);
 
 /* Parse string to double, returning NAN on failure.  Accept both comma
    and period as decimal separator. */
@@ -191,7 +202,10 @@ bool _openslide_clip_tile(uint32_t *tiledata,
 struct _openslide_file;
 
 struct _openslide_file *_openslide_fopen(const char *path, GError **err);
-size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size);
+size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size,
+                        GError **err);
+bool _openslide_fread_exact(struct _openslide_file *file,
+                            void *buf, size_t size, GError **err);
 bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
                       GError **err);
 off_t _openslide_ftell(struct _openslide_file *file, GError **err);
@@ -205,7 +219,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_file, _openslide_fclose)
 struct _openslide_dir;
 
 struct _openslide_dir *_openslide_dir_open(const char *dirname, GError **err);
-const char *_openslide_dir_next(struct _openslide_dir *d);
+const char *_openslide_dir_next(struct _openslide_dir *d, GError **err);
 void _openslide_dir_close(struct _openslide_dir *d);
 
 typedef struct _openslide_dir _openslide_dir;
@@ -263,7 +277,7 @@ struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
                                                      GDestroyNotify destroy_tile);
 
 void _openslide_grid_range_add_tile(struct _openslide_grid *_grid,
-                                    double x, double y,
+                                    double x, double y, double z,
                                     double w, double h,
                                     void *data);
 
@@ -295,13 +309,15 @@ void _openslide_set_bounds_props_from_grid(openslide_t *osr,
 struct _openslide_cache_binding;
 struct _openslide_cache_entry;
 
+#define DEFAULT_CACHE_SIZE (1024*1024*32)
+
 // create/release
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_release(openslide_cache_t *cache);
 
 // binding a cache to an openslide_t
-struct _openslide_cache_binding *_openslide_cache_binding_create(void);
+struct _openslide_cache_binding *_openslide_cache_binding_create(uint64_t capacity_in_bytes);
 
 void _openslide_cache_binding_set(struct _openslide_cache_binding *cb,
                                   openslide_cache_t *cache);

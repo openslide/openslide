@@ -1100,7 +1100,8 @@ static bool dicom_open(openslide_t *osr,
 
   // scan for other DICOMs with this slide id
   const char *name;
-  while ((name = _openslide_dir_next(dir))) {
+  GError *dir_err = NULL;
+  while ((name = _openslide_dir_next(dir, &dir_err))) {
     // no need to add the start file again
     if (g_str_equal(name, basename)) {
       continue;
@@ -1130,6 +1131,10 @@ static bool dicom_open(openslide_t *osr,
       g_prefix_error(err, "Reading %s: ", path);
       return false;
     }
+  }
+  if (dir_err) {
+    g_propagate_error(err, dir_err);
+    return false;
   }
 
   if (level_array->len == 0) {
