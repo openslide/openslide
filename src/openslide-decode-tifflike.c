@@ -488,27 +488,26 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     }
 
     // read in the value/offset
-    uint8_t value[(bigtiff || ndpi) ? 8 : 4];
-    size_t read_size = (bigtiff ? 8 : 4);
-
+    uint8_t value[8];
+    size_t read_size = bigtiff ? 8 : 4;
     if (!_openslide_fread_exact(f, value, read_size, err)) {
       g_prefix_error(err, "Cannot read value/offset: ");
       return NULL;
     }
-
-    bool is_value = (value_len <= read_size);
+    bool is_value = value_len <= read_size;
 
     // in ndpi files all values/offsets have a 4 byte extension at the end
     // of the IFD
     // append this to the current value/offset
     if (ndpi) {
       g_assert(ndpi_value_ext);
-      memcpy(value + 4, ndpi_value_ext + 4 * n, 4);
+      uint32_t value_ext;
+      memcpy(&value_ext, ndpi_value_ext + 4 * n, sizeof(value_ext));
+      memcpy(value + 4, &value_ext, sizeof(value_ext));
 
       // if the value/offset contains the value and the extension is
       // nonzero, update the value size and item type
-      if (is_value &&
-          (value[4] > 0 || value[5] > 0 || value[6] > 0 || value[7] > 0)) {
+      if (is_value && value_ext) {
         value_size = 8;
         item->type = TIFF_LONG8;
       }
@@ -617,7 +616,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
   // initialize directory reading
   g_autoptr(GHashTable) loop_detector =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
-  struct tiff_directory *first_dir = NULL;
 
   // NDPI needs special quirks, since it is classic TIFF pretending to be
   // BigTIFF.  Enable NDPI mode if this is classic TIFF but the offset to
@@ -638,7 +636,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
         tl->ndpi = true;
         // save the parsed directory rather than reparsing it below
         g_ptr_array_add(tl->directories, d);
-        first_dir = d;
         diroff = trial_diroff;
       } else {
         // correctly parsed the directory in NDPI mode, but didn't find
@@ -670,9 +667,6 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
     // store result
     g_ptr_array_add(tl->directories, d);
-    if (!first_dir) {
-      first_dir = d;
-    }
   }
 
   // ensure there are directories
