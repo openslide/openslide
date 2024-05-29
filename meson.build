@@ -201,6 +201,10 @@ if not jxr_dep.found()
   endif
 endif
 
+if jxr_dep.found()
+  conf.set('HAVE_LIBJXR', 1)
+endif
+
 doxygen = find_program(
   'doxygen',
   required : get_option('doc'),
