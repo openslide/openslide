@@ -28,6 +28,7 @@
  *
  */
 
+#include <config.h>
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
@@ -470,6 +471,7 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
   return true;
 }
 
+#ifdef HAVE_LIBJXR
 static bool czi_read_jxr(struct _openslide_file *f, int64_t pos, int64_t len,
                          uint32_t *dst, int64_t dst_len, GError **err) {
   g_autofree uint8_t *file_data = g_try_malloc(len);
@@ -485,6 +487,7 @@ static bool czi_read_jxr(struct _openslide_file *f, int64_t pos, int64_t len,
 
   return _openslide_jxr_decode_buf(file_data, len, dst, dst_len, err);
 }
+#endif
 
 /* get data offset by parsing a buffer contains subblock header */
 static int64_t get_subblock_data_offset(char *buf, size_t len,
@@ -520,8 +523,12 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   case COMP_ZSTD1:
     return czi_read_raw(f, data_pos, data_size, sb->compression, sb->pixel_type,
                         dst, sb->w, sb->h, err);
+
+#ifdef HAVE_LIBJXR
   case COMP_JXR:
     return czi_read_jxr(f, data_pos, data_size, dst, sb->w * sb->h * 4, err);
+#endif
+
   default:
     g_assert_not_reached();
   }

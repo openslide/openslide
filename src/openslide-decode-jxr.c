@@ -24,11 +24,13 @@
 #include <string.h>
 #include <config.h>
 #include <glib.h>
-#include <JXRGlue.h>
 
 #include "openslide-private.h"
 #include "openslide-image.h"
 #include "openslide-decode-jxr.h"
+
+#ifdef HAVE_LIBJXR
+#include <JXRGlue.h>
 
 static struct wmp_err_msg {
   ERR id;
@@ -170,6 +172,8 @@ Cleanup:
 
   return (jerr < 0) ? false : true;
 }
+
+#endif  /* end of HAVE_LIBJXR */
 
 static bool short_header_flag(uint8_t *data) {
   return data[10] & 0x80;
