@@ -448,7 +448,6 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
                   "%"PRId64, pixel_bytes);
       return false;
     }
-    int64_t half_bytes = pixel_bytes / 2;
     unhilo_data = g_try_malloc(pixel_bytes);
     if (!unhilo_data) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -456,13 +455,7 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
                   pixel_bytes);
       return false;
     }
-    uint8_t *p = unhilo_data;
-    uint8_t *slo = src;
-    uint8_t *shi = src + half_bytes;
-    for (int64_t i = 0; i < half_bytes; i++) {
-      *p++ = *slo++;
-      *p++ = *shi++;
-    }
+    _openslide_restore_czi_zstd1(src, pixel_bytes, unhilo_data);
     src = unhilo_data;
   }
 

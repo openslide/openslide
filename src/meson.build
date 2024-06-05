@@ -42,6 +42,26 @@ install_headers(
 )
 
 # Library
+openslide_image_avx2_sources = [
+  'openslide-image-avx2.c',
+]
+libopenslide_image_avx2 = static_library('libopenslide_image_avx2',
+  openslide_image_avx2_sources,
+  c_args: c_args_avx2,
+  gnu_symbol_visibility : visibility,
+  include_directories : config_h_include,
+)
+
+openslide_image_ssse3_sources = [
+  'openslide-image-ssse3.c',
+]
+libopenslide_image_ssse3 = static_library('libopenslide_image_ssse3',
+  openslide_image_ssse3_sources,
+  c_args: c_args_ssse3,
+  gnu_symbol_visibility : visibility,
+  include_directories : config_h_include,
+)
+
 openslide_sources = [
   'openslide.c',
   'openslide-cache.c',
@@ -102,11 +122,16 @@ libopenslide = library('openslide',
     zstd_dep,
     libm_dep,
   ],
+  link_with: [libopenslide_image_ssse3, libopenslide_image_avx2],
   install : true,
 )
 openslide_dep = declare_dependency(
   include_directories : include_directories('.'),
-  link_with : libopenslide,
+  link_with : [
+    libopenslide,
+    libopenslide_image_ssse3,
+    libopenslide_image_avx2,
+  ]
 )
 import('pkgconfig').generate(
   libopenslide,
