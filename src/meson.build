@@ -66,6 +66,7 @@ openslide_sources = [
   'openslide-vendor-dicom.c',
   'openslide-vendor-generic-tiff.c',
   'openslide-vendor-hamamatsu.c',
+  'openslide-vendor-kfbio.c',
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
   'openslide-vendor-philips-tiff.c',
