@@ -29,17 +29,21 @@
 
 #include "openslide-common.h"
 
+static void set_synthetic_debug_flag(void *arg G_GNUC_UNUSED) {
+  putenv("OPENSLIDE_DEBUG=synthetic");
+}
+
 int main(int argc, char **argv) {
   common_fix_argv(&argc, &argv);
   if (argc < 2 || !g_str_equal(argv[1], "child")) {
-    putenv("OPENSLIDE_DEBUG=synthetic");
     // OpenSlide already evaluated debug flags, so we need to rerun
     // ourselves.  Do it in a cross-platform way.
     char *child_argv[] = {argv[0], "child", NULL};
     GError *tmp_err = NULL;
     int status;
     if (!g_spawn_sync(NULL, child_argv, NULL, G_SPAWN_SEARCH_PATH,
-                      NULL, NULL, NULL, NULL, &status, &tmp_err)) {
+                      set_synthetic_debug_flag, NULL, NULL, NULL, &status,
+                      &tmp_err)) {
       common_fail("Spawning child failed: %s", tmp_err->message);
     }
     if (!g_spawn_check_exit_status(status, NULL)) {
