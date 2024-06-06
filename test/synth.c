@@ -35,7 +35,7 @@ static void set_synthetic_debug_flag(void *arg G_GNUC_UNUSED) {
 
 int main(int argc, char **argv) {
   common_fix_argv(&argc, &argv);
-  if (argc < 2 || !g_str_equal(argv[1], "child")) {
+  if (argc < 2) {
     // OpenSlide already evaluated debug flags, so we need to rerun
     // ourselves.  Do it in a cross-platform way.
     char *child_argv[] = {argv[0], "child", NULL};
@@ -51,6 +51,8 @@ int main(int argc, char **argv) {
       return 1;
     }
     return 0;
+  } else if (!g_str_equal(argv[1], "child")) {
+    common_fail("Found unexpected argument");
   }
 
   // open
