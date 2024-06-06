@@ -31,6 +31,7 @@ foreach target : tools_binaries
       'slidetool-image.c',
       'slidetool-prop.c',
       'slidetool-slide.c',
+      'slidetool-test.c',
       'slidetool-util.c',
     ],
     include_directories : config_h_include,

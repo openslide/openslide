@@ -28,10 +28,6 @@ executable(
   'query', 'query.c',
   dependencies : test_deps,
 )
-test_synth = executable(
-  'synth', 'synth.c',
-  dependencies : test_deps,
-)
 executable(
   'try_open', 'try_open.c',
   dependencies : test_deps,
@@ -39,7 +35,10 @@ executable(
 )
 
 # Tests
-test('synth', test_synth)
+test(
+  'synth', slidetool,
+  args : ['test', 'deps']
+)
 
 # Driver
 configure_file(

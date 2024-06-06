@@ -1,7 +1,7 @@
 /*
  *  OpenSlide, a library for reading whole slide image files
  *
- *  Copyright (c) 2022 Benjamin Gilbert
+ *  Copyright (c) 2022-2024 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -19,26 +19,27 @@
  *
  */
 
+#include "openslide.h"
+#include "openslide-common.h"
+#include "slidetool.h"
+
 // for putenv
 #define _XOPEN_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
-#include <openslide.h>
-
-#include "openslide-common.h"
 
 static void set_synthetic_debug_flag(void *arg G_GNUC_UNUSED) {
   putenv("OPENSLIDE_DEBUG=synthetic");
 }
 
-int main(int argc, char **argv) {
-  common_fix_argv(&argc, &argv);
-  if (argc < 2) {
+static int do_test_deps(int narg, char **args) {
+  if (narg < 1) {
     // OpenSlide already evaluated debug flags, so we need to rerun
-    // ourselves.  Do it in a cross-platform way.
-    char *child_argv[] = {argv[0], "child", NULL};
+    // ourselves.  Do it in a cross-platform way.  args[-1] is the program's
+    // argv[0].
+    char *child_argv[] = {args[-1], "test", "deps", "child", NULL};
     GError *tmp_err = NULL;
     int status;
     if (!g_spawn_sync(NULL, child_argv, NULL, G_SPAWN_SEARCH_PATH,
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
       return 1;
     }
     return 0;
-  } else if (!g_str_equal(argv[1], "child")) {
+  } else if (!g_str_equal(args[0], "child")) {
     common_fail("Found unexpected argument");
   }
 
@@ -76,3 +77,19 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+static const struct command test_subcmds[] = {
+  {
+    .name = "deps",
+    .summary = "Verify that OpenSlide's dependencies work correctly",
+    .max_positional = 1,
+    .handler = do_test_deps,
+  },
+  {}
+};
+
+const struct command test_cmd = {
+  .name = "test",
+  .description = "Commands for testing OpenSlide.",
+  .subcommands = test_subcmds,
+};
