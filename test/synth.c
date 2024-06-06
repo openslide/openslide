@@ -36,11 +36,11 @@ int main(int argc, char **argv) {
     // OpenSlide already evaluated debug flags, so we need to rerun
     // ourselves.  Do it in a cross-platform way.
     char *child_argv[] = {argv[0], "child", NULL};
-    GError *err = NULL;
+    GError *tmp_err = NULL;
     int status;
     if (!g_spawn_sync(NULL, child_argv, NULL, G_SPAWN_SEARCH_PATH,
-                      NULL, NULL, NULL, NULL, &status, &err)) {
-      common_fail("Spawning child failed: %s", err->message);
+                      NULL, NULL, NULL, NULL, &status, &tmp_err)) {
+      common_fail("Spawning child failed: %s", tmp_err->message);
     }
     if (!g_spawn_check_exit_status(status, NULL)) {
       // child already reported the error
