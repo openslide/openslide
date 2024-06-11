@@ -126,6 +126,50 @@ dicom_dep      = dependency(
 )
 valgrind_dep   = dependency('valgrind', required : false)
 
+jxr_dep        = dependency('libjxr', required: false)
+if not jxr_dep.found()
+  # called jxrlib on macOS
+  jxr_dep      = dependency('jxrlib', required: false)
+endif
+
+# Workaround for Debian < Bookworm, Ubuntu < 22.04LTS, and Fedora. They miss
+# pkg-config file
+if not jxr_dep.found()
+  fs = import('fs')
+  jxr_includedirs = ['/usr/include/jxrlib/']  # Linux
+  has_jxr_includedir = false
+  foreach d: jxr_includedirs
+    if not fs.is_dir(d)
+      continue
+    endif
+
+    if cc.has_header('JXRGlue.h', include_directories: include_directories(d))
+      jxr_includedir = d
+      has_jxr_includedir = true
+      break
+    endif
+  endforeach
+
+  jxr_libdirs = ['/usr/lib/i386-linux-gnu/',
+                 '/usr/lib/x86_64-linux-gnu/',
+                 '/usr/lib/lib64/',
+                 '/usr/lib64/'
+                ]
+  jxr_lib_dep = cc.find_library('jxrglue', dirs: jxr_libdirs, required: false)
+  if has_jxr_includedir and jxr_lib_dep.found()
+    jxr_dep = declare_dependency(
+      compile_args: ['-D__ANSI__', '-DDISABLE_PERF_MEASUREMENT'],
+      include_directories: [jxr_includedir],
+      dependencies: jxr_lib_dep,
+      link_args : ['-ljpegxr', '-ljxrglue']
+    )
+  endif
+endif
+
+if jxr_dep.found()
+  conf.set('HAVE_LIBJXR', 1)
+endif
+
 doxygen = find_program(
   'doxygen',
   required : get_option('doc'),
@@ -141,6 +185,41 @@ if tiff_dep.type_name() == 'internal' or cc.has_function('TIFFOpenOptionsSetErro
 endif
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
+endif
+
+# SIMD checks
+# Meson cannot specify compile arguments for individual files. It causes
+# problems when using -mavx for building, but running on CPUs that do not
+# support AVX. For example, OpenSlide build on i7-7700 fails to run on Core2
+# Duo, with "Illegal instruction" error, even thought the function does not use
+# AVX. The current Meson SIMD module can only assign fixed arguments, which may
+# lead to problems if customization is needed.
+#
+# Perhaps the only solution is to build static libs for avx2 and ssse3
+# separately, each with their own sets of c_args, then link them to OpenSlide.
+# At runtime, OpenSlide can select avx2, ssse3, or non-SIMD based on detected
+# CPU features. Pixman also uses this trick.
+c_args_ssse3 = ['-g', '-O2']
+c_args_avx2  = ['-g', '-O2']
+if host_machine.cpu_family() == 'x86_64'
+  conf.set('CONFIG_OSR_ARCH_X86_64', 1)
+  if get_option('ssse3')
+    conf.set('USE_SSSE3', cc.has_argument('-mssse3'))
+    c_args_ssse3 += cc.get_supported_arguments('-mssse3')
+  endif
+
+  if get_option('avx2')
+    conf.set('USE_AVX2', cc.has_argument('-mavx2'))
+    c_args_avx2 += cc.get_supported_arguments('-mavx', '-mavx2')
+  endif
+endif
+
+# Ignore AArch32. Only support ARM64 Neon
+if host_machine.cpu_family() == 'aarch64'
+  conf.set('CONFIG_OSR_ARCH_ARM64', 1)
+  if get_option('a64-neon')
+    conf.set('USE_NEON', 1)
+  endif
 endif
 
 if glib_dep.type_name() != 'internal'
