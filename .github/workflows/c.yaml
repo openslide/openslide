@@ -159,6 +159,7 @@ jobs:
                 meson pkg-config \
                 zlib \
                 zstd \
+                jxrlib \
                 libpng \
                 jpeg-turbo \
                 libtiff \
@@ -206,6 +207,7 @@ jobs:
                     diffutils \
                     zlib-devel \
                     libzstd-devel \
+                    jxrlib-devel \
                     libpng-devel \
                     libjpeg-turbo-devel \
                     libtiff-devel \
@@ -245,6 +247,7 @@ jobs:
                     python3-requests python3-yaml \
                     zlib1g-dev$arch \
                     libzstd-dev$arch \
+                    libjxr-dev$arch \
                     libpng-dev$arch \
                     $jpeg$arch \
                     libtiff-dev$arch \
