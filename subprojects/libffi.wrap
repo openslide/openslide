@@ -1,0 +1,8 @@
+[wrap-git]
+directory = libffi
+url = https://github.com/libffi/libffi.git
+revision = v3.4.5
+depth = 1
+
+[provide]
+libffi = ffi_dep

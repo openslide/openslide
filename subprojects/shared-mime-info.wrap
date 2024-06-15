@@ -1,0 +1,9 @@
+[wrap-git]
+directory = shared-mime-info
+url = https://gitlab.freedesktop.org/xdg/shared-mime-info.git
+revision = 2.2
+depth = 1
+diff_files = shared-mime-info.patch
+
+[provide]
+shared-mime-info = shared_mime_info_dep

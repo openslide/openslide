@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kleis Auke Wolthuizen <github@kleisauke.nl>
+Date: Wed, 18 Sep 2019 15:40:00 +0200
+Subject: [PATCH 5/7] Network libs are not available in WASM
+
+Upstream-Status: Pending
+
+diff --git a/gio/meson.build b/gio/meson.build
+index 1111111..2222222 100644
+--- a/gio/meson.build
++++ b/gio/meson.build
+@@ -34,7 +34,7 @@ endif
+ 
+ network_libs = [ ]
+ network_args = [ ]
+-if host_system != 'windows'
++if host_system != 'windows' and host_system != 'emscripten'
+   # res_query()
+   res_query_test = '''#include <resolv.h>
+                       int main (int argc, char ** argv) {

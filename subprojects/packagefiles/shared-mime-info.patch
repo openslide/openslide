@@ -1,0 +1,41 @@
+diff --git a/meson.build b/meson.build
+index 3c75424..dd74ab8 100644
+--- a/meson.build
++++ b/meson.build
+@@ -86,3 +86,7 @@ if get_option('update-mimedb')
+         upd_tool, '-V', '${MESON_INSTALL_DESTDIR_PREFIX}' / get_option('datadir') / 'mime',
+     ]))
+ endif
++
++shared_mime_info_dep = declare_dependency(
++    include_directories: include_directories('.'),
++)
+\ No newline at end of file
+diff --git a/src/meson.build b/src/meson.build
+index 5da9ddf..2f92793 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -13,22 +13,5 @@ update_mime_database = executable('update-mime-database',
+     install: true,
+ )
+ 
+-test_subclassing = executable('test-subclassing',
+-    'test-subclassing.c',
+-    dependencies: [
+-        glib2,
+-        libxml,
+-    ],
+-    install: false,
+-)
+ 
+-if gio.found()
+-    test_tree_magic = executable('tree-magic',
+-        'test-tree-magic.c',
+-        dependencies:[
+-            glib2,
+-            gio,
+-        ],
+-        install: false,
+-    )
+-endif
++
