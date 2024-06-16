@@ -40,6 +40,8 @@ const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyrigh
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
 static const struct _openslide_format *formats[] = {
+  &_openslide_format_motic,
+  &_openslide_format_kfbio,
   &_openslide_format_synthetic,
   &_openslide_format_mirax,
   &_openslide_format_zeiss,
