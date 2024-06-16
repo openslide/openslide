@@ -43,6 +43,7 @@ install_headers(
 
 # Library
 openslide_sources = [
+  'base64.c',
   'openslide.c',
   'openslide-cache.c',
   openslide_dll_o,
@@ -68,6 +69,7 @@ openslide_sources = [
   'openslide-vendor-hamamatsu.c',
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
+  'openslide-vendor-motic.c',
   'openslide-vendor-philips-tiff.c',
   'openslide-vendor-sakura.c',
   'openslide-vendor-synthetic.c',
