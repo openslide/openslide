@@ -384,6 +384,42 @@ bool _openslide_jpeg_read(const char *filename,
   return _openslide_jpeg_read_file(f, offset, dest, w, h, err);
 }
 
+bool _openslide_jpeg_read_2(const char *filename,
+                            int64_t offset,
+                            uint32_t length,
+                            uint32_t *dest,
+                            int32_t w, int32_t h,
+                            GError **err) {
+  //g_debug("read JPEG: %s %"PRId64, filename, offset);
+
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
+  if (f == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "File is NULL");
+    return false;
+  }
+
+  if (length == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Length is zero");
+    return false;
+  }
+
+  if (offset && !_openslide_fseek(f, offset, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to offset: ");
+    return false;
+  }
+
+  char buf[length];
+  if (_openslide_fread(f, buf, sizeof(buf), err) != sizeof(buf)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read tile data");
+    return false;
+  }
+
+  return jpeg_decode(NULL, buf, length, JCS_UNKNOWN, dest, false, w, h, err);
+}
+
 bool _openslide_jpeg_read_file(struct _openslide_file *f,
                                int64_t offset,
                                uint32_t *dest,
