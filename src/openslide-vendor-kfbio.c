@@ -9,6 +9,11 @@
 
 static const char KFB_EXT[] = ".kfb";
 
+struct kfbio_ops_data
+{
+  char *filename;
+};
+
 struct image
 {
   int64_t start_in_file;
@@ -51,14 +56,9 @@ static void destroy(openslide_t *osr)
   g_free(osr->levels);
 
   // the ops data
+  g_free(data->filename);
   g_free(data);
 }
-
-struct kfbio_ops_data
-{
-  char *filename;
-  int32_t tile_size;
-};
 
 static void image_unref(struct image *image)
 {
@@ -307,8 +307,6 @@ static void insert_tile(struct level *l,
   double offset_x = pos_x - (tile_x * l->base.tile_w);
   double offset_y = pos_y - (tile_y * l->base.tile_h);
 
-  printf("pos_x: %f pos_y: %f offset_x: %f offset_y: %f tile_x: %d tile_y: %d \n", pos_x, pos_y, offset_x, offset_y, tile_x, tile_y);
-
   // insert
   _openslide_grid_tilemap_add_tile(l->grid,
                                    tile_x, tile_y,
@@ -482,10 +480,10 @@ static bool kfbio_kfb_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  if (jpgbuf[0] != 'J' || jpgbuf[1] != 'P' || jpgbuf[2] != 'G')
+  if (jpgbuf[0] != 'J' || jpgbuf[1] != 'P') // must be JPG or JPEG
   {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "file compression: %c%c%c", jpgbuf[0], jpgbuf[1], jpgbuf[2]);
+                "file compression: %c%c%c%c", jpgbuf[0], jpgbuf[1], jpgbuf[2], jpgbuf[3]);
     return false;
   }
 
@@ -557,6 +555,9 @@ static bool kfbio_kfb_open(openslide_t *osr, const char *filename,
   }
 
   int32_t tile_size = read_le_int32_from_file(f);
+  g_hash_table_insert(osr->properties,
+                      g_strdup("kfbio.TileSize"),
+                      _openslide_format_double((double)tile_size));
   // g_debug("tile size : %d\n", tile_size);
 
   // add associated images
@@ -710,26 +711,9 @@ static bool kfbio_kfb_open(openslide_t *osr, const char *filename,
     return false;
   }
 
-  for (int i = 0; i < zoom_levels; i++)
-  {
-    struct level *l = level_array->pdata[i];
-    if (!l->base.tile_w || !l->base.tile_h)
-    {
-      // invalidate
-      for (i = 0; i < zoom_levels; i++)
-      {
-        struct level *l = level_array->pdata[i];
-        l->base.tile_w = 0;
-        l->base.tile_h = 0;
-      }
-      break;
-    }
-  }
-
   // build ops data
   struct kfbio_ops_data *data = g_new0(struct kfbio_ops_data, 1);
   data->filename = g_strdup(filename);
-  data->tile_size = tile_size;
 
   // store osr data
   g_assert(osr->data == NULL);
