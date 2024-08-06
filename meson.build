@@ -125,6 +125,9 @@ dicom_dep      = dependency(
   version : '>=1.0.0',
 )
 valgrind_dep   = dependency('valgrind', required : false)
+ssl_dep        = dependency('libssl')
+crypto_dep     = dependency('libcrypto')
+json_dep       = dependency('json-c')
 
 doxygen = find_program(
   'doxygen',

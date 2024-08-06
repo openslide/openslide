@@ -93,6 +93,7 @@ struct tilemap_grid {
 
   GHashTable *tiles;
   _openslide_grid_tilemap_read_fn read_tile;
+  _openslide_grid_tilemap_read_missing_tile_fn read_missing_tile;
   GDestroyNotify destroy_tile;
 
   // outer boundaries of grid
@@ -445,6 +446,11 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   };
   struct tilemap_tile *tile = g_hash_table_lookup(grid->tiles, &coords);
   if (tile == NULL) {
+    if (grid->read_missing_tile != NULL)
+      if (!grid->read_missing_tile(grid->base.osr, cr, level,
+                                   arg, err)) {
+        return false;
+      }
     //g_debug("no tile at %"PRId64", %"PRId64, tile_col, tile_row);
     return true;
   }
@@ -605,7 +611,33 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
   return (struct _openslide_grid *) grid;
 }
 
+struct _openslide_grid *_openslide_grid_create_tilemap_2(openslide_t *osr,
+                                                         double tile_advance_x,
+                                                         double tile_advance_y,
+                                                         _openslide_grid_tilemap_read_fn read_tile,
+                                                         _openslide_grid_tilemap_read_missing_tile_fn read_missing_tile,
+                                                         GDestroyNotify destroy_tile) {
+struct tilemap_grid *grid = g_new0(struct tilemap_grid, 1);
+  grid->base.osr = osr;
+  grid->base.ops = &tilemap_grid_ops;
+  grid->base.tile_advance_x = tile_advance_x;
+  grid->base.tile_advance_y = tile_advance_y;
+  grid->read_tile = read_tile;
+  grid->read_missing_tile = read_missing_tile;
+  grid->destroy_tile = destroy_tile;
 
+  grid->top = INFINITY;
+  grid->bottom = -INFINITY;
+  grid->left = INFINITY;
+  grid->right = -INFINITY;
+
+  grid->tiles = g_hash_table_new_full(tilemap_tile_hash_func,
+                                      tilemap_tile_hash_key_equal,
+                                      NULL,
+                                      tilemap_tile_hash_destroy_value);
+
+  return (struct _openslide_grid *) grid;
+}
 
 static guint range_bin_address_hash_func(gconstpointer key) {
   const struct range_bin_address *addr = key;

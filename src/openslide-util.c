@@ -165,6 +165,36 @@ void *_openslide_inflate_buffer(const void *src, int64_t src_len,
   return g_steal_pointer(&dst);
 }
 
+void *_openslide_inflate_buffer_2(const void *src, int64_t src_len,
+                                  int64_t dst_len,
+                                  GError **err) {
+  g_autofree void *dst = g_malloc(dst_len);
+  z_stream strm = {
+    .avail_in = src_len,
+    .avail_out = dst_len,
+    .next_in = (Bytef *) src,
+    .next_out = (Bytef *) dst
+  };
+
+  int64_t error_code = inflateInit2(&strm, -15);
+  if (error_code != Z_OK) {
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  error_code = inflate(&strm, Z_FINISH);
+  if (error_code != Z_STREAM_END || (int64_t) strm.total_out != dst_len) {
+    inflateEnd(&strm);
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  error_code = inflateEnd(&strm);
+  if (error_code != Z_OK) {
+    zlib_error(&strm, dst_len, error_code, err);
+    return NULL;
+  }
+  return g_steal_pointer(&dst);
+}
+
 void *_openslide_zstd_decompress_buffer(const void *src, int64_t src_len,
                                         int64_t dst_len, GError **err) {
   g_autofree void *dst = g_try_malloc(dst_len);

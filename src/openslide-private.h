@@ -141,6 +141,7 @@ extern const struct _openslide_format _openslide_format_dicom;
 extern const struct _openslide_format _openslide_format_generic_tiff;
 extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
+extern const struct _openslide_format _openslide_format_intemedic;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips_tiff;
@@ -157,6 +158,10 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
 void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
                                 GError **err);
+
+void *_openslide_inflate_buffer_2(const void *src, int64_t src_len,
+                                  int64_t dst_len,
+                                  GError **err);
 
 void *_openslide_zstd_decompress_buffer(const void *src, int64_t src_len,
                                         int64_t dst_len, GError **err);
@@ -242,6 +247,12 @@ typedef bool (*_openslide_grid_tilemap_read_fn)(openslide_t *osr,
                                                 void *arg,
                                                 GError **err);
 
+typedef bool (*_openslide_grid_tilemap_read_missing_tile_fn)(openslide_t *osr,
+                                                             cairo_t *cr,
+                                                             struct _openslide_level *level,
+                                                             void *arg,
+                                                             GError **err);
+
 typedef bool (*_openslide_grid_range_read_fn)(openslide_t *osr,
                                               cairo_t *cr,
                                               struct _openslide_level *level,
@@ -262,6 +273,13 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_y,
                                                        _openslide_grid_tilemap_read_fn read_tile,
                                                        GDestroyNotify destroy_tile);
+
+struct _openslide_grid *_openslide_grid_create_tilemap_2(openslide_t *osr,
+                                                         double tile_advance_x,
+                                                         double tile_advance_y,
+                                                         _openslide_grid_tilemap_read_fn read_tile,
+                                                         _openslide_grid_tilemap_read_missing_tile_fn read_missing_tile,
+                                                         GDestroyNotify destroy_tile);
 
 void _openslide_grid_tilemap_add_tile(struct _openslide_grid *grid,
                                       int64_t col, int64_t row,
