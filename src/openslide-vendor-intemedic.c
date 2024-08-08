@@ -362,7 +362,8 @@ static bool read_missing_tile(openslide_t *osr,
   uint8_t bg_b = 0xFF;
   const char *bgcolor = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR);
   if (bgcolor) {
-    uint64_t bg = g_ascii_strtoull(bgcolor, NULL, 16);
+    uint64_t bg;
+    _openslide_parse_uint64(bgcolor, &bg, 16);
     bg_r = (bg >> 16) & 0xFF;
     bg_g = (bg >> 8) & 0xFF;
     bg_b = bg & 0xFF;
