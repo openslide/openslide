@@ -1177,10 +1177,10 @@ static bool intemedic_tron_open(openslide_t *osr, const char *filename,
 
       tRfc2898DeriveBytes *rfc2898DeriveBytes = _openslide_Rfc2898DeriveBytes_Init((const unsigned char *)CypherKey, (uint32_t)strlen(CypherKey), salt, num);
       uint8_t *bytes = _openslide_Rfc2898DeriveBytes_GetBytes(rfc2898DeriveBytes, 32);
-      free(rfc2898DeriveBytes);
+      g_free(rfc2898DeriveBytes);
       int cipherLen = sizeof(array2);
       _openslide_aes_decode_cbc(AES_CYPHER_256, array2, cipherLen, bytes, array);
-      free(bytes);
+      g_free(bytes);
 
       // PKCS#7 padding;
       // this is a byte padding and common with CBC mode,
