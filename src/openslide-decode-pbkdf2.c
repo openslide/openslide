@@ -9,6 +9,7 @@
 
 #include "openslide-decode-pbkdf2.h"
 
+#include <glib.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,16 +29,16 @@ tRfc2898DeriveBytes *_openslide_Rfc2898DeriveBytes_Init(const uint8_t *pSecret, 
   if (cbSalt > SALT_MAXSIZE) {
     return NULL;
   }
-  p = malloc(sizeof(tRfc2898DeriveBytes));
+  p = g_malloc(sizeof(tRfc2898DeriveBytes));
   if (!p) {
     return NULL;
   }
   memcpy(p->pSecret, pSecret, cbSecret);
   p->cbSecret = cbSecret;
   if (pSalt == NULL) {
-    uint8_t *pGeneratedSalt = malloc(cbSalt);
+    uint8_t *pGeneratedSalt = g_malloc(cbSalt);
     if (!pGeneratedSalt) {
-      free(p);
+      g_free(p);
       return NULL;
     }
     for (size_t ii = 0; ii < cbSalt; ii++) {
@@ -45,7 +46,7 @@ tRfc2898DeriveBytes *_openslide_Rfc2898DeriveBytes_Init(const uint8_t *pSecret, 
     }
     memcpy(p->pSalt, pGeneratedSalt, cbSalt);
     p->cbSalt = cbSalt;
-    free(pGeneratedSalt);
+    g_free(pGeneratedSalt);
   } else {
     memcpy(p->pSalt, pSalt, cbSalt);
     p->cbSalt = cbSalt;
@@ -76,7 +77,7 @@ uint8_t *_openslide_Rfc2898DeriveBytes_GetBytes(tRfc2898DeriveBytes *p, uint32_t
 
   // Allocate enough storage for all of the previously requested bytes, and a chunk of new bytes
   size_t bytesToGetFromPBKDF2 = p->bytesAlreadyGotten + byteCount;
-  uint8_t *pBigBuffer = malloc(bytesToGetFromPBKDF2);
+  uint8_t *pBigBuffer = g_malloc(bytesToGetFromPBKDF2);
   if (pBigBuffer == NULL) {
     return NULL;
   }
@@ -90,20 +91,20 @@ uint8_t *_openslide_Rfc2898DeriveBytes_GetBytes(tRfc2898DeriveBytes *p, uint32_t
                          (int)bytesToGetFromPBKDF2, // Get all of the previous bytes, and a chunk of new bytes
                          pBigBuffer);
   if (rc != 1) {
-    free(pBigBuffer);
+    g_free(pBigBuffer);
     return NULL;
   }
 
   // Create a new buffer of the size requested, and copy in the trailing "new chunk" of data
-  uint8_t *pResultBuffer = malloc(byteCount);
+  uint8_t *pResultBuffer = g_malloc(byteCount);
   if (pResultBuffer == NULL) {
-    free(pBigBuffer);
+    g_free(pBigBuffer);
     return NULL;
   }
   memcpy(pResultBuffer, pBigBuffer + p->bytesAlreadyGotten, byteCount);
   // Increase the number of bytes returned so that we don't return them again on a future call to GetBytes().
   p->bytesAlreadyGotten += byteCount;
-  free(pBigBuffer);
+  g_free(pBigBuffer);
 
   return pResultBuffer; // Malloc'd buffer. It is the responsibility of the caller to free this when no longer needed
 }
