@@ -48,13 +48,6 @@ bool _openslide_jpeg_read(const char *filename,
                           int32_t w, int32_t h,
                           GError **err);
 
-bool _openslide_jpeg_read_2(const char *filename,
-                            int64_t offset,
-                            uint32_t length,
-                            uint32_t *dest,
-                            int32_t w, int32_t h,
-                            GError **err);
-
 bool _openslide_jpeg_read_file(struct _openslide_file *f,
                                int64_t offset,
                                uint32_t *dest,
