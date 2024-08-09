@@ -46,7 +46,6 @@ openslide_sources = [
   'openslide.c',
   'openslide-cache.c',
   openslide_dll_o,
-  'openslide-decode-base64.c',
   'openslide-decode-dicom.c',
   'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
