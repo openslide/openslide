@@ -102,7 +102,6 @@ jobs:
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
-        save-always: true
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
