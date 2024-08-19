@@ -3,7 +3,7 @@ exclude: '^(COPYING\.LESSER|subprojects/.*)$'
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       # We don't want to allow arbitrarily large binary diffs into the
       # repo, where they'll live in the Git history forever.  At the time
@@ -27,7 +27,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
+    rev: v3.17.0
     hooks:
       - id: pyupgrade
         name: Modernize python code
@@ -42,7 +42,7 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 24.8.0
     hooks:
       - id: black
         name: Format python code with black
@@ -56,7 +56,7 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
+    rev: 7.1.1
     hooks:
       - id: flake8
         name: Lint python code with flake8
@@ -64,7 +64,7 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
+    rev: v1.11.1
     hooks:
       - id: mypy
         name: Check Python types
@@ -105,6 +105,9 @@ repos:
       # g_slice_new           g_new0
       # malloc                g_malloc
       # realloc               g_realloc
+      # stpcpy                g_strdup
+      # strcat                g_string_append
+      # strcpy                g_strdup
       # strdup                g_strdup
       # strerror              g_strerror
       # strerror_l            g_strerror
@@ -120,7 +123,7 @@ repos:
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|stpcpy|strcat|strcpy|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
 
       # Prevent use of functions with mandatory wrappers in OpenSlide.
       # Wrapper implementations can add "// ci-allow" on the same line to
@@ -142,6 +145,7 @@ repos:
       # sqlite3_close         _openslide_sqlite_close
       # sqlite3_open          _openslide_sqlite_open
       # sqlite3_open_v2       _openslide_sqlite_open
+      # sscanf                _openslide_parse_{double,int64,uint64}
       # strtod                _openslide_parse_double
       # TIFFClientOpenExt     _openslide_tiffcache_get
       # TIFFClientOpen        _openslide_tiffcache_get
@@ -155,4 +159,4 @@ repos:
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|sscanf|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
