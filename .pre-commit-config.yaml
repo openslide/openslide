@@ -70,6 +70,7 @@ repos:
         name: Check Python types
         additional_dependencies:
           - boto3-stubs[s3]
+          - pyfuse3
           - types-PyYAML
           - types-requests
         exclude: ^misc/
