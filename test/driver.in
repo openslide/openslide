@@ -812,18 +812,12 @@ def _fusefs_init(shadowdir: Path) -> None:
     sys.excepthook = sys.__excepthook__
 
     import pyfuse3
-    from pyfuse3 import FUSEError
-
-    # pending pyfuse3 > 3.3.0
-    FileHandleT = NewType('FileHandleT', int)
-    FileNameT = NewType('FileNameT', bytes)
-    InodeT = NewType('InodeT', int)
+    from pyfuse3 import FileHandleT, FileNameT, FUSEError, InodeT
 
     # A Unix file descriptor
     FileDescriptorT = NewType('FileDescriptorT', FileHandleT)
 
-    # ignored pending pyfuse3 > 3.3.0
-    class Operations(pyfuse3.Operations):  # type: ignore[misc]
+    class Operations(pyfuse3.Operations):
         def __init__(self) -> None:
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
