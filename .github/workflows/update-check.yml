@@ -44,7 +44,7 @@ jobs:
           modified=$(echo $modified | sed -e 's/ /, /g')
           echo "modified=$modified" >> $GITHUB_OUTPUT
       - name: Post updated wraps
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.OPENSLIDE_BOT_TOKEN }}
           author: "${{ env.GIT_NAME }} <${{ env.GIT_EMAIL }}>"
@@ -57,3 +57,4 @@ jobs:
           body: "<!-- topic=dependencies -->"
           push-to-fork: ${{ steps.user.outputs.username }}/${{ github.event.repository.name }}
           delete-branch: true
+          maintainer-can-modify: false
