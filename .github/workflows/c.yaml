@@ -140,6 +140,8 @@ jobs:
           - os: ubuntu-latest
             container: debian:12
             arch: i386
+          - os: ubuntu-24.04-aarch64
+            container: debian:12
           - os: ubuntu-20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
