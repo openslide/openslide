@@ -42,6 +42,26 @@ install_headers(
 )
 
 # Library
+openslide_image_avx2_sources = [
+  'openslide-image-avx2.c',
+]
+libopenslide_image_avx2 = static_library('libopenslide_image_avx2',
+  openslide_image_avx2_sources,
+  c_args: c_args_avx2,
+  gnu_symbol_visibility : visibility,
+  include_directories : config_h_include,
+)
+
+openslide_image_ssse3_sources = [
+  'openslide-image-ssse3.c',
+]
+libopenslide_image_ssse3 = static_library('libopenslide_image_ssse3',
+  openslide_image_ssse3_sources,
+  c_args: c_args_ssse3,
+  gnu_symbol_visibility : visibility,
+  include_directories : config_h_include,
+)
+
 openslide_sources = [
   'openslide.c',
   'openslide-cache.c',
@@ -50,6 +70,7 @@ openslide_sources = [
   'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
   'openslide-decode-jpeg.c',
+  'openslide-decode-jxr.c',
   'openslide-decode-png.c',
   'openslide-decode-sqlite.c',
   'openslide-decode-tiff.c',
@@ -59,6 +80,7 @@ openslide_sources = [
   'openslide-file.c',
   'openslide-grid.c',
   'openslide-hash.c',
+  'openslide-image.c',
   'openslide-jdatasrc.c',
   openslide_tables_c,
   'openslide-util.c',
@@ -75,6 +97,7 @@ openslide_sources = [
   'openslide-vendor-ventana.c',
   'openslide-vendor-zeiss.c',
 ]
+
 libopenslide = library('openslide',
   openslide_sources,
   version : soversion,
@@ -93,16 +116,22 @@ libopenslide = library('openslide',
     tiff_dep,
     openjpeg_dep,
     jpeg_dep,
+    jxr_dep,
     png_dep,
     zlib_dep,
     zstd_dep,
     libm_dep,
   ],
+  link_with: [libopenslide_image_ssse3, libopenslide_image_avx2],
   install : true,
 )
 openslide_dep = declare_dependency(
   include_directories : include_directories('.'),
-  link_with : libopenslide,
+  link_with : [
+    libopenslide,
+    libopenslide_image_ssse3,
+    libopenslide_image_avx2,
+  ]
 )
 import('pkgconfig').generate(
   libopenslide,
