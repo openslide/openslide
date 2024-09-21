@@ -1,0 +1,5 @@
+group_arg_value = true
+indent_by = '  '
+kwargs_force_multiline = true
+sort_files = true
+wide_colon = true

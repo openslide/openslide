@@ -35,12 +35,7 @@ foreach target : tools_binaries
       'slidetool-util.c',
     ],
     include_directories : config_h_include,
-    dependencies : [
-      openslide_dep,
-      openslide_common_dep,
-      glib_dep,
-      png_dep,
-    ],
+    dependencies : [openslide_dep, openslide_common_dep, glib_dep, png_dep],
     install : true,
     install_tag : 'bin',
   )
@@ -59,6 +54,6 @@ foreach m : mans
       input : m + '.1.in',
       output : m + '.1',
       configuration : versions,
-    )
+    ),
   )
 endforeach

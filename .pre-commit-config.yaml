@@ -82,6 +82,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: meson-format
+        name: meson format
+        entry: meson format --configuration meson.format --inplace
+        types: [meson]
+        language: python
+        additional_dependencies: [meson==1.5.2]
+
       - id: autoptr
         name: Check for g_auto* declarations without initializers
         language: pygrep
