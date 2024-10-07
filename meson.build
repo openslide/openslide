@@ -154,7 +154,7 @@ dicom_dep = dependency(
   # avoid 'check' dependency
   default_options : ['tests=false'],
   fallback : ['libdicom', 'libdicom_dep'],
-  version : '>=1.0.0',
+  version : '>=1.2.0',
 )
 valgrind_dep = dependency(
   'valgrind',
