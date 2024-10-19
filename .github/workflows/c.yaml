@@ -174,12 +174,12 @@ jobs:
                 sqlite \
                 cairo \
                 glib \
-                xdelta \
-                pyyaml
+                xdelta
             # Install Python packages that Homebrew does not wish to maintain.
             # Use --break-system-packages so pip doesn't refuse to install
             # outside a virtualenv.
             python3 -m pip install --break-system-packages \
+                PyYAML \
                 requests
             ;;
         ubuntu-*)
