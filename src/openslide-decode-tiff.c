@@ -482,12 +482,11 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
   return ret;
 }
 
-bool _openslide_tiff_get_icc_profile_size(struct _openslide_tiff_level *tiffl,
-                                          TIFF *tiff,
+bool _openslide_tiff_get_icc_profile_size(TIFF *tiff, tdir_t dir,
                                           int64_t *icc_profile_size,
                                           GError **err) {
   // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  SET_DIR_OR_FAIL(tiff, dir);
 
   // get profile
   void *data;
@@ -502,13 +501,11 @@ bool _openslide_tiff_get_icc_profile_size(struct _openslide_tiff_level *tiffl,
   return true;
 }
 
-bool _openslide_tiff_read_icc_profile(openslide_t *osr,
-                                      struct _openslide_tiff_level *tiffl,
-                                      TIFF *tiff,
-                                      void *dest,
+bool _openslide_tiff_read_icc_profile(TIFF *tiff, tdir_t dir,
+                                      void *dest, int64_t expected_size,
                                       GError **err) {
   // set directory
-  SET_DIR_OR_FAIL(tiff, tiffl->dir);
+  SET_DIR_OR_FAIL(tiff, dir);
 
   // get profile
   uint32_t data_len;
@@ -520,7 +517,7 @@ bool _openslide_tiff_read_icc_profile(openslide_t *osr,
   }
 
   // copy to output
-  if (data_len != osr->icc_profile_size) {
+  if (data_len != expected_size) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "ICC profile size changed");
     return false;
