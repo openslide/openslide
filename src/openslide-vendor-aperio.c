@@ -349,6 +349,7 @@ static bool add_properties(openslide_t *osr, TIFF *tiff, GError **err) {
 // true does not necessarily imply an image was added
 static bool add_associated_image(openslide_t *osr,
                                  const char *name_if_available,
+                                 tdir_t *icc_dir_if_available,
                                  struct _openslide_tiffcache *tc,
                                  TIFF *tiff,
                                  GError **err) {
@@ -384,7 +385,7 @@ static bool add_associated_image(openslide_t *osr,
 
   return _openslide_tiff_add_associated_image(osr, name, tc,
                                               TIFFCurrentDirectory(tiff),
-                                              NULL, err);
+                                              icc_dir_if_available, err);
 }
 
 static void propagate_missing_tile(void *key, void *value G_GNUC_UNUSED,
@@ -421,6 +422,12 @@ static bool aperio_open(openslide_t *osr,
   g_autoptr(_openslide_tiffcache) tc = _openslide_tiffcache_create(filename);
   g_auto(_openslide_cached_tiff) ct = _openslide_tiffcache_get(tc, err);
   if (!ct.tiff) {
+    return false;
+  }
+
+  // add properties early, since we'll need them for the thumbnail ICC
+  // profile
+  if (!add_properties(osr, ct.tiff, err)) {
     return false;
   }
 
@@ -523,8 +530,27 @@ static bool aperio_open(openslide_t *osr,
       }
     } else {
       // associated image
-      const char *name = (dir == 1) ? "thumbnail" : NULL;
-      if (!add_associated_image(osr, name, tc, ct.tiff, err)) {
+      const char *name = NULL;
+      g_autofree tdir_t *icc_dir = NULL;
+      if (dir == 1) {
+        name = "thumbnail";
+
+        g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
+        if (!thumbnail_props) {
+          g_prefix_error(err, "Reading thumbnail properties: ");
+          return false;
+        }
+        const char *main_icc_name =
+          g_hash_table_lookup(osr->properties, "aperio.ICC Profile");
+        const char *thumbnail_icc_name =
+          g_hash_table_lookup(thumbnail_props, "ICC Profile");
+        if (main_icc_name && thumbnail_icc_name &&
+            g_str_equal(main_icc_name, thumbnail_icc_name)) {
+          // use ICC profile from first directory
+          icc_dir = g_new0(tdir_t, 1);
+        }
+      }
+      if (!add_associated_image(osr, name, icc_dir, tc, ct.tiff, err)) {
 	return false;
       }
       //g_debug("associated image: %d", dir);
@@ -537,14 +563,6 @@ static bool aperio_open(openslide_t *osr,
     struct level *l = level_array->pdata[i];
     g_hash_table_foreach(l->missing_tiles, propagate_missing_tile,
                          level_array->pdata[i + 1]);
-  }
-
-  // read properties
-  if (!_openslide_tiff_set_dir(ct.tiff, 0, err)) {
-    return false;
-  }
-  if (!add_properties(osr, ct.tiff, err)) {
-    return false;
   }
 
   // get icc profile size, if present
