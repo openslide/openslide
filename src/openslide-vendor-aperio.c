@@ -288,25 +288,50 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
-static void add_properties(openslide_t *osr, char **props) {
-  if (*props == NULL) {
-    return;
+static GHashTable *read_properties(TIFF *tiff, GError **err) {
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    _openslide_tiff_error(err, tiff, "Couldn't read ImageDescription field");
+    return NULL;
+  }
+  g_auto(GStrv) prop_list = g_strsplit(image_desc, "|", -1);
+
+  g_autoptr(GHashTable) props =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+  // ignore first property in Aperio
+  if (!*prop_list) {
+    return g_steal_pointer(&props);
+  }
+  for (char **p = prop_list + 1; *p != NULL; p++) {
+    g_auto(GStrv) pair = g_strsplit(*p, "=", 2);
+    if (pair[0] && pair[1]) {
+      g_strstrip(pair[0]);
+      g_strstrip(pair[1]);
+      g_hash_table_insert(props,
+                          g_steal_pointer(&pair[0]),
+                          g_steal_pointer(&pair[1]));
+    }
+  }
+  return g_steal_pointer(&props);
+}
+
+
+static bool add_properties(openslide_t *osr, TIFF *tiff, GError **err) {
+  g_autoptr(GHashTable) props = read_properties(tiff, err);
+  if (!props) {
+    return false;
   }
 
-  // ignore first property in Aperio
-  for(char **p = props + 1; *p != NULL; p++) {
-    g_auto(GStrv) pair = g_strsplit(*p, "=", 2);
-
-    if (pair) {
-      char *name = g_strstrip(pair[0]);
-      if (name) {
-	char *value = g_strstrip(pair[1]);
-
-	g_hash_table_insert(osr->properties,
-			    g_strdup_printf("aperio.%s", name),
-			    g_strdup(value));
-      }
-    }
+  GHashTableIter iter;
+  char *name;
+  char *value;
+  g_hash_table_iter_init(&iter, props);
+  while (g_hash_table_iter_next(&iter, (void *) &name, (void *) &value)) {
+    g_hash_table_iter_steal(&iter);
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf("aperio.%s", name),
+                        value);
+    g_free(name);
   }
 
   _openslide_duplicate_double_prop(osr, "aperio.AppMag",
@@ -315,6 +340,7 @@ static void add_properties(openslide_t *osr, char **props) {
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
   _openslide_duplicate_double_prop(osr, "aperio.MPP",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
+  return true;
 }
 
 // add the image from the current TIFF directory
@@ -516,13 +542,9 @@ static bool aperio_open(openslide_t *osr,
   if (!_openslide_tiff_set_dir(ct.tiff, 0, err)) {
     return false;
   }
-  char *image_desc;
-  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    _openslide_tiff_error(err, ct.tiff, "Couldn't read ImageDescription field");
+  if (!add_properties(osr, ct.tiff, err)) {
     return false;
   }
-  g_auto(GStrv) props = g_strsplit(image_desc, "|", -1);
-  add_properties(osr, props);
 
   // get icc profile size, if present
   struct level *base_level = level_array->pdata[0];
