@@ -84,6 +84,7 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           const char *name,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
+                                          tdir_t *icc_dir,
                                           GError **err);
 
 bool _openslide_tiff_set_dir(TIFF *tiff,

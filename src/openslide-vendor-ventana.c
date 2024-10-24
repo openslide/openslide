@@ -901,14 +901,14 @@ static bool ventana_open(openslide_t *osr, const char *filename,
     } else if (!strcmp(image_desc, MACRO_DESCRIPTION) ||
                !strcmp(image_desc, MACRO_DESCRIPTION2)) {
       // macro image
-      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir,
+      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, NULL,
                                                 err)) {
         return false;
       }
 
     } else if (!strcmp(image_desc, THUMBNAIL_DESCRIPTION)) {
       // thumbnail image
-      if (!_openslide_tiff_add_associated_image(osr, "thumbnail", tc, dir,
+      if (!_openslide_tiff_add_associated_image(osr, "thumbnail", tc, dir, NULL,
                                                 err)) {
         return false;
       }

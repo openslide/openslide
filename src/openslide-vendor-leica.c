@@ -729,7 +729,7 @@ static bool create_levels_from_collection(openslide_t *osr,
     // add associated image with largest dimension
     struct dimension *dimension = image->dimensions->pdata[0];
     if (!_openslide_tiff_add_associated_image(osr, "macro", tc,
-                                              dimension->dir, err)) {
+                                              dimension->dir, NULL, err)) {
       return false;
     }
 

@@ -384,7 +384,7 @@ static bool add_associated_image(openslide_t *osr,
 
   return _openslide_tiff_add_associated_image(osr, name, tc,
                                               TIFFCurrentDirectory(tiff),
-                                              err);
+                                              NULL, err);
 }
 
 static void propagate_missing_tile(void *key, void *value G_GNUC_UNUSED,
