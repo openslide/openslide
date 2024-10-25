@@ -267,7 +267,6 @@ class UnpackedSlide:
         )
         if extra_checks:
             env.update(
-                G_DEBUG='gc-friendly',
                 MALLOC_CHECK_='1',
             )
         args_: list[str | Path] = []
