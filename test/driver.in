@@ -1127,7 +1127,7 @@ def _s3_upload_public(
         bucket,
         key,
         Callback=progress,
-        ExtraArgs={'ACL': 'public-read', 'ContentType': content_type},
+        ExtraArgs={'ContentType': content_type},
     )
     print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
     return url
