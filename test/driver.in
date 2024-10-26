@@ -267,7 +267,6 @@ class UnpackedSlide:
         )
         if extra_checks:
             env.update(
-                G_DEBUG='gc-friendly',
                 MALLOC_CHECK_='1',
             )
         args_: list[str | Path] = []
@@ -1128,7 +1127,7 @@ def _s3_upload_public(
         bucket,
         key,
         Callback=progress,
-        ExtraArgs={'ACL': 'public-read', 'ContentType': content_type},
+        ExtraArgs={'ContentType': content_type},
     )
     print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
     return url

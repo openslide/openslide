@@ -272,7 +272,8 @@ static bool read_icc_profile(openslide_t *osr, void *dest, GError **err) {
     return false;
   }
 
-  return _openslide_tiff_read_icc_profile(osr, &l->tiffl, ct.tiff, dest, err);
+  return _openslide_tiff_read_icc_profile(ct.tiff, l->tiffl.dir,
+                                          dest, osr->icc_profile_size, err);
 }
 
 static const struct _openslide_ops ventana_ops = {
@@ -900,14 +901,14 @@ static bool ventana_open(openslide_t *osr, const char *filename,
     } else if (!strcmp(image_desc, MACRO_DESCRIPTION) ||
                !strcmp(image_desc, MACRO_DESCRIPTION2)) {
       // macro image
-      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir,
+      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, NULL,
                                                 err)) {
         return false;
       }
 
     } else if (!strcmp(image_desc, THUMBNAIL_DESCRIPTION)) {
       // thumbnail image
-      if (!_openslide_tiff_add_associated_image(osr, "thumbnail", tc, dir,
+      if (!_openslide_tiff_add_associated_image(osr, "thumbnail", tc, dir, NULL,
                                                 err)) {
         return false;
       }
@@ -940,8 +941,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
   }
 
   // get icc profile size, if present
-  if (!_openslide_tiff_get_icc_profile_size(&level0->tiffl,
-                                            ct.tiff,
+  if (!_openslide_tiff_get_icc_profile_size(ct.tiff, level0->tiffl.dir,
                                             &osr->icc_profile_size,
                                             err)) {
     return false;

@@ -339,6 +339,18 @@ openslide_t *openslide_open(const char *filename) {
     }
   }
 
+  // ensure NULL values don't leak into properties
+  GHashTableIter iter;
+  char *name;
+  char *value;
+  g_hash_table_iter_init(&iter, osr->properties);
+  while (g_hash_table_iter_next(&iter, (void *) &name, (void *) &value)) {
+    if (!value) {
+      g_warning("Property \"%s\" has NULL value", name);
+      g_hash_table_iter_remove(&iter);
+    }
+  }
+
   // fill in property names
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 

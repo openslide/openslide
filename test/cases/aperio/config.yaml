@@ -4,6 +4,7 @@ success: true
 vendor: aperio
 primary: true
 properties:
+  openslide.associated.thumbnail.icc-size: "141992"
   openslide.icc-size: "141992"
   openslide.quickhash-1: 30f1a38031fc0e21d81f9d01435ac4af848f6fe2bbf8f7768184336ee5d7e796
   openslide.vendor: aperio
