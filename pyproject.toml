@@ -16,4 +16,5 @@ line_length = 79
 
 [tool.mypy]
 namespace_packages = false
+python_version = "3.8"
 strict = true
