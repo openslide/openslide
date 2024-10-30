@@ -1,7 +1,7 @@
 [tool.black]
 line-length = 79
 skip-string-normalization = true
-target-version = ["py38", "py39", "py310", "py311", "py312"]
+target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
 
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html#flake8
 # requires Flake8-pyproject
@@ -16,4 +16,5 @@ line_length = 79
 
 [tool.mypy]
 namespace_packages = false
+python_version = "3.8"
 strict = true
