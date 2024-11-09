@@ -46,6 +46,7 @@ jobs:
             diffutils \
             zlib-devel \
             libzstd-devel \
+            jxrlib-devel \
             libpng-devel \
             libjpeg-turbo-devel \
             libtiff-devel \
