@@ -200,6 +200,33 @@ static void matrix_restore(struct cairo_matrix *m) {
 typedef struct cairo_matrix cairo_matrix;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(cairo_matrix, matrix_restore)
 
+/* do integer or float point translation based on Cairo compositing operator */
+static void do_cairo_translate(cairo_t *cr, double tx, double ty) {
+  cairo_operator_t op = cairo_get_operator(cr);
+  if (op == CAIRO_OPERATOR_SATURATE) {
+    // allow subpixel translation for SATURATE operator
+    cairo_translate(cr, tx, ty);
+    return;
+  }
+
+  // There might have multiple cairo_translate() so far. Before rendering tile,
+  // convert the accumulated translation tx and ty to integer, and only do it
+  // once, so that the tiles are rendered without interpolation from subpixel
+  // translation.
+  cairo_matrix_t m;
+  cairo_get_matrix(cr, &m);
+  double x0 = m.x0;
+  double y0 = m.y0;
+  m.x0 = 0;
+  m.y0 = 0;
+  // reset x0 and y0 of CTM to 0
+  cairo_set_matrix(cr, &m);
+
+  // integer-valued translation for cairo's default OVER operator
+  // see https://github.com/openslide/openslide/issues/641
+  cairo_translate(cr, floor(tx + x0), floor(ty + y0));
+}
+
 static void compute_region(struct _openslide_grid *grid,
                            double x, double y,
                            int32_t w, int32_t h,
@@ -257,6 +284,7 @@ static bool read_tiles(cairo_t *cr,
       double translate_x = ((tile_x - region->start_tile_x) *
                             grid->tile_advance_x) - region->offset_x;
       //      g_debug("read_tiles %"PRId64" %"PRId64, tile_x, tile_y);
+      // keep accumulating float point tx and ty
       cairo_translate(cr, translate_x, translate_y);
       if (!callback(grid, region, cr, level, tile_x, tile_y, arg, err)) {
         return false;
@@ -311,6 +339,9 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
                              GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
+  // There might have multiple cairo_translate() so far. Convert the
+  // accumulated translation tx and ty to integer before rendering tile.
+  do_cairo_translate(cr, 0, 0);
   if (!grid->read_tile(grid->base.osr, cr, level,
                        tile_col, tile_row, arg, err)) {
     return false;
@@ -351,6 +382,7 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
   // bound on left/top
   int64_t skipped_tiles_x = -MIN(region.start_tile_x, 0);
   int64_t skipped_tiles_y = -MIN(region.start_tile_y, 0);
+  // keep accumulating float point tx and ty
   cairo_translate(cr,
                   skipped_tiles_x * grid->base.tile_advance_x,
                   skipped_tiles_y * grid->base.tile_advance_y);
@@ -463,9 +495,7 @@ static bool tilemap_read_tile(struct _openslide_grid *_grid,
   }
 
   //g_debug("tilemap read_tile: %"PRId64" %"PRId64", offset: %g %g, dim: %g %g", tile_col, tile_row, tile->offset_x, tile->offset_y, tile->w, tile->h);
-
-  g_auto(cairo_matrix) matrix G_GNUC_UNUSED = matrix_save(cr);
-  cairo_translate(cr, tile->offset_x, tile->offset_y);
+  do_cairo_translate(cr, tile->offset_x, tile->offset_y);
   if (!grid->read_tile(grid->base.osr, cr, level,
                        tile->col, tile->row, tile->data,
                        arg, err)) {
@@ -503,6 +533,7 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
   region.start_tile_y -= grid->extra_tiles_top;
   region.end_tile_x += grid->extra_tiles_right;
   region.end_tile_y += grid->extra_tiles_bottom;
+  // keep accumulating float point tx and ty
   cairo_translate(cr,
                   -grid->extra_tiles_left * grid->base.tile_advance_x,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
@@ -731,7 +762,7 @@ static bool range_paint_region(struct _openslide_grid *_grid,
 
     // draw
     //g_debug("tile x %g y %g z %g", tile->x, tile->y, tile->z);
-    cairo_translate(cr, tile->x - x, tile->y - y);
+    do_cairo_translate(cr, tile->x - x, tile->y - y);
     if (!grid->read_tile(grid->base.osr, cr, level,
                          tile->id, tile->data,
                          arg, err)) {

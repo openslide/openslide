@@ -447,6 +447,20 @@ double openslide_get_level_downsample(openslide_t *osr, int32_t level) {
   return osr->levels[level]->downsample;
 }
 
+/* use SATURATE operator on all except few selected formats. */
+static bool need_saturate_operator(openslide_t *osr) {
+  const char *vendor =
+      openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_VENDOR);
+  if (strcmp(vendor, "aperio") == 0) {
+    return false;
+  } else if (strcmp(vendor, "leica") == 0) {
+    return false;
+  } else if (strcmp(vendor, "zeiss") == 0) {
+    return false;
+  }
+
+  return true;
+}
 
 static bool read_region_area(openslide_t *osr,
                              uint32_t *dest, int64_t stride,
@@ -469,8 +483,14 @@ static bool read_region_area(openslide_t *osr,
   // create the cairo context
   g_autoptr(cairo_t) cr = cairo_create(surface);
 
-  // saturate those seams away!
-  cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+  // MIRAX needs SATURATE operator to fix the seams introduced by its extensive
+  // use of subpixel translation. Other formats should work with the default
+  // OVER operator, if they use integer valued translate. Since it has not been
+  // thoroughly tested, let's only use OVER operator on selected formats.
+  if (need_saturate_operator(osr)) {
+    // saturate those seams away!
+    cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+  }
 
   if (level_in_range(osr, level)) {
     struct _openslide_level *l = osr->levels[level];
