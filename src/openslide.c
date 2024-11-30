@@ -464,7 +464,7 @@ static bool need_saturate_operator(openslide_t *osr) {
 
 static bool read_region_area(openslide_t *osr,
                              uint32_t *dest, int64_t stride,
-                             int64_t x, int64_t y,
+                             double x, double y,
                              int32_t level,
                              int64_t w, int64_t h,
                              GError **err) {
@@ -497,11 +497,12 @@ static bool read_region_area(openslide_t *osr,
 
     // offset if given negative coordinates
     double ds = l->downsample;
-    int64_t tx = 0;
-    int64_t ty = 0;
+    double tx = 0;
+    double ty = 0;
     if (x < 0) {
       tx = (-x) / ds;
       x = 0;
+      // round tx down so that w won't be narrower than it should be
       w -= tx;
     }
     if (y < 0) {
@@ -509,7 +510,16 @@ static bool read_region_area(openslide_t *osr,
       y = 0;
       h -= ty;
     }
-    cairo_translate(cr, tx, ty);
+    if (need_saturate_operator(osr)) {
+        // OpenSlide used to cast tx, ty to integer. To avoid abrupt change,
+        // for formats not using integer valued translation, round tx, ty down
+        // to zero, which has the same effect as casting to integer.
+        cairo_translate(cr, floor(tx), floor(ty));
+    } else {
+        // keep full precision of tx and ty, round on the final call to
+        // cairo_translate() for formats use integer-valued translation.
+        cairo_translate(cr, tx, ty);
+    }
 
     // paint
     if (w > 0 && h > 0) {
@@ -561,8 +571,8 @@ void openslide_read_region(openslide_t *osr,
   for (int64_t row = 0; row < (h + d - 1) / d; row++) {
     for (int64_t col = 0; col < (w + d - 1) / d; col++) {
       // calculate surface coordinates and size
-      int64_t sx = x + col * d * ds;     // level 0 plane
-      int64_t sy = y + row * d * ds;     // level 0 plane
+      double sx = x + col * d * ds;     // level 0 plane
+      double sy = y + row * d * ds;     // level 0 plane
       int64_t sw = MIN(w - col * d, d);  // level plane
       int64_t sh = MIN(h - row * d, d);  // level plane
 
