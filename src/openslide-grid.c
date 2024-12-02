@@ -200,6 +200,16 @@ static void matrix_restore(struct cairo_matrix *m) {
 typedef struct cairo_matrix cairo_matrix;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(cairo_matrix, matrix_restore)
 
+/* round to nearest integer. If x is halfway, round it down to move the region
+ * to the left or up. */
+static double translate_round(double x) {
+  if (fmod(fabs(x), 1.0) == 0.5) {
+    return floor(x);
+  } else {
+    return round(x);
+  }
+}
+
 /* do integer or float point translation based on Cairo compositing operator */
 static void do_cairo_translate(cairo_t *cr, double tx, double ty) {
   cairo_operator_t op = cairo_get_operator(cr);
@@ -224,7 +234,7 @@ static void do_cairo_translate(cairo_t *cr, double tx, double ty) {
 
   // integer-valued translation for cairo's default OVER operator
   // see https://github.com/openslide/openslide/issues/641
-  cairo_translate(cr, floor(tx + x0), floor(ty + y0));
+  cairo_translate(cr, translate_round(tx + x0), translate_round(ty + y0));
 }
 
 static void compute_region(struct _openslide_grid *grid,
