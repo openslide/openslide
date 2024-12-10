@@ -81,7 +81,7 @@ libopenslide = library(
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
   gnu_symbol_visibility : visibility,
-  include_directories : [config_h_include, 'libisyntax/src/isyntax', 'libisyntax/src/platform', 'libisyntax/src/third_party', 'libisyntax/src/utils', 'libisyntax/src'],
+  include_directories : [config_h_include],
   dependencies : [
     glib_dep,
     gio_dep,

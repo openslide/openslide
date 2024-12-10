@@ -1,3 +1,0 @@
-[submodule "src/libisyntax"]
-	path = src/libisyntax
-	url = https://github.com/amspath/libisyntax.git
