@@ -14,7 +14,7 @@
  *  You should have received a copy of the GNU Lesser General Public
  *  License along with OpenSlide. If not, see
  *  <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include <math.h>
 #include "libisyntax.h"
@@ -28,53 +28,65 @@
 // TODO(avirodov): this is now used only for cache functions, which will be removed shortly from libisyntax.
 #define ASSERT_LIBISYNTAX_OK(_libisyntax_expression) g_assert(_libisyntax_expression == LIBISYNTAX_OK);
 
-struct philips_isyntax_level {
+struct philips_isyntax_level
+{
   struct _openslide_level base;
   const isyntax_level_t *isyntax_level;
   struct _openslide_grid *grid;
 };
 
-struct philips_isyntax_cache_t {
+struct philips_isyntax_cache_t
+{
   // TODO(avirodov): this is clumsy (many "cache->cache" expressions). Keeping it this way in case I need a refcount.
   isyntax_cache_t *cache;
   // int refcount;
 };
 
-struct philips_isyntax_t {
+struct philips_isyntax_t
+{
   isyntax_t *isyntax;
   struct philips_isyntax_cache_t *cache;
 };
 
-struct philips_isyntax_associated_image {
+struct philips_isyntax_associated_image
+{
   struct _openslide_associated_image base;
-  uint32_t* pixels_buffer;
+  uint32_t *pixels_buffer;
 };
 
-enum associated_image_t {
-  IMAGE_LABEL, IMAGE_MACRO
+enum associated_image_t
+{
+  IMAGE_LABEL,
+  IMAGE_MACRO
 };
 
 // Global cache, shared between all opened files (if enabled). Thread-safe initialization in open().
 struct philips_isyntax_cache_t *philips_isyntax_global_cache_ptr = NULL;
 
-static void philips_isyntax_destroy_level(struct philips_isyntax_level *level) {
+static void philips_isyntax_destroy_level(struct philips_isyntax_level *level)
+{
   g_free(level);
 }
 
-static void philips_isyntax_destroy(openslide_t *osr) {
+static void philips_isyntax_destroy(openslide_t *osr)
+{
   struct philips_isyntax_t *data = osr->data;
 
-  for (int i = 0; i < osr->level_count; ++i) {
-    struct philips_isyntax_level *level = (struct philips_isyntax_level *) osr->levels[i];
+  for (int i = 0; i < osr->level_count; ++i)
+  {
+    struct philips_isyntax_level *level = (struct philips_isyntax_level *)osr->levels[i];
     _openslide_grid_destroy(level->grid);
     philips_isyntax_destroy_level(level);
   }
   // Flush cache (especially if global).
   // TODO(avirodov): if we track for each tile (or cache entry) which isyntax_t* it came from, we can remove
   //  only those entries from global cache.
-  if (data->cache == philips_isyntax_global_cache_ptr) {
+  if (data->cache == philips_isyntax_global_cache_ptr)
+  {
     libisyntax_cache_flush(data->cache->cache, data->isyntax);
-  } else {
+  }
+  else
+  {
     libisyntax_cache_destroy(data->cache->cache);
   }
 
@@ -89,11 +101,12 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
                                       int64_t tile_col,
                                       int64_t tile_row,
                                       void *arg G_GNUC_UNUSED,
-                                      GError **err) {
+                                      GError **err)
+{
   struct philips_isyntax_t *data = osr->data;
   isyntax_t *isyntax = data->isyntax;
 
-  struct philips_isyntax_level *pi_level = (struct philips_isyntax_level *) osr_level;
+  struct philips_isyntax_level *pi_level = (struct philips_isyntax_level *)osr_level;
 
   // LOG("level=%d tile_col=%ld tile_row=%ld", pi_level->level_idx, tile_col, tile_row);
   // tile size
@@ -103,12 +116,14 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   // Openslide cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   uint32_t *tiledata = _openslide_cache_get(osr->cache, pi_level, tile_col, tile_row, &cache_entry);
-  if (!tiledata) {
+  if (!tiledata)
+  {
     int scale = libisyntax_level_get_scale(pi_level->isyntax_level);
     g_autofree uint32_t *buffer = g_malloc(tw * th * 4);
     isyntax_error_t result = libisyntax_tile_read(isyntax, data->cache->cache, scale, tile_col, tile_row, buffer,
                                                   LIBISYNTAX_PIXEL_FORMAT_BGRA);
-    if (result != LIBISYNTAX_OK) {
+    if (result != LIBISYNTAX_OK)
+    {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "libisyntax_tile_read failed with isyntax_error_t=%d", result);
       return false;
@@ -120,7 +135,7 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   // draw it
   // TODO(avirodov): it seems we get pixels in BGRA from libisyntax and give them here in ARGB. It works, but not sure
   //   why. Maybe libisyntax definition is incorrect, or uint32_t* vs unsigned char* - but shouldn't matter?
-  g_autoptr(cairo_surface_t) surface = cairo_image_surface_create_for_data((unsigned char *) tiledata,
+  g_autoptr(cairo_surface_t) surface = cairo_image_surface_create_for_data((unsigned char *)tiledata,
                                                                            CAIRO_FORMAT_ARGB32, tw, th, tw * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   // https://lists.cairographics.org/archives/cairo/2012-June/023206.html
@@ -139,20 +154,22 @@ static bool philips_isyntax_read_tile(openslide_t *osr,
   return true;
 }
 
-
 static bool philips_isyntax_detect(const char *filename,
                                    struct _openslide_tifflike *tl,
-                                   GError **err) {
+                                   GError **err)
+{
   LOG("got filename %s", filename);
   LOG_VAR("%p", tl);
   // reject TIFFs
-  if (tl) {
+  if (tl)
+  {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Is a TIFF file, not isyntax file.");
     return false;
   }
 
   g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (f == NULL) {
+  if (f == NULL)
+  {
     // Error was set by _openslide_fopen, nothing to add here.
     return false;
   }
@@ -165,7 +182,8 @@ static bool philips_isyntax_detect(const char *filename,
   LOG_VAR("%s", buf);
 
   // TODO(avirodov): probably a more robust XML parsing is needed.
-  if (strstr(buf, "<DataObject ObjectType=\"DPUfsImport\">") != NULL) {
+  if (strstr(buf, "<DataObject ObjectType=\"DPUfsImport\">") != NULL)
+  {
     LOG("got isyntax.");
     return true;
   }
@@ -181,8 +199,9 @@ static bool philips_isyntax_paint_region(openslide_t *osr G_GNUC_UNUSED,
                                          struct _openslide_level *osr_level,
                                          int32_t w,
                                          int32_t h,
-                                         GError **err) {
-  struct philips_isyntax_level *level = (struct philips_isyntax_level *) osr_level;
+                                         GError **err)
+{
+  struct philips_isyntax_level *level = (struct philips_isyntax_level *)osr_level;
 
   // LOG("x=%ld y=%ld level=%d w=%d h=%d", x, y, level->level_idx, w, h);
   // Note: round is necessary to avoid producing resampled (and thus blurry) images on higher levels.
@@ -194,53 +213,60 @@ static bool philips_isyntax_paint_region(openslide_t *osr G_GNUC_UNUSED,
 }
 
 const struct _openslide_ops philips_isyntax_ops = {
-        .paint_region = philips_isyntax_paint_region,
-        .destroy = philips_isyntax_destroy,
+    .paint_region = philips_isyntax_paint_region,
+    .destroy = philips_isyntax_destroy,
 };
 
 static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       uint32_t *dest,
-                                      GError **err) {
-  struct philips_isyntax_associated_image *img = (struct xml_associated_image *) _img;
+                                      GError **err)
+{
+  struct philips_isyntax_associated_image *img = (struct xml_associated_image *)_img;
   memcpy(dest, img->pixels_buffer, img->base.w * img->base.h * 4);
   return true;
 }
 
-static void destroy_associated_image(struct _openslide_associated_image *_img) {
-  struct philips_isyntax_associated_image *img = (struct xml_associated_image *) _img;
+static void destroy_associated_image(struct _openslide_associated_image *_img)
+{
+  struct philips_isyntax_associated_image *img = (struct xml_associated_image *)_img;
   g_free(img);
 }
 const struct _openslide_associated_image_ops philips_isyntax_associated_image_ops = {
-        .get_argb_data = get_associated_image_data,
-        .destroy = destroy_associated_image
-};
+    .get_argb_data = get_associated_image_data,
+    .destroy = destroy_associated_image};
 
 static void add_double_property(openslide_t *osr,
                                 const char *property_name,
-                                double value) {
+                                double value)
+{
   g_hash_table_insert(osr->properties, g_strdup(property_name), _openslide_format_double(value));
 }
 
-static isyntax_error_t maybe_add_associated_image(openslide_t *osr, isyntax_t *isyntax, const char* name,
-                                                  enum associated_image_t image_type) {
+static isyntax_error_t maybe_add_associated_image(openslide_t *osr, isyntax_t *isyntax, const char *name,
+                                                  enum associated_image_t image_type)
+{
   int32_t w;
   int32_t h;
-  uint32_t* pixels_buffer;
+  uint32_t *pixels_buffer;
   isyntax_error_t result;
 
   // TODO(avirodov): here we decode the images even if the user never asks for them (typical ML usecase). We will need
   //  to change the libisyntax api to avoid doing reading/decoding at this stage. However, we may not have
   //  width/height without decode.
-  switch (image_type) {
-    case IMAGE_LABEL:
-      result = libisyntax_read_label_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
-      break;
-    case IMAGE_MACRO:
-      result = libisyntax_read_macro_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
-      break;
+  switch (image_type)
+  {
+  case IMAGE_LABEL:
+    result = libisyntax_read_label_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
+    break;
+  case IMAGE_MACRO:
+    result = libisyntax_read_macro_image(isyntax, &w, &h, &pixels_buffer, LIBISYNTAX_PIXEL_FORMAT_RGBA);
+    break;
   }
 
-  if (result != LIBISYNTAX_OK) { return result; }
+  if (result != LIBISYNTAX_OK)
+  {
+    return result;
+  }
 
   struct philips_isyntax_associated_image *img = g_new0(struct philips_isyntax_associated_image, 1);
   img->base.ops = &philips_isyntax_associated_image_ops;
@@ -251,21 +277,22 @@ static isyntax_error_t maybe_add_associated_image(openslide_t *osr, isyntax_t *i
   g_hash_table_insert(osr->associated_images, g_strdup(name), img);
 }
 
-
 static bool philips_isyntax_open(openslide_t *osr,
                                  const char *filename,
                                  struct _openslide_tifflike *tl G_GNUC_UNUSED,
                                  struct _openslide_hash *quickhash1 G_GNUC_UNUSED,
-                                 GError **err) {
+                                 GError **err)
+{
   libisyntax_init();
   LOG("Opening file %s", filename);
 
   struct philips_isyntax_t *data = g_new(struct philips_isyntax_t, 1);
 
   isyntax_error_t open_result = libisyntax_open(filename, /*is_init_allocators=*/0, &data->isyntax);
-  LOG_VAR("%d", (int) open_result);
+  LOG_VAR("%d", (int)open_result);
   // LOG_VAR("%d", data->isyntax->image_count); // TODO(avirodov): getter.
-  if (open_result != LIBISYNTAX_OK) {
+  if (open_result != LIBISYNTAX_OK)
+  {
     free(data);
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED, "Can't open file.");
     return false;
@@ -276,10 +303,12 @@ static bool philips_isyntax_open(openslide_t *osr,
   int cache_size = 2000;
   const char *str_is_global_cache = g_environ_getenv(g_get_environ(), "OPENSLIDE_ISYNTAX_GLOBAL_CACHE");
   const char *str_cache_size = g_environ_getenv(g_get_environ(), "OPENSLIDE_ISYNTAX_CACHE_SIZE");
-  if (str_is_global_cache && *str_is_global_cache == '0') {
+  if (str_is_global_cache && *str_is_global_cache == '0')
+  {
     is_global_cache = false;
   }
-  if (str_cache_size) {
+  if (str_cache_size)
+  {
     cache_size = g_ascii_strtoull(str_cache_size, NULL, 10);
   }
   /* TODO(avirodov): make debug api.
@@ -293,12 +322,14 @@ static bool philips_isyntax_open(openslide_t *osr,
       memory_count += wsi->data_chunk_count * sizeof(isyntax_data_chunk_t);
       printf("philips_isyntax_open is_global_cache=%d cache_size=%d sizeof_structs=%'lld\n", (int)is_global_cache, cache_size, memory_count);
   } */
-  if (is_global_cache) {
+  if (is_global_cache)
+  {
     // https://docs.gtk.org/glib/method.Mutex.init.html:
     //   "It is not necessary to initialize a mutex that has been statically allocated."
     static GMutex static_open_mutex;
     g_mutex_lock(&static_open_mutex);
-    if (philips_isyntax_global_cache_ptr == NULL) {
+    if (philips_isyntax_global_cache_ptr == NULL)
+    {
       // Note: this requires that all opened files have the same block size. If that is not true, we
       // will need to have allocator per size. Alternatively, implement allocator freeing after
       // all tiles have been freed, and track isyntax_t per tile so we can access allocator.
@@ -308,14 +339,17 @@ static bool philips_isyntax_open(openslide_t *osr,
     }
     data->cache = philips_isyntax_global_cache_ptr;
     g_mutex_unlock(&static_open_mutex);
-  } else {
+  }
+  else
+  {
     ASSERT_LIBISYNTAX_OK(libisyntax_cache_create("cache_list", cache_size, &data->cache->cache));
   }
   // Link the cache (local or global) to the isyntax file.
   libisyntax_cache_inject(data->cache->cache, data->isyntax);
 
   LOG_VAR("%d", libisyntax_get_is_mpp_known(data->isyntax));
-  if (libisyntax_get_is_mpp_known(data->isyntax)) {
+  if (libisyntax_get_is_mpp_known(data->isyntax))
+  {
     double mpp_x = libisyntax_get_mpp_x(data->isyntax);
     double mpp_y = libisyntax_get_mpp_y(data->isyntax);
     LOG_VAR("%f", mpp_x);
@@ -323,7 +357,8 @@ static bool philips_isyntax_open(openslide_t *osr,
     add_double_property(osr, OPENSLIDE_PROPERTY_NAME_MPP_X, mpp_x);
     add_double_property(osr, OPENSLIDE_PROPERTY_NAME_MPP_Y, mpp_y);
     const float float_equals_tolerance = 1e-5;
-    if (fabs(mpp_x - mpp_y) < float_equals_tolerance) {
+    if (fabs(mpp_x - mpp_y) < float_equals_tolerance)
+    {
       // Compute objective power from microns-per-pixel, see e.g. table in "Scan Performance" here:
       // https://www.microscopesinternational.com/blog/20170928-whichobjective.aspx
       float objective_power = 10.0f / mpp_x;
@@ -340,7 +375,8 @@ static bool philips_isyntax_open(openslide_t *osr,
   // Store openslide information about each level.
   int level_count = libisyntax_image_get_level_count(wsi_image);
   g_autoptr(GPtrArray) level_array = g_ptr_array_sized_new(level_count);
-  for (int i = 0; i < level_count; ++i) {
+  for (int i = 0; i < level_count; ++i)
+  {
     struct philips_isyntax_level *level = g_new0(struct philips_isyntax_level, 1);
     level->isyntax_level = libisyntax_image_get_level(wsi_image, i);
     level->base.downsample = libisyntax_level_get_downsample_factor(level->isyntax_level);
@@ -381,14 +417,14 @@ static bool philips_isyntax_open(openslide_t *osr,
 
   osr->data = data;
   osr->level_count = level_array->len;
-  osr->levels = (struct _openslide_level **) g_ptr_array_free(g_steal_pointer(&level_array), false);
+  osr->levels = (struct _openslide_level **)g_ptr_array_free(g_steal_pointer(&level_array), false);
   osr->ops = &philips_isyntax_ops;
   return true;
 }
 
 const struct _openslide_format _openslide_format_philips_isyntax = {
-  .name = "philips-isyntax",
-  .vendor = "philips",
-  .detect = philips_isyntax_detect,
-  .open = philips_isyntax_open,
+    .name = "philips-isyntax",
+    .vendor = "philips",
+    .detect = philips_isyntax_detect,
+    .open = philips_isyntax_open,
 };

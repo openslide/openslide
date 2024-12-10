@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/amspath/libisyntax.git
+revision = 48bb10146cb0392ca027a74406be2c22e74d0fa6
+depth = 1
+
+[provide]
+dependency_names = libisyntax
