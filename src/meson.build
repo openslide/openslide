@@ -67,7 +67,6 @@ openslide_sources = [
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
   'openslide-vendor-philips-tiff.c',
-  'openslide-vendor-philips.c',
   'openslide-vendor-philips-isyntax.c',
   'openslide-vendor-sakura.c',
   'openslide-vendor-synthetic.c',
