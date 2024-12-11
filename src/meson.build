@@ -88,6 +88,7 @@ libopenslide = library(
     gdk_pixbuf_dep,
     cairo_dep,
     dicom_dep,
+    isyntax_dep,
     sqlite_dep,
     xml_dep,
     tiff_dep,
