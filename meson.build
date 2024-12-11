@@ -160,8 +160,8 @@ isyntax_dep = dependency(
   'libisyntax',
   fallback : ['libisyntax', 'libisyntax_dep'],
   default_options: [
-    'cpp_args=-DLTALLOC_NEXT_POINTER_CHECK -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers',
-    'c_args=-Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers'
+    'cpp_args=-DLTALLOC_NEXT_POINTER_CHECK -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -Wno-error',
+    'c_args=-Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -Wno-error'
   ]
 )
 valgrind_dep = dependency(
