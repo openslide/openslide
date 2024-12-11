@@ -156,6 +156,10 @@ dicom_dep = dependency(
   fallback : ['libdicom', 'libdicom_dep'],
   version : '>=1.0.0',
 )
+isyntax_dep = dependency(
+  'libisyntax',
+  fallback : ['libisyntax', 'libisyntax_dep'],
+)
 valgrind_dep = dependency(
   'valgrind',
   required : false,
