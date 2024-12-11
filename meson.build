@@ -159,6 +159,10 @@ dicom_dep = dependency(
 isyntax_dep = dependency(
   'libisyntax',
   fallback : ['libisyntax', 'libisyntax_dep'],
+  default_options: [
+    'cpp_args=-DLTALLOC_NEXT_POINTER_CHECK -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers',
+    'c_args=-Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers'
+  ]
 )
 valgrind_dep = dependency(
   'valgrind',
