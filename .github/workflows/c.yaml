@@ -140,7 +140,7 @@ jobs:
           - os: ubuntu-latest
             container: debian:12
             arch: i386
-          - os: ubuntu-24.04-aarch64
+          - os: ubuntu-24.04-arm
             container: debian:12
           - os: ubuntu-latest
             container: ubuntu:20.04
