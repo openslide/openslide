@@ -142,7 +142,8 @@ jobs:
             arch: i386
           - os: ubuntu-24.04-aarch64
             container: debian:12
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
+            container: ubuntu:20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: ubuntu-24.04
@@ -150,6 +151,7 @@ jobs:
             sanitize: sanitize
     steps:
     - name: Install dependencies
+      shell: bash
       run: |
         case "${{ matrix.os }}" in
         macos-*)
@@ -228,14 +230,17 @@ jobs:
                     alternatives --set python3 "/usr/bin/python${pydotver}"
                 fi
                 ;;
-            *debian*|"")
-                if [ -n "${{ matrix.container }}" ]; then
+            *debian*|*ubuntu*|"")
+                if [[ "${{ matrix.container }}" =~ debian ]]; then
                     # Debian container
                     jpeg=libjpeg-dev
                 else
-                    # Ubuntu, on host
+                    # Ubuntu container or host
                     jpeg=libjpeg-turbo8-dev
-                    sudo=sudo
+                    if [ -z "${{ matrix.container }}" ]; then
+                        # Host
+                        sudo=sudo
+                    fi
                 fi
                 if [ -n "${{ matrix.arch }}" ]; then
                     $sudo dpkg --add-architecture "${{ matrix.arch }}"
@@ -245,7 +250,7 @@ jobs:
                 $sudo apt-get update
                 # zstd command-line program needed to restore cache
                 # https://github.com/actions/cache/issues/1169
-                $sudo apt-get -y install \
+                DEBIAN_FRONTEND=noninteractive $sudo apt-get -y install \
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
                     zlib1g-dev$arch \
