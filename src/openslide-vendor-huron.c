@@ -20,6 +20,7 @@
 #include <tiffio.h>
 
 static const char HURON_DESCRIPTION[] = "Huron";
+static const char HURON_SOFTWARE_TAG[] = "MACROscan";
 
 #define HURON_COMPRESSION_JP2K_YCBCR 33003
 #define HURON_COMPRESSION_JP2K_RGB   33005
@@ -38,22 +39,33 @@ struct level {
 };
 
 static void destroy_level(struct level *l) {
-  if (l->missing_tiles) {
-    g_hash_table_destroy(l->missing_tiles);
+  if(l) {
+    if (l->missing_tiles) {
+      g_hash_table_destroy(l->missing_tiles);
+    }
+    _openslide_grid_destroy(l->grid);
+    g_slice_free(struct level, l);
   }
-  _openslide_grid_destroy(l->grid);
-  g_slice_free(struct level, l);
+}
+
+static void destroy_data(struct huron_ops_data *data,
+                         struct level **levels, int32_t level_count) {
+  if(data) {
+    _openslide_tiffcache_destroy(data->tc);
+    g_slice_free(struct huron_ops_data, data);
+  }
+
+  if(levels) {
+    for (int32_t i = 0; i < level_count; i++) {
+      destroy_level((struct level *) levels[i]);
+    }
+    g_free(levels);
+  }
 }
 
 static void destroy(openslide_t *osr) {
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    destroy_level((struct level *) osr->levels[i]);
-  }
-  g_free(osr->levels);
-
-  struct huron_ops_data *data = osr->data;
-  _openslide_tiffcache_destroy(data->tc);
-  g_slice_free(struct huron_ops_data, data);
+  struct level **levels = (struct level **) osr->levels;
+  destroy_data((struct huron_ops_data*)osr->data, levels, osr->level_count);
 }
 
 static bool render_missing_tile(struct level *l,
@@ -246,16 +258,41 @@ static bool huron_detect(const char *filename G_GNUC_UNUSED,
   const char *tagval = _openslide_tifflike_get_buffer(tl, 0,
                                                       TIFFTAG_MAKE,
                                                       err);
-  if (!tagval) {
-    return false;
-  }
-  if (!g_str_has_prefix(tagval, HURON_DESCRIPTION)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Not a Huron slide");
-    return false;
+  if (tagval) {
+    if (g_str_has_prefix(tagval, HURON_DESCRIPTION)) {
+      return true;
+    }
   }
 
-  return true;
+  // err may be populated at this point if the TIFFTAG_MAKE was not found. 
+  // since we continue to search for other tags, we need to clear the error to 
+  // avoid overwriting it with a different error.
+  if (*err != NULL) {
+    g_clear_error(err);
+  }
+
+  // check ImageSoftware
+  tagval = _openslide_tifflike_get_buffer(tl, 0,
+                                          TIFFTAG_SOFTWARE,
+                                          err);
+  if (tagval) {
+    if (g_str_has_prefix(tagval, HURON_SOFTWARE_TAG)) {
+      return true;
+    }
+  }
+
+  // at this point neither tag we checked exists on the image
+  // so we clear the error one more time so we can set an indication
+  // that this is not a Huron slide.
+  if (*err != NULL) {
+    g_clear_error(err);
+  }
+
+  // else
+  g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+              "Not a Huron slide");
+
+  return false;
 }
 
 static void add_properties(openslide_t *osr, char **props) {

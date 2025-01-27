@@ -97,16 +97,22 @@ static const char *const ORIGINAL_TYPES[] = {
   "ORIGINAL", "PRIMARY", "VOLUME", "NONE", NULL
 };
 // if the image has been re-encoded during conversion to DICOM
-static const char *const DERIVED_ORIGINAL_TYPES[] = {
+static const char *const DERIVED_TYPES[] = {
   "DERIVED", "PRIMARY", "VOLUME", "NONE", NULL
 };
-static const char *const RESAMPLED_TYPES[] = {
+static const char *const RESAMPLED_DERIVED_TYPES[] = {
   "DERIVED", "PRIMARY", "VOLUME", "RESAMPLED", NULL
 };
+
+static const char *const RESAMPLED_ORIGINAL_TYPES[] = {
+  "ORIGINAL", "PRIMARY", "VOLUME", "RESAMPLED", NULL
+};
+
 static const char *const *const LEVEL_TYPE_STRINGS[] = {
   ORIGINAL_TYPES,
-  DERIVED_ORIGINAL_TYPES,
-  RESAMPLED_TYPES,
+  DERIVED_TYPES,
+  RESAMPLED_DERIVED_TYPES,
+  RESAMPLED_ORIGINAL_TYPES,
 };
 
 static const struct allowed_types LEVEL_TYPES = {

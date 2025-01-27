@@ -134,6 +134,17 @@ static bool decode_tile(struct level *l,
                                tile_col, tile_row, err);
   }
 
+  // read raw tile
+  g_autofree void *buf = NULL;
+  int32_t buflen;
+  if (!_openslide_tiff_read_tile_data(tiffl, tiff,
+                                      &buf, &buflen,
+                                      tile_col, tile_row,
+                                      err)) {
+    return false;  // ok, haven't allocated anything yet
+  }
+  const unsigned char *bytes = buf;
+
   // select color space
   enum _openslide_jp2k_colorspace space;
   switch (l->compression) {
@@ -144,20 +155,16 @@ static bool decode_tile(struct level *l,
     space = OPENSLIDE_JP2K_RGB;
     break;
   default:
-    // not for us? fallback
-    return _openslide_tiff_read_tile(tiffl, tiff, dest,
-                                     tile_col, tile_row,
-                                     err);
-  }
-
-  // read raw tile
-  g_autofree void *buf = NULL;
-  int32_t buflen;
-  if (!_openslide_tiff_read_tile_data(tiffl, tiff,
-                                      &buf, &buflen,
-                                      tile_col, tile_row,
-                                      err)) {
-    return false;
+    // In large SVS Aperio images, a tile (typically 0, 0), in one or more levels, is partly overwritten.
+    // This also overrides the JPEG marker.
+    // Return false in order to fallback to a missing tile.
+    if (bytes[0] == 0x11 || (bytes[0] == 0xff && bytes[1] == 0x11)) {
+      return render_missing_tile(l, tiff, dest, tile_col, tile_row, err);
+    } else {
+      return _openslide_tiff_read_tile(tiffl, tiff, dest,
+                                       tile_col, tile_row,
+                                       err);
+    }
   }
 
   // decompress
