@@ -84,11 +84,36 @@ static uint32_t *read_image(openslide_t *osr,
 
   g_autofree uint32_t *dest = g_malloc(w * h * 4);
 
-  result = _openslide_jpeg_read_2(data->filename,
-                                  image->start_in_file,
-                                  image->length,
-                                  dest, w, h,
-                                  err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(data->filename, err);
+  if (f == NULL) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "File is NULL");
+    return NULL;
+  }
+
+  if (image->length == 0) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Length is zero");
+    return NULL;
+  }
+
+  if (image->start_in_file && !_openslide_fseek(f, image->start_in_file, SEEK_SET, err)) {
+    g_prefix_error(err, "Cannot seek to offset: ");
+    return NULL;
+  }
+
+  char buf[image->length];
+  if (_openslide_fread(f, buf, sizeof(buf), err) != sizeof(buf)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read tile data");
+    return NULL;
+  }
+
+  result = _openslide_jpeg_decode_buffer(buf,
+                                        image->length,
+                                        dest,
+                                        w, h,
+                                        err);
 
   if (!result) {
     return NULL;
@@ -323,23 +348,10 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
   return true;
 }
 
-static bool process_slide_image_xml_from_base64(openslide_t *osr, struct _openslide_file *f,
-                                                int32_t seek_location, int32_t len, GError **err) {
-  if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't seek within header: ");
-    return false;
-  }
-
-  g_autofree char *slide_image_xml_base64 = read_string_from_file(f, len);
-  gsize slide_image_xml_length;
-  guchar *slide_image_xml = g_base64_decode(slide_image_xml_base64, &slide_image_xml_length);
-  if (!slide_image_xml) {
-    return false;
-  }
-
+static bool parse_slide_image_xml(openslide_t *osr,
+                                  const char *xml, int length, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse_2((const char *) slide_image_xml, slide_image_xml_length, err);
-  g_free(slide_image_xml);
+  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse_2(xml, length, err);
   if (!slide_image_doc) {
     return false;
   }
@@ -377,24 +389,39 @@ static bool process_slide_image_xml_from_base64(openslide_t *osr, struct _opensl
   return true;
 }
 
-static bool process_property_xml_from_base64(openslide_t *osr, struct _openslide_file *f,
-                                             int64_t seek_location,
-                                             int len, GError **err) {
+static bool process_slide_image_xml_from_base64(openslide_t *osr, struct _openslide_file *f,
+                                                int32_t seek_location, int32_t len, GError **err) {
   if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek within header: ");
     return false;
   }
 
-  g_autofree char *property_xml_base64 = read_string_from_file(f, len);
-  gsize property_xml_length;
-  guchar *property_xml = g_base64_decode(property_xml_base64, &property_xml_length);
-  if (!property_xml) {
+  g_autofree char *slide_image_xml_base64 = read_string_from_file(f, len);
+  gsize slide_image_xml_length;
+  g_autofree guchar *slide_image_xml = g_base64_decode(slide_image_xml_base64, &slide_image_xml_length);
+  if (!slide_image_xml) {
     return false;
   }
 
+  return parse_slide_image_xml(osr, (const char *) slide_image_xml, (int) slide_image_xml_length, err);
+}
+
+static bool process_slide_image_xml(openslide_t *osr, struct _openslide_file *f,
+                                    int32_t seek_location, int32_t len, GError **err) {
+  if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek within header: ");
+    return false;
+  }
+
+  g_autofree char *slide_image_xml = read_string_from_file(f, len);
+
+  return parse_slide_image_xml(osr, (const char *) slide_image_xml, len, err);
+}
+
+static bool parse_property_xml(openslide_t *osr,
+                               const char *xml, int length, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse_2((const char *) property_xml, property_xml_length, err);
-  g_free(property_xml);
+  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse_2(xml, length, err);
   if (!property_doc) {
     return false;
   }
@@ -417,6 +444,37 @@ static bool process_property_xml_from_base64(openslide_t *osr, struct _openslide
   }
 
   return true;
+}
+
+static bool process_property_xml_from_base64(openslide_t *osr, struct _openslide_file *f,
+                                             int64_t seek_location,
+                                             int len, GError **err) {
+  if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek within header: ");
+    return false;
+  }
+
+  g_autofree char *property_xml_base64 = read_string_from_file(f, len);
+  gsize property_xml_length;
+  g_autofree guchar *property_xml = g_base64_decode(property_xml_base64, &property_xml_length);
+  if (!property_xml) {
+    return false;
+  }
+
+  return parse_property_xml(osr, (const char *) property_xml, (int) property_xml_length, err);
+}
+
+static bool process_property_xml(openslide_t *osr, struct _openslide_file *f,
+                                 int64_t seek_location,
+                                 int len, GError **err) {
+  if (!_openslide_fseek(f, seek_location, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek within header: ");
+    return false;
+  }
+
+  g_autofree char *property_xml = read_string_from_file(f, len);
+
+  return parse_property_xml(osr, (const char *) property_xml, len, err);
 }
 
 static bool motic_mdsx_open(openslide_t *osr, const char *filename,
@@ -505,14 +563,41 @@ static bool motic_mdsx_open(openslide_t *osr, const char *filename,
   int32_t slide_image_xml_base64_in_file = read_le_int32_from_file(f);
   int32_t slide_image_xml_base64_length = read_le_int32_from_file(f);
 
-  // read slide image XML in base64
-  if (!process_slide_image_xml_from_base64(osr, f, slide_image_xml_base64_in_file, slide_image_xml_base64_length, err)) {
+  if (!_openslide_fseek(f, slide_image_xml_base64_in_file, SEEK_SET, err)) {
+    g_prefix_error(err, "Couldn't seek within header: ");
     return false;
   }
 
-  // read property XML in base64
-  if (!process_property_xml_from_base64(osr, f, property_xml_base64_in_file, property_xml_base64_length, err)) {
+  char xml[1];
+  if (!_openslide_fread_exact(f, xml, sizeof(xml), err)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't read version within header");
     return false;
+  }
+
+  // check if xml is encoded as base64 string
+  // if xml starts with '<', then it is not encoded
+  bool xml_is_base64 = xml[0] != '<';
+  if (xml_is_base64){
+    // read slide image XML in base64
+    if (!process_slide_image_xml_from_base64(osr, f, slide_image_xml_base64_in_file, slide_image_xml_base64_length, err)) {
+      return false;
+    }
+
+    // read property XML in base64
+    if (!process_property_xml_from_base64(osr, f, property_xml_base64_in_file, property_xml_base64_length, err)) {
+      return false;
+    }
+  } else{
+    // read slide image XML
+    if (!process_slide_image_xml(osr, f, slide_image_xml_base64_in_file, slide_image_xml_base64_length, err)) {
+      return false;
+    }
+
+    // read property XML
+    if (!process_property_xml(osr, f, property_xml_base64_in_file, property_xml_base64_length, err)) {
+      return false;
+    }
   }
 
   char *bg_str = g_hash_table_lookup(osr->properties, "motic.BackgroundColor");
