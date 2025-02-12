@@ -230,7 +230,7 @@ static bool decode_xml(const void *data, uint32_t len,
                        uint32_t *dest, GError **err) {
   // NUL-terminate
   g_autofree char *str = g_strndup(data, len);
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(str, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(str, strlen(str), err);
   if (doc == NULL) {
     return false;
   }
