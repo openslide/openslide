@@ -250,6 +250,18 @@ static int32_t read_le_int32_from_file(struct _openslide_file *f) {
   return i;
 }
 
+static int get_length_without_trailing_zeros(char *in, int inlen) {
+	int outlen = 0;
+	while (inlen > 0) {
+		if (*in == 0 && *(in+1) == 0)
+			return outlen;
+		outlen+=2;
+		inlen-=2;
+		in+=2;
+	}
+	return outlen;
+}
+
 static void insert_tile(struct level *l,
                         struct image *image,
                         double pos_x, double pos_y,
@@ -351,7 +363,7 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
 static bool parse_slide_image_xml(openslide_t *osr,
                                   const char *xml, int length, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse_2(xml, length, err);
+  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse(xml, length, err);
   if (!slide_image_doc) {
     return false;
   }
@@ -414,6 +426,7 @@ static bool process_slide_image_xml(openslide_t *osr, struct _openslide_file *f,
   }
 
   g_autofree char *slide_image_xml = read_string_from_file(f, len);
+  len = get_length_without_trailing_zeros(slide_image_xml, len);
 
   return parse_slide_image_xml(osr, (const char *) slide_image_xml, len, err);
 }
@@ -421,7 +434,7 @@ static bool process_slide_image_xml(openslide_t *osr, struct _openslide_file *f,
 static bool parse_property_xml(openslide_t *osr,
                                const char *xml, int length, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse_2(xml, length, err);
+  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse(xml, length, err);
   if (!property_doc) {
     return false;
   }
@@ -473,6 +486,7 @@ static bool process_property_xml(openslide_t *osr, struct _openslide_file *f,
   }
 
   g_autofree char *property_xml = read_string_from_file(f, len);
+  len = get_length_without_trailing_zeros(property_xml, len);
 
   return parse_property_xml(osr, (const char *) property_xml, len, err);
 }

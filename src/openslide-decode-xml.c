@@ -32,20 +32,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 
-xmlDoc *_openslide_xml_parse(const char *xml, GError **err) {
-  xmlDoc *doc = xmlReadMemory(xml, strlen(xml), "/", NULL,
-                              XML_PARSE_NOERROR |
-                              XML_PARSE_NOWARNING |
-                              XML_PARSE_NONET);
-  if (doc == NULL) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Could not parse XML");
-    return NULL;
-  }
-  return doc;
-}
-
-xmlDoc *_openslide_xml_parse_2(const char *xml, int length, GError **err) {
+xmlDoc *_openslide_xml_parse(const char *xml, int length, GError **err) {
   xmlDoc *doc = xmlReadMemory(xml, length, "/", NULL,
                               XML_PARSE_NOERROR |
                               XML_PARSE_NOWARNING |

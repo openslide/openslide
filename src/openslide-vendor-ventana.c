@@ -330,7 +330,7 @@ static bool ventana_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // parse
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, strlen(xml), err);
   if (!doc) {
     return false;
   }
@@ -375,7 +375,7 @@ static int width_compare(gconstpointer a, gconstpointer b) {
 static bool parse_initial_xml(openslide_t *osr, const char *xml,
                               GError **err) {
   // parse
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, strlen(xml), err);
   if (!doc) {
     return false;
   }
@@ -445,7 +445,7 @@ static struct bif *parse_level0_xml(const char *xml,
                                     int64_t tiff_tile_height,
                                     GError **err) {
   // parse
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, strlen(xml), err);
   if (!doc) {
     g_prefix_error(err, "Parsing level 0 XML: ");
     return NULL;

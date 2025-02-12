@@ -35,9 +35,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlDoc, xmlFreeDoc)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlXPathContext, xmlXPathFreeContext)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlXPathObject, xmlXPathFreeObject)
 
-xmlDoc *_openslide_xml_parse(const char *xml, GError **err);
-
-xmlDoc *_openslide_xml_parse_2(const char *xml, int length, GError **err);
+xmlDoc *_openslide_xml_parse(const char *xml, int length, GError **err);
 
 bool _openslide_xml_has_default_namespace(xmlDoc *doc, const char *ns);
 
