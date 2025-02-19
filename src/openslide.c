@@ -136,7 +136,6 @@ static const struct _openslide_format *detect_format(const char *filename,
 
     g_assert(format->name && format->vendor &&
              format->detect && format->open);
-
     if (format->detect(filename, tl, &tmp_err)) {
       // success!
       if (tl_OUT) {
@@ -204,7 +203,6 @@ static const char **strv_from_hashtable_keys(GHashTable *h) {
 
 openslide_t *openslide_open(const char *filename) {
   g_assert(openslide_was_dynamically_loaded);
-
   // detect format
   g_autoptr(_openslide_tifflike) tl = NULL;
   const struct _openslide_format *format = detect_format(filename, &tl);
@@ -220,7 +218,6 @@ openslide_t *openslide_open(const char *filename) {
   osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
                                                  g_free,
                                                  destroy_associated_image);
-
   // refuse to run on unpatched pixman 0.38.x
   static GOnce pixman_once = G_ONCE_INIT;
   g_once(&pixman_once, verify_pixman_works, NULL);
@@ -231,7 +228,6 @@ openslide_t *openslide_open(const char *filename) {
     _openslide_propagate_error(osr, tmp_err);
     return g_steal_pointer(&osr);
   }
-
   // open backend
   g_autoptr(_openslide_hash) quickhash1 = _openslide_hash_quickhash1_create();
   GError *tmp_err = NULL;
@@ -268,7 +264,6 @@ openslide_t *openslide_open(const char *filename) {
       return NULL;
     }
   }
-
   // set hash property
   const char *hash_str = _openslide_hash_get_string(quickhash1);
   if (hash_str != NULL) {
@@ -276,7 +271,6 @@ openslide_t *openslide_open(const char *filename) {
                         g_strdup(OPENSLIDE_PROPERTY_NAME_QUICKHASH1),
                         g_strdup(hash_str));
   }
-
   // set other properties
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_VENDOR),

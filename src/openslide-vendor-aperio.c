@@ -272,7 +272,6 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
                 "TIFF is not tiled");
     return false;
   }
-
   // check ImageDescription
   const char *tagval = _openslide_tifflike_get_buffer(tl, 0,
                                                       TIFFTAG_IMAGEDESCRIPTION,

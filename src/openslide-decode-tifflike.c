@@ -698,8 +698,6 @@ static void print_tag(struct _openslide_tifflike *tl,
   struct tiff_item *item = get_item(tl, dir, tag);
   g_assert(item != NULL);
 
-  printf(" %d: type: %d, count: %"PRId64"\n ", tag, item->type, item->count);
-
   switch (item->type) {
   case TIFF_ASCII: {
     // will only print first string if there are multiple

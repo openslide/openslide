@@ -259,10 +259,3 @@ config_h_include = include_directories('.')
 # Subdirs
 subdir('src')
 subdir('common')
-subdir('tools')
-if not get_option('test').disabled()
-  subdir('test')
-endif
-if doxygen.found()
-  subdir('doc')
-endif
