@@ -262,7 +262,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // try to parse the xml
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, strlen(image_desc), err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
     return false;
   }
@@ -360,7 +360,7 @@ static void set_region_bounds_props(openslide_t *osr,
 static struct collection *parse_xml_description(const char *xml,
                                                 GError **err) {
   // parse the xml
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, strlen(xml), err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
     return NULL;
   }

@@ -929,7 +929,7 @@ static void add_xml_props(openslide_t *osr, xmlDoc *doc, GPtrArray *path,
 // parse XML, set CZI parameters and OpenSlide properties
 static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                const char *xml, GError **err) {
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, strlen(xml), err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(xml, err);
   if (doc == NULL) {
     g_prefix_error(err, "Couldn't parse metadata XML: ");
     return false;

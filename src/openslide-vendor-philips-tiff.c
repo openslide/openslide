@@ -215,7 +215,7 @@ static bool philips_tiff_detect(const char *filename G_GNUC_UNUSED,
   }
 
   // try to parse the XML
-  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, strlen(image_desc), err);
+  g_autoptr(xmlDoc) doc = _openslide_xml_parse(image_desc, err);
   if (doc == NULL) {
     return false;
   }
@@ -249,7 +249,7 @@ static xmlDoc *parse_xml(TIFF *tiff, GError **err) {
     _openslide_tiff_error(err, tiff, "Couldn't read ImageDescription");
     return NULL;
   }
-  return _openslide_xml_parse(image_desc, strlen(image_desc), err);
+  return _openslide_xml_parse(image_desc, err);
 }
 
 static bool get_compressed_xml_associated_image_data(xmlDoc *doc,

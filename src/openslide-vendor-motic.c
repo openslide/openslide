@@ -13,6 +13,8 @@
 
 static const char MDSX_EXT[] = ".mdsx";
 
+static const char XML_HEADER[] = "<?xml version=\"1.0\" ?>";
+
 struct motic_ops_data {
   char *filename;
 };
@@ -253,13 +255,111 @@ static int32_t read_le_int32_from_file(struct _openslide_file *f) {
 static int get_length_without_trailing_zeros(char *in, int inlen) {
 	int outlen = 0;
 	while (inlen > 0) {
-		if (*in == 0 && *(in+1) == 0)
+		if (*in == 0 && *(in + 1) == 0)
 			return outlen;
-		outlen+=2;
-		inlen-=2;
-		in+=2;
+		outlen += 2;
+		inlen -= 2;
+		in += 2;
 	}
 	return outlen;
+}
+
+// find ending of xml header -> ?> (3F3E)
+static int find_xml_header_end(char *in, int inlen) {
+	int outlen = 0;
+	while (inlen > 0) {
+		if (*in == 63 && *(in + 1) == 62)
+			return outlen;
+		outlen++;
+		inlen--;
+		in++;
+	}
+	return outlen;
+}
+
+static int find_scan_path_start(char *in, int inlen) {
+	int start = 0;
+	while (inlen > 0) {
+		if (*in == 83 && *(in + 2) == 99 && *(in + 4) == 97 && *(in + 6) == 110 && *(in + 8) == 80 && *(in + 10) == 97
+    && *(in + 12) == 116 && *(in + 14) == 104)
+			return start;
+		start++;
+		inlen--;
+		in++;
+	}
+  return start;
+}
+
+static int find_scan_path_end(char *in, int inlen, int start) {
+  int end = start;
+  inlen -= start;
+  while (start > 0) {
+		start--;
+    in++;
+	}
+
+	while (inlen > 0) {
+		if (*in == 47 && *(in + 1) == 0 && *(in + 2) == 62 && *(in + 3) == 0)
+			return end;
+		end++;
+		inlen--;
+		in++;
+	}
+  return end;
+}
+
+static void remove_scan_path(const char *in, int inlen, int start, int end, char *out) {
+  for(int i = 0; i < start; i++) {
+    *out = *in;
+    out++;
+    inlen--;
+    in++;
+  }
+  end -= start;
+  while (end > 0) {
+		end--;
+    inlen--;
+    in++;
+	}
+  while (inlen > 0) {
+    *out = *in;
+    out++;
+		inlen--;
+    in++;
+	}
+  *out = 0;
+}
+
+static void remove_inside_zeros(char *in, int inlen, char *out) {
+	while (inlen > 0) {
+		if (*in != 0) {
+      *out = *in;
+      out++;
+    }
+		inlen--;
+    in++;
+	}
+  *out = 0;
+}
+
+static void replace_xml_header(const char *in, int inlen, char *out) {
+  int size = sizeof(XML_HEADER) / sizeof(XML_HEADER[0]) - 1;
+  for(int i = 0; i < size; i++) {
+    *out = XML_HEADER[i];
+    out++;
+  }
+  int end = find_xml_header_end(in, inlen) + 2;
+  while (end > 0) {
+		end--;
+    in++;
+	}
+  while (inlen > 0) {
+    *out = *in;
+    out++;
+		inlen--;
+    in++;
+	}
+  *out = 0;
 }
 
 static void insert_tile(struct level *l,
@@ -361,9 +461,9 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
 }
 
 static bool parse_slide_image_xml(openslide_t *osr,
-                                  const char *xml, int length, GError **err) {
+                                  const char *xml, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse(xml, length, err);
+  g_autoptr(xmlDoc) slide_image_doc = _openslide_xml_parse(xml, err);
   if (!slide_image_doc) {
     return false;
   }
@@ -415,7 +515,15 @@ static bool process_slide_image_xml_from_base64(openslide_t *osr, struct _opensl
     return false;
   }
 
-  return parse_slide_image_xml(osr, (const char *) slide_image_xml, (int) slide_image_xml_length, err);
+  len = slide_image_xml_length;
+  len = get_length_without_trailing_zeros(slide_image_xml, len);
+  len -= 4;
+  char xml_without_inside_zeros[len / 2 + 1];
+  remove_inside_zeros(slide_image_xml, len, xml_without_inside_zeros);
+  len = len / 2;
+  char xml[len + 1];
+  replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+  return parse_slide_image_xml(osr, xml, err);
 }
 
 static bool process_slide_image_xml(openslide_t *osr, struct _openslide_file *f,
@@ -427,14 +535,19 @@ static bool process_slide_image_xml(openslide_t *osr, struct _openslide_file *f,
 
   g_autofree char *slide_image_xml = read_string_from_file(f, len);
   len = get_length_without_trailing_zeros(slide_image_xml, len);
-
-  return parse_slide_image_xml(osr, (const char *) slide_image_xml, len, err);
+  len -= 4;
+  char xml_without_inside_zeros[len / 2 + 1];
+  remove_inside_zeros(slide_image_xml, len, xml_without_inside_zeros);
+  len = len / 2;
+  char xml[len + 1];
+  replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+  return parse_slide_image_xml(osr, xml, err);
 }
 
 static bool parse_property_xml(openslide_t *osr,
-                               const char *xml, int length, GError **err) {
+                               const char *xml, GError **err) {
   // try to parse the xml
-  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse(xml, length, err);
+  g_autoptr(xmlDoc) property_doc = _openslide_xml_parse(xml, err);
   if (!property_doc) {
     return false;
   }
@@ -474,7 +587,22 @@ static bool process_property_xml_from_base64(openslide_t *osr, struct _openslide
     return false;
   }
 
-  return parse_property_xml(osr, (const char *) property_xml, (int) property_xml_length, err);
+  len = property_xml_length;
+  len = get_length_without_trailing_zeros(property_xml, len);
+  len -= 4; // remove ending (00 0D 00 0A)
+  int start = find_scan_path_start(property_xml, len) - 12;
+  int end = find_scan_path_end(property_xml, len, start) + 4;
+  int scan_path_len = end - start;
+  g_assert(scan_path_len > 0);
+  char xml_without_scan_path[len - scan_path_len + 1];
+  remove_scan_path(property_xml, len, start, end, xml_without_scan_path);
+  len -= scan_path_len;
+  char xml_without_inside_zeros[len / 2 + 1];
+  remove_inside_zeros(xml_without_scan_path, len, xml_without_inside_zeros);
+  len = len / 2;
+  char xml[len + 1];
+  replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+  return parse_property_xml(osr, xml, err);
 }
 
 static bool process_property_xml(openslide_t *osr, struct _openslide_file *f,
@@ -487,8 +615,20 @@ static bool process_property_xml(openslide_t *osr, struct _openslide_file *f,
 
   g_autofree char *property_xml = read_string_from_file(f, len);
   len = get_length_without_trailing_zeros(property_xml, len);
-
-  return parse_property_xml(osr, (const char *) property_xml, len, err);
+  len -= 4; // remove ending (00 0D 00 0A)
+  int start = find_scan_path_start(property_xml, len) - 12;
+  int end = find_scan_path_end(property_xml, len, start) + 4;
+  int scan_path_len = end - start;
+  g_assert(scan_path_len > 0);
+  char xml_without_scan_path[len - scan_path_len + 1];
+  remove_scan_path(property_xml, len, start, end, xml_without_scan_path);
+  len -= scan_path_len;
+  char xml_without_inside_zeros[len / 2 + 1];
+  remove_inside_zeros(xml_without_scan_path, len, xml_without_inside_zeros);
+  len = len / 2;
+  char xml[len + 1];
+  replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+  return parse_property_xml(osr, xml, err);
 }
 
 static bool motic_mdsx_open(openslide_t *osr, const char *filename,
