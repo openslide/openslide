@@ -118,10 +118,20 @@ bool _openslide_hevc_decode_buffer(const void *src,
               openHevcContext->BGRA->linesize);
 
     // Copy the converted BGRA data to the output buffer.
-    for (int y = 0; y < height; y++) {
-        uint8_t *imgLine = openHevcContext->BGRA->data[0] + (y * openHevcContext->BGRA->linesize[0]);
-        uint8_t *pixLine = dest + (y * width * 4);
-        memcpy(pixLine, imgLine, width * 4);
+    // Check if the stride matches.
+    int expectedStride = width * 4; // BGRA format: 4 bytes per pixel.
+    int actualStride = openHevcContext->BGRA->linesize[0];
+
+    if (expectedStride == actualStride) {
+        // If the stride matches, copy the entire frame in one go.
+        memcpy(dest, openHevcContext->BGRA->data[0], expectedStride * height);
+    } else {
+        // If the stride does not match, copy line by line.
+        for (int y = 0; y < height; y++) {
+            uint8_t *imgLine = openHevcContext->BGRA->data[0] + (y * actualStride);
+            uint8_t *pixLine = dest + (y * expectedStride);
+            memcpy(pixLine, imgLine, expectedStride);
+        }
     }
 
     // Clean up.
