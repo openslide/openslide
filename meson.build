@@ -125,6 +125,9 @@ dicom_dep      = dependency(
   version : '>=1.0.0',
 )
 valgrind_dep   = dependency('valgrind', required : false)
+avutil_dep = dependency('libavutil')
+avcodec_dep = dependency('libavcodec')
+swscale_dep = dependency('libswscale')
 
 doxygen = find_program(
   'doxygen',

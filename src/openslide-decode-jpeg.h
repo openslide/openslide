@@ -76,6 +76,14 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
                                           int64_t offset,
                                           GError **err);
 
+bool _openslide_jpeg_add_associated_image_3(openslide_t *osr,
+                                            const char *name,
+                                            const char *filename,
+                                            uint32_t *dest,
+                                            int32_t w,
+                                            int32_t h,
+                                            GError **err);
+
 /*
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
  * So we need to compile all our freading into the OpenSlide DLL directly.

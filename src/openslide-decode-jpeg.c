@@ -72,6 +72,8 @@ struct associated_image {
   struct _openslide_associated_image base;
   char *filename;
   int64_t offset;
+
+  uint32_t *dest;
 };
 
 
@@ -429,6 +431,12 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
                                       GError **err) {
   struct associated_image *img = (struct associated_image *) _img;
 
+  if (img->dest) {
+    // dest = img->dest;
+    memcpy(dest, img->dest, img->base.w * img->base.h * 4);
+    return true;
+  }
+
   //g_debug("read JPEG associated image: %s %"PRId64, img->filename, img->offset);
 
   return _openslide_jpeg_read(img->filename, img->offset, dest,
@@ -439,6 +447,8 @@ static void destroy_associated_image(struct _openslide_associated_image *_img) {
   struct associated_image *img = (struct associated_image *) _img;
 
   g_free(img->filename);
+  if (img->dest)
+    g_free(g_steal_pointer(&img->dest));
   g_free(img);
 }
 
@@ -464,6 +474,25 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
   img->base.h = h;
   img->filename = g_strdup(filename);
   img->offset = offset;
+
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
+
+  return true;
+}
+
+bool _openslide_jpeg_add_associated_image_3(openslide_t *osr,
+                                            const char *name,
+                                            const char *filename,
+                                            uint32_t *dest,
+                                            int32_t w,
+                                            int32_t h,
+                                            GError **err) {
+  struct associated_image *img = g_new0(struct associated_image, 1);
+  img->base.ops = &jpeg_associated_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->filename = g_strdup(filename);
+  img->dest = dest;
 
   g_hash_table_insert(osr->associated_images, g_strdup(name), img);
 
