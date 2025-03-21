@@ -100,8 +100,7 @@ libopenslide = library('openslide',
     zstd_dep,
     libm_dep,
     avutil_dep,
-    avcodec_dep,
-    swscale_dep
+    avcodec_dep
   ],
   install : true,
 )
