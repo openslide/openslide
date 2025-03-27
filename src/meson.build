@@ -28,7 +28,7 @@ if host_machine.system() == 'windows'
     depend_files : [openslide_dll_manifest],
   )
 else
-  openslide_dll_o = files()
+  openslide_dll_o = []
 endif
 
 # Public headers
@@ -40,10 +40,8 @@ install_headers(
 )
 
 # Library
-openslide_sources = [
-  'openslide.c',
+openslide_sources = files(
   'openslide-cache.c',
-  openslide_dll_o,
   'openslide-decode-dicom.c',
   'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
@@ -58,7 +56,6 @@ openslide_sources = [
   'openslide-grid.c',
   'openslide-hash.c',
   'openslide-jdatasrc.c',
-  openslide_tables_c,
   'openslide-util.c',
   'openslide-vendor-aperio.c',
   'openslide-vendor-dicom.c',
@@ -72,6 +69,10 @@ openslide_sources = [
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
   'openslide-vendor-zeiss.c',
+  'openslide.c',
+) + [
+  openslide_dll_o,
+  openslide_tables_c,
 ]
 libopenslide = library(
   'openslide',
