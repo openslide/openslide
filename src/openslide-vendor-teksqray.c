@@ -197,7 +197,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(PicInfo, destroy_picInfo)
 
 struct teksqray_ops_data {
   char *filename;
-  OpenHevc_Handle openHevcHandle;
+  enum CompressMode sliceFmt;
 };
 
 struct image {
@@ -239,8 +239,6 @@ static void destroy(openslide_t *osr) {
   g_free(osr->levels);
 
   // the ops data
-  if (data->openHevcHandle)
-    _openslide_hevc_decompress_destroy(data->openHevcHandle);
   g_free(data->filename);
   g_free(data);
 }
@@ -321,7 +319,24 @@ static uint32_t *read_image(openslide_t *osr,
   }
 
   g_autofree uint32_t *dest = g_malloc(w * h * 4);
-  result = decode_item(f, image->start_in_file, image->length, dest, w, h, data->openHevcHandle, err);
+
+  OpenHevc_Handle openHevcHandle = NULL;
+  if (data->sliceFmt == Hevc) {
+    // initialize hevc decoder
+    openHevcHandle = _openslide_hevc_decompress_init(err);
+    if (openHevcHandle == NULL) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't initialize hevc decoder");
+      return NULL;
+    }
+  }
+
+  result = decode_item(f, image->start_in_file, image->length, dest, w, h, openHevcHandle, err);
+
+  if (openHevcHandle) {
+    _openslide_hevc_decompress_destroy(openHevcHandle);
+  }
+
   if (!result) {
     return NULL;
   }
@@ -1270,17 +1285,7 @@ static bool teksqray_sdpc_dyqx_open(openslide_t *osr, const char *filename,
   // build ops data
   struct teksqray_ops_data *data = g_new0(struct teksqray_ops_data, 1);
   data->filename = g_strdup(filename);
-
-  if (picHead->sliceFmt == Hevc) {
-    // initialize hevc decoder
-    OpenHevc_Handle openHevcHandle = _openslide_hevc_decompress_init(err);
-    if (openHevcHandle == NULL) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't initialize hevc decoder");
-      return false;
-    }
-    data->openHevcHandle = openHevcHandle;
-  }
+  data->sliceFmt = picHead->sliceFmt;
 
   // store osr data
   g_assert(osr->data == NULL);
