@@ -68,7 +68,7 @@ To build OpenSlide, you will need:
 - cairo ≥ 1.2
 - GDK-PixBuf
 - glib ≥ 2.56
-- libdicom ≥ 1.0 (automatically built if missing)
+- libdicom ≥ 1.2 (automatically built if missing)
 - libjpeg
 - libpng
 - libtiff ≥ 4.0
