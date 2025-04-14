@@ -76,12 +76,12 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/codespell-project/codespell
-    # Configuration for codespell is in pyproject.toml
     rev: v2.4.1
     hooks:
-    - id: codespell
-      additional_dependencies:
-      - tomli  # for python_version < '3.11'
+      - id: codespell
+        name: Check spelling with codespell
+        additional_dependencies:
+          - tomli  # Python < 3.11
 
   - repo: meta
     hooks:
