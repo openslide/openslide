@@ -889,7 +889,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 stat = backingpath.lstat()
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             entry = pyfuse3.EntryAttributes()
             for attr in (
                 'st_ino',
@@ -932,7 +932,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 if not os.path.lexists(shadowpath):
                     shadowpath.symlink_to(target)
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             return cast(FileNameT, os.fsencode(target))
 
         async def opendir(
@@ -981,7 +981,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 statfs = os.statvfs(WORKROOT)
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             for attr in (
                 'f_bsize',
                 'f_frsize',
@@ -1021,7 +1021,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 )
                 shadow.truncate(os.lseek(fd, 0, os.SEEK_END))
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             self._inode_fd_map[inode] = fd
             self._fd_inode_map[fd] = inode
             self._fd_shadow_map[fd] = shadow
@@ -1054,7 +1054,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 os.close(fd)
                 shadow.close()
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
 
     try:
         FUSEMOUNT.stat()

@@ -5,10 +5,9 @@ target-version = ["py38", "py39", "py310", "py311", "py312", "py313"]
 
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
 [tool.codespell]
-skip = '.git'
 check-hidden = true
-# ignore-regex = ''
-ignore-words-list = 'debbugs,subtile,subtiles,checkin'
+# ignore-regex = ""
+ignore-words-list = "checkin,debbugs,subtile,subtiles"
 
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html#flake8
 # requires Flake8-pyproject
