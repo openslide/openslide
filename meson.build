@@ -8,8 +8,8 @@ project(
     'c_std=gnu99',
     'warning_level=2',
   ],
-  # limited by Ubuntu 20.04
-  meson_version : '>=0.53',
+  # limited by Debian 11 at 0.56
+  meson_version : '>=0.54',
 )
 # Shared library version.  Follow SemVer rules.
 soversion = '1.0.0'

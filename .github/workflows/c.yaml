@@ -144,9 +144,6 @@ jobs:
             arch: i386
           - os: ubuntu-24.04-arm
             container: debian:12
-          - os: ubuntu-latest
-            container: ubuntu:20.04
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: ubuntu-24.04
           - os: macos-latest
