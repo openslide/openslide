@@ -99,12 +99,13 @@ static uint64_t read_uint(struct _openslide_file *f, int32_t size,
                           bool big_endian, bool *ok) {
   g_assert(ok != NULL);
 
-  uint8_t buf[size];
+  uint8_t buf[8];
+  g_assert(size <= (int32_t) sizeof(buf));
   if (!_openslide_fread_exact(f, buf, size, NULL)) {
     *ok = false;
     return 0;
   }
-  fix_byte_order(buf, sizeof(buf), 1, big_endian);
+  fix_byte_order(buf, size, 1, big_endian);
   switch (size) {
   case 1: {
     uint8_t result;
