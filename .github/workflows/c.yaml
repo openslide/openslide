@@ -63,7 +63,9 @@ jobs:
       uses: actions/checkout@v4
     - name: Build
       run: |
-        if ! meson setup builddir --werror; then
+        # disable werror for libdicom 1.2.0
+        # https://github.com/ImagingDataCommons/libdicom/pull/100
+        if ! meson setup builddir --werror -Dlibdicom:werror=false; then
             cat builddir/meson-logs/meson-log.txt
             exit 1
         fi
