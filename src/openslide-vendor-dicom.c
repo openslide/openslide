@@ -942,6 +942,8 @@ static bool maybe_add_file(openslide_t *osr,
       !verify_tag_int(f->metadata, HighBit, 7, true, err) ||
       !verify_tag_int(f->metadata, PixelRepresentation, 0, true, err) ||
       !verify_tag_int(f->metadata, TotalPixelMatrixFocalPlanes, 1, false, err)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported image format");
     return false;
   }
 
@@ -959,7 +961,9 @@ static bool maybe_add_file(openslide_t *osr,
     }
     break;
   default:
-    break;
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Unsupported SamplesPerPixel");
+    return false;
   }
 
   // check color space
