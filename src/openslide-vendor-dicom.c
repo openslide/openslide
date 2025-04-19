@@ -827,6 +827,16 @@ static bool add_level(openslide_t *osr,
   struct dicom_level *l =
     find_level_by_dimensions(level_array, level_width, level_height);
   if (l) {
+    // if we've seen this level before and the SOPs match, this is probably
+	// just a duplicate file and we can ignore it
+	for (guint j = 0; j < l->files->len; j++) {
+      struct dicom_file *previous = l->files->pdata[j];
+
+      if (!ensure_sop_instance_uids_equal(file, previous, err)) {
+	    return false;
+	  }
+	}
+
     // all files in a level must have the same tile size
     if (l->base.tile_w != tile_width || l->base.tile_h != tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
