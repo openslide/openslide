@@ -1,5 +1,5 @@
 base: DICOM/3DHISTECH-1.zip
-error: "^Reading .*/000013.dcm: Attribute SamplesPerPixel value 4 != 3$"
+error: "^Reading .*/000013.dcm: Unsupported SamplesPerPixel$"
 slide: 000013.dcm
 success: false
 vendor: dicom
