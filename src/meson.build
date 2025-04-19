@@ -110,6 +110,4 @@ import('pkgconfig').generate(
   subdirs : include_subdir,
   url : 'https://openslide.org',
 )
-if meson.version().version_compare('>=0.54')
-  meson.override_dependency('openslide', openslide_dep)
-endif
+meson.override_dependency('openslide', openslide_dep)
