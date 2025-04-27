@@ -144,9 +144,6 @@ jobs:
             arch: i386
           - os: ubuntu-24.04-arm
             container: debian:12
-          - os: ubuntu-latest
-            container: ubuntu:20.04
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: ubuntu-24.04
           - os: macos-latest
@@ -196,9 +193,9 @@ jobs:
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     dnf install -y epel-release
-                    pyver=38
-                    pydotver=3.8
-                    python=python38
+                    pyver=39
+                    pydotver=3.9
+                    python=python39
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
