@@ -183,6 +183,8 @@ static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SharedFunctionalGroupsSequence[] =
   "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
+static const char SOPInstanceUIDOfConcatenationSource[] = 
+  "SOPInstanceUIDOfConcatenationSource";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
@@ -713,18 +715,28 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .destroy = associated_destroy,
 };
 
-// error if two files have different SOP instance UIDs
-// if we discover two files with the same purpose (e.g. two label images)
-// and their UIDs are the same, it's a simple file duplication and we can
-// ignore it ... if the UIDs are different, then something unexpected has
-// happened and we must fail
+/* Get the underlying SOPInstanceUID. 
+ *
+ * DICOM levels split into parts will have different SOPInstanceUID, so to be
+ * able to check that the files we are combining to make a level are correct,
+ * we must fetch SOPInstanceUIDOfConcatenationSource instead.
+ */
+static const char *get_underlying_sopinstance(struct dicom_file *f) {
+  const char *sop;
+  if (get_tag_str(f->metadata, SOPInstanceUIDOfConcatenationSource, 0, &sop) ||
+	  get_tag_str(f->metadata, SOPInstanceUID, 0, &sop)) {
+	  return sop;
+  }
+
+  return NULL;
+}
+
 static bool ensure_sop_instance_uids_equal(struct dicom_file *cur,
                                            struct dicom_file *prev,
                                            GError **err) {
-  const char *cur_sop;
-  const char *prev_sop;
-  if (!get_tag_str(cur->metadata, SOPInstanceUID, 0, &cur_sop) ||
-      !get_tag_str(prev->metadata, SOPInstanceUID, 0, &prev_sop)) {
+  const char *cur_sop = get_underlying_sopinstance(cur);
+  const char *prev_sop = get_underlying_sopinstance(prev);
+  if (!cur_sop || !prev_sop) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Couldn't read SOPInstanceUID");
     return false;
