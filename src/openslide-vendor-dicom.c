@@ -183,7 +183,7 @@ static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SharedFunctionalGroupsSequence[] =
   "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
-static const char SOPInstanceUIDOfConcatenationSource[] = 
+static const char SOPInstanceUIDOfConcatenationSource[] =
   "SOPInstanceUIDOfConcatenationSource";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
@@ -715,7 +715,7 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .destroy = associated_destroy,
 };
 
-/* Get the underlying SOPInstanceUID. 
+/* Get the underlying SOPInstanceUID.
  *
  * DICOM levels split into parts will have different SOPInstanceUID, so to be
  * able to check that the files we are combining to make a level are correct,
@@ -839,8 +839,7 @@ static bool add_level(openslide_t *osr,
   struct dicom_level *l =
     find_level_by_dimensions(level_array, level_width, level_height);
   if (l) {
-    // if we've seen this level before and the SOPs match, this is probably
-	// just a duplicate file and we can ignore it
+    // all files in a level should have the same UID
 	for (guint j = 0; j < l->files->len; j++) {
       struct dicom_file *previous = l->files->pdata[j];
 
