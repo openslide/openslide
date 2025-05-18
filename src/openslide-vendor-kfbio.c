@@ -371,7 +371,8 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
     }
 
     int32_t length = read_le_int32_from_file(f);
-    uint64_t offset = read_le_uint64_from_file(f);
+    int64_t offset_from_file = read_le_int64_from_file(f);
+    int64_t offset = seek_location + offset_from_file;
     if (!_openslide_fseek(f, 20, SEEK_CUR, err)) {
       g_prefix_error(err, "Couldn't seek within header: ");
       return false;
