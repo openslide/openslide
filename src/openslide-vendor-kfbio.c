@@ -276,6 +276,29 @@ static int64_t read_le_int64_from_file(struct _openslide_file *f) {
   return i;
 }
 
+static bool read_le_uint64_from_file_with_result(struct _openslide_file *f,
+                                                 uint64_t *OUT) {
+  if (!_openslide_fread_exact(f, OUT, 8, NULL)) {
+    return false;
+  }
+
+  *OUT = GUINT64_FROM_LE(*OUT);
+  // g_debug("%d", i);
+
+  return true;
+}
+
+static uint64_t read_le_uint64_from_file(struct _openslide_file *f) {
+  uint64_t i;
+
+  if (!read_le_uint64_from_file_with_result(f, &i)) {
+    // -1 means error
+    i = -1;
+  }
+
+  return i;
+}
+
 static void insert_tile(struct level *l,
                         struct image *image,
                         double pos_x, double pos_y,
@@ -318,7 +341,6 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
   }
 
   int32_t image_number = 0;
-  int64_t uint32_t_max_value_plus_1 = 4294967295 + 1;
   int zoom_level = -1;
   int32_t base_level_id = -1;
   // read all the data into the list
@@ -358,9 +380,9 @@ static bool process_tiles_info_from_header(struct _openslide_file *f,
     }
 
     int32_t length = read_le_int32_from_file(f);
-    uint32_t offset_from_file = read_le_uint32_from_file(f);
-    int64_t offset = seek_location - uint32_t_max_value_plus_1 + offset_from_file;
-    if (!_openslide_fseek(f, 24, SEEK_CUR, err)) {
+    int64_t offset_from_file = read_le_int64_from_file(f);
+    int64_t offset = seek_location + offset_from_file;
+    if (!_openslide_fseek(f, 20, SEEK_CUR, err)) {
       g_prefix_error(err, "Couldn't seek within header: ");
       return false;
     }
@@ -462,21 +484,11 @@ static bool kfbio_kfb_open(openslide_t *osr, const char *filename,
   int32_t SpendTime = read_le_int32_from_file(f);
   int64_t ScanTime = read_le_int64_from_file(f);
 
-  int32_t macro_info_in_file = read_le_int32_from_file(f);
-  int32_t label_info_in_file = read_le_int32_from_file(f);
-  int32_t preview_info_in_file = read_le_int32_from_file(f);
+  uint32_t macro_info_in_file = read_le_uint32_from_file(f);
+  uint32_t label_info_in_file = read_le_uint32_from_file(f);
+  uint64_t preview_info_in_file = read_le_uint64_from_file(f);
+  uint64_t tiles_info_in_file = read_le_uint64_from_file(f);
 
-  if (!_openslide_fseek(f, 4, SEEK_CUR, err)) {
-    g_prefix_error(err, "Couldn't seek within header: ");
-    return false;
-  }
-
-  int32_t tiles_info_in_file = read_le_int32_from_file(f);
-
-  if (!_openslide_fseek(f, 4, SEEK_CUR, err)) {
-    g_prefix_error(err, "Couldn't seek within header: ");
-    return false;
-  }
 
   // add properties
   g_hash_table_insert(osr->properties,
@@ -497,9 +509,6 @@ static bool kfbio_kfb_open(openslide_t *osr, const char *filename,
   g_hash_table_insert(osr->properties,
                       g_strdup("kfbio.ScanScale"),
                       _openslide_format_double(ScanScale));
-  g_hash_table_insert(osr->properties,
-                      g_strdup("kfbio.ImageCapRes"),
-                      _openslide_format_double(*ImageCapRes));
   g_hash_table_insert(osr->properties,
                       g_strdup("kfbio.ImageCapRes"),
                       _openslide_format_double(*ImageCapRes));
