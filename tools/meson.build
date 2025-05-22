@@ -19,6 +19,7 @@ else
     'openslide-quickhash1sum',
     'openslide-show-properties',
     'openslide-write-png',
+    'openslide-write-associated-images',
     'slidetool',
   ]
 endif
