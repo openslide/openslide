@@ -327,7 +327,7 @@ static bool read_tile(openslide_t *osr,
 }
 
 static bool paint_region(openslide_t *osr G_GNUC_UNUSED, cairo_t *cr,
-                         int64_t x, int64_t y,
+                         double x, double y,
                          struct _openslide_level *level,
                          int32_t w, int32_t h,
                          GError **err) {
