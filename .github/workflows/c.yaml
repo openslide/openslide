@@ -50,7 +50,6 @@ jobs:
             libjpeg-turbo-devel \
             libtiff-devel \
             openjpeg2-devel \
-            gdk-pixbuf2-modules-extra gdk-pixbuf2-devel \
             libdicom-devel \
             libxml2-devel \
             sqlite-devel \
@@ -171,7 +170,6 @@ jobs:
                 jpeg-turbo \
                 libtiff \
                 openjpeg \
-                gdk-pixbuf \
                 libdicom \
                 libxml2 \
                 sqlite \
@@ -189,7 +187,6 @@ jobs:
             case "${{ matrix.container }}" in
             *centos*|*almalinux*)
                 pyver=3
-                gdkpixbufbmp=gdk-pixbuf2-modules
                 . /etc/os-release
                 case "$VERSION_ID" in
                 8.*)
@@ -208,7 +205,6 @@ jobs:
                 10)
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release
-                    gdkpixbufbmp=gdk-pixbuf2-modules-extra
                     ;;
                 esac
 
@@ -224,7 +220,6 @@ jobs:
                     libjpeg-turbo-devel \
                     libtiff-devel \
                     openjpeg2-devel \
-                    $gdkpixbufbmp gdk-pixbuf2-devel \
                     libdicom-devel \
                     libxml2-devel \
                     sqlite-devel \
@@ -266,7 +261,6 @@ jobs:
                     $jpeg$arch \
                     libtiff-dev$arch \
                     libopenjp2-7-dev$arch \
-                    libgdk-pixbuf2.0-dev$arch \
                     libxml2-dev$arch \
                     libsqlite3-dev$arch \
                     libcairo2-dev$arch \

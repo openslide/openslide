@@ -66,7 +66,6 @@ To build OpenSlide, you will need:
 
 - Meson
 - cairo ≥ 1.2
-- GDK-PixBuf
 - glib ≥ 2.56
 - libdicom ≥ 1.2 (automatically built if missing)
 - libjpeg
