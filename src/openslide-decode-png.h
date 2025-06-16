@@ -22,14 +22,16 @@
 #ifndef OPENSLIDE_OPENSLIDE_DECODE_PNG_H_
 #define OPENSLIDE_OPENSLIDE_DECODE_PNG_H_
 
+#include "openslide-private.h"
+
 #include <stdint.h>
 #include <glib.h>
 
-bool _openslide_png_read(const char *filename,
-                         int64_t offset,
-                         uint32_t *dest,
-                         int64_t w, int64_t h,
-                         GError **err);
+bool _openslide_png_read_file(struct _openslide_file *f,
+                              int64_t offset,
+                              uint32_t *dest,
+                              int64_t w, int64_t h,
+                              GError **err);
 
 bool _openslide_png_decode_buffer(const void *buf,
                                   int64_t length,

@@ -193,15 +193,11 @@ static void file_read_callback(png_struct *png, png_byte *buf, png_size_t len) {
   }
 }
 
-bool _openslide_png_read(const char *filename,
-                         int64_t offset,
-                         uint32_t *dest,
-                         int64_t w, int64_t h,
-                         GError **err) {
-  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (!f) {
-    return false;
-  }
+bool _openslide_png_read_file(struct _openslide_file *f,
+                              int64_t offset,
+                              uint32_t *dest,
+                              int64_t w, int64_t h,
+                              GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     return false;
   }

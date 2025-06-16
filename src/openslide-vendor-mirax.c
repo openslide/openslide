@@ -225,25 +225,31 @@ static uint32_t *read_image(openslide_t *osr,
 
   g_autofree uint32_t *dest = g_malloc(w * h * 4);
 
+  g_autoptr(_openslide_file) f =
+    _openslide_fopen(data->datafile_paths[image->fileno], err);
+  if (!f) {
+    return NULL;
+  }
+
   switch (format) {
   case FORMAT_JPEG:
-    result = _openslide_jpeg_read(data->datafile_paths[image->fileno],
-                                  image->start_in_file,
-                                  dest, w, h,
-                                  err);
-    break;
-  case FORMAT_PNG:
-    result = _openslide_png_read(data->datafile_paths[image->fileno],
-                                 image->start_in_file,
-                                 dest, w, h,
-                                 err);
-    break;
-  case FORMAT_BMP:
-    result = _openslide_gdkpixbuf_read("bmp",
-                                       data->datafile_paths[image->fileno],
-                                       image->start_in_file, image->length,
+    result = _openslide_jpeg_read_file(f,
+                                       image->start_in_file,
                                        dest, w, h,
                                        err);
+    break;
+  case FORMAT_PNG:
+    result = _openslide_png_read_file(f,
+                                      image->start_in_file,
+                                      dest, w, h,
+                                      err);
+    break;
+  case FORMAT_BMP:
+    result = _openslide_gdkpixbuf_read_file("bmp",
+                                            f,
+                                            image->start_in_file, image->length,
+                                            dest, w, h,
+                                            err);
     break;
   default:
     g_assert_not_reached();

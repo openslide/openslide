@@ -22,18 +22,20 @@
 #ifndef OPENSLIDE_OPENSLIDE_DECODE_GDKPIXBUF_H_
 #define OPENSLIDE_OPENSLIDE_DECODE_GDKPIXBUF_H_
 
+#include "openslide-private.h"
+
 #include <stdint.h>
 #include <glib.h>
 
 /* Support for formats supported by gdk-pixbuf (BMP, PNM, etc.) */
 
-bool _openslide_gdkpixbuf_read(const char *format,
-                               const char *filename,
-                               int64_t offset,
-                               int64_t length,
-                               uint32_t *dest,
-                               int32_t w, int32_t h,
-                               GError **err);
+bool _openslide_gdkpixbuf_read_file(const char *format,
+                                    struct _openslide_file *f,
+                                    int64_t offset,
+                                    int64_t length,
+                                    uint32_t *dest,
+                                    int32_t w, int32_t h,
+                                    GError **err);
 
 bool _openslide_gdkpixbuf_decode_buffer(const char *format,
                                         const void *buf,

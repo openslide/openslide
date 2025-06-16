@@ -199,17 +199,13 @@ static size_t file_read_callback(void *out, void *in, size_t size,
   return _openslide_fread(in, out, size, err);
 }
 
-bool _openslide_gdkpixbuf_read(const char *format,
-                               const char *filename,
-                               int64_t offset,
-                               int64_t length,
-                               uint32_t *dest,
-                               int32_t w, int32_t h,
-                               GError **err) {
-  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (!f) {
-    return false;
-  }
+bool _openslide_gdkpixbuf_read_file(const char *format,
+                                    struct _openslide_file *f,
+                                    int64_t offset,
+                                    int64_t length,
+                                    uint32_t *dest,
+                                    int32_t w, int32_t h,
+                                    GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     return false;
   }
