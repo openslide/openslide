@@ -30,7 +30,7 @@
 
 static const char *version_format = "%s " SUFFIXED_VERSION ", "
 "using OpenSlide %s\n"
-"Copyright (C) 2007-2024 Carnegie Mellon University and others\n"
+"Copyright (C) 2007-2025 Carnegie Mellon University and others\n"
 "\n"
 "OpenSlide is free software: you can redistribute it and/or modify it under\n"
 "the terms of the GNU Lesser General Public License, version 2.1.\n"
@@ -60,6 +60,9 @@ static const struct command root_subcmds[] = {
   },
   {
     .command = &slide_cmd,
+  },
+  {
+    .command = &test_cmd,
   },
   {}
 };
@@ -108,8 +111,10 @@ static int invoke_cmdline(const struct command *cmd, char *parents,
     for (const struct command *subcmd_ = cmd->subcommands;
          canonicalize(subcmd_)->name; subcmd_++) {
       const struct command *subcmd = canonicalize(subcmd_);
-      g_string_append_printf(summary, "\n  %-16s %s",
-                             subcmd->name, subcmd->summary);
+      if (subcmd->summary) {
+        g_string_append_printf(summary, "\n  %-16s %s",
+                               subcmd->name, subcmd->summary);
+      }
     }
     // stop at first non-option argument so we can invoke the subcommand
     // handler
@@ -163,7 +168,7 @@ static int invoke_cmdline(const struct command *cmd, char *parents,
       }
     }
 
-    // drop argv[0]
+    // argv[0] becomes argv[-1]
     argc--;
     argv++;
     if (cmd->min_positional && argc < cmd->min_positional) {

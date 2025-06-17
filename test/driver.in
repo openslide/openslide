@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
@@ -55,11 +56,8 @@ from time import time as curtime
 from typing import (
     Any,
     BinaryIO,
-    Iterable,
-    Iterator,
     NewType,
     Protocol,
-    Sequence,
     TypeVar,
     cast,
 )
@@ -267,7 +265,6 @@ class UnpackedSlide:
         )
         if extra_checks:
             env.update(
-                G_DEBUG='gc-friendly',
                 MALLOC_CHECK_='1',
             )
         args_: list[str | Path] = []
@@ -812,18 +809,12 @@ def _fusefs_init(shadowdir: Path) -> None:
     sys.excepthook = sys.__excepthook__
 
     import pyfuse3
-    from pyfuse3 import FUSEError
-
-    # pending pyfuse3 > 3.3.0
-    FileHandleT = NewType('FileHandleT', int)
-    FileNameT = NewType('FileNameT', bytes)
-    InodeT = NewType('InodeT', int)
+    from pyfuse3 import FileHandleT, FileNameT, FUSEError, InodeT
 
     # A Unix file descriptor
     FileDescriptorT = NewType('FileDescriptorT', FileHandleT)
 
-    # ignored pending pyfuse3 > 3.3.0
-    class Operations(pyfuse3.Operations):  # type: ignore[misc]
+    class Operations(pyfuse3.Operations):
         def __init__(self) -> None:
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
@@ -896,7 +887,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 stat = backingpath.lstat()
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             entry = pyfuse3.EntryAttributes()
             for attr in (
                 'st_ino',
@@ -925,7 +916,7 @@ def _fusefs_init(shadowdir: Path) -> None:
         ) -> FileNameT:
             relpath, backingpath = self._inode_to_paths(inode)
             try:
-                target = backingpath.readlink()
+                target = Path(os.readlink(backingpath))
                 # calculate target relative to the root of the FUSE FS
                 reltarget = os.path.normpath(relpath.parent / target)
                 # calculate path to PRISTINE relative to WORKROOT
@@ -939,7 +930,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 if not os.path.lexists(shadowpath):
                     shadowpath.symlink_to(target)
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             return cast(FileNameT, os.fsencode(target))
 
         async def opendir(
@@ -988,7 +979,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 statfs = os.statvfs(WORKROOT)
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             for attr in (
                 'f_bsize',
                 'f_frsize',
@@ -1028,7 +1019,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 )
                 shadow.truncate(os.lseek(fd, 0, os.SEEK_END))
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
             self._inode_fd_map[inode] = fd
             self._fd_inode_map[fd] = inode
             self._fd_shadow_map[fd] = shadow
@@ -1061,7 +1052,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 os.close(fd)
                 shadow.close()
             except OSError as exc:
-                raise FUSEError(exc.errno)
+                raise FUSEError(exc.errno or errno.EIO)
 
     try:
         FUSEMOUNT.stat()
@@ -1134,7 +1125,7 @@ def _s3_upload_public(
         bucket,
         key,
         Callback=progress,
-        ExtraArgs={'ACL': 'public-read', 'ContentType': content_type},
+        ExtraArgs={'ContentType': content_type},
     )
     print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
     return url
@@ -1235,7 +1226,7 @@ def unfreeze() -> None:
         sha256 = manifest['sha256']
         link_target = 'frozen-' + sha256
     if os.path.lexists(FROZEN):
-        current = FROZEN.readlink()
+        current = Path(os.readlink(FROZEN))
         if current.as_posix() == link_target:
             return
         else:
@@ -1376,9 +1367,9 @@ def coverage(outfile: str) -> None:
         _run_all(progdir=Path('test'), parallel=False)
 
         # Generate coverage reports
-        for dirpath, _, filenames in Path('src').walk():
+        for dirpath, _, filenames in os.walk('src'):
             paths = [
-                dirpath / name
+                Path(dirpath) / name
                 for name in fnmatch.filter(sorted(filenames), '*.gcda')
             ]
             if paths:
@@ -1561,7 +1552,7 @@ def clean(pattern: str = '*') -> None:
             rmtree(path)
     if pattern == '*' or pattern == 'frozen':
         if os.path.lexists(FROZEN):
-            basedir = FROZENBASE / FROZEN.readlink()
+            basedir = FROZENBASE / os.readlink(FROZEN)
             FROZEN.unlink()
             if basedir.exists():
                 rmtree(basedir)

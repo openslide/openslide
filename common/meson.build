@@ -1,17 +1,13 @@
-openslide_common_sources = [
+openslide_common_sources = files(
   'openslide-common-cmdline.c',
   'openslide-common-fail.c',
   'openslide-common-fd.c',
-]
+)
 
 openslide_common = static_library(
   'openslide-common',
   openslide_common_sources,
-  dependencies : [
-    openslide_dep,
-    glib_dep,
-    valgrind_dep,
-  ],
+  dependencies : [openslide_dep, glib_dep, valgrind_dep],
   include_directories : config_h_include,
 )
 

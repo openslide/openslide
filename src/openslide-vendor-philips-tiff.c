@@ -635,7 +635,8 @@ static bool philips_tiff_open(openslide_t *osr,
                g_str_has_prefix(image_desc, LABEL_DESCRIPTION)) {
       // label
       //g_debug("Adding label image from directory %d", dir);
-      if (!_openslide_tiff_add_associated_image(osr, "label", tc, dir, err)) {
+      if (!_openslide_tiff_add_associated_image(osr, "label", tc, dir, NULL,
+                                                err)) {
         return false;
       }
 
@@ -643,7 +644,8 @@ static bool philips_tiff_open(openslide_t *osr,
                g_str_has_prefix(image_desc, MACRO_DESCRIPTION)) {
       // macro image
       //g_debug("Adding macro image from directory %d", dir);
-      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, err)) {
+      if (!_openslide_tiff_add_associated_image(osr, "macro", tc, dir, NULL,
+                                                err)) {
         return false;
       }
     }

@@ -15,7 +15,7 @@ option(
   type : 'feature',
   value : 'auto',
   yield : true,
-  description : 'Enable building documentation (requires Doxygen)'
+  description : 'Enable building documentation (requires Doxygen)',
 )
 option(
   '_export_internal_symbols',

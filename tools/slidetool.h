@@ -51,6 +51,7 @@ extern const struct command prop_cmd;
 extern const struct command region_cmd;
 extern const struct command region_icc_cmd;
 extern const struct command slide_cmd;
+extern const struct command test_cmd;
 
 extern const struct command quickhash1sum_cmd;
 extern const struct command show_properties_cmd;

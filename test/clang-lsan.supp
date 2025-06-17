@@ -2,6 +2,7 @@
 # https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer#suppressions
 
 # fontconfig leaks
+leak:FcPatternDuplicate
 leak:FcPatternObjectAddWithBinding
 leak:FcPatternObjectInsertElt
 leak:FcValueSave
