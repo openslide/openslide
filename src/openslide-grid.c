@@ -26,11 +26,6 @@
 #include <cairo.h>
 #include "openslide-private.h"
 
-#ifdef _OPENMP
-// OpenMP (Open Multi-Processing)
-#include <omp.h>
-#endif
-
 #define RANGE_BIN_SIZE_MULTIPLIER 3
 #define COLOR_TILE 0.6, 0,   0,   0.3
 #define COLOR_BIN  0,   0,   0.6, 0.15
@@ -223,147 +218,6 @@ static void compute_region(struct _openslide_grid *grid,
   region->offset_y = y - (region->start_tile_y * grid->tile_advance_y);
 }
 
-static bool read_tiles_parallel(cairo_t *cr,
-                                struct _openslide_level *level,
-                                struct _openslide_grid *grid,
-                                struct region *region,
-                                read_tiles_callback_fn callback,
-                                void *arg,
-                                GError **err) {
-    // Validate offsets
-    if (fabs(region->offset_x) >= grid->tile_advance_x ||
-        fabs(region->offset_y) >= grid->tile_advance_y) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                   "Offset exceeds tile advance");
-        return false;
-    }
-    g_auto(cairo_matrix) matrix = matrix_save(cr);
-    volatile bool success = true;  // volatile for OpenMP visibility
-    GError *local_err = NULL;
-
-    // Calculate work dimensions
-    const int64_t tiles_x = region->end_tile_x - region->start_tile_x;
-    const int64_t tiles_y = region->end_tile_y - region->start_tile_y;
-    const int64_t total_tiles = tiles_x * tiles_y;
-
-    // Configuration - tune these based on hardware
-    const int chunk_size = 6;  // Optimal from benchmarks (4-8 range)
-    const bool enable_timing = false;  // Disable in production
-
-#ifdef _OPENMP
-    omp_lock_t err_lock;
-    omp_init_lock(&err_lock);
-    double start_time = omp_get_wtime();
-    #pragma omp parallel shared(success, local_err) firstprivate(total_tiles, tiles_x)
-    {
-        // Thread-local timing
-        double thread_start = omp_get_wtime();
-        int tiles_processed = 0;
-#else
-    clock_t start_time = clock();
-#endif
-
-        // Create thread-local Cairo context
-        cairo_surface_t *surface = cairo_get_target(cr);
-        cairo_t *thread_cr = cairo_create(surface);
-        cairo_matrix_t thread_matrix;
-        cairo_get_matrix(cr, &thread_matrix);
-        cairo_set_matrix(thread_cr, &thread_matrix);
-
-#ifdef _OPENMP
-        #pragma omp for schedule(dynamic, chunk_size) nowait
-#endif
-        for (int64_t i = 0; i < total_tiles; i++) {
-            // Early exit if failure occurred
-            if (!success) continue;
-
-            // Calculate tile coordinates (more cache-friendly than pre-computed)
-            const int64_t tile_x = region->start_tile_x + (i % tiles_x);
-            const int64_t tile_y = region->start_tile_y + (i / tiles_x);
-
-            // Calculate position
-            const double translate_x = (tile_x - region->start_tile_x) * grid->tile_advance_x - region->offset_x;
-            const double translate_y = (tile_y - region->start_tile_y) * grid->tile_advance_y - region->offset_y;
-
-            cairo_save(thread_cr);
-            cairo_translate(thread_cr, translate_x, translate_y);
-
-            // Process tile
-            clock_t tile_start = clock();
-            bool result = callback(grid, region, thread_cr, level, tile_x, tile_y, arg, &local_err);
-            clock_t tile_end = clock();
-
-#ifdef _OPENMP
-            tiles_processed++;
-#endif
-
-            if (enable_timing) {
-                char buf[128];
-                int len = snprintf(buf, sizeof(buf), "(%ld,%ld) in %.1f ms",
-                                  tile_x, tile_y,
-                                  (double)(tile_end - tile_start) * 1000.0 / CLOCKS_PER_SEC);
-#ifdef _OPENMP
-                len += snprintf(buf + len, sizeof(buf) - len, " (Thread %d)", omp_get_thread_num());
-                #pragma omp critical
-#endif
-                {
-                    fwrite(buf, 1, len, stdout);
-                    fputc('\n', stdout);
-                }
-            }
-
-            // Error handling
-            if (!result && success) {
-#ifdef _OPENMP
-                omp_set_lock(&err_lock);
-#endif
-                if (success) {  // Double-check after getting lock
-                    success = false;
-                    if (local_err && !*err) {
-                        *err = g_error_copy(local_err);
-                    }
-                }
-#ifdef _OPENMP
-                omp_unset_lock(&err_lock);
-#endif
-            }
-
-            cairo_restore(thread_cr);
-        }
-
-        // Clean up thread resources
-        cairo_destroy(thread_cr);
-
-#ifdef _OPENMP
-        // Optional per-thread stats
-        if (enable_timing) {
-            double thread_time = omp_get_wtime() - thread_start;
-            #pragma omp critical
-            printf("Thread %d: %d tiles in %.2f ms (%.1f tiles/s)\n",
-                   omp_get_thread_num(), tiles_processed,
-                   thread_time * 1000,
-                   tiles_processed / thread_time);
-        }
-    }  // end parallel
-    double total_time = omp_get_wtime() - start_time;
-    if (enable_timing) {
-        printf("Total: %ld tiles in %.2f ms (%.1f tiles/s)\n",
-               total_tiles, total_time * 1000,
-               total_tiles / total_time);
-    }
-    omp_destroy_lock(&err_lock);
-#else
-    if (enable_timing) {
-        double total_time = (double)(clock() - start_time) * 1000.0 / CLOCKS_PER_SEC;
-        printf("Total: %ld tiles in %.2f ms\n", total_tiles, total_time);
-    }
-#endif
-
-    matrix_restore(&matrix);
-
-    return success;
-}
-
 static bool read_tiles(cairo_t *cr,
                        struct _openslide_level *level,
                        struct _openslide_grid *grid,
@@ -471,12 +325,6 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
   return true;
 }
 
-static bool need_parallel(openslide_t *osr) {
-  const char *vendor =
-      openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_VENDOR);
-  return strcmp(vendor, "teksqray") == 0;
-}
-
 static bool simple_paint_region(struct _openslide_grid *_grid,
                                 cairo_t *cr,
                                 void *arg,
@@ -514,10 +362,7 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
   region.end_tile_y = MIN(region.end_tile_y, grid->tiles_down);
 
   // read
-  if (need_parallel(_grid->osr))
-    return read_tiles_parallel(cr, level, _grid, &region, simple_read_tile, arg, err);
-  else
-    return read_tiles(cr, level, _grid, &region, simple_read_tile, arg, err);
+  return read_tiles(cr, level, _grid, &region, simple_read_tile, arg, err);
 }
 
 static void simple_destroy(struct _openslide_grid *_grid) {
@@ -663,10 +508,7 @@ static bool tilemap_paint_region(struct _openslide_grid *_grid,
                   -grid->extra_tiles_top * grid->base.tile_advance_y);
 
   // read
-  if (need_parallel(_grid->osr))
-    return read_tiles_parallel(cr, level, _grid, &region, tilemap_read_tile, arg, err);
-  else
-    return read_tiles(cr, level, _grid, &region, tilemap_read_tile, arg, err);
+  return read_tiles(cr, level, _grid, &region, tilemap_read_tile, arg, err);
 }
 
 static void tilemap_destroy(struct _openslide_grid *_grid) {
