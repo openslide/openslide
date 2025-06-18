@@ -163,7 +163,7 @@ jobs:
                 brew link --overwrite $formula
             done
             brew update
-            brew install \
+            brew install --quiet \
                 meson pkg-config \
                 zlib \
                 zstd \
