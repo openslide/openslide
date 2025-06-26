@@ -140,10 +140,6 @@ cairo_dep = dependency(
   'cairo',
   version : '>=1.2',
 )
-gdk_pixbuf_dep = dependency(
-  'gdk-pixbuf-2.0',
-  version : '>=2.14',
-)
 xml_dep = dependency('libxml-2.0')
 sqlite_dep = dependency(
   'sqlite3',

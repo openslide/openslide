@@ -42,8 +42,8 @@ install_headers(
 # Library
 openslide_sources = files(
   'openslide-cache.c',
+  'openslide-decode-bmp.c',
   'openslide-decode-dicom.c',
-  'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
   'openslide-decode-jpeg.c',
   'openslide-decode-png.c',
@@ -85,7 +85,6 @@ libopenslide = library(
     glib_dep,
     gio_dep,
     gobject_dep,
-    gdk_pixbuf_dep,
     cairo_dep,
     dicom_dep,
     sqlite_dep,

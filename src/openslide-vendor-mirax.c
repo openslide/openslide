@@ -29,7 +29,7 @@
  */
 
 #include "openslide-private.h"
-#include "openslide-decode-gdkpixbuf.h"
+#include "openslide-decode-bmp.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-png.h"
 
@@ -171,7 +171,6 @@ struct slide_zoom_level_params {
 struct image {
   int32_t fileno;
   int32_t start_in_file;
-  int32_t length;
   int32_t imageno;   // used only for cache lookup
   int refcount;
 };
@@ -225,25 +224,30 @@ static uint32_t *read_image(openslide_t *osr,
 
   g_autofree uint32_t *dest = g_malloc(w * h * 4);
 
+  g_autoptr(_openslide_file) f =
+    _openslide_fopen(data->datafile_paths[image->fileno], err);
+  if (!f) {
+    return NULL;
+  }
+
   switch (format) {
   case FORMAT_JPEG:
-    result = _openslide_jpeg_read(data->datafile_paths[image->fileno],
-                                  image->start_in_file,
-                                  dest, w, h,
-                                  err);
-    break;
-  case FORMAT_PNG:
-    result = _openslide_png_read(data->datafile_paths[image->fileno],
-                                 image->start_in_file,
-                                 dest, w, h,
-                                 err);
-    break;
-  case FORMAT_BMP:
-    result = _openslide_gdkpixbuf_read("bmp",
-                                       data->datafile_paths[image->fileno],
-                                       image->start_in_file, image->length,
+    result = _openslide_jpeg_read_file(f,
+                                       image->start_in_file,
                                        dest, w, h,
                                        err);
+    break;
+  case FORMAT_PNG:
+    result = _openslide_png_read_file(f,
+                                      image->start_in_file,
+                                      dest, w, h,
+                                      err);
+    break;
+  case FORMAT_BMP:
+    result = _openslide_bmp_read_file(f,
+                                      image->start_in_file,
+                                      dest, w, h,
+                                      err);
     break;
   default:
     g_assert_not_reached();
@@ -829,7 +833,6 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
 	g_autoptr(image) image = g_new0(struct image, 1);
 	image->fileno = fileno;
 	image->start_in_file = offset;
-	image->length = length;
 	image->imageno = image_number++;
 	image->refcount = 1;
 
