@@ -872,7 +872,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
   // add associated label for Aperio Versa
   if (collection->label_ifd != NO_SUP_LABEL) {
     _openslide_tiff_add_associated_image(osr, "label", tc,
-                                         collection->label_ifd, err);
+                                         collection->label_ifd, NULL, err);
   }
 
   // set hash and properties

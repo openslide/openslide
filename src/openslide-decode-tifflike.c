@@ -466,8 +466,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     // read in the value/offset
     uint8_t value[(bigtiff || ndpi) ? 8 : 4];
     size_t read_size = (bigtiff ? 8 : 4);
-
-    if (_openslide_fread(f, value, read_size) != read_size) {
+    
+    if (_openslide_fread(f, value, read_size, err) != read_size) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Cannot read value/offset");
       return NULL;
@@ -486,7 +486,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
       }
 
       // read in the value/offset extension
-      if (_openslide_fread(f, value+4, 4) != 4) {
+      if (_openslide_fread(f, value+4, 4, err) != 4) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Cannot read value/offset extension");
         return NULL;

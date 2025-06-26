@@ -400,6 +400,7 @@ static bool add_associated_image(openslide_t *osr,
 
   return _openslide_tiff_add_associated_image(osr, name, tc,
                                               TIFFCurrentDirectory(tiff),
+                                              NULL,
                                               err);
 }
 
