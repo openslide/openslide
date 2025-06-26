@@ -295,17 +295,6 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
   }
 }
 
-bool _openslide_jpeg_read_dimensions(const char *filename,
-                                     int64_t offset,
-                                     int32_t *w, int32_t *h,
-                                     GError **err) {
-  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (f == NULL) {
-    return false;
-  }
-  return _openslide_jpeg_read_file_dimensions(f, offset, w, h, err);
-}
-
 bool _openslide_jpeg_read_file_dimensions(struct _openslide_file *f,
                                           int64_t offset,
                                           int32_t *w, int32_t *h,
@@ -370,20 +359,6 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
   }
 }
 
-bool _openslide_jpeg_read(const char *filename,
-                          int64_t offset,
-                          uint32_t *dest,
-                          int32_t w, int32_t h,
-                          GError **err) {
-  //g_debug("read JPEG: %s %"PRId64, filename, offset);
-
-  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
-  if (f == NULL) {
-    return false;
-  }
-  return _openslide_jpeg_read_file(f, offset, dest, w, h, err);
-}
-
 bool _openslide_jpeg_read_file(struct _openslide_file *f,
                                int64_t offset,
                                uint32_t *dest,
@@ -431,8 +406,12 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
 
   //g_debug("read JPEG associated image: %s %"PRId64, img->filename, img->offset);
 
-  return _openslide_jpeg_read(img->filename, img->offset, dest,
-                              img->base.w, img->base.h, err);
+  g_autoptr(_openslide_file) f = _openslide_fopen(img->filename, err);
+  if (f == NULL) {
+    return false;
+  }
+  return _openslide_jpeg_read_file(f, img->offset, dest,
+                                   img->base.w, img->base.h, err);
 }
 
 static void destroy_associated_image(struct _openslide_associated_image *_img) {
@@ -452,8 +431,13 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
 					  const char *filename,
 					  int64_t offset,
 					  GError **err) {
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
+  if (f == NULL) {
+    return false;
+  }
+
   int32_t w, h;
-  if (!_openslide_jpeg_read_dimensions(filename, offset, &w, &h, err)) {
+  if (!_openslide_jpeg_read_file_dimensions(f, offset, &w, &h, err)) {
     g_prefix_error(err, "Can't read %s associated image: ", name);
     return false;
   }

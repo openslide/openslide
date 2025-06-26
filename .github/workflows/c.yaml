@@ -50,7 +50,6 @@ jobs:
             libjpeg-turbo-devel \
             libtiff-devel \
             openjpeg2-devel \
-            gdk-pixbuf2-modules-extra gdk-pixbuf2-devel \
             libdicom-devel \
             libxml2-devel \
             sqlite-devel \
@@ -65,7 +64,7 @@ jobs:
       run: |
         # disable werror for libdicom 1.2.0
         # https://github.com/ImagingDataCommons/libdicom/pull/100
-        if ! meson setup builddir --werror -Dlibdicom:werror=false; then
+        if ! meson setup builddir --fatal-meson-warnings --werror -Dlibdicom:werror=false; then
             cat builddir/meson-logs/meson-log.txt
             exit 1
         fi
@@ -135,6 +134,8 @@ jobs:
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
+            container: quay.io/centos/centos:stream10
+          - os: ubuntu-latest
             container: debian:11
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-latest
@@ -144,9 +145,6 @@ jobs:
             arch: i386
           - os: ubuntu-24.04-arm
             container: debian:12
-          - os: ubuntu-latest
-            container: ubuntu:20.04
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
           - os: ubuntu-24.04
           - os: macos-latest
@@ -164,7 +162,7 @@ jobs:
                 brew link --overwrite $formula
             done
             brew update
-            brew install \
+            brew install --quiet \
                 meson pkg-config \
                 zlib \
                 zstd \
@@ -172,7 +170,6 @@ jobs:
                 jpeg-turbo \
                 libtiff \
                 openjpeg \
-                gdk-pixbuf \
                 libdicom \
                 libxml2 \
                 sqlite \
@@ -196,14 +193,18 @@ jobs:
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     dnf install -y epel-release
-                    pyver=38
-                    pydotver=3.8
-                    python=python38
+                    pyver=39
+                    pydotver=3.9
+                    python=python39
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release epel-next-release
+                    ;;
+                10)
+                    dnf config-manager --set-enabled crb
+                    dnf install -y epel-release
                     ;;
                 esac
 
@@ -219,7 +220,6 @@ jobs:
                     libjpeg-turbo-devel \
                     libtiff-devel \
                     openjpeg2-devel \
-                    gdk-pixbuf2-modules gdk-pixbuf2-devel \
                     libdicom-devel \
                     libxml2-devel \
                     sqlite-devel \
@@ -261,7 +261,6 @@ jobs:
                     $jpeg$arch \
                     libtiff-dev$arch \
                     libopenjp2-7-dev$arch \
-                    libgdk-pixbuf2.0-dev$arch \
                     libxml2-dev$arch \
                     libsqlite3-dev$arch \
                     libcairo2-dev$arch \

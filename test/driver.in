@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
@@ -55,11 +56,8 @@ from time import time as curtime
 from typing import (
     Any,
     BinaryIO,
-    Iterable,
-    Iterator,
     NewType,
     Protocol,
-    Sequence,
     TypeVar,
     cast,
 )
@@ -1310,11 +1308,7 @@ def _run_all(
                 failed += 1
     except BaseException:
         # In particular, KeyboardInterrupt
-        if sys.version_info >= (3, 9):
-            executor.shutdown(cancel_futures=True)
-        else:
-            # not very useful
-            executor.shutdown()
+        executor.shutdown(cancel_futures=True)
         raise
     else:
         executor.shutdown()
