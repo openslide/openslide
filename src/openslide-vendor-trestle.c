@@ -36,11 +36,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <tiffio.h>
-#include <errno.h>
 
 static const char TRESTLE_SOFTWARE[] = "MedScan";
-static const char OVERLAPS_XY[] = "OverlapsXY=";
-static const char BACKGROUND_COLOR[] = "Background Color=";
+static const char PROP_BACKGROUND_COLOR[] = "trestle.Background Color";
+static const char PROP_OBJECTIVE_POWER[] = "trestle.Objective Power";
+static const char PROP_OVERLAPS_XY[] = "trestle.OverlapsXY";
 
 struct trestle_ops_data {
   struct _openslide_tiffcache *tc;
@@ -186,64 +186,72 @@ static bool trestle_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
-static void add_properties(openslide_t *osr, char **tags) {
+static bool add_properties(openslide_t *osr, TIFF *tiff, GError **err) {
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    _openslide_tiff_error(err, tiff, "Couldn't read ImageDescription");
+    return false;
+  }
+
+  g_auto(GStrv) tags = g_strsplit(image_desc, ";", -1);
   for (char **tag = tags; *tag != NULL; tag++) {
     g_auto(GStrv) pair = g_strsplit(*tag, "=", 2);
-    if (pair) {
-      char *name = g_strstrip(pair[0]);
-      if (name) {
-        char *value = g_strstrip(pair[1]);
-
-        g_hash_table_insert(osr->properties,
-                            g_strdup_printf("trestle.%s", name),
-                            g_strdup(value));
-      }
+    if (pair[0] && pair[1]) {
+      g_strstrip(pair[0]);
+      g_strstrip(pair[1]);
+      g_hash_table_insert(osr->properties,
+                          g_strdup_printf("trestle.%s", pair[0]),
+                          g_steal_pointer(&pair[1]));
     }
   }
 
-  _openslide_duplicate_int_prop(osr, "trestle.Objective Power",
+  _openslide_duplicate_int_prop(osr, PROP_OBJECTIVE_POWER,
                                 OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+
+  const char *background_str =
+    g_hash_table_lookup(osr->properties, PROP_BACKGROUND_COLOR);
+  if (background_str) {
+    uint64_t bg;
+    if (_openslide_parse_uint64(background_str, &bg, 16)) {
+      _openslide_set_background_color_prop(osr,
+                                           (bg >> 16) & 0xFF,
+                                           (bg >> 8) & 0xFF,
+                                           bg & 0xFF);
+    }
+  }
+  return true;
 }
 
-static void parse_trestle_image_description(openslide_t *osr,
-                                            const char *description,
+static bool parse_trestle_image_description(openslide_t *osr,
+                                            TIFF *tiff,
                                             uint32_t *overlap_count_OUT,
-                                            int32_t **overlaps_OUT) {
-  g_auto(GStrv) first_pass = g_strsplit(description, ";", -1);
-  add_properties(osr, first_pass);
+                                            int32_t **overlaps_OUT,
+                                            GError **err) {
+  if (!add_properties(osr, tiff, err)) {
+    return false;
+  }
 
   uint32_t overlap_count = 0;
   g_autofree int32_t *overlaps = NULL;
-  for (char **cur_str = first_pass; *cur_str != NULL; cur_str++) {
-    //g_debug(" XX: %s", *cur_str);
-    if (g_str_has_prefix(*cur_str, OVERLAPS_XY)) {
-      // found it
-      g_auto(GStrv) second_pass = g_strsplit(*cur_str, " ", -1);
+  const char *overlap_str =
+    g_hash_table_lookup(osr->properties, PROP_OVERLAPS_XY);
+  if (overlap_str) {
+    g_auto(GStrv) values = g_strsplit(overlap_str, " ", -1);
 
-      overlap_count = g_strv_length(second_pass) - 1; // skip fieldname
-      overlaps = g_new(int32_t, overlap_count);
+    overlap_count = g_strv_length(values);
+    overlaps = g_new(int32_t, overlap_count);
 
-      int i = 0;
-      // skip fieldname
-      for (char **cur_str2 = second_pass + 1; *cur_str2 != NULL; cur_str2++) {
-        overlaps[i] = g_ascii_strtoull(*cur_str2, NULL, 10);
-        i++;
-      }
-    } else if (g_str_has_prefix(*cur_str, BACKGROUND_COLOR)) {
-      // found background color
-      errno = 0;
-      uint64_t bg = g_ascii_strtoull((*cur_str) + strlen(BACKGROUND_COLOR), NULL, 16);
-      if (bg || !errno) {
-        _openslide_set_background_color_prop(osr,
-                                             (bg >> 16) & 0xFF,
-                                             (bg >> 8) & 0xFF,
-                                             bg & 0xFF);
-      }
+    int i = 0;
+    for (char **value = values; *value != NULL; value++) {
+      uint64_t result;
+      _openslide_parse_uint64(*value, &result, 10);
+      overlaps[i] = result;
+      i++;
     }
   }
-
   *overlap_count_OUT = overlap_count / 2;
   *overlaps_OUT = g_steal_pointer(&overlaps);
+  return true;
 }
 
 static char *get_associated_path(TIFF *tiff, const char *extension) {
@@ -276,15 +284,12 @@ static bool trestle_open(openslide_t *osr, const char *filename,
   }
 
   // parse ImageDescription
-  char *image_desc;
   uint32_t overlap_count = 0;
   g_autofree int32_t *overlaps = NULL;
-  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read ImageDescription");
+  if (!parse_trestle_image_description(osr, ct.tiff,
+                                       &overlap_count, &overlaps, err)) {
     return false;
   }
-  parse_trestle_image_description(osr, image_desc, &overlap_count, &overlaps);
 
   // create levels
   g_autoptr(GPtrArray) level_array =
@@ -294,8 +299,7 @@ static bool trestle_open(openslide_t *osr, const char *filename,
     // verify that we can read this compression (hard fail if not)
     uint16_t compression;
     if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read compression scheme");
+      _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
       return false;
     };
     if (!TIFFIsCODECConfigured(compression)) {

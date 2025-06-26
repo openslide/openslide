@@ -1,5 +1,6 @@
 project(
-  'openslide', 'c',
+  'openslide',
+  'c',
   version : '4.0.0',
   license : 'LGPL-2.1-only',
   default_options : [
@@ -14,9 +15,7 @@ project(
 soversion = '1.0.0'
 
 if not meson.is_subproject()
-  meson.add_dist_script(
-    'scripts/dist.py'
-  )
+  meson.add_dist_script('scripts/dist.py')
 endif
 
 conf = configuration_data()
@@ -32,20 +31,37 @@ else
 endif
 parts = (version + '.0.0.0').split('.')
 windows_versioninfo = '@0@,@1@,@2@,@3@'.format(
-  parts[0], parts[1], parts[2], parts[3]
+  parts[0],
+  parts[1],
+  parts[2],
+  parts[3],
 )
 conf.set_quoted('VERSION', version)
 conf.set_quoted('SUFFIXED_VERSION', suffixed_version)
 # unquoted versions
 versions = {
-  'VERSION': version,
-  'SUFFIXED_VERSION': suffixed_version,
-  'WINDOWS_VERSIONINFO': windows_versioninfo,
+  'VERSION' : version,
+  'SUFFIXED_VERSION' : suffixed_version,
+  'WINDOWS_VERSIONINFO' : windows_versioninfo,
 }
 
 # Compiler flags
 cc = meson.get_compiler('c')
-cc_native = meson.get_compiler('c', native : true)
+cc_native = meson.get_compiler(
+  'c',
+  native : true,
+)
+if host_machine.system() == 'darwin' and not cc.has_header('stdio.h')
+  # Certain compiler checks fail with -arch x86_64 -arch arm64, which could
+  # produce unexpected results e.g. disabling the TIFF error callback API.
+  # Detect and avoid this.  Universal binaries can be built by compiling
+  # separately for each architecture and combining the results with lipo.
+  # https://github.com/mesonbuild/meson/issues/5290
+  # https://github.com/mesonbuild/meson/issues/8206
+  error(
+    'Basic environment check failed.  Check compiler flags; building for multiple CPU architectures is not supported.',
+  )
+endif
 add_project_arguments(
   cc.get_supported_arguments(
     '-Wstrict-prototypes',
@@ -57,17 +73,21 @@ add_project_arguments(
   '-DG_DISABLE_SINGLE_INCLUDES',
   '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_56',
   '-DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED',
-  language : 'c'
+  language : 'c',
 )
 add_project_link_arguments(
-  cc.get_supported_link_arguments(
-    '-Wl,--no-undefined',
-  ),
-  language : 'c'
+  cc.get_supported_link_arguments('-Wl,--no-undefined'),
+  language : 'c',
 )
 
 # fopen cloexec flag
-if host_machine.system() in ['dragonfly', 'freebsd', 'linux', 'netbsd', 'openbsd']
+if host_machine.system() in [
+  'dragonfly',
+  'freebsd',
+  'linux',
+  'netbsd',
+  'openbsd',
+]
   message('Using "e" flag for close-on-exec')
   conf.set_quoted('FOPEN_CLOEXEC_FLAG', 'e')
 elif host_machine.system() == 'windows'
@@ -86,7 +106,10 @@ endif
 
 # Math library, host and build
 foreach i : [[cc, 'libm_dep'], [cc_native, 'libm_native_dep']]
-  if not i[0].has_function('floor', prefix : '#include <math.h>')
+  if not i[0].has_function(
+    'floor',
+    prefix : '#include <math.h>',
+  )
     set_variable(i[1], i[0].find_library('m'))
   else
     set_variable(i[1], declare_dependency())
@@ -95,26 +118,48 @@ endforeach
 
 # Dependencies
 feature_flags = []
-zlib_dep       = dependency('zlib')
-jpeg_dep       = dependency('libjpeg')
-png_dep        = dependency('libpng', version : '>1.2')
-openjpeg_dep   = dependency('libopenjp2', version : '>=2.1.0')
-tiff_dep       = dependency('libtiff-4')
-glib_dep       = dependency('glib-2.0', version : '>=2.56')
-gio_dep        = dependency('gio-2.0')
-gobject_dep    = dependency('gobject-2.0')
-cairo_dep      = dependency('cairo', version : '>=1.2')
-gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0', version : '>=2.14')
-xml_dep        = dependency('libxml-2.0')
-sqlite_dep     = dependency('sqlite3', version : '>=3.14')
-dicom_dep      = dependency(
+zlib_dep = dependency('zlib')
+zstd_dep = dependency('libzstd')
+jpeg_dep = dependency('libjpeg')
+png_dep = dependency(
+  'libpng',
+  version : '>1.2',
+)
+openjpeg_dep = dependency(
+  'libopenjp2',
+  version : '>=2.1.0',
+)
+tiff_dep = dependency('libtiff-4')
+glib_dep = dependency(
+  'glib-2.0',
+  version : '>=2.56',
+)
+gio_dep = dependency('gio-2.0')
+gobject_dep = dependency('gobject-2.0')
+cairo_dep = dependency(
+  'cairo',
+  version : '>=1.2',
+)
+gdk_pixbuf_dep = dependency(
+  'gdk-pixbuf-2.0',
+  version : '>=2.14',
+)
+xml_dep = dependency('libxml-2.0')
+sqlite_dep = dependency(
+  'sqlite3',
+  version : '>=3.14',
+)
+dicom_dep = dependency(
   'libdicom',
   # avoid 'check' dependency
   default_options : ['tests=false'],
   fallback : ['libdicom', 'libdicom_dep'],
-  version : '>=1.0.0',
+  version : '>=1.2.0',
 )
-valgrind_dep   = dependency('valgrind', required : false)
+valgrind_dep = dependency(
+  'valgrind',
+  required : false,
+)
 
 doxygen = find_program(
   'doxygen',
@@ -123,6 +168,15 @@ doxygen = find_program(
 )
 
 # Dependency checks
+if tiff_dep.type_name() == 'internal' or cc.has_function(
+  'TIFFOpenOptionsSetErrorHandlerExtR',
+  dependencies : tiff_dep,
+)
+  # If libtiff is a sibling subproject, we can't check, so assume a modern
+  # libtiff
+  conf.set('HAVE_TIFF_LOG_CALLBACKS', 1)
+  feature_flags += 'tiff-log-callbacks'
+endif
 if valgrind_dep.found()
   conf.set('HAVE_VALGRIND', 1)
 endif
@@ -131,31 +185,12 @@ if glib_dep.type_name() != 'internal'
   # Courtesy check that the compiler supports the cleanup attribute.  If
   # glib is another subpackage, we can't check, so fail at build time if not.
   # glib only offers autoptr macros when the compiler supports them.
-  cc.has_header_symbol(
-    'glib.h', 'G_DEFINE_AUTOPTR_CLEANUP_FUNC',
+  if not cc.has_header_symbol(
+    'glib.h',
+    'g_autofree',
     dependencies : glib_dep,
-    required : true,
   )
-endif
-
-# Test configuration
-test_cflags = declare_dependency()
-if not get_option('test').disabled() and not get_option('check_windows_abi_compat').disabled()
-  # gcc assumes Win32 stack frames are 16-byte-aligned by default, but the
-  # Win32 ABI only requires 4-byte alignment.  If gcc emits aligned SSE
-  # instructions that access the stack, this can cause GPFs if we're called by
-  # a program compiled by a different compiler such as MSVC.  The user is
-  # responsible for choosing compiler options appropriate for their desired
-  # ABI, but this is a sufficiently insidious error that it's worth checking
-  # in the test suite by default.  We do that by compiling the test programs
-  # with 4-byte stack alignment on Win32.  We allow the user to disable that
-  # behavior, however, in case they don't care about ABI compatibility with
-  # other compilers.
-  if host_machine.system() == 'windows' and host_machine.cpu_family() == 'x86'
-    message('Configuring tests with 4-byte stack alignment')
-    test_cflags = declare_dependency(
-      compile_args : cc.get_supported_arguments('-mpreferred-stack-boundary=2'),
-    )
+    error('OpenSlide requires the GNU C "cleanup" attribute.')
   endif
 endif
 
@@ -167,12 +202,12 @@ if get_option('_gcov')
     '-g',
     '-fprofile-arcs',
     '-ftest-coverage',
-    language : 'c'
+    language : 'c',
   )
   # add_project_dependencies() is a bit cleaner but requires Meson >= 0.63
   add_project_link_arguments(
     '-lgcov',
-    language : 'c'
+    language : 'c',
   )
 endif
 if get_option('_sanitize')

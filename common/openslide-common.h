@@ -47,6 +47,9 @@ void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 // fd
 
-char *common_get_fd_path(int fd);
+#define COMMON_MAX_FD 128
+
+GHashTable *common_get_open_fds(void);
+bool common_check_open_fds(GHashTable *ignore, const char *msg);
 
 #endif

@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: "^Can't hash images: Can't read from .*Data0014.dat$"
+error: "^Can't hash images: Short read of file .*Data0014.dat: 2 < 4096$"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

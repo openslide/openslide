@@ -99,12 +99,13 @@ static uint64_t read_uint(struct _openslide_file *f, int32_t size,
                           bool big_endian, bool *ok) {
   g_assert(ok != NULL);
 
-  uint8_t buf[size];
-  if (_openslide_fread(f, buf, size) != (size_t) size) {
+  uint8_t buf[8];
+  g_assert(size <= (int32_t) sizeof(buf));
+  if (!_openslide_fread_exact(f, buf, size, NULL)) {
     *ok = false;
     return 0;
   }
-  fix_byte_order(buf, sizeof(buf), 1, big_endian);
+  fix_byte_order(buf, size, 1, big_endian);
   switch (size) {
   case 1: {
     uint8_t result;
@@ -341,9 +342,8 @@ static bool populate_item(struct _openslide_tifflike *tl,
     g_prefix_error(err, "Couldn't seek to read TIFF value: ");
     return false;
   }
-  if (_openslide_fread(f, buf, len) != len) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read TIFF value");
+  if (!_openslide_fread_exact(f, buf, len, err)) {
+    g_prefix_error(err, "Couldn't read TIFF value: ");
     return false;
   }
 
@@ -407,7 +407,6 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
 
   // no loop, let's seek
   if (!_openslide_fseek(f, off, SEEK_SET, err)) {
-    g_prefix_error(err, "Cannot seek to offset: ");
     return NULL;
   }
 
@@ -554,9 +553,8 @@ struct _openslide_tifflike *_openslide_tifflike_create(const char *filename,
 
   // read and check magic
   uint16_t magic;
-  if (_openslide_fread(f, &magic, sizeof magic) != sizeof magic) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Can't read TIFF magic number");
+  if (!_openslide_fread_exact(f, &magic, sizeof magic, err)) {
+    g_prefix_error(err, "Can't read TIFF magic number: ");
     return NULL;
   }
   if (magic != TIFF_BIGENDIAN && magic != TIFF_LITTLEENDIAN) {

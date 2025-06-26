@@ -15,13 +15,7 @@ option(
   type : 'feature',
   value : 'auto',
   yield : true,
-  description : 'Enable building documentation (requires Doxygen)'
-)
-option(
-  'check_windows_abi_compat',
-  type : 'feature',
-  value : 'auto',
-  description : 'Test with 4-byte stack alignment on 32-bit Windows',
+  description : 'Enable building documentation (requires Doxygen)',
 )
 option(
   '_export_internal_symbols',

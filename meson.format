@@ -1,0 +1,4 @@
+group_arg_value = true
+indent_by = '  '
+kwargs_force_multiline = true
+wide_colon = true

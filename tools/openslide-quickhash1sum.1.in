@@ -23,15 +23,15 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-QUICKHASH1SUM 1 2023-06-30 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH OPENSLIDE\-QUICKHASH1SUM 1 2023-06-30 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
 .SH NAME
-openslide-quickhash1sum \- Print OpenSlide quickhash-1 checksums
+openslide\-quickhash1sum \- Print OpenSlide quickhash-1 checksums
 
 .SH SYNOPSIS
-.BR "openslide-quickhash1sum " [ --help "] [" --version ]
+.BR "openslide\-quickhash1sum " [ \-\-help "] [" \-\-version ]
 .IR slide ...
 
 .SH DESCRIPTION
@@ -47,21 +47,21 @@ but cannot be used to detect corruption or modification of the slide file.
 
 .SH OPTIONS
 .TP
-.B --help
+.B \-\-help
 Display usage summary.
 
 .TP
-.B --version
+.B \-\-version
 Display version and copyright information.
 
 .SH EXIT STATUS
-.B openslide-quickhash1sum
+.B openslide\-quickhash1sum
 returns 0 on success, 1 if a
 .I quickhash-1
 could not be calculated, or 2 if the arguments are invalid.
 
 .SH NOTES
-.B openslide-quickhash1sum
+.B openslide\-quickhash1sum
 is a legacy command and no new features will be added.
 Its replacement is the
 .B slide quickhash1
@@ -73,10 +73,10 @@ subcommand of
 is not defined for all slide files supported by OpenSlide.
 If a slide does not have a
 .IR quickhash-1 ,
-"No quickhash-1 available" will be printed.
+"No quickhash\-1 available" will be printed.
 
 .SH COPYRIGHT
-Copyright \(co 2007-2023 Carnegie Mellon University and others
+Copyright \(co 2007-2025 Carnegie Mellon University and others
 .PP
 OpenSlide is free software: you can redistribute it and/or modify it
 under the terms of the

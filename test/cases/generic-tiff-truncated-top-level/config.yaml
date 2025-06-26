@@ -1,6 +1,6 @@
 base: Generic-TIFF/CMU-1.tiff
 # Not anchored at head because libtiff prints some messages
-error: "Cannot hash TIFF tiles: Can't read from .*CMU-1.tiff$"
+error: "Cannot hash TIFF tiles: Short read of file .*CMU-1.tiff: 0 < 42$"
 slide: CMU-1.tiff
 success: false
 vendor: generic-tiff

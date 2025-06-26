@@ -100,11 +100,15 @@ static void init_mem_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
 static boolean fill_input_buffer (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
-  size_t nbytes;
 
-  nbytes = _openslide_fread(src->infile, src->buffer, INPUT_BUF_SIZE);
-
-  if (nbytes <= 0) {
+  GError *tmp_err = NULL;
+  size_t nbytes =
+    _openslide_fread(src->infile, src->buffer, INPUT_BUF_SIZE, &tmp_err);
+  if (tmp_err) {
+    g_clear_error(&tmp_err);
+    ERREXIT(cinfo, JERR_FILE_READ);
+  }
+  if (!nbytes) {
     if (src->start_of_file)	/* Treat empty input file as fatal error */
       ERREXIT(cinfo, JERR_INPUT_EMPTY);
     WARNMS(cinfo, JWRN_JPEG_EOF);
@@ -158,7 +162,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 {
   struct jpeg_source_mgr * src = cinfo->src;
 
-  /* Just a dumb implementation for now.  Could use fseek() except
+  /* Just a dumb implementation for now.  Could use fseek except
    * it doesn't work on pipes.  Not clear that being smart is worth
    * any trouble anyway --- large skips are infrequent.
    */

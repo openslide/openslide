@@ -18,6 +18,7 @@ OpenSlide can read brightfield whole slide images in [several formats][]:
 * [Sakura][] (`.svslide`)
 * [Trestle][] (`.tif`)
 * [Ventana][] (`.bif`, `.tif`)
+* [Zeiss][] (`.czi`)
 * [Generic tiled TIFF][] (`.tif`)
 
 OpenSlide can also provide access to ICC profiles, textual metadata, and
@@ -33,6 +34,7 @@ associated images such as a slide label and thumbnail.
 [Sakura]: https://openslide.org/formats/sakura/
 [Trestle]: https://openslide.org/formats/trestle/
 [Ventana]: https://openslide.org/formats/ventana/
+[Zeiss]: https://openslide.org/formats/zeiss/
 [Generic tiled TIFF]: https://openslide.org/formats/generic-tiff/
 
 
@@ -66,7 +68,7 @@ To build OpenSlide, you will need:
 - cairo ≥ 1.2
 - GDK-PixBuf
 - glib ≥ 2.56
-- libdicom ≥ 1.0 (automatically built if missing)
+- libdicom ≥ 1.2 (automatically built if missing)
 - libjpeg
 - libpng
 - libtiff ≥ 4.0
@@ -74,6 +76,7 @@ To build OpenSlide, you will need:
 - OpenJPEG ≥ 2.1
 - SQLite ≥ 3.14
 - zlib
+- Zstandard
 
 Then:
 

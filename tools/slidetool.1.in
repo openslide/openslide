@@ -31,7 +31,7 @@
 slidetool \- Retrieve data from whole slide images
 
 .SH SYNOPSIS
-.BR "slidetool " [ --help "] [" --version ]
+.BR "slidetool " [ \-\-help "] [" \-\-version ]
 .br
 .B slidetool assoc icc read
 .IR "file name" " [" output-file ]
@@ -45,7 +45,7 @@ slidetool \- Retrieve data from whole slide images
 .B slidetool prop get
 .IR "property file" ...
 .br
-.BR "slidetool prop list" " [" --names ]
+.BR "slidetool prop list" " [" \-\-names ]
 .IR file ...
 .br
 .B slidetool region icc read
@@ -142,24 +142,24 @@ but cannot be used to detect corruption or modification of the slide file.
 is not defined for all slide files supported by OpenSlide.
 If a slide does not have a
 .IR quickhash-1 ,
-"No quickhash-1 available" will be printed.
+"No quickhash\-1 available" will be printed.
 
 .SS slidetool slide vendor
 Report the detected OpenSlide vendor name for one or more slide files.
 
 .SH OPTIONS
 .TP
-.B --help
+.B \-\-help
 Display usage summary.
 
 .TP
-.B --names
+.B \-\-names
 For
 .BR "slidetool prop list" ,
 omit property values.
 
 .TP
-.B --version
+.B \-\-version
 Display version and copyright information.
 
 .SH EXIT STATUS
@@ -168,7 +168,7 @@ returns 0 on success, 1 if a slide file could not be read,
 or 2 if the arguments are invalid.
 
 .SH COPYRIGHT
-Copyright \(co 2007-2023 Carnegie Mellon University and others
+Copyright \(co 2007-2025 Carnegie Mellon University and others
 .PP
 OpenSlide is free software: you can redistribute it and/or modify it
 under the terms of the
@@ -178,7 +178,7 @@ OpenSlide comes with NO WARRANTY, to the extent permitted by law.
 See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
-.BR openslide-quickhash1sum (1),
-.BR openslide-show-properties (1),
-.BR openslide-write-png (1),
+.BR openslide\-quickhash1sum (1),
+.BR openslide\-show\-properties (1),
+.BR openslide\-write\-png (1),
 .BR sha256sum (1)

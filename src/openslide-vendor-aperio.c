@@ -254,7 +254,8 @@ static bool read_icc_profile(openslide_t *osr, void *dest, GError **err) {
     return false;
   }
 
-  return _openslide_tiff_read_icc_profile(osr, &l->tiffl, ct.tiff, dest, err);
+  return _openslide_tiff_read_icc_profile(ct.tiff, l->tiffl.dir,
+                                          dest, osr->icc_profile_size, err);
 }
 
 static const struct _openslide_ops aperio_ops = {
@@ -295,25 +296,50 @@ static bool aperio_detect(const char *filename G_GNUC_UNUSED,
   return true;
 }
 
-static void add_properties(openslide_t *osr, char **props) {
-  if (*props == NULL) {
-    return;
+static GHashTable *read_properties(TIFF *tiff, GError **err) {
+  char *image_desc;
+  if (!TIFFGetField(tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
+    _openslide_tiff_error(err, tiff, "Couldn't read ImageDescription field");
+    return NULL;
+  }
+  g_auto(GStrv) prop_list = g_strsplit(image_desc, "|", -1);
+
+  g_autoptr(GHashTable) props =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+  // ignore first property in Aperio
+  if (!*prop_list) {
+    return g_steal_pointer(&props);
+  }
+  for (char **p = prop_list + 1; *p != NULL; p++) {
+    g_auto(GStrv) pair = g_strsplit(*p, "=", 2);
+    if (pair[0] && pair[1]) {
+      g_strstrip(pair[0]);
+      g_strstrip(pair[1]);
+      g_hash_table_insert(props,
+                          g_steal_pointer(&pair[0]),
+                          g_steal_pointer(&pair[1]));
+    }
+  }
+  return g_steal_pointer(&props);
+}
+
+
+static bool add_properties(openslide_t *osr, TIFF *tiff, GError **err) {
+  g_autoptr(GHashTable) props = read_properties(tiff, err);
+  if (!props) {
+    return false;
   }
 
-  // ignore first property in Aperio
-  for(char **p = props + 1; *p != NULL; p++) {
-    g_auto(GStrv) pair = g_strsplit(*p, "=", 2);
-
-    if (pair) {
-      char *name = g_strstrip(pair[0]);
-      if (name) {
-	char *value = g_strstrip(pair[1]);
-
-	g_hash_table_insert(osr->properties,
-			    g_strdup_printf("aperio.%s", name),
-			    g_strdup(value));
-      }
-    }
+  GHashTableIter iter;
+  char *name;
+  char *value;
+  g_hash_table_iter_init(&iter, props);
+  while (g_hash_table_iter_next(&iter, (void *) &name, (void *) &value)) {
+    g_hash_table_iter_steal(&iter);
+    g_hash_table_insert(osr->properties,
+                        g_strdup_printf("aperio.%s", name),
+                        value);
+    g_free(name);
   }
 
   _openslide_duplicate_double_prop(osr, "aperio.AppMag",
@@ -322,6 +348,7 @@ static void add_properties(openslide_t *osr, char **props) {
                                    OPENSLIDE_PROPERTY_NAME_MPP_X);
   _openslide_duplicate_double_prop(osr, "aperio.MPP",
                                    OPENSLIDE_PROPERTY_NAME_MPP_Y);
+  return true;
 }
 
 // add the image from the current TIFF directory
@@ -329,6 +356,7 @@ static void add_properties(openslide_t *osr, char **props) {
 // true does not necessarily imply an image was added
 static bool add_associated_image(openslide_t *osr,
                                  const char *name_if_available,
+                                 tdir_t *icc_dir_if_available,
                                  struct _openslide_tiffcache *tc,
                                  TIFF *tiff,
                                  GError **err) {
@@ -365,7 +393,7 @@ static bool add_associated_image(openslide_t *osr,
 
   return _openslide_tiff_add_associated_image(osr, name, tc,
                                               TIFFCurrentDirectory(tiff),
-                                              err);
+                                              icc_dir_if_available, err);
 }
 
 static void propagate_missing_tile(void *key, void *value G_GNUC_UNUSED,
@@ -412,6 +440,12 @@ static bool aperio_open(openslide_t *osr,
     return false;
   }
 
+  // add properties early, since we'll need them for the thumbnail ICC
+  // profile
+  if (!add_properties(osr, ct.tiff, err)) {
+    return false;
+  }
+
   /*
    * http://www.aperio.com/documents/api/Aperio_Digital_Slides_and_Third-party_data_interchange.pdf
    * page 14:
@@ -449,8 +483,7 @@ static bool aperio_open(openslide_t *osr,
     // check compression
     uint16_t compression;
     if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &compression)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Can't read compression scheme");
+      _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
       return false;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
@@ -489,8 +522,7 @@ static bool aperio_open(openslide_t *osr,
 
       // get compression
       if (!TIFFGetField(ct.tiff, TIFFTAG_COMPRESSION, &l->compression)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Can't read compression scheme");
+        _openslide_tiff_error(err, ct.tiff, "Can't read compression scheme");
         return false;
       }
 
@@ -498,8 +530,7 @@ static bool aperio_open(openslide_t *osr,
       // an encoder bug
       toff_t *tile_sizes;
       if (!TIFFGetField(ct.tiff, TIFFTAG_TILEBYTECOUNTS, &tile_sizes)) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Cannot get tile sizes");
+        _openslide_tiff_error(err, ct.tiff, "Cannot get tile sizes");
         return false;
       }
       l->missing_tiles = g_hash_table_new_full(g_int64_hash, g_int64_equal,
@@ -516,7 +547,7 @@ static bool aperio_open(openslide_t *osr,
       // associated image
       uint32_t subfile_type;
       const char *name;
-
+      g_autofree tdir_t *icc_dir = NULL;
       if (!TIFFGetField(ct.tiff, TIFFTAG_SUBFILETYPE, &subfile_type)) {
         // Fallback to the older detection mechanism, as it is not validated that this mechanism works for all scanners
         name = (dir == 1) ? "thumbnail" : NULL;
@@ -526,6 +557,20 @@ static bool aperio_open(openslide_t *osr,
         switch (subfile_type) {
           case 1:
             name = "label";
+            g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
+            if (!thumbnail_props) {
+              g_prefix_error(err, "Reading thumbnail properties: ");
+              return false;
+            }
+            const char *main_icc_name =
+              g_hash_table_lookup(osr->properties, "aperio.ICC Profile");
+            const char *thumbnail_icc_name =
+              g_hash_table_lookup(thumbnail_props, "ICC Profile");
+            if (main_icc_name && thumbnail_icc_name &&
+                g_str_equal(main_icc_name, thumbnail_icc_name)) {
+              // use ICC profile from first directory
+              icc_dir = g_new0(tdir_t, 1);
+            }
             break;
           case 9:
             name = "macro";
@@ -535,7 +580,7 @@ static bool aperio_open(openslide_t *osr,
         } 
       }
 
-      if (!add_associated_image(osr, name, tc, ct.tiff, err)) {
+      if (!add_associated_image(osr, name, icc_dir, tc, ct.tiff, err)) {
 	return false;
       }
       //g_debug("associated image: %d", dir);
@@ -550,23 +595,9 @@ static bool aperio_open(openslide_t *osr,
                          level_array->pdata[i + 1]);
   }
 
-  // read properties
-  if (!_openslide_tiff_set_dir(ct.tiff, 0, err)) {
-    return false;
-  }
-  char *image_desc;
-  if (!TIFFGetField(ct.tiff, TIFFTAG_IMAGEDESCRIPTION, &image_desc)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read ImageDescription field");
-    return false;
-  }
-  g_auto(GStrv) props = g_strsplit(image_desc, "|", -1);
-  add_properties(osr, props);
-
   // get icc profile size, if present
   struct level *base_level = level_array->pdata[0];
-  if (!_openslide_tiff_get_icc_profile_size(&base_level->tiffl,
-                                            ct.tiff,
+  if (!_openslide_tiff_get_icc_profile_size(ct.tiff, base_level->tiffl.dir,
                                             &osr->icc_profile_size,
                                             err)) {
     return false;

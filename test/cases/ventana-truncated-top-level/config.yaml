@@ -1,5 +1,5 @@
 base: Ventana/OS-2.bif
-error: "^Cannot hash TIFF tiles: Can't read from .*OS-2.bif$"
+error: "^Cannot hash TIFF tiles: Short read of file .*OS-2.bif: 0 < 16$"
 slide: OS-2.bif
 success: false
 vendor: ventana

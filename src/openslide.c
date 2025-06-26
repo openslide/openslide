@@ -35,13 +35,14 @@
 
 #include "openslide-error.h"
 
-const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2023 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
+const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2025 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
 static const struct _openslide_format *formats[] = {
   &_openslide_format_synthetic,
   &_openslide_format_mirax,
+  &_openslide_format_zeiss,
   &_openslide_format_dicom,
   &_openslide_format_hamamatsu_vms_vmu,
   &_openslide_format_hamamatsu_ndpi,
@@ -339,11 +340,25 @@ openslide_t *openslide_open(const char *filename) {
     }
   }
 
+  // ensure NULL values don't leak into properties
+  GHashTableIter iter;
+  char *name;
+  char *value;
+  g_hash_table_iter_init(&iter, osr->properties);
+  while (g_hash_table_iter_next(&iter, (void *) &name, (void *) &value)) {
+    if (!value) {
+      g_warning("Property \"%s\" has NULL value", name);
+      g_hash_table_iter_remove(&iter);
+    }
+  }
+
   // fill in property names
   osr->property_names = strv_from_hashtable_keys(osr->properties);
 
-  // start cache
-  osr->cache = _openslide_cache_binding_create();
+  // start cache if the backend hasn't already done it
+  if (!osr->cache) {
+    osr->cache = _openslide_cache_binding_create(DEFAULT_CACHE_SIZE);
+  }
 
   return g_steal_pointer(&osr);
 }

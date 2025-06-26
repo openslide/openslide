@@ -166,9 +166,12 @@ static void unpack_argb(enum _openslide_jp2k_colorspace space,
   }
 }
 
-static void warning_callback(const char *msg G_GNUC_UNUSED,
-                             void *data G_GNUC_UNUSED) {
-  //g_debug("%s", msg);
+static void warning_callback(const char *msg, void *data G_GNUC_UNUSED) {
+  if (_openslide_debug(OPENSLIDE_DEBUG_DECODING)) {
+    g_autofree char *detail = g_strdup(msg);
+    g_strchomp(detail);
+    g_warning("OpenJPEG warning: %s", detail);
+  }
 }
 
 static void error_callback(const char *msg, void *data) {
@@ -225,8 +228,6 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   g_assert(datalen >= 0);
 
   // init stream
-  // avoid tracking stream offset (and implementing skip callback) by having
-  // OpenJPEG read the whole buffer at once
   g_autoptr(opj_stream_t) stream = opj_stream_create(datalen, true);
   struct buffer_state state = {
     .data = data,

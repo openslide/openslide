@@ -1,6 +1,7 @@
 # generate openslide-tables.c
 make_tables = executable(
-  'make-tables', 'make-tables.c',
+  'make-tables',
+  'make-tables.c',
   dependencies : [libm_native_dep],
   native : true,
 )
@@ -27,14 +28,11 @@ if host_machine.system() == 'windows'
     depend_files : [openslide_dll_manifest],
   )
 else
-  openslide_dll_o = files()
+  openslide_dll_o = []
 endif
 
 # Public headers
-openslide_headers = [
-  'openslide.h',
-  'openslide-features.h',
-]
+openslide_headers = files('openslide-features.h', 'openslide.h')
 include_subdir = 'openslide'
 install_headers(
   openslide_headers,
@@ -42,10 +40,9 @@ install_headers(
 )
 
 # Library
-openslide_sources = [
-  'openslide.c',
+openslide_sources = files(
   'openslide-cache.c',
-  openslide_dll_o,
+  'openslide-decode-dicom.c',
   'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
   'openslide-decode-jpeg.c',
@@ -59,9 +56,9 @@ openslide_sources = [
   'openslide-grid.c',
   'openslide-hash.c',
   'openslide-jdatasrc.c',
-  openslide_tables_c,
   'openslide-util.c',
   'openslide-vendor-aperio.c',
+  'openslide-vendor-dicom.c',
   'openslide-vendor-huron.c',
   'openslide-vendor-generic-tiff.c',
   'openslide-vendor-hamamatsu.c',
@@ -72,14 +69,14 @@ openslide_sources = [
   'openslide-vendor-synthetic.c',
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
+  'openslide-vendor-zeiss.c',
+  'openslide.c',
+) + [
+  openslide_dll_o,
+  openslide_tables_c,
 ]
-if dicom_dep.found()
-  openslide_sources += [
-    'openslide-decode-dicom.c',
-    'openslide-vendor-dicom.c',
-  ]
-endif
-libopenslide = library('openslide',
+libopenslide = library(
+  'openslide',
   openslide_sources,
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
@@ -99,6 +96,7 @@ libopenslide = library('openslide',
     jpeg_dep,
     png_dep,
     zlib_dep,
+    zstd_dep,
     libm_dep,
   ],
   install : true,

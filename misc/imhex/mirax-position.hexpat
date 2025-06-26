@@ -1,10 +1,8 @@
 #pragma description MIRAX VIMSLIDE_POSITION_BUFFER non-hierarchical section
 
-// TODO: support StitchingIntensityLevel, automatically inflating with
-// https://github.com/Jusb3/ImHex-Zlib-Plugin
-
-#include <std/io.pat>
-#include <std/mem.pat>
+import hex.dec;
+import std.io;
+import std.mem;
 
 #pragma endian little
 
@@ -26,7 +24,20 @@ struct File {
     char slide_id[32];
     char file[3];
     padding[256];
-    Position positions[while(!std::mem::eof())];
+
+    u8 cmf = std::mem::read_unsigned($, 1, std::mem::Endian::Little);
+    if ((cmf & 0xf) == 8) {
+        u8 cmp[while(!std::mem::eof())] [[hidden]];
+        auto decmp = std::mem::create_section("Decompressed");
+        if (!hex::dec::zlib_decompress(cmp, decmp, 0)) {
+            std::error("Decompression failed");
+        }
+        u32 count = std::mem::get_section_size(decmp) / sizeof(Position);
+        Position positions[count] @ 0 in decmp;
+        str _note = "See Sections tab for positions" [[export]];
+    } else {
+        Position positions[while(!std::mem::eof())];
+    }
 } [[inline]];
 
 File file @ 0;

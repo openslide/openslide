@@ -46,7 +46,7 @@ static struct tile sentinel;
 
 static void *thread_func(void *data) {
   struct state *state = data;
-  struct tile *tile;	
+  struct tile *tile;
   g_autofree uint32_t *buf = g_malloc(TILE_SIZE * TILE_SIZE * sizeof(uint32_t));
 
   g_async_queue_push(state->completions, &sentinel);
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  int threads = atoi(argv[2]);
+  int threads = g_ascii_strtoll(argv[2], NULL, 10);
   if (threads < 1) {
     printf("Invalid thread count\n");
     return 1;

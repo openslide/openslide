@@ -33,6 +33,11 @@ bool _openslide_jpeg_read_dimensions(const char *filename,
                                      int32_t *w, int32_t *h,
                                      GError **err);
 
+bool _openslide_jpeg_read_file_dimensions(struct _openslide_file *f,
+                                          int64_t offset,
+                                          int32_t *w, int32_t *h,
+                                          GError **err);
+
 bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
                                               int32_t *w, int32_t *h,
                                               GError **err);
@@ -43,10 +48,22 @@ bool _openslide_jpeg_read(const char *filename,
                           int32_t w, int32_t h,
                           GError **err);
 
+bool _openslide_jpeg_read_file(struct _openslide_file *f,
+                               int64_t offset,
+                               uint32_t *dest,
+                               int32_t w, int32_t h,
+                               GError **err);
+
 bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
                                    uint32_t *dest,
                                    int32_t w, int32_t h,
                                    GError **err);
+
+bool _openslide_jpeg_decode_buffer_colorspace(const void *buf, uint32_t len,
+                                              J_COLOR_SPACE space,
+                                              uint32_t *dest,
+                                              int32_t w, int32_t h,
+                                              GError **err);
 
 bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
                                         uint8_t *dest,

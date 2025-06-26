@@ -1,6 +1,6 @@
 base: Aperio/JP2K-33003-1.svs
-# libtiff also spews to stderr; check only for OpenSlide message
-error: Cannot read raw tile$
+# Older libtiff also spews to stderr; check only for OpenSlide message
+error: Cannot read raw tile
 slide: JP2K-33003-1.svs
 success: false
 vendor: aperio

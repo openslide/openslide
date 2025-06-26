@@ -14,19 +14,124 @@ env:
   PYTHONUNBUFFERED: 1
 
 jobs:
-  tests:
+  pre-commit:
+    name: Rerun pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libfuse3-dev
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.1
+
+  primary:
+    name: Primary tests (Fedora)
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:latest
+    outputs:
+      dist-base: ${{ steps.dist.outputs.dist-base }}
+    steps:
+    - name: Install dependencies
+      run: |
+        dnf install -y \
+            gcc git-core meson pkg-config \
+            python3-requests python3-pyyaml \
+            diffutils \
+            zlib-devel \
+            libzstd-devel \
+            libpng-devel \
+            libjpeg-turbo-devel \
+            libtiff-devel \
+            openjpeg2-devel \
+            gdk-pixbuf2-modules-extra gdk-pixbuf2-devel \
+            libdicom-devel \
+            libxml2-devel \
+            sqlite-devel \
+            cairo-devel \
+            glib2-devel \
+            xdelta libjpeg-turbo-utils \
+            clang doxygen llvm dnf-plugins-core
+        dnf debuginfo-install -y cairo fontconfig glib2
+    - name: Check out repo
+      uses: actions/checkout@v4
+    - name: Build
+      run: |
+        # disable werror for libdicom 1.2.0
+        # https://github.com/ImagingDataCommons/libdicom/pull/100
+        if ! meson setup builddir --werror -Dlibdicom:werror=false; then
+            cat builddir/meson-logs/meson-log.txt
+            exit 1
+        fi
+        ninja -C builddir
+    - name: Check
+      run: |
+        trap "cat builddir/meson-logs/testlog.txt" EXIT
+        meson test -C builddir
+    - name: Docs
+      id: docs
+      run: |
+        cd builddir
+        ninja doc/html
+        docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
+        mkdir -p ../artifacts/docs
+        mv doc/html ../artifacts/docs/${docroot}
+        echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
+    - name: Archive docs
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.docs.outputs.doc-base }}
+        path: artifacts/docs
+    - name: Dist
+      id: dist
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        meson dist -C builddir
+        dist="openslide-dist-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)"
+        mkdir -p "artifacts/dist/$dist"
+        mv builddir/meson-dist/*.tar.xz "artifacts/dist/$dist"
+        echo "dist-base=$dist" >> $GITHUB_OUTPUT
+    - name: Archive dist
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.dist.outputs.dist-base }}
+        path: artifacts/dist
+        compression-level: 0
+    - name: Cache pristine slides
+      uses: actions/cache@v4
+      with:
+        key: pristine
+        path: builddir/test/_slidedata/pristine
+    # Can't cache frozen tests because cache doesn't handle sparse files
+    - name: Unpack tests
+      run: |
+        cd builddir/test
+        ./driver unfreeze
+        ./driver unpack nonfrozen
+    - name: Test
+      run: cd builddir/test && ./driver run
+    - name: Sanitize
+      run: cd builddir/test && ./driver sanitize
+    - name: Check exports
+      run: cd builddir/test && ./driver exports
+
+  build:
     name: Build
+    # wait for test data to be cached
+    needs: primary
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            container: registry.fedoraproject.org/fedora:latest
-            extra: extra checks
-            sanitize: sanitize
-          - os: ubuntu-latest
-            container: quay.io/centos/centos:stream8
+            container: quay.io/almalinuxorg/almalinux:8
           - os: ubuntu-latest
             container: quay.io/centos/centos:stream9
           - os: ubuntu-latest
@@ -34,19 +139,27 @@ jobs:
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-latest
             container: debian:12
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
+            container: debian:12
+            arch: i386
+          - os: ubuntu-24.04-arm
+            container: debian:12
+          - os: ubuntu-latest
+            container: ubuntu:20.04
             ignore-cloexec-leaks: ignore CLOEXEC leaks
           - os: ubuntu-22.04
-          - os: macos-12
+          - os: ubuntu-24.04
+          - os: macos-latest
             sanitize: sanitize
     steps:
     - name: Install dependencies
+      shell: bash
       run: |
         case "${{ matrix.os }}" in
         macos-*)
             # https://github.com/actions/setup-python/issues/577
             # https://github.com/q3aiml/ledger/commit/f53b35ae
-            brew list -1 | grep python | while read formula; do
+            brew list -1 | grep python@ | while read formula; do
                 brew unlink $formula
                 brew link --overwrite $formula
             done
@@ -54,28 +167,35 @@ jobs:
             brew install \
                 meson pkg-config \
                 zlib \
+                zstd \
                 libpng \
                 jpeg-turbo \
                 libtiff \
                 openjpeg \
                 gdk-pixbuf \
+                libdicom \
                 libxml2 \
                 sqlite \
                 cairo \
                 glib \
                 xdelta
-            python3 -m pip install --upgrade pip
-            python3 -m pip install requests PyYAML
+            # Install Python packages that Homebrew does not wish to maintain.
+            # Use --break-system-packages so pip doesn't refuse to install
+            # outside a virtualenv.
+            python3 -m pip install --break-system-packages \
+                PyYAML \
+                requests
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
-            *fedora*|*centos*)
+            *centos*|*almalinux*)
                 pyver=3
                 . /etc/os-release
                 case "$VERSION_ID" in
-                8)
+                8.*)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
+                    dnf install -y epel-release
                     pyver=38
                     pydotver=3.8
                     python=python38
@@ -85,73 +205,74 @@ jobs:
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release epel-next-release
                     ;;
-                *)
-                    extra="git-core clang doxygen llvm valgrind valgrind-devel"
-                    extra="$extra dnf-plugins-core"
-                    debuginfo=1
-                    ;;
                 esac
 
+                # zstd command-line program needed to restore cache
+                # https://github.com/actions/cache/issues/1169
                 dnf install -y \
-                    gcc git meson pkg-config \
+                    gcc git-core meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
                     diffutils \
                     zlib-devel \
+                    libzstd-devel \
                     libpng-devel \
                     libjpeg-turbo-devel \
                     libtiff-devel \
                     openjpeg2-devel \
                     gdk-pixbuf2-modules gdk-pixbuf2-devel \
+                    libdicom-devel \
                     libxml2-devel \
                     sqlite-devel \
                     cairo-devel \
                     glib2-devel \
-                    xdelta libjpeg-turbo-utils $extra
+                    xdelta libjpeg-turbo-utils \
+                    zstd
 
-                if [ -n "$debuginfo" ]; then
-                    dnf debuginfo-install -y cairo fontconfig glib2
-                fi
                 if [ -n "$pydotver" ]; then
                     alternatives --set python3 "/usr/bin/python${pydotver}"
                 fi
                 ;;
-            *debian*|"")
-                if [ -n "${{ matrix.container }}" ]; then
+            *debian*|*ubuntu*|"")
+                if [[ "${{ matrix.container }}" =~ debian ]]; then
                     # Debian container
                     jpeg=libjpeg-dev
                 else
-                    # Ubuntu, on host
+                    # Ubuntu container or host
                     jpeg=libjpeg-turbo8-dev
-                    sudo=sudo
+                    if [ -z "${{ matrix.container }}" ]; then
+                        # Host
+                        sudo=sudo
+                    fi
+                fi
+                if [ -n "${{ matrix.arch }}" ]; then
+                    $sudo dpkg --add-architecture "${{ matrix.arch }}"
+                    arch=":${{ matrix.arch }}"
+                    extra=gcc-multilib
                 fi
                 $sudo apt-get update
-                $sudo apt-get -y install \
+                # zstd command-line program needed to restore cache
+                # https://github.com/actions/cache/issues/1169
+                DEBIAN_FRONTEND=noninteractive $sudo apt-get -y install \
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
-                    zlib1g-dev \
-                    libpng-dev \
-                    $jpeg \
-                    libtiff-dev \
-                    libopenjp2-7-dev \
-                    libgdk-pixbuf2.0-dev \
-                    libxml2-dev \
-                    libsqlite3-dev \
-                    libcairo2-dev \
-                    libglib2.0-dev \
-                    xdelta3 libjpeg-turbo-progs
+                    zlib1g-dev$arch \
+                    libzstd-dev$arch \
+                    libpng-dev$arch \
+                    $jpeg$arch \
+                    libtiff-dev$arch \
+                    libopenjp2-7-dev$arch \
+                    libgdk-pixbuf2.0-dev$arch \
+                    libxml2-dev$arch \
+                    libsqlite3-dev$arch \
+                    libcairo2-dev$arch \
+                    libglib2.0-dev$arch \
+                    xdelta3 libjpeg-turbo-progs $extra \
+                    zstd
                 ;;
             esac
         esac
     - name: Check out repo
       uses: actions/checkout@v4
-    - name: Check for uninitialized g_auto variables
-      if: matrix.extra
-      run: |
-        git config --global --add safe.directory $GITHUB_WORKSPACE
-        if git grep -En 'g_auto\(|g_autoptr\(|g_autofree ' | grep -v = ; then
-            echo "Found g_auto* declarations without initializers"
-            exit 1
-        fi
     - name: Build
       run: |
         args=
@@ -159,6 +280,30 @@ jobs:
             # Some distro versions have leaky libraries
             echo "Disabling CLOEXEC leak check"
             args="-D_nonatomic_cloexec=true"
+        fi
+        if [ -n "${{ matrix.arch }}" ]; then
+            cat > cross.ini << EOF
+        [built-in options]
+        c_args = ['-O2', '-g', '-m32']
+        c_link_args = ['-m32']
+        cpp_args = ['-O2', '-g', '-m32']
+        cpp_link_args = ['-m32']
+
+        [properties]
+        pkg_config_libdir = ['/usr/lib/${{ matrix.arch }}-linux-gnu/pkgconfig', '/usr/share/pkgconfig']
+
+        [binaries]
+        c = 'gcc'
+        pkgconfig = 'pkg-config'
+        strip = 'strip'
+
+        [host_machine]
+        system = 'linux'
+        endian = 'little'
+        cpu_family = 'x86'
+        cpu = '${{ matrix.arch }}'
+        EOF
+            args="$args --cross-file=cross.ini"
         fi
         if ! meson setup builddir --werror $args; then
             cat builddir/meson-logs/meson-log.txt
@@ -169,41 +314,12 @@ jobs:
       run: |
         trap "cat builddir/meson-logs/testlog.txt" EXIT
         meson test -C builddir
-    - name: Docs
-      if: matrix.extra
-      run: |
-        cd builddir
-        ninja doc/html
-        docroot=openslide-docs-$GITHUB_RUN_NUMBER-$(echo $GITHUB_SHA | cut -c-10)
-        mkdir doc-artifact
-        mv doc/html doc-artifact/${docroot}
-        echo "docroot=${docroot}" >> $GITHUB_ENV
-    - name: Archive docs
-      if: matrix.extra
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ env.docroot }}
-        path: builddir/doc-artifact
     - name: Cache pristine slides
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
-    - name: Check for overlarge tests
-      if: matrix.extra
-      run: |
-        # We don't want to allow arbitrarily large binary diffs into the
-        # repo, where they'll live in the Git history forever.  At the time
-        # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
-        # set the cutoff at 6000.
-        # https://openslide.org/docs/testsuite/#tips
-        THRESHOLD=6000
-        large=$(find test/cases -type f -size +${THRESHOLD}c)
-        if [ -n "$large" ]; then
-            echo "Found test case files larger than $THRESHOLD bytes:"
-            echo "$large"
-            exit 1
-        fi
+        fail-on-cache-miss: true
     # Can't cache frozen tests because cache doesn't handle sparse files
     - name: Unpack tests
       run: |
@@ -215,36 +331,30 @@ jobs:
     - name: Sanitize
       if: matrix.sanitize
       run: cd builddir/test && ./driver sanitize
-    - name: Valgrind
-      # Valgrind tests are expensive, and maintaining suppressions across
-      # multiple distros can be fiddly.  We might catch some additional bugs
-      # if we enabled this everywhere (mainly when there are different code
-      # paths for different dependency versions) but it doesn't seem worth it.
-      if: matrix.extra
-      run: cd builddir/test && ./driver valgrind
-    - name: Check exports
-      if: matrix.extra
-      run: cd builddir/test && ./driver exports
 
   windows_setup:
     name: Set up Windows build
     runs-on: ubuntu-latest
     outputs:
-      builder_repo_and_digest: ${{ steps.find.outputs.builder_repo_and_digest }}
-      pkgver: ${{ steps.params.outputs.pkgver }}
+      suffix: ${{ steps.params.outputs.suffix }}
+      windows_builder_repo_and_digest: ${{ steps.find-windows.outputs.builder_repo_and_digest }}
     steps:
-      - name: Find builder container digest
-        id: find
-        uses: openslide/openslide-winbuild/.github/find-container-digest@main
+      - name: Find Windows builder container digest
+        id: find-windows
+        uses: openslide/openslide-bin/.github/find-container-digest@main
+        with:
+          builder_image: windows
       - name: Calculate parameters
         id: params
         run: |
           case "${{ github.event_name }}" in
           pull_request)
-              echo "pkgver=pr-${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              echo "suffix=$(date +%Y%m%d).pr.${{ github.event.number }}.${{ github.run_number }}.${{ github.run_attempt }}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           push)
-              echo "pkgver=${GITHUB_REF#refs/heads/}-$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
+              ref="${GITHUB_REF#refs/heads/}"
+              ref="${ref#refs/tags/}"
+              echo "suffix=$(date +%Y%m%d).${ref}.$(echo ${{ github.sha }} | cut -c-7)" >> $GITHUB_OUTPUT
               ;;
           *)
               echo "Unknown event type ${{ github.event_name }}"
@@ -254,10 +364,42 @@ jobs:
   windows_build:
     name: Windows build
     needs: windows_setup
-    uses: openslide/openslide-winbuild/.github/workflows/windows.yml@main
+    uses: openslide/openslide-bin/.github/workflows/build.yml@main
     with:
-      builder_repo_and_digest: ${{ needs.windows_setup.outputs.builder_repo_and_digest }}
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
-      pkgver: ${{ needs.windows_setup.outputs.pkgver }}
+      suffix: ${{ needs.windows_setup.outputs.suffix }}
       werror: true
+      windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
+
+  release:
+    name: Release
+    if: github.ref_type == 'tag'
+    needs: [primary, build, windows_build]
+    runs-on: ubuntu-latest
+    concurrency: release-${{ github.ref }}
+    permissions:
+      contents: write
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ${{ needs.primary.outputs.dist-base }}
+        merge-multiple: true
+    - name: Release to GitHub
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        version=$(echo "${{ github.ref_name }}" | sed "s/^v//")
+        tar xf "${{ needs.primary.outputs.dist-base }}/openslide-${version}.tar.xz"
+        echo -e "## Full changelog\n" > changes
+        awk -e '/^## / && ok {exit}' \
+            -e '/^## / {ok=1; next}' \
+            -e 'ok {print}' \
+            "openslide-${version}/CHANGELOG.md" >> changes
+        gh release create --draft --latest --verify-tag \
+            --repo "${{ github.repository }}" \
+            --title "OpenSlide $version" \
+            --notes-file changes \
+            "${{ github.ref_name }}" \
+            "${{ needs.primary.outputs.dist-base }}/"*

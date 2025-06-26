@@ -48,7 +48,6 @@ struct _openslide_tiff_level {
 struct _openslide_tiffcache;
 
 struct _openslide_cached_tiff {
-  struct _openslide_tiffcache *tc;
   TIFF *tiff;
 };
 
@@ -85,6 +84,7 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           const char *name,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
+                                          tdir_t *icc_dir,
                                           GError **err);
 
 bool _openslide_tiff_set_dir(TIFF *tiff,
@@ -92,18 +92,19 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
                              GError **err);
 
 
-// get the profile size from a level for osr->icc_profile_size
-bool _openslide_tiff_get_icc_profile_size(struct _openslide_tiff_level *tiffl,
-                                          TIFF *tiff,
+// get the profile size from a TIFF directory for osr->icc_profile_size
+bool _openslide_tiff_get_icc_profile_size(TIFF *tiff, tdir_t dir,
                                           int64_t *icc_profile_size,
                                           GError **err);
 
-// read the profile from a level
-bool _openslide_tiff_read_icc_profile(openslide_t *osr,
-                                      struct _openslide_tiff_level *tiffl,
-                                      TIFF *tiff,
-                                      void *dest,
+// read the profile from a TIFF directory
+// expected_size is from osr->icc_profile_size
+bool _openslide_tiff_read_icc_profile(TIFF *tiff, tdir_t dir,
+                                      void *dest, int64_t expected_size,
                                       GError **err);
+
+// set error, appending libtiff error message if one is available
+void _openslide_tiff_error(GError **err, TIFF *tiff, const char *fmt, ...);
 
 
 /* TIFF handles are not thread-safe, so we have a handle cache for

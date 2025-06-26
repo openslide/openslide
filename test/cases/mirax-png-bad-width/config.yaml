@@ -1,0 +1,10 @@
+# width set to zero in PNG IHDR so libpng logs a warning
+base: Mirax/Mirax2.2-4-PNG.zip
+# openslide_read_region() also fails, but try_open only prints the first error
+error: "^\\[log\\] PNG warning: Image width is zero in IHDR$"
+slide: Mirax2.2-4-PNG.mrxs
+success: false
+vendor: mirax
+debug: [decoding]
+regions:
+  - [30600, 122600, 8, 100, 100]
