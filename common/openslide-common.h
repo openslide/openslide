@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_COMMON_H
-#define OPENSLIDE_COMMON_H
+#pragma once
 
 #include <stdbool.h>
 #include <glib.h>
@@ -51,5 +50,3 @@ void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 GHashTable *common_get_open_fds(void);
 bool common_check_open_fds(GHashTable *ignore, const char *msg);
-
-#endif

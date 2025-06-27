@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_JP2K_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_JP2K_H_
+#pragma once
 
 #include <stdint.h>
 #include <glib.h>
@@ -37,5 +36,3 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
-
-#endif

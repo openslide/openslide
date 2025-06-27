@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_SQLITE_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_SQLITE_H_
+#pragma once
 
 #include <stdbool.h>
 #include <glib.h>
@@ -39,5 +38,3 @@ void _openslide_sqlite_close(sqlite3 *db);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(sqlite3, _openslide_sqlite_close)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(sqlite3_stmt, _openslide_sqlite_finalize)
-
-#endif

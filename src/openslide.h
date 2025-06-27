@@ -28,8 +28,7 @@
  * See the openslide_close() documentation for its restrictions.
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_H_
-#define OPENSLIDE_OPENSLIDE_H_
+#pragma once
 
 #include "openslide-features.h"
 
@@ -617,6 +616,4 @@ const char *openslide_get_version(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

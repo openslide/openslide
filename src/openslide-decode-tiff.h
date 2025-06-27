@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
+#pragma once
 
 #include "openslide-private.h"
 
@@ -125,5 +124,3 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tiffcache,
 typedef struct _openslide_cached_tiff _openslide_cached_tiff;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_cached_tiff,
                                  _openslide_cached_tiff_put)
-
-#endif

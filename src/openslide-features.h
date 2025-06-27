@@ -19,9 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_FEATURES_H_
-#define OPENSLIDE_OPENSLIDE_FEATURES_H_
-
+#pragma once
 
 // for exporting from shared libraries or DLLs
 #if defined _WIN32
@@ -62,7 +60,4 @@
   __declspec(deprecated("deprecated: Use " #f " instead"))
 #else
 # define OPENSLIDE_DEPRECATED_FOR(f) OPENSLIDE_DEPRECATED()
-#endif
-
-
 #endif

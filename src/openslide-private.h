@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
-#define OPENSLIDE_OPENSLIDE_PRIVATE_H_
+#pragma once
 
 #include "openslide.h"
 
@@ -437,6 +436,4 @@ extern const int16_t _openslide_B_Cb[256];
 #ifdef _WIN32
 // Prevent windows.h from defining the IN/OUT macro
 #define _NO_W32_PSEUDO_MODIFIERS
-#endif
-
 #endif
