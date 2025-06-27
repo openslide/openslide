@@ -118,8 +118,7 @@ static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
   jmp_buf env;
   if (!setjmp(env)) {
     _openslide_jpeg_decompress_init(dc, &env);
-    _openslide_jpeg_mem_src(cinfo, one_pixel_rgb_jpeg,
-                            sizeof(one_pixel_rgb_jpeg));
+    jpeg_mem_src(cinfo, one_pixel_rgb_jpeg, sizeof(one_pixel_rgb_jpeg));
     jpeg_read_header(cinfo, true);
     cinfo->out_color_space = JCS_EXT_BGRA;
     jpeg_start_decompress(cinfo);
@@ -274,7 +273,7 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, buf, buflen);
+      jpeg_mem_src(cinfo, buf, buflen);
     }
 
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
@@ -331,7 +330,7 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, buf, buflen);
+      jpeg_mem_src(cinfo, buf, buflen);
     }
 
     // read header

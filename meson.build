@@ -164,6 +164,13 @@ doxygen = find_program(
 )
 
 # Dependency checks
+if jpeg_dep.type_name() != 'internal' and not cc.has_function(
+  'jpeg_mem_src',
+  dependencies : jpeg_dep,
+)
+  error('libjpeg-turbo >= 1.3 or libjpeg >= 9c is required')
+endif
+
 if tiff_dep.type_name() == 'internal' or cc.has_function(
   'TIFFOpenOptionsSetErrorHandlerExtR',
   dependencies : tiff_dep,
