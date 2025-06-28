@@ -67,7 +67,8 @@ jobs:
       uses: actions/checkout@v5
     - name: Build
       run: |
-        if ! meson setup builddir --fatal-meson-warnings --werror; then
+        if ! meson setup builddir --fatal-meson-warnings --werror \
+                -Dtest=enabled; then
             cat builddir/meson-logs/meson-log.txt
             exit 1
         fi
@@ -284,7 +285,7 @@ jobs:
       uses: actions/checkout@v5
     - name: Build
       run: |
-        args=
+        args="-Dtest=enabled"
         if [ -n "${{ matrix.arch }}" ]; then
             cat > cross.ini << EOF
         [built-in options]
@@ -371,7 +372,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: |
-          if ! meson setup builddir --fatal-meson-warnings --werror; then
+          if ! meson setup builddir --fatal-meson-warnings --werror \
+                  -Dxdelta3:warning_level=0 \
+                  -Dxdelta3:werror=false \
+                  -Dtest=enabled; then
               cat builddir/meson-logs/meson-log.txt
               exit 1
           fi

@@ -1,0 +1,13 @@
+[wrap-file]
+directory = xdelta3-3.1.0
+source_url = https://github.com/jmacd/xdelta-gpl/releases/download/v3.1.0/xdelta3-3.1.0.tar.gz
+source_filename = xdelta3-3.1.0.tar.gz
+source_hash = 114543336ab6cee3764e3c03202701ef79d7e5e8e4863fe64811e4d9e61884dc
+patch_filename = xdelta3_3.1.0-1_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/xdelta3_3.1.0-1/get_patch
+patch_hash = 5311219f64e56abd545e194e7fc45ba0d2eb985bed028150a4f6c02296931374
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/xdelta3_3.1.0-1/xdelta3-3.1.0.tar.gz
+wrapdb_version = 3.1.0-1
+
+[provide]
+program_names = xdelta3

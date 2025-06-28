@@ -1,3 +1,29 @@
+# Required dependencies
+foreach dep : ['cjpeg', 'djpeg', 'xdelta3']
+  set_variable(
+    dep,
+    find_program(
+      dep,
+      required : get_option('test'),
+    ),
+  )
+  if not get_variable(dep).found()
+    subdir_done()
+  endif
+endforeach
+
+# Optional dependencies
+foreach dep : ['clang', 'gcov']
+  set_variable(
+    dep,
+    find_program(
+      dep,
+      required : false,
+    ),
+  )
+endforeach
+
+# Common binary deps
 test_deps = [
   declare_dependency(
     include_directories : config_h_include,
@@ -52,6 +78,11 @@ configure_file(
       default_value : '',
       pkgconfig : 'datadir',
     ),
+    'CJPEG' : cjpeg.full_path(),
+    'DJPEG' : djpeg.full_path(),
+    'XDELTA3' : xdelta3.full_path(),
+    'CLANG' : clang.found() ? clang.full_path() : '',
+    'GCOV' : gcov.found() ? gcov.full_path() : '',
     'FEATURES' : ' '.join(feature_flags),
     'VERSION' : meson.project_version(),
   },

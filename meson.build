@@ -9,7 +9,7 @@ project(
     'warning_level=2',
   ],
   # limited by EL 8 at 0.58
-  meson_version : '>=0.54',
+  meson_version : '>=0.55',
 )
 # Shared library version.  Follow SemVer rules.
 soversion = '1.0.0'
