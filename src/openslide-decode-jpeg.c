@@ -106,10 +106,7 @@ static void my_emit_message(j_common_ptr cinfo, int msg_level) {
 // Detect support for JCS_ALPHA_EXTENSIONS.  Even if the extensions were
 // available at compile time, they may not be available at runtime because
 // support for JCS_ALPHA_EXTENSIONS isn't reflected in the libjpeg soname.
-// Previously used the detection method documented in jcstest.c, but
-// libjpeg-turbo 1.2.0 doesn't support JCS_ALPHA_EXTENSIONS for RGB JPEGs
-// and we need that for Aperio slides.  Instead, try enabling the extensions
-// while decoding a tiny RGB JPEG.
+// Try enabling the extensions while decoding a tiny RGB JPEG.
 static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
   struct jpeg_decompress_struct *cinfo;
   g_auto(_openslide_jpeg_decompress) dc =
@@ -118,8 +115,7 @@ static void *detect_jcs_alpha_extensions(void *arg G_GNUC_UNUSED) {
   jmp_buf env;
   if (!setjmp(env)) {
     _openslide_jpeg_decompress_init(dc, &env);
-    _openslide_jpeg_mem_src(cinfo, one_pixel_rgb_jpeg,
-                            sizeof(one_pixel_rgb_jpeg));
+    jpeg_mem_src(cinfo, one_pixel_rgb_jpeg, sizeof(one_pixel_rgb_jpeg));
     jpeg_read_header(cinfo, true);
     cinfo->out_color_space = JCS_EXT_BGRA;
     jpeg_start_decompress(cinfo);
@@ -274,7 +270,7 @@ static bool jpeg_get_dimensions(struct _openslide_file *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, buf, buflen);
+      jpeg_mem_src(cinfo, buf, buflen);
     }
 
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
@@ -331,7 +327,7 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
     if (f) {
       _openslide_jpeg_stdio_src(cinfo, f);
     } else {
-      _openslide_jpeg_mem_src(cinfo, buf, buflen);
+      jpeg_mem_src(cinfo, buf, buflen);
     }
 
     // read header

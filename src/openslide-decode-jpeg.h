@@ -74,12 +74,6 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
 void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo,
                                struct _openslide_file *infile);
 
-/*
- * Some libjpegs don't provide mem_src, so we have our own copy.
- */
-void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              const void *inbuffer, size_t insize);
-
 
 /*
  * Low-level JPEG decoding mechanism
