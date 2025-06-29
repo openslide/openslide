@@ -78,10 +78,12 @@ executable(
 )
 
 # Driver
+subdir('env')
 configure_file(
-  input : 'driver.in',
+  input : 'driver.py',
   output : 'driver',
   configuration : {
+    'PYTHON' : test_python.full_path(),
     'SRCDIR' : meson.current_source_dir(),
     'BUILDDIR' : meson.current_build_dir(),
     # Path prefix for glib Valgrind suppressions

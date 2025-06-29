@@ -48,7 +48,6 @@ jobs:
       run: |
         dnf install -y \
             gcc git-core meson pkg-config \
-            python3-requests python3-pyyaml \
             cairo-devel \
             glib2-devel \
             libdicom-devel \
@@ -166,7 +165,6 @@ jobs:
     - name: Install dependencies
       shell: bash
       run: |
-        PYTHON=python3
         case "${{ matrix.os }}" in
         macos-*)
             # https://github.com/actions/setup-python/issues/577
@@ -190,32 +188,23 @@ jobs:
                 zlib \
                 zstd \
                 xdelta
-            # Install Python packages that Homebrew does not wish to maintain.
-            # Use --break-system-packages so pip doesn't refuse to install
-            # outside a virtualenv.
-            python3 -m pip install --break-system-packages \
-                PyYAML \
-                requests
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
             *centos*|*almalinux*)
-                pyver=3
                 . /etc/os-release
                 case "$VERSION_ID" in
                 8.*)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     dnf install -y epel-release
-                    pyver=3.11
-                    PYTHON=python3.11
+                    python=python3.11
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release epel-next-release
-                    pyver=3.11
-                    PYTHON=python3.11
+                    python=python3.11
                     ;;
                 10)
                     dnf config-manager --set-enabled crb
@@ -227,7 +216,7 @@ jobs:
                 # https://github.com/actions/cache/issues/1169
                 dnf install -y \
                     gcc git-core meson pkg-config \
-                    python${pyver}-requests python${pyver}-pyyaml \
+                    $python \
                     cairo-devel \
                     glib2-devel \
                     libdicom-devel \
@@ -264,7 +253,6 @@ jobs:
                 # https://github.com/actions/cache/issues/1169
                 DEBIAN_FRONTEND=noninteractive $sudo apt-get -y install \
                     gcc git meson pkg-config \
-                    python3-requests python3-yaml \
                     libcairo2-dev$arch \
                     libglib2.0-dev$arch \
                     $jpeg$arch \
@@ -275,12 +263,11 @@ jobs:
                     libxml2-dev$arch \
                     libzstd-dev$arch \
                     zlib1g-dev$arch \
-                    xdelta3 libjpeg-turbo-progs $extra \
+                    python3-venv xdelta3 libjpeg-turbo-progs $extra \
                     zstd
                 ;;
             esac
         esac
-        echo "PYTHON=${PYTHON}" >> $GITHUB_ENV
     - name: Check out repo
       uses: actions/checkout@v5
     - name: Build
@@ -329,13 +316,13 @@ jobs:
     - name: Unpack tests
       run: |
         cd builddir/test
-        $PYTHON driver unfreeze
-        $PYTHON driver unpack nonfrozen
+        ./driver unfreeze
+        ./driver unpack nonfrozen
     - name: Test
-      run: cd builddir/test && $PYTHON driver run
+      run: cd builddir/test && ./driver run
     - name: Sanitize
       if: matrix.sanitize
-      run: cd builddir/test && $PYTHON driver sanitize
+      run: cd builddir/test && ./driver sanitize
 
   windows-build:
     name: Build (Windows, ${{ matrix.toolchain }})
@@ -367,7 +354,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           scripts/vcpkg-install.sh
-          pip install meson requests PyYAML
+          pip install meson
       - name: Build
         env:
           CC: ${{ matrix.cc }}

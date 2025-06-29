@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!@PYTHON@
 #
 # OpenSlide, a library for reading whole slide image files
 #
@@ -62,6 +62,7 @@ from typing import (
 from urllib.parse import urljoin
 from zipfile import ZipFile
 
+import boto3
 import requests
 import yaml
 
@@ -736,8 +737,6 @@ class TestCase:
 
 class S3Uploader:
     def __init__(self, bucket: str):
-        import boto3
-
         self._s3 = boto3.client('s3')
         self._bucket = bucket
         region = (
@@ -884,7 +883,7 @@ def _fusefs_init(shadowdir: Path) -> None:
     # the distro's error reporting, so reset the excepthook to default.
     sys.excepthook = sys.__excepthook__
 
-    import pyfuse3
+    import pyfuse3  # not installed in virtualenv
     from pyfuse3 import FileHandleT, FileNameT, FUSEError, InodeT
 
     # A Unix file descriptor
@@ -1144,7 +1143,7 @@ def _fusefs_init(shadowdir: Path) -> None:
 
 def _fusefs_run() -> None:
     '''Run an initialized FUSE filesystem.'''
-    import pyfuse3
+    import pyfuse3  # not installed in virtualenv
     import trio
 
     try:
