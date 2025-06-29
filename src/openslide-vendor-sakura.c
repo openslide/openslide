@@ -32,7 +32,6 @@
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-sqlite.h"
-#include "openslide-hash.h"
 
 #include <glib.h>
 #include <glib-object.h>

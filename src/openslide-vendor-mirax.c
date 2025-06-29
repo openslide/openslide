@@ -39,8 +39,6 @@
 #include <string.h>
 #include <math.h>
 
-#include "openslide-hash.h"
-
 static const char MRXS_EXT[] = ".mrxs";
 static const char SLIDEDAT_INI[] = "Slidedat.ini";
 static const int SLIDEDAT_MAX_SIZE = 1 << 20;

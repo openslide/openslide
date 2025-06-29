@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
+#pragma once
 
 #include "openslide-private.h"
 
@@ -102,5 +101,3 @@ typedef struct _openslide_jpeg_decompress * volatile _openslide_jpeg_decompress;
 G_DEFINE_AUTO_CLEANUP_FREE_FUNC(_openslide_jpeg_decompress,
                                 _openslide_jpeg_decompress_destroy,
                                 NULL)
-
-#endif

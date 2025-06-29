@@ -39,7 +39,6 @@
 #include "openslide-decode-dicom.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-jp2k.h"
-#include "openslide-hash.h"
 
 #include <glib.h>
 #include <math.h>

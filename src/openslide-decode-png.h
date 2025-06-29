@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_PNG_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_PNG_H_
+#pragma once
 
 #include "openslide-private.h"
 
@@ -38,5 +37,3 @@ bool _openslide_png_decode_buffer(const void *buf,
                                   uint32_t *dest,
                                   int64_t w, int64_t h,
                                   GError **err);
-
-#endif

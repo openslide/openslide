@@ -19,11 +19,9 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
-#define OPENSLIDE_OPENSLIDE_PRIVATE_H_
+#pragma once
 
 #include "openslide.h"
-#include "openslide-hash.h"
 
 #include <glib.h>
 #include <stdio.h>
@@ -35,6 +33,8 @@
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_t, cairo_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
+
+struct _openslide_hash;
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -346,6 +346,34 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_cache_entry,
                               _openslide_cache_entry_unref)
 
 
+/* hashing */
+
+// constructor
+struct _openslide_hash *_openslide_hash_quickhash1_create(void);
+
+// hashers
+void _openslide_hash_data(struct _openslide_hash *hash, const void *data,
+                          int32_t datalen);
+void _openslide_hash_string(struct _openslide_hash *hash, const char *str);
+bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
+                          GError **err);
+bool _openslide_hash_file_part(struct _openslide_hash *hash,
+			       const char *filename,
+			       int64_t offset, int64_t size,
+			       GError **err);
+
+// lockout
+void _openslide_hash_disable(struct _openslide_hash *hash);
+
+// accessor
+const char *_openslide_hash_get_string(struct _openslide_hash *hash);
+
+// destructor
+void _openslide_hash_destroy(struct _openslide_hash *hash);
+
+typedef struct _openslide_hash _openslide_hash;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_hash, _openslide_hash_destroy)
+
 /* Internal error propagation */
 enum OpenSlideError {
   // generic failure
@@ -408,6 +436,4 @@ extern const int16_t _openslide_B_Cb[256];
 #ifdef _WIN32
 // Prevent windows.h from defining the IN/OUT macro
 #define _NO_W32_PSEUDO_MODIFIERS
-#endif
-
 #endif

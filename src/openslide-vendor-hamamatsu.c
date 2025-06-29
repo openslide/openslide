@@ -52,8 +52,6 @@
 #include <tiff.h>
 #include <cairo.h>
 
-#include "openslide-hash.h"
-
 #define NGR_TILE_HEIGHT 64
 
 // VMS/VMU
