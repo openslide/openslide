@@ -43,7 +43,6 @@ jobs:
         dnf install -y \
             gcc git-core meson pkg-config \
             python3-requests python3-pyyaml \
-            diffutils \
             zlib-devel \
             libzstd-devel \
             libpng-devel \
@@ -213,7 +212,6 @@ jobs:
                 dnf install -y \
                     gcc git-core meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
-                    diffutils \
                     zlib-devel \
                     libzstd-devel \
                     libpng-devel \
