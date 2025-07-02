@@ -60,5 +60,6 @@ configure_file(
       pkgconfig : 'datadir',
     ),
     'FEATURES' : ' '.join(feature_flags),
+    'VERSION' : meson.project_version(),
   },
 )

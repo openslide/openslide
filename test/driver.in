@@ -58,7 +58,6 @@ from typing import (
     BinaryIO,
     NewType,
     Protocol,
-    TypeVar,
     cast,
 )
 from urllib.parse import urljoin
@@ -101,8 +100,13 @@ RESET = '\033[1;0m'
 _commands = []
 _command_funcs = {}
 
-
-TestCaseT = TypeVar('TestCaseT', bound='TestCase')
+http = requests.Session()
+http.headers.update(
+    {
+        'User-Agent': 'OpenSlide/@VERSION@ (driver) '
+        + requests.utils.default_headers()['User-Agent']
+    }
+)
 
 
 class Skip:
@@ -456,7 +460,7 @@ class TestCase:
 
     @classmethod
     @lru_cache
-    def list(cls: type[TestCaseT], pattern: str = '*') -> list[TestCaseT]:
+    def list(cls, pattern: str = '*') -> list[TestCase]:
         '''Return a list of tests matching the specified pattern.'''
         return [
             cls(path.name)
@@ -720,6 +724,72 @@ class TestCase:
         return ok, msg
 
 
+class S3Uploader:
+    def __init__(self, bucket: str):
+        import boto3
+
+        self._s3 = boto3.client('s3')
+        self._bucket = bucket
+        region = (
+            self._s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
+            or 'us-east-1'
+        )
+        self._baseurl = (
+            f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/'
+        )
+
+    def url(self, key: PurePath) -> str:
+        '''Return public URL for key.'''
+        return self._baseurl + key.as_posix()
+
+    def exists(self, key: PurePath) -> bool:
+        try:
+            self._s3.head_object(Bucket=self._bucket, Key=key.as_posix())
+            return True
+        except self._s3.exceptions.ClientError as e:
+            # https://github.com/boto/boto3/issues/2442
+            if e.response['Error']['Code'] != '404':
+                raise
+            return False
+
+    def upload(
+        self,
+        key: PurePath,
+        fh: BinaryIO,
+        content_type: str = 'application/octet-stream',
+    ) -> None:
+        '''Upload content to the specified S3 bucket and key.'''
+        # Set up progress reporting
+        length = fh.seek(0, os.SEEK_END)
+        last_update = 0.0
+        uploaded = 0
+
+        def progress(count: int) -> None:
+            nonlocal last_update, uploaded
+            uploaded += count
+            now = curtime()
+            if now - last_update >= 1:
+                print(
+                    f'Uploading {uploaded >> 20}/{length >> 20} MB...\r',
+                    end='',
+                )
+                sys.stdout.flush()
+                last_update = now
+
+        # Upload object
+        fh.seek(0)
+        self._s3.upload_fileobj(
+            fh,
+            self._bucket,
+            key.as_posix(),
+            Callback=progress,
+            ExtraArgs={
+                'ContentType': content_type,
+            },
+        )
+        print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
+
+
 def _download(url: str, name: str, fh: BinaryIO) -> str:
     '''Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
@@ -727,7 +797,7 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
 
     print(f'Fetching {name}...\r', end='')
     sys.stdout.flush()
-    r = requests.get(url, stream=True, timeout=120)
+    r = http.get(url, stream=True, timeout=120)
     r.raise_for_status()
 
     cur = 0
@@ -1079,58 +1149,6 @@ def _fusefs_run() -> None:
     pyfuse3.close()
 
 
-def _s3_upload_public(
-    bucket: str,
-    key: str,
-    fh: BinaryIO,
-    content_type: str = 'application/octet-stream',
-) -> str:
-    '''Upload public content to the specified S3 bucket and key.  Return
-    a public URL.'''
-    import boto3
-
-    s3 = boto3.client('s3')
-    # Calculate public URL
-    region = (
-        s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
-        or 'us-east-1'
-    )
-    url = f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/{key}'
-    # Skip re-uploading existing objects
-    try:
-        s3.head_object(Bucket=bucket, Key=key)
-        return url
-    except s3.exceptions.ClientError as e:
-        # https://github.com/boto/boto3/issues/2442
-        if e.response['Error']['Code'] != '404':
-            raise
-    # Set up progress reporting
-    length = fh.seek(0, os.SEEK_END)
-    last_update = 0.0
-    uploaded = 0
-
-    def progress(count: int) -> None:
-        nonlocal last_update, uploaded
-        uploaded += count
-        now = curtime()
-        if now - last_update >= 1:
-            print(f'Uploading {uploaded >> 20}/{length >> 20} MB...\r', end='')
-            sys.stdout.flush()
-            last_update = now
-
-    # Upload object
-    fh.seek(0)
-    s3.upload_fileobj(
-        fh,
-        bucket,
-        key,
-        Callback=progress,
-        ExtraArgs={'ContentType': content_type},
-    )
-    print('{:<79}'.format(f'Uploaded {length >> 20} MB'))
-    return url
-
-
 @_command
 def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
     '''Create a frozen testdata archive for transport to another system,
@@ -1205,13 +1223,17 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
                 raise OSError('tar failed')
             digest = hasher.hexdigest()
 
-            print('Uploading archive...')
-            url = _s3_upload_public(
-                bucket, digest, frozen, content_type='application/x-xz'
-            )
+            s3 = S3Uploader(bucket)
+            if not s3.exists(PurePath(digest)):
+                print('Uploading archive...')
+                s3.upload(
+                    PurePath(digest),
+                    frozen,
+                    content_type='application/x-xz',
+                )
 
     manifest = {
-        'url': url,
+        'url': s3.url(PurePath(digest)),
         'sha256': digest,
     }
     with FROZENLIST.open('w') as frozenlist:
