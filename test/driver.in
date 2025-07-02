@@ -71,18 +71,18 @@ TESTDATA_URL = os.getenv(
     'https://openslide.cs.cmu.edu/download/openslide-testdata/',
 )
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
-SRCDIR = Path('@SRCDIR@')
-BUILDDIR = Path('@BUILDDIR@')
+SRCDIR = Path(r'@SRCDIR@')
+BUILDDIR = Path(r'@BUILDDIR@')
 CLANG_LSAN_SUPPRESSIONS = SRCDIR / 'clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = SRCDIR / 'valgrind.supp'
 VALGRIND_SUPPRESSIONS_GLIB = Path(
-    '@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
+    r'@GLIB2_DATADIR@/glib-2.0/valgrind/glib.supp'
 )
 CASEROOT = SRCDIR / 'cases'
 SLIDELIST = CASEROOT / 'slides.yaml'
 FROZENLIST = CASEROOT / 'frozen.yaml'
 MOSAICLIST = CASEROOT / 'mosaic.ini'
-CACHE = Path(os.getenv('OPENSLIDE_TEST_CACHE', '@BUILDDIR@/_slidedata'))
+CACHE = Path(os.getenv('OPENSLIDE_TEST_CACHE', r'@BUILDDIR@/_slidedata'))
 CACHE_TAG = CACHE / 'CACHEDIR.TAG'
 WORKROOT = CACHE / 'unpacked'
 PRISTINE = CACHE / 'pristine'

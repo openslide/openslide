@@ -1,0 +1,24 @@
+name: Update vcpkg cache
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency: vcpkg-cache
+
+jobs:
+  vcpkg:
+    name: Cache
+    runs-on: windows-2025
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: vcpkg install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/vcpkg-install.sh

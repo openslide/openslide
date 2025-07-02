@@ -329,8 +329,44 @@ jobs:
       if: matrix.sanitize
       run: cd builddir/test && ./driver sanitize
 
-  windows_setup:
-    name: Set up Windows build
+  windows-build:
+    name: Build (Windows)
+    needs: primary
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+      # for vcpkg caching
+      packages: write
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          scripts/vcpkg-install.sh
+          pip install meson requests PyYAML
+      - name: Build
+        run: |
+          if ! meson setup builddir --fatal-meson-warnings --werror; then
+              cat builddir/meson-logs/meson-log.txt
+              exit 1
+          fi
+          ninja -C builddir
+      - name: Check
+        run: |
+          trap "cat builddir/meson-logs/testlog.txt" EXIT
+          meson test -C builddir
+
+  bin-setup:
+    name: Set up openslide-bin build
     runs-on: ubuntu-latest
     outputs:
       suffix: ${{ steps.params.outputs.suffix }}
@@ -358,21 +394,21 @@ jobs:
               exit 1
           esac
 
-  windows_build:
-    name: Windows build
-    needs: windows_setup
+  bin-build:
+    name: Build (openslide-bin)
+    needs: bin-setup
     uses: openslide/openslide-bin/.github/workflows/build.yml@main
     with:
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
-      suffix: ${{ needs.windows_setup.outputs.suffix }}
+      suffix: ${{ needs.bin-setup.outputs.suffix }}
       werror: true
-      windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
+      windows_builder_repo_and_digest: ${{ needs.bin-setup.outputs.windows_builder_repo_and_digest }}
 
   release:
     name: Release
     if: github.ref_type == 'tag'
-    needs: [primary, build, windows_build]
+    needs: [primary, build, windows-build, bin-build]
     runs-on: ubuntu-latest
     concurrency: release-${{ github.ref }}
     permissions:
