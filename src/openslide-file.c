@@ -35,6 +35,13 @@
 #include <fcntl.h>
 #endif
 
+#if !defined(HAVE_FSEEKO) && defined(_WIN32)
+#define fseeko _fseeki64
+#endif
+#if !defined(HAVE_FTELLO) && defined(_WIN32)
+#define ftello _ftelli64
+#endif
+
 struct _openslide_file {
   FILE *fp;
   char *path;

@@ -91,6 +91,13 @@ add_project_link_arguments(
   language : 'c',
 )
 
+# Functions
+foreach f : ['fseeko', 'ftello']
+  if cc.has_function(f)
+    conf.set('HAVE_' + f.to_upper(), 1)
+  endif
+endforeach
+
 # fopen cloexec flag
 if host_machine.system() in [
   'dragonfly',
