@@ -314,7 +314,7 @@ static void destroy(openslide_t *osr) {
   }
 }
 
-static bool freadn_to_buf(struct _openslide_file *f, off_t offset,
+static bool freadn_to_buf(struct _openslide_file *f, int64_t offset,
                           void *buf, size_t len, GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek to offset %"PRId64": ", offset);

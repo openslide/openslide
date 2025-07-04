@@ -103,6 +103,17 @@ repos:
         types: [c]
         entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
 
+      # Prevent use of dangerous or deprecated types.
+      #
+      # Deprecated type   Replacement
+      # off_t             int64_t
+      - id: deny-prohibited-type
+        name: Check for use of prohibited types
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(^|\\s|\\()(off_t)(\\s|\\))"
+
       # Prevent use of dangerous or deprecated functions.
       #
       # Deprecated function   Replacement
@@ -134,7 +145,7 @@ repos:
       # strtoul               _openslide_parse_uint64 or g_ascii_strtoull
       # strtoull              _openslide_parse_uint64 or g_ascii_strtoull
       # strtoumax             _openslide_parse_uint64 or g_ascii_strtoull
-      - id: deny-prohibited
+      - id: deny-prohibited-func
         name: Check for calls to prohibited functions
         language: pygrep
         exclude: ^misc/
@@ -170,7 +181,7 @@ repos:
       # TIFFOpenExt           _openslide_tiffcache_get
       # TIFFOpen              _openslide_tiffcache_get
       # TIFFSetDirectory      _openslide_tiff_set_dir
-      - id: deny-wrapped
+      - id: deny-wrapped-func
         name: Check for calls to wrapped functions
         language: pygrep
         files: ^src/openslide
