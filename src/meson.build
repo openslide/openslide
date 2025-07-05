@@ -25,6 +25,8 @@ openslide_dll_rc = configure_file(
 if host_machine.system() == 'windows'
   openslide_dll_o = import('windows').compile_resources(
     openslide_dll_rc,
+    # https://github.com/llvm/llvm-project/issues/63426
+    args : [cc.get_argument_syntax() == 'msvc' ? '/c' : '-c', '65001'],
     depend_files : [openslide_dll_manifest],
   )
 else
