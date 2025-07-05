@@ -107,12 +107,13 @@ repos:
       #
       # Deprecated type   Replacement
       # off_t             int64_t
+      # ssize_t           int64_t
       - id: deny-prohibited-type
         name: Check for use of prohibited types
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\s|\\()(off_t)(\\s|\\))"
+        entry: "(^|\\s|\\()(off_t|ssize_t)(\\s|\\))"
 
       # Prevent use of dangerous or deprecated functions.
       #
