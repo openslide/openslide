@@ -20,10 +20,15 @@
  */
 
 #include <stdio.h>
-#include <unistd.h>
 #include <errno.h>
 #include "openslide-common.h"
 #include "slidetool.h"
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 struct output open_output(const char *filename) {
   struct output out;

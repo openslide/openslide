@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <unistd.h>
 #include <inttypes.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
 #include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #include <glib.h>
