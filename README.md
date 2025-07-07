@@ -64,6 +64,7 @@ more details.
 
 To build OpenSlide, you will need:
 
+- GCC or Clang
 - Meson
 - cairo ≥ 1.2
 - glib ≥ 2.56
