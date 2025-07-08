@@ -156,13 +156,13 @@ static bool decode_png(const void *data, uint32_t len,
 
 struct mem_tiff {
   const uint8_t *data;
-  ssize_t offset;
-  ssize_t size;
+  int64_t offset;
+  int64_t size;
 };
 
 static tsize_t mem_tiff_read(thandle_t th, tdata_t buf, tsize_t size) {
   struct mem_tiff *mem = th;
-  ssize_t count = MIN(mem->size - mem->offset, size);
+  int64_t count = MIN(mem->size - mem->offset, size);
   memcpy(buf, mem->data + mem->offset, count);
   mem->offset += count;
   return count;

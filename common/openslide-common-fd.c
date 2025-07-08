@@ -27,9 +27,12 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <glib.h>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #ifdef __APPLE__
 #include <sys/param.h>  // MAXPATHLEN

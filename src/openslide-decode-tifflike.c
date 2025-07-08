@@ -469,8 +469,9 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
       return NULL;
     }
 
-    // check for overflow
-    if (count > SSIZE_MAX / value_size) {
+    // compute total size
+    size_t value_len;
+    if (!g_size_checked_mul(&value_len, value_size, count)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Value count too large");
       return NULL;
@@ -484,7 +485,7 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
     }
 
     // does value/offset contain the value?
-    if (value_size * count <= sizeof(value)) {
+    if (value_len <= sizeof(value)) {
       // yes
       fix_byte_order(value, value_size, count, big_endian);
       if (!set_item_values(item, value, err)) {

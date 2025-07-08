@@ -75,10 +75,28 @@ add_project_arguments(
   '-DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED',
   language : 'c',
 )
+if host_machine.system() == 'windows'
+  # Windows likes to warn about C and POSIX functions
+  foreach native : [false, true]
+    add_project_arguments(
+      '-D_CRT_NONSTDC_NO_DEPRECATE',
+      '-D_CRT_SECURE_NO_WARNINGS',
+      language : 'c',
+      native : native,
+    )
+  endforeach
+endif
 add_project_link_arguments(
   cc.get_supported_link_arguments('-Wl,--no-undefined'),
   language : 'c',
 )
+
+# Functions
+foreach f : ['fseeko', 'ftello']
+  if cc.has_function(f)
+    conf.set('HAVE_' + f.to_upper(), 1)
+  endif
+endforeach
 
 # fopen cloexec flag
 if host_machine.system() in [

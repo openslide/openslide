@@ -35,6 +35,13 @@
 #include <fcntl.h>
 #endif
 
+#if !defined(HAVE_FSEEKO) && defined(_WIN32)
+#define fseeko _fseeki64
+#endif
+#if !defined(HAVE_FTELLO) && defined(_WIN32)
+#define ftello _ftelli64
+#endif
+
 struct _openslide_file {
   FILE *fp;
   char *path;
@@ -160,7 +167,7 @@ bool _openslide_fread_exact(struct _openslide_file *file,
   return true;
 }
 
-bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
+bool _openslide_fseek(struct _openslide_file *file, int64_t offset, int whence,
                       GError **err) {
   if (fseeko(file->fp, offset, whence)) {  // ci-allow
     io_error(err, "Couldn't seek file %s", file->path);
@@ -169,16 +176,16 @@ bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
   return true;
 }
 
-off_t _openslide_ftell(struct _openslide_file *file, GError **err) {
-  off_t ret = ftello(file->fp);  // ci-allow
+int64_t _openslide_ftell(struct _openslide_file *file, GError **err) {
+  int64_t ret = ftello(file->fp);  // ci-allow
   if (ret == -1) {
     io_error(err, "Couldn't get offset of %s", file->path);
   }
   return ret;
 }
 
-off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
-  off_t orig = _openslide_ftell(file, err);
+int64_t _openslide_fsize(struct _openslide_file *file, GError **err) {
+  int64_t orig = _openslide_ftell(file, err);
   if (orig == -1) {
     g_prefix_error(err, "Couldn't get size: ");
     return -1;
@@ -187,7 +194,7 @@ off_t _openslide_fsize(struct _openslide_file *file, GError **err) {
     g_prefix_error(err, "Couldn't get size: ");
     return -1;
   }
-  off_t ret = _openslide_ftell(file, err);
+  int64_t ret = _openslide_ftell(file, err);
   if (ret == -1) {
     g_prefix_error(err, "Couldn't get size: ");
     return -1;

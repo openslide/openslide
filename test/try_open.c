@@ -25,10 +25,13 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #define TIME_ITERATIONS 5
 

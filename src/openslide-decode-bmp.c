@@ -56,7 +56,7 @@ struct bmp_io {
   bool (*read)(struct bmp_io *io, void *buf, size_t size, GError **err);
   const uint8_t *(*read_direct)(struct bmp_io *io, void *buf, size_t size,
                                 GError **err);
-  bool (*seek)(struct bmp_io *io, off_t off, GError **err);
+  bool (*seek)(struct bmp_io *io, int64_t off, GError **err);
   void *obj;
   int64_t off;
   int64_t len;
@@ -200,7 +200,7 @@ static const uint8_t *bmp_file_read_direct(struct bmp_io *io,
   return buf;
 }
 
-static bool bmp_file_seek(struct bmp_io *io, off_t off, GError **err) {
+static bool bmp_file_seek(struct bmp_io *io, int64_t off, GError **err) {
   if (!_openslide_fseek(io->obj, io->off + off, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek to offset %"PRId64": ", io->off + off);
     return false;
@@ -252,7 +252,7 @@ static const uint8_t *bmp_mem_read_direct(struct bmp_io *io,
   return ret;
 }
 
-static bool bmp_mem_seek(struct bmp_io *io, off_t off,
+static bool bmp_mem_seek(struct bmp_io *io, int64_t off,
                          GError **err G_GNUC_UNUSED) {
   io->off = off;
   return true;
