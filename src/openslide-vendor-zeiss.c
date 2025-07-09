@@ -28,9 +28,12 @@
  *
  */
 
+#include <config.h>
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
+#include "openslide-image.h"
+#include "openslide-decode-jxr.h"
 
 #include <glib.h>
 #include <math.h>
@@ -39,7 +42,6 @@
 #include <string.h>
 
 #define CZI_GUID_LEN 16
-#define CZI_SUBBLK_HDR_LEN 288
 
 static const char SID_ZISRAWATTDIR[] = "ZISRAWATTDIR";
 static const char SID_ZISRAWDIRECTORY[] = "ZISRAWDIRECTORY";
@@ -245,6 +247,7 @@ struct czi_subblk {
   int64_t downsample_i;
   int32_t pixel_type;
   int32_t compression;
+  int32_t dir_entry_len;
   // higher z-index overlaps a lower z-index
   int32_t x, y, z;
   uint32_t w, h;
@@ -261,6 +264,7 @@ struct czi {
   int64_t subblk_dir_pos;
   int64_t meta_pos;
   int64_t att_dir_pos;
+  int64_t zen_version;  // ZEN software version
   int32_t w;
   int32_t h;
   int32_t nscene;
@@ -338,26 +342,6 @@ static bool check_magic(const void *found, const char *expected,
   return true;
 }
 
-static void bgr24_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
-  // one 24-bit pixel at a time
-  for (size_t i = 0; i < src_len; i += 3, src += 3) {
-    *dst++ = (0xFF000000 |
-              (uint32_t)(src[0]) |
-              ((uint32_t)(src[1]) << 8) |
-              ((uint32_t)(src[2]) << 16));
-  }
-}
-
-static void bgr48_to_argb32(uint8_t *src, size_t src_len, uint32_t *dst) {
-  // one 48-bit pixel at a time
-  for (size_t i = 0; i < src_len; i += 6, src += 6) {
-    *dst++ = (0xFF000000 |
-              (uint32_t)(src[1]) |
-              ((uint32_t)(src[3]) << 8) |
-              ((uint32_t)(src[5]) << 16));
-  }
-}
-
 static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
                          int32_t compression, int32_t pixel_type,
                          uint32_t *dst, int32_t w, int32_t h,
@@ -367,11 +351,11 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
   int bytes_per_pixel;
   switch (pixel_type) {
   case PT_BGR24:
-    convert = bgr24_to_argb32;
+    convert = _openslide_bgr24_to_argb32;
     bytes_per_pixel = 3;
     break;
   case PT_BGR48:
-    convert = bgr48_to_argb32;
+    convert = _openslide_bgr48_to_argb32;
     bytes_per_pixel = 6;
     break;
   default:
@@ -485,6 +469,36 @@ static bool czi_read_raw(struct _openslide_file *f, int64_t pos, int64_t len,
   return true;
 }
 
+#ifdef HAVE_LIBJXR
+static bool czi_read_jxr(struct _openslide_file *f, int64_t pos, int64_t len,
+                         uint32_t *dst, int64_t dst_len, GError **err) {
+  g_autofree uint8_t *file_data = g_try_malloc(len);
+  if (!file_data) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't allocate %" PRId64 " bytes for image data", len);
+    return false;
+  }
+  if (!freadn_to_buf(f, pos, file_data, len, err)) {
+    g_prefix_error(err, "Couldn't read image data: ");
+    return false;
+  }
+
+  return _openslide_jxr_decode_buf(file_data, len, dst, dst_len, err);
+}
+#endif
+
+/* get data offset by parsing a buffer contains subblock header */
+static int64_t get_subblock_data_offset(char *buf, size_t len,
+                                        struct czi_subblk *sb) {
+  g_assert(len >= sizeof(struct zisraw_subblk_hdr));
+  struct zisraw_subblk_hdr *hdr = (struct zisraw_subblk_hdr *) buf;
+  int64_t offset_dir_entry = 16;
+  // segment before metadata has minimum length 256
+  int64_t offset_meta = MAX(256, offset_dir_entry + sb->dir_entry_len);
+  return sizeof(struct zisraw_seg_hdr) + offset_meta +
+         GINT32_FROM_LE(hdr->meta_size);
+}
+
 // dst must be sb->w * sb->h * 4 bytes
 static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
                         struct czi_subblk *sb, uint32_t *dst, GError **err) {
@@ -498,8 +512,8 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
     return false;
   }
 
-  int64_t data_pos = zisraw_offset + sb->file_pos + CZI_SUBBLK_HDR_LEN +
-                     GINT32_FROM_LE(hdr.meta_size);
+  int64_t data_pos = zisraw_offset + sb->file_pos +
+                     get_subblock_data_offset((char *) &hdr, sizeof(hdr), sb);
   int64_t data_size = GINT64_FROM_LE(hdr.data_size);
   switch (sb->compression) {
   case COMP_NONE:
@@ -507,6 +521,12 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   case COMP_ZSTD1:
     return czi_read_raw(f, data_pos, data_size, sb->compression, sb->pixel_type,
                         dst, sb->w, sb->h, err);
+
+#ifdef HAVE_LIBJXR
+  case COMP_JXR:
+    return czi_read_jxr(f, data_pos, data_size, dst, sb->w * sb->h * 4, err);
+#endif
+
   default:
     g_assert_not_reached();
   }
@@ -661,10 +681,48 @@ static bool read_dim_entry(struct czi_subblk *sb, char **p, size_t *avail,
   } else if (g_str_equal(name, "M")) {
     // mosaic tile index in drawing stack; highest number is frontmost
     sb->z = start;
+  } else if (g_str_equal(name, "B")) {
+    // nothing to do
+    // Block index in segmented experiments. Not sure its meaning. It has
+    // been dropped. Ignore B dimension enables OpenSlide read old CZI files.
   } else {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Unrecognized subblock dimension \"%s\"", name);
     return false;
+  }
+  return true;
+}
+
+static bool read_tile_size_from_jxr(struct _openslide_file *f, struct czi *czi,
+                                    GError **err) {
+  struct czi_subblk *sb;
+  int64_t data_offset;
+  uint32_t w;
+  uint32_t h;
+  static const int buf_len = 512;
+  char buf[buf_len];
+  for (int i = 0; i < czi->nsubblk; i++) {
+    sb = &czi->subblks[i];
+    if (sb->compression != COMP_JXR) {
+      continue;
+    }
+
+    if (!freadn_to_buf(f, sb->file_pos, buf, buf_len, err)) {
+      return false;
+    }
+
+    data_offset =
+        get_subblock_data_offset(buf, sizeof(struct zisraw_subblk_hdr), sb);
+    memset(buf, 0, buf_len);
+    if (!freadn_to_buf(f, sb->file_pos + data_offset, buf, buf_len, err)) {
+      return false;
+    }
+
+    if (_openslide_jxr_dim(buf, buf_len, &w, &h) &&
+        (w != sb->w || h != sb->h)) {
+      sb->w = w;
+      sb->h = h;
+    }
   }
   return true;
 }
@@ -695,6 +753,9 @@ static bool read_dir_entry(struct czi_subblk *sb, char **p, size_t *avail,
       return false;
     }
   }
+
+  sb->dir_entry_len = sizeof(struct zisraw_dir_entry_dv) + ndim * 20;
+
   if (!sb->w || !sb->h) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Missing X or Y dimension in directory entry");
@@ -926,6 +987,29 @@ static void add_xml_props(openslide_t *osr, xmlDoc *doc, GPtrArray *path,
   g_ptr_array_remove_index(path, path->len - 1);
 }
 
+/* parse version number such as 3.5.093.8 into major ver * 1000 + minor ver */
+static int64_t parse_zen_version(const char *s, GError **err) {
+  GMatchInfo *match_info;
+  // accept version number with or without minor version
+  GRegex *re = g_regex_new("(\\d+)(?:\\.(\\d+))?", 0, 0, NULL);
+  g_regex_match(re, s, 0, &match_info);
+  int64_t major = 0;
+  int64_t minor = 0;
+  if (g_match_info_matches(match_info)) {
+    g_autofree gchar *smajor = g_match_info_fetch(match_info, 1);
+    g_autofree gchar *sminor = g_match_info_fetch(match_info, 2);
+    if ((smajor && !_openslide_parse_int64(smajor, &major)) ||
+        (sminor && !_openslide_parse_int64(sminor, &minor))) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't parse ZEN software version");
+    }
+  }
+
+  g_match_info_free(match_info);
+  g_regex_unref(re);
+  return major * 1000 + minor;
+}
+
 // parse XML, set CZI parameters and OpenSlide properties
 static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                const char *xml, GError **err) {
@@ -986,6 +1070,10 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
       add_xml_props(osr, doc, path, node);
     }
   }
+
+  const char *zen_version =
+    g_hash_table_lookup(osr->properties, "zeiss.Information.Application.Version");
+  czi->zen_version = parse_zen_version(zen_version, err);
 
   const char *size_x =
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeX");
@@ -1155,6 +1243,7 @@ static bool validate_subblk(const struct czi_subblk *sb, GError **err) {
   case COMP_NONE:
   case COMP_ZSTD0:
   case COMP_ZSTD1:
+  case COMP_JXR:
     break;
   default:
     if (sb->compression >= 0 &&
@@ -1390,6 +1479,20 @@ static bool zeiss_open(openslide_t *osr, const char *filename,
     return false;
   }
   if (!parse_xml_set_prop(osr, czi, xml, err)) {
+    return false;
+  }
+
+  /* The tile size stored in subblock directory entry may be wrong if
+   * compressed with JPEG XR. See
+   * https://forum.image.sc/t/would-anyone-have-a-palm-czi-example-file/85900/11
+   *
+   * Parsing tile size from JXR image stream generates lots of small random
+   * reads, which slows down CZI file opening significantly, if the slide
+   * file is not on a fast storage.
+   *
+   * Only do it if ZEN software version < 2.0 (a wild guess).
+   */
+  if (czi->zen_version < 2000 && !read_tile_size_from_jxr(f, czi, err)) {
     return false;
   }
 
