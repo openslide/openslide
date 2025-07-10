@@ -13,10 +13,16 @@ if [ -z "${GITHUB_TOKEN}" ]; then
     echo "No GITHUB_TOKEN."
     exit 1
 fi
+if [ -z "${VCPKG_INSTALLATION_ROOT}" ]; then
+    echo "No VCPKG_INSTALLATION_ROOT."
+    exit 1
+fi
 
 nuget sources add -Source "${FEED_URL}" -StorePasswordInClearText \
     -Name GitHubPackages -UserName "${GH_USERNAME}" -Password "${GITHUB_TOKEN}"
 nuget setapikey "${GITHUB_TOKEN}" -Source "${FEED_URL}"
+
+( cd "${VCPKG_INSTALLATION_ROOT}" && git pull )
 
 vcpkg install \
     pkgconf \
