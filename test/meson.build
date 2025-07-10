@@ -40,13 +40,6 @@ executable(
   c_args : ['-Wno-deprecated-declarations'],
 )
 
-# Tests
-test(
-  'synth',
-  slidetool,
-  args : ['test', 'deps'],
-)
-
 # Driver
 configure_file(
   input : 'driver.in',

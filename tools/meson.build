@@ -57,3 +57,9 @@ foreach m : mans
     ),
   )
 endforeach
+
+test(
+  'synth',
+  slidetool,
+  args : ['test', 'deps'],
+)
