@@ -43,17 +43,17 @@ jobs:
         dnf install -y \
             gcc git-core meson pkg-config \
             python3-requests python3-pyyaml \
-            zlib-devel \
-            libzstd-devel \
-            libpng-devel \
-            libjpeg-turbo-devel \
-            libtiff-devel \
-            openjpeg2-devel \
-            libdicom-devel \
-            libxml2-devel \
-            sqlite-devel \
             cairo-devel \
             glib2-devel \
+            libdicom-devel \
+            libjpeg-turbo-devel \
+            libpng-devel \
+            libtiff-devel \
+            libxml2-devel \
+            libzstd-devel \
+            openjpeg2-devel \
+            sqlite-devel \
+            zlib-devel \
             xdelta libjpeg-turbo-utils \
             clang doxygen llvm dnf-plugins-core
         dnf debuginfo-install -y cairo fontconfig glib2
@@ -163,17 +163,17 @@ jobs:
             brew update
             brew install --quiet \
                 meson pkg-config \
-                zlib \
-                zstd \
-                libpng \
-                jpeg-turbo \
-                libtiff \
-                openjpeg \
-                libdicom \
-                libxml2 \
-                sqlite \
                 cairo \
                 glib \
+                jpeg-turbo \
+                libdicom \
+                libpng \
+                libtiff \
+                libxml2 \
+                openjpeg \
+                sqlite \
+                zlib \
+                zstd \
                 xdelta
             # Install Python packages that Homebrew does not wish to maintain.
             # Use --break-system-packages so pip doesn't refuse to install
@@ -212,17 +212,17 @@ jobs:
                 dnf install -y \
                     gcc git-core meson pkg-config \
                     $python python${pyver}-requests python${pyver}-pyyaml \
-                    zlib-devel \
-                    libzstd-devel \
-                    libpng-devel \
-                    libjpeg-turbo-devel \
-                    libtiff-devel \
-                    openjpeg2-devel \
-                    libdicom-devel \
-                    libxml2-devel \
-                    sqlite-devel \
                     cairo-devel \
                     glib2-devel \
+                    libdicom-devel \
+                    libjpeg-turbo-devel \
+                    libpng-devel \
+                    libtiff-devel \
+                    libxml2-devel \
+                    libzstd-devel \
+                    openjpeg2-devel \
+                    sqlite-devel \
+                    zlib-devel \
                     xdelta libjpeg-turbo-utils \
                     zstd
 
@@ -253,16 +253,16 @@ jobs:
                 DEBIAN_FRONTEND=noninteractive $sudo apt-get -y install \
                     gcc git meson pkg-config \
                     python3-requests python3-yaml \
-                    zlib1g-dev$arch \
-                    libzstd-dev$arch \
-                    libpng-dev$arch \
-                    $jpeg$arch \
-                    libtiff-dev$arch \
-                    libopenjp2-7-dev$arch \
-                    libxml2-dev$arch \
-                    libsqlite3-dev$arch \
                     libcairo2-dev$arch \
                     libglib2.0-dev$arch \
+                    $jpeg$arch \
+                    libopenjp2-7-dev$arch \
+                    libpng-dev$arch \
+                    libsqlite3-dev$arch \
+                    libtiff-dev$arch \
+                    libxml2-dev$arch \
+                    libzstd-dev$arch \
+                    zlib1g-dev$arch \
                     xdelta3 libjpeg-turbo-progs $extra \
                     zstd
                 ;;
