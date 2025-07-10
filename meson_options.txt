@@ -6,14 +6,12 @@ option(
 option(
   'test',
   type : 'feature',
-  value : 'auto',
   yield : true,
   description : 'Build tests',
 )
 option(
   'doc',
   type : 'feature',
-  value : 'auto',
   yield : true,
   description : 'Enable building documentation (requires Doxygen)',
 )
