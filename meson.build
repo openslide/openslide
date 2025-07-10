@@ -177,12 +177,6 @@ valgrind_dep = dependency(
   required : false,
 )
 
-doxygen = find_program(
-  'doxygen',
-  required : get_option('doc'),
-  disabler : true,
-)
-
 # Dependency checks
 if jpeg_dep.type_name() != 'internal' and not cc.has_function(
   'jpeg_mem_src',
@@ -283,9 +277,10 @@ config_h_include = include_directories('.')
 subdir('src')
 subdir('common')
 subdir('tools')
+# .allowed() in Meson >= 0.59
 if not get_option('test').disabled()
   subdir('test')
 endif
-if doxygen.found()
+if not get_option('doc').disabled()
   subdir('doc')
 endif
