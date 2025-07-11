@@ -76,7 +76,7 @@ jobs:
     - name: Check
       run: |
         trap "cat builddir/meson-logs/testlog.txt" EXIT
-        meson test -C builddir
+        meson test -C builddir openslide:
     - name: Docs
       id: docs
       run: |
@@ -318,7 +318,7 @@ jobs:
     - name: Check
       run: |
         trap "cat builddir/meson-logs/testlog.txt" EXIT
-        meson test -C builddir
+        meson test -C builddir openslide:
     - name: Cache pristine slides
       uses: actions/cache@v4
       with:
@@ -383,7 +383,7 @@ jobs:
       - name: Check
         run: |
           trap "cat builddir/meson-logs/testlog.txt" EXIT
-          meson test -C builddir
+          meson test -C builddir openslide:
 
   bin-setup:
     name: Set up openslide-bin build
