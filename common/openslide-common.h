@@ -25,9 +25,7 @@
 #include <glib.h>
 #include <openslide.h>
 
-#ifdef OPENSLIDE_PUBLIC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
-#endif
 
 // cmdline
 
