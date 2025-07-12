@@ -13,6 +13,13 @@ foreach dep : ['cjpeg', 'djpeg', 'xdelta3']
 endforeach
 
 # Optional dependencies
+valgrind_dep = dependency(
+  'valgrind',
+  required : false,
+)
+if valgrind_dep.found()
+  conf.set('HAVE_VALGRIND', 1)
+endif
 foreach dep : ['clang', 'gcov']
   set_variable(
     dep,
@@ -23,6 +30,9 @@ foreach dep : ['clang', 'gcov']
   )
 endforeach
 
+# libtest
+subdir('lib')
+
 # Common binary deps
 test_deps = [
   declare_dependency(
@@ -30,6 +40,7 @@ test_deps = [
   ),
   openslide_dep,
   openslide_common_dep,
+  libtest_dep,
   glib_dep,
 ]
 

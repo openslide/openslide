@@ -40,6 +40,7 @@
 #endif
 
 #include "openslide-common.h"
+#include "libtest.h"
 #include "config.h"
 
 #ifdef HAVE_VALGRIND
@@ -95,9 +96,9 @@ static char *get_fd_path(int fd) {
   return g_strdup("<unknown>");
 }
 
-GHashTable *common_get_open_fds(void) {
+GHashTable *libtest_get_open_fds(void) {
   GHashTable *fds = g_hash_table_new(g_direct_hash, g_direct_equal);
-  for (int i = 3; i < COMMON_MAX_FD; i++) {
+  for (int i = 3; i < LIBTEST_MAX_FD; i++) {
     struct stat st;
     if (!fstat(i, &st)) {
       g_hash_table_insert(fds, GINT_TO_POINTER(i), GINT_TO_POINTER(1));
@@ -106,9 +107,9 @@ GHashTable *common_get_open_fds(void) {
   return fds;
 }
 
-bool common_check_open_fds(GHashTable *ignore, const char *msg) {
+bool libtest_check_open_fds(GHashTable *ignore, const char *msg) {
   bool ret = true;
-  for (int i = 3; i < COMMON_MAX_FD; i++) {
+  for (int i = 3; i < LIBTEST_MAX_FD; i++) {
     if (ignore && g_hash_table_lookup(ignore, GINT_TO_POINTER(i))) {
       continue;
     }
