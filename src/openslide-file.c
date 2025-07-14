@@ -69,8 +69,8 @@ static void io_error(GError **err, const char *fmt, ...) {
   va_end(ap);
 }
 
-static FILE *do_fopen(const char *path, const char *mode, GError **err) {
-  FILE *f;
+struct _openslide_file *_openslide_fopen(const char *path, GError **err) {
+  g_autoptr(FILE) f = NULL;
 
 #ifdef _WIN32
   g_autofree wchar_t *path16 =
@@ -79,35 +79,18 @@ static FILE *do_fopen(const char *path, const char *mode, GError **err) {
     g_prefix_error(err, "Couldn't open %s: ", path);
     return NULL;
   }
-  g_autofree wchar_t *mode16 =
-    (wchar_t *) g_utf8_to_utf16(mode, -1, NULL, NULL, err);
-  if (mode16 == NULL) {
-    g_prefix_error(err, "Bad file mode %s: ", mode);
-    return NULL;
-  }
-  f = _wfopen(path16, mode16);
+  f = _wfopen(path16, L"rb" FOPEN_CLOEXEC_FLAG);
   if (f == NULL) {
     io_error(err, "Couldn't open %s", path);
+    return NULL;
   }
 #else
-  f = fopen(path, mode);  // ci-allow
+  f = fopen(path, "rb" FOPEN_CLOEXEC_FLAG);  // ci-allow
   if (f == NULL) {
     io_error(err, "Couldn't open %s", path);
-  }
-#endif
-
-  return f;
-}
-
-struct _openslide_file *_openslide_fopen(const char *path, GError **err)
-{
-  g_autoptr(FILE) f = do_fopen(path, "rb" FOPEN_CLOEXEC_FLAG, err);
-  if (f == NULL) {
     return NULL;
   }
-
   /* Unnecessary if FOPEN_CLOEXEC_FLAG is non-empty, but compile-checked */
-#ifndef _WIN32
   if (!FOPEN_CLOEXEC_FLAG[0]) {
     int fd = fileno(f);
     if (fd == -1) {
