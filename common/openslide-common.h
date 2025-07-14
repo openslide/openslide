@@ -22,6 +22,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <glib.h>
 #include <openslide.h>
 
@@ -48,3 +49,7 @@ void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
 
 GHashTable *common_get_open_fds(void);
 bool common_check_open_fds(GHashTable *ignore, const char *msg);
+
+// file
+
+FILE *common_fopen(const char *path, const char *mode, GError **err);

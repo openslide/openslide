@@ -2,6 +2,7 @@ openslide_common_sources = files(
   'openslide-common-cmdline.c',
   'openslide-common-fail.c',
   'openslide-common-fd.c',
+  'openslide-common-file.c',
 )
 
 openslide_common = static_library(

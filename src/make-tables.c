@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
   }
 
   // open file
-  FILE *f = fopen(argv[1], "w");
+  FILE *f = fopen(argv[1], "w");  // ci-allow
   if (!f) {
     fail("Couldn't create %s", argv[1]);
   }
