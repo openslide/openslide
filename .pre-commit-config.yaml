@@ -116,12 +116,15 @@ repos:
         entry: "(^|\\s|\\()(off_t|ssize_t)(\\s|\\))"
 
       # Prevent use of dangerous or deprecated functions.
+      # Wrapper implementations can add "// ci-allow" on the same line to
+      # skip the check.
       #
       # Deprecated function   Replacement
       # atoi                  _openslide_parse_int64 or g_ascii_strtoll
       # atol                  _openslide_parse_int64 or g_ascii_strtoll
       # atoll                 _openslide_parse_int64 or g_ascii_strtoll
       # calloc                g_new0
+      # fopen                 _openslide_fopen or common_fopen
       # free                  g_free
       # g_slice_alloc0        g_malloc0
       # g_slice_alloc         g_malloc
@@ -151,7 +154,7 @@ repos:
         language: pygrep
         exclude: ^misc/
         types: [c]
-        entry: "(^|\\W)(atoi|atol|atoll|calloc|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|stpcpy|strcat|strcpy|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\("
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|fopen|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|stpcpy|strcat|strcpy|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\((?!.+ci-allow)"
 
       # Prevent use of functions with mandatory wrappers in OpenSlide.
       # Wrapper implementations can add "// ci-allow" on the same line to
@@ -160,7 +163,6 @@ repos:
       # Deprecated function   Replacement
       # atof                  _openslide_parse_double
       # fclose                _openslide_fclose
-      # fopen                 _openslide_fopen
       # fread                 _openslide_fread or _openslide_fread_exact
       # fseeko                _openslide_fseek
       # fseek                 _openslide_fseek
@@ -187,4 +189,4 @@ repos:
         language: pygrep
         files: ^src/openslide
         types: [c]
-        entry: "(^|\\W)(atof|fclose|fopen|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|sscanf|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"
+        entry: "(^|\\W)(atof|fclose|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|sscanf|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

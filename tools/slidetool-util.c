@@ -32,22 +32,12 @@
 
 struct output open_output(const char *filename) {
   struct output out;
+  GError *tmp_err = NULL;
   if (filename) {
-#ifdef _WIN32
-    GError *tmp_err = NULL;
-    g_autofree wchar_t *filename16 =
-      (wchar_t *) g_utf8_to_utf16(filename, -1, NULL, NULL, &tmp_err);
-    if (filename16 == NULL) {
-      common_fail("Couldn't open %s: %s", filename, tmp_err->message);
+    out.fp = common_fopen(filename, "wb", &tmp_err);
+    if (!out.fp) {
+      common_fail("%s", tmp_err->message);
     }
-    FILE *fp = _wfopen(filename16, L"wb");
-#else
-    FILE *fp = fopen(filename, "wb");
-#endif
-    if (!fp) {
-      common_fail("Can't open %s for writing: %s", filename, g_strerror(errno));
-    }
-    out.fp = fp;
   } else {
     if (isatty(1)) {
       common_fail("Will not write binary output to terminal");
