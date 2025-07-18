@@ -378,15 +378,14 @@ static void tiff_directory_destroy(struct tiff_directory *d) {
 typedef struct tiff_directory tiff_directory;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(tiff_directory, tiff_directory_destroy)
 
-static void tiff_item_destroy(gpointer data) {
-  struct tiff_item *item = data;
-
+static void tiff_item_destroy(struct tiff_item *item) {
   g_free(item->uints);
   g_free(item->sints);
   g_free(item->floats);
   g_free(item->buffer);
   g_free(item);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(tiff_item_destroy)
 
 static struct tiff_directory *read_directory(struct _openslide_file *f,
                                              uint64_t *diroff,
@@ -438,7 +437,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
   // initial checks passed, initialize the directory
   g_autoptr(tiff_directory) d = g_new0(struct tiff_directory, 1);
   d->items = g_hash_table_new_full(g_direct_hash, g_direct_equal,
-                                   NULL, tiff_item_destroy);
+                                   NULL,
+                                   OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(tiff_item_destroy));
   d->offset = off;
 
   // read all directory entries
