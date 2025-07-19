@@ -135,6 +135,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct ventana_ops_data *data = osr->data;
@@ -348,6 +349,7 @@ static void area_free(struct area *area) {
   g_free(area->tiles);
   g_free(area);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(area_free)
 
 static void bif_free(struct bif *bif) {
   for (int32_t i = 0; i < bif->num_areas; i++) {
@@ -467,7 +469,7 @@ static struct bif *parse_level0_xml(const char *xml,
 
   // walk AOIs
   g_autoptr(GPtrArray) area_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) area_free);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(area_free));
   double total_offset_x = 0;
   double total_offset_y = 0;
   int64_t total_x_weight = 0;
@@ -759,7 +761,7 @@ static bool ventana_open(openslide_t *osr, const char *filename,
 
   // walk directories
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   g_autoptr(bif) bif = NULL;
   int64_t next_level = 0;
   double prev_magnification = INFINITY;
