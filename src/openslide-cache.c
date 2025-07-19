@@ -118,9 +118,7 @@ static gboolean key_equal_func(gconstpointer a,
     (c_a->y == c_b->y);
 }
 
-static void hash_destroy_value(gpointer data) {
-  struct _openslide_cache_value *value = data;
-
+static void hash_destroy_value(struct _openslide_cache_value *value) {
   // remove the item from the list
   g_queue_delete_link(value->cache->list, value->link);
 
@@ -134,6 +132,7 @@ static void hash_destroy_value(gpointer data) {
   // free the value
   g_free(value);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(hash_destroy_value)
 
 openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes) {
   openslide_cache_t *cache = g_new0(openslide_cache_t, 1);
@@ -148,7 +147,7 @@ openslide_cache_t *_openslide_cache_create(uint64_t capacity_in_bytes) {
   cache->hashtable = g_hash_table_new_full(hash_func,
 					   key_equal_func,
 					   g_free,
-					   hash_destroy_value);
+					   OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(hash_destroy_value));
 
   // init refcount
   cache->refcount = 1;

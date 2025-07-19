@@ -162,6 +162,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct sakura_ops_data *data = osr->data;
@@ -789,7 +790,7 @@ static bool sakura_open(openslide_t *osr, const char *filename,
   // create levels; gather tileids for top level
   g_autoptr(GHashTable) level_hash =
     g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free,
-                          (GDestroyNotify) destroy_level);
+                          OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   g_autoptr(tileid_queue) quickhash_tileids = g_queue_new();
   int64_t quickhash_downsample = 0;
   g_autofree char *sql =

@@ -206,11 +206,11 @@ static void image_unref(struct image *image) {
 typedef struct image image;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(image, image_unref)
 
-static void tile_free(gpointer data) {
-  struct tile *tile = data;
+static void tile_free(struct tile *tile) {
   image_unref(tile->image);
   g_free(tile);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(tile_free)
 
 static uint32_t *read_image(openslide_t *osr,
                             struct image *image,
@@ -346,6 +346,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct mirax_ops_data *data = osr->data;
@@ -1677,7 +1678,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set up level dimensions and such
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   g_autofree struct slide_zoom_level_params *slide_zoom_level_params =
     g_new(struct slide_zoom_level_params, zoom_levels);
   int total_concat_exponent = 0;
@@ -1776,7 +1777,8 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     l->grid = _openslide_grid_create_tilemap(osr,
                                              lp->tile_advance_x,
                                              lp->tile_advance_y,
-                                             read_tile, tile_free);
+                                             read_tile,
+                                             OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(tile_free));
 
     //g_debug("level %d tile advance %.10g %.10g, dim %"PRId64" %"PRId64", image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->base.w, l->base.h, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }

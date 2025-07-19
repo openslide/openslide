@@ -50,6 +50,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 typedef struct level level;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(level, destroy_level)
@@ -215,7 +216,7 @@ static bool generic_tiff_open(openslide_t *osr,
 
   // accumulate tiled levels
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   do {
     // confirm that this directory is tiled
     if (!TIFFIsTiled(ct.tiff)) {

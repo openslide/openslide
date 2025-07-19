@@ -24,10 +24,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
+#ifndef _WIN32
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -210,11 +207,7 @@ static void check_shared_cache(const char *slide) {
   cache_thread_start(params, osrs, 4,  100,  100,       0, &stop);
 
   // let them run
-#ifdef _WIN32
-  Sleep(1000);
-#else
-  sleep(1);
-#endif
+  g_usleep(G_USEC_PER_SEC);
 
   g_atomic_int_set(&stop, 1);
   for (int i = 0; i < CACHE_THREADS; i++) {

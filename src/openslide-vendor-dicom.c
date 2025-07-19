@@ -405,6 +405,7 @@ static void level_destroy(struct dicom_level *l) {
   }
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(level_destroy)
 
 typedef struct dicom_level dicom_level;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(dicom_level, level_destroy)
@@ -1083,7 +1084,8 @@ static bool dicom_open(openslide_t *osr,
   }
 
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_full(10, (GDestroyNotify) level_destroy);
+    g_ptr_array_new_full(10,
+                         OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(level_destroy));
 
   // open the passed-in file and get the slide-id
   g_autoptr(dicom_file) start = dicom_file_new(filename, true, err);

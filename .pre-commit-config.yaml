@@ -115,6 +115,17 @@ repos:
         types: [c]
         entry: "(^|\\s|\\()(off_t|ssize_t)(\\s|\\))"
 
+      # Prevent use of dangerous or deprecated casts
+      #
+      # Deprecated cast   Replacement
+      # (GDestroyNotify)  OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER()
+      - id: deny-prohibited-cast
+        name: Check for use of prohibited casts
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(\\(GDestroyNotify\\))"
+
       # Prevent use of dangerous or deprecated functions.
       # Wrapper implementations can add "// ci-allow" on the same line to
       # skip the check.

@@ -67,11 +67,10 @@ static void __attribute__((constructor)) _openslide_init(void) {
   openslide_was_dynamically_loaded = true;
 }
 
-static void destroy_associated_image(gpointer data) {
-  struct _openslide_associated_image *img = data;
-
+static void destroy_associated_image(struct _openslide_associated_image *img) {
   img->ops->destroy(img);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_associated_image)
 
 static bool level_in_range(openslide_t *osr, int32_t level) {
   if (level < 0) {
@@ -219,7 +218,7 @@ openslide_t *openslide_open(const char *filename) {
                                           g_free, g_free);
   osr->associated_images = g_hash_table_new_full(g_str_hash, g_str_equal,
                                                  g_free,
-                                                 destroy_associated_image);
+                                                 OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_associated_image));
 
   // refuse to run on unpatched pixman 0.38.x
   static GOnce pixman_once = G_ONCE_INIT;

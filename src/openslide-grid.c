@@ -410,13 +410,13 @@ static gboolean tilemap_tile_hash_key_equal(gconstpointer a, gconstpointer b) {
   return (c_a->col == c_b->col) && (c_a->row == c_b->row);
 }
 
-static void tilemap_tile_hash_destroy_value(gpointer data) {
-  struct tilemap_tile *tile = data;
+static void tilemap_tile_hash_destroy_value(struct tilemap_tile *tile) {
   if (tile->grid->destroy_tile && tile->data) {
     tile->grid->destroy_tile(tile->data);
   }
   g_free(tile);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(tilemap_tile_hash_destroy_value)
 
 static void tilemap_get_bounds(struct _openslide_grid *_grid,
                                struct bounds *bounds) {
@@ -600,7 +600,7 @@ struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
   grid->tiles = g_hash_table_new_full(tilemap_tile_hash_func,
                                       tilemap_tile_hash_key_equal,
                                       NULL,
-                                      tilemap_tile_hash_destroy_value);
+                                      OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(tilemap_tile_hash_destroy_value));
 
   return (struct _openslide_grid *) grid;
 }
@@ -622,13 +622,15 @@ static gboolean range_bin_address_hash_key_equal(gconstpointer a,
   return (c_a->col == c_b->col) && (c_a->row == c_b->row);
 }
 
-static void range_bin_address_free(void *data) {
-  g_free(data);
+static void range_bin_address_free(struct range_bin_address *addr) {
+  g_free(addr);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(range_bin_address_free)
 
-static void range_ptr_array_free(void *data) {
-  g_ptr_array_free(data, true);
+static void range_ptr_array_free(GPtrArray *arr) {
+  g_ptr_array_free(arr, true);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(range_ptr_array_free)
 
 static int range_compare_tiles(gconstpointer a, gconstpointer b) {
   const struct range_tile *c_a = a;
@@ -836,7 +838,7 @@ void _openslide_grid_range_finish_adding_tiles(struct _openslide_grid *_grid) {
 
   grid->bins_runtime = g_hash_table_new_full(range_bin_address_hash_func,
                                              range_bin_address_hash_key_equal,
-                                             range_bin_address_free,
+                                             OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(range_bin_address_free),
                                              g_free);
   g_hash_table_foreach(grid->bins_init, range_postprocess_bin, grid);
   g_hash_table_steal_all(grid->bins_init);
@@ -859,8 +861,8 @@ struct _openslide_grid *_openslide_grid_create_range(openslide_t *osr,
   grid->tiles = g_ptr_array_new();
   grid->bins_init = g_hash_table_new_full(range_bin_address_hash_func,
                                           range_bin_address_hash_key_equal,
-                                          range_bin_address_free,
-                                          range_ptr_array_free);
+                                          OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(range_bin_address_free),
+                                          OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(range_ptr_array_free));
   grid->read_tile = read_tile;
   grid->destroy_tile = destroy_tile;
 

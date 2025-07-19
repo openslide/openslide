@@ -124,11 +124,13 @@ static void destroy_area(struct area *area) {
   _openslide_grid_destroy(area->grid);
   g_free(area);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_area)
 
 static void destroy_level(struct level *l) {
   g_ptr_array_free(l->areas, true);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct leica_ops_data *data = osr->data;
@@ -281,6 +283,7 @@ static bool leica_detect(const char *filename G_GNUC_UNUSED,
 static void dimension_free(struct dimension *dimension) {
   g_free(dimension);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(dimension_free)
 
 static void image_free(struct image *image) {
   g_ptr_array_free(image->dimensions, true);
@@ -292,6 +295,7 @@ static void image_free(struct image *image) {
   g_free(image->aperture);
   g_free(image);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(image_free)
 
 static void collection_free(struct collection *collection) {
   g_ptr_array_free(collection->images, true);
@@ -393,7 +397,7 @@ static struct collection *parse_xml_description(const char *xml,
   // create collection struct
   g_autoptr(collection) collection = g_new0(struct collection, 1);
   collection->images =
-    g_ptr_array_new_with_free_func((GDestroyNotify) image_free);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(image_free));
 
   // Get barcode as stored in 2010/10/01 namespace
   g_autofree char *barcode =
@@ -443,7 +447,7 @@ static struct collection *parse_xml_description(const char *xml,
     // create image struct
     struct image *image = g_new0(struct image, 1);
     image->dimensions =
-      g_ptr_array_new_with_free_func((GDestroyNotify) dimension_free);
+      g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(dimension_free));
     g_ptr_array_add(collection->images, image);
 
     image->creation_date = _openslide_xml_xpath_get_string(ctx, "d:creationDate/text()");
@@ -610,7 +614,7 @@ static bool create_levels_from_collection(openslide_t *osr,
         // no level yet; create it
         l = g_new0(struct level, 1);
         l->areas =
-          g_ptr_array_new_with_free_func((GDestroyNotify) destroy_area);
+          g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_area));
         l->nm_per_pixel = dimension->nm_per_pixel;
         g_ptr_array_add(levels, l);
       } else {
@@ -778,7 +782,7 @@ static bool leica_open(openslide_t *osr, const char *filename,
 
   // initialize and verify levels
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   int64_t quickhash_dir;
   if (!create_levels_from_collection(osr, tc, ct.tiff, collection,
                                      level_array, &quickhash_dir, err)) {

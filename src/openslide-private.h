@@ -196,6 +196,10 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           int64_t clip_w, int64_t clip_h,
                           GError **err);
 
+#define OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(f) _openslide_notify_ ## f
+#define OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(f) \
+  static void OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(f)(void *p) {f(p);}
+
 
 // File handling
 struct _openslide_file;
