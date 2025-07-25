@@ -162,7 +162,15 @@ xml_dep = dependency('libxml-2.0')
 sqlite_dep = dependency(
   'sqlite3',
   version : '>=3.14',
+  required : host_machine.system() != 'windows',
 )
+if not sqlite_dep.found()
+  # SQLite's Makefile.msc (for Windows) doesn't install the pkg-config file
+  sqlite_dep = declare_dependency(
+    dependencies : cc.find_library('sqlite3'),
+    compile_args : '-DSQLITE_API=__declspec(dllimport)',
+  )
+endif
 dicom_dep = dependency(
   'libdicom',
   # avoid 'check' dependency
