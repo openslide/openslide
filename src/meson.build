@@ -81,6 +81,9 @@ libopenslide = library(
   openslide_sources,
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
+  # Meson omits 'lib' by default on Windows except on MinGW.  Maintain
+  # compatibility with the MinGW build, since it was here first.
+  name_prefix : host_machine.system() == 'windows' ? 'lib' : [],
   gnu_symbol_visibility : visibility,
   include_directories : config_h_include,
   dependencies : [
