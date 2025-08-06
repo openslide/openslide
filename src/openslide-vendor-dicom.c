@@ -898,6 +898,11 @@ static bool maybe_add_file(openslide_t *osr,
     if (g_str_equal(photometric, "YBR_ICT")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
       found = true;
+    } else if (g_str_equal(photometric, "YBR_RCT")) {
+      // openjpeg does the reversible transform for us, so we can treat this
+      // case as RGB
+      f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
+      found = true;
     } else if (g_str_equal(photometric, "RGB")) {
       f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
       found = true;
