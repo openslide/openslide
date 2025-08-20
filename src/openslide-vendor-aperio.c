@@ -557,7 +557,8 @@ static bool aperio_open(openslide_t *osr,
         switch (subfile_type) {
           case 1:
             name = "label";
-            g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
+            GHashTable *thumbnail_props = read_properties(ct.tiff, err);
+            //g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
             if (!thumbnail_props) {
               g_prefix_error(err, "Reading thumbnail properties: ");
               return false;
@@ -571,6 +572,11 @@ static bool aperio_open(openslide_t *osr,
               // use ICC profile from first directory
               icc_dir = g_new0(tdir_t, 1);
             }
+            // Single, controlled unref (prevents any accidental second unref later).
+            // Prevents GLIB-CRITICAL assertion error because of previous bad use of g_autoptr(GHashTable)
+            // which was causing a double-unref
+            g_hash_table_unref(thumbnail_props);
+            thumbnail_props = NULL;
             break;
           case 9:
             name = "macro";
