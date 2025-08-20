@@ -558,7 +558,6 @@ static bool aperio_open(openslide_t *osr,
           case 1:
             name = "label";
             GHashTable *thumbnail_props = read_properties(ct.tiff, err);
-            //g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
             if (!thumbnail_props) {
               g_prefix_error(err, "Reading thumbnail properties: ");
               return false;
