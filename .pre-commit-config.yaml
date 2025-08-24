@@ -97,6 +97,13 @@ repos:
         language: python
         additional_dependencies: [meson==1.5.2]
 
+      - id: mkmaintainer
+        name: Sync maintainer issue templates
+        entry: .github/maintainer/mkmaintainer.py
+        files: .github/maintainer/
+        language: python
+        additional_dependencies: [PyYAML]
+
       - id: autoptr
         name: Check for g_auto* declarations without initializers
         language: pygrep
