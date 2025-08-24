@@ -1,3 +1,10 @@
+---
+link-text: Release checklist
+repo: openslide/openslide
+title: Release X.Y.Z
+labels: [release]
+---
+
 # OpenSlide release process
 
 - [ ] Update `CHANGELOG.md` and `version` and `soversion` in `meson.build`
