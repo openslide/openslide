@@ -6,6 +6,8 @@
 .gitignore			export-ignore
 /.github			export-ignore
 /.pre-commit-config.yaml	export-ignore
+/meson.format			export-ignore
 /misc				export-ignore
 /pyproject.toml			export-ignore
+/scripts/vcpkg-install.sh	export-ignore
 /test/cases			export-ignore
