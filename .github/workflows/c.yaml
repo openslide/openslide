@@ -140,10 +140,12 @@ jobs:
           - os: ubuntu-latest
             container: debian:12
           - os: ubuntu-latest
-            container: debian:12
+            container: debian:13
+          - os: ubuntu-latest
+            container: debian:13
             arch: i386
           - os: ubuntu-24.04-arm
-            container: debian:12
+            container: debian:13
           - os: ubuntu-22.04
           - os: ubuntu-24.04
           - os: macos-latest
