@@ -19,9 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
       - name: Install dependencies
@@ -58,7 +58,7 @@ jobs:
             clang doxygen llvm dnf-plugins-core
         dnf debuginfo-install -y cairo fontconfig glib2
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Build
       run: |
         # disable werror for libdicom 1.2.0
@@ -269,7 +269,7 @@ jobs:
             esac
         esac
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Build
       run: |
         args=
@@ -346,9 +346,9 @@ jobs:
       packages: write
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.13
       - name: Install dependencies
@@ -422,7 +422,7 @@ jobs:
       contents: write
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         pattern: ${{ needs.primary.outputs.dist-base }}
         merge-multiple: true
