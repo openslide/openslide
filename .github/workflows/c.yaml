@@ -120,7 +120,7 @@ jobs:
       run: cd builddir/test && ./driver exports
 
   build:
-    name: Build
+    name: Build (${{ matrix.name }})
     # wait for test data to be cached
     needs: primary
     runs-on: ${{ matrix.os }}
@@ -128,28 +128,39 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - name: AlmaLinux 8
+            os: ubuntu-latest
             container: quay.io/almalinuxorg/almalinux:8
-          - os: ubuntu-latest
+          - name: CentOS Stream 9
+            os: ubuntu-latest
             container: quay.io/centos/centos:stream9
-          - os: ubuntu-latest
+          - name: CentOS Stream 10
+            os: ubuntu-latest
             container: quay.io/centos/centos:stream10
-          - os: ubuntu-latest
+          - name: Debian 11
+            os: ubuntu-latest
             container: debian:11
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
-          - os: ubuntu-latest
+            ignore-cloexec-leaks: true
+          - name: Debian 12
+            os: ubuntu-latest
             container: debian:12
-          - os: ubuntu-latest
+          - name: Debian 13
+            os: ubuntu-latest
             container: debian:13
-          - os: ubuntu-latest
+          - name: Debian 13, i386
+            os: ubuntu-latest
             container: debian:13
             arch: i386
-          - os: ubuntu-24.04-arm
+          - name: Debian 13, aarch64
+            os: ubuntu-24.04-arm
             container: debian:13
-          - os: ubuntu-22.04
-          - os: ubuntu-24.04
-          - os: macos-latest
-            sanitize: sanitize
+          - name: Ubuntu 22.04
+            os: ubuntu-22.04
+          - name: Ubuntu 24.04
+            os: ubuntu-24.04
+          - name: macOS
+            os: macos-latest
+            sanitize: true
     steps:
     - name: Install dependencies
       shell: bash
@@ -332,13 +343,18 @@ jobs:
       run: cd builddir/test && ./driver sanitize
 
   windows-build:
-    name: Build
+    name: Build (Windows, ${{ matrix.toolchain }})
     needs: primary
     runs-on: windows-2025
     strategy:
       matrix:
-        platform: [Windows]  # cosmetic
-        toolchain: [MinGW, clang-cl]
+        include:
+          - toolchain: clang-cl
+            cc: clang-cl
+            windres: llvm-rc
+          - toolchain: MinGW
+            cc: gcc
+            windres: windres
     defaults:
       run:
         shell: bash
@@ -361,8 +377,8 @@ jobs:
           pip install meson requests PyYAML
       - name: Build
         env:
-          CC: ${{ matrix.toolchain == 'clang-cl' && 'clang-cl' || 'gcc' }}
-          WINDRES: ${{ matrix.toolchain == 'clang-cl' && 'llvm-rc' || 'windres' }}
+          CC: ${{ matrix.cc }}
+          WINDRES: ${{ matrix.windres }}
         run: |
           if ! meson setup builddir --fatal-meson-warnings --werror; then
               cat builddir/meson-logs/meson-log.txt
