@@ -14,7 +14,7 @@ concurrency: vcpkg-cache
 jobs:
   vcpkg:
     name: Cache
-    runs-on: windows-2025
+    runs-on: windows-latest
     steps:
       - name: Check out repo
         uses: actions/checkout@v5

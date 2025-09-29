@@ -345,7 +345,7 @@ jobs:
   windows-build:
     name: Build (Windows, ${{ matrix.toolchain }})
     needs: primary
-    runs-on: windows-2025
+    runs-on: windows-latest
     strategy:
       matrix:
         include:
