@@ -175,11 +175,22 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
   int32_t width = cinfo->output_width;
   int32_t height = cinfo->output_height;
   if (w != width || h != height) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+    if (w==height && h==width) {
+          // PPT-1288 (NB Swapping W & H here doesn't work due to compression)
+          printf("***** WARNING: jpeg_decompress_run(): Suspect that width & height are swapped in the image header: This fork suppresses this error\n");
+    } else {
+          // PPT-1288 ROCHE
+          printf("***** WARNING: jpeg_decompress_run(): Width and height in DCM and image are different (Roche?). This fork suppresses this error\n");
+          printf("***** WH: DCM=(%d,%d)\n",width,height);
+          printf("***** WH: JPG=(%d,%d)\n",w,h);
+          /*
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Dimensional mismatch reading JPEG, "
                 "expected %dx%d, got %dx%d",
                 w, h, width, height);
-    return false;
+          return false;
+          */
+    }
   }
 
   // verify we haven't run already
@@ -319,7 +330,6 @@ static bool jpeg_decode(struct _openslide_file *f,  // or:
                         int32_t w, int32_t h,
                         GError **err) {
   jmp_buf env;
-
   struct jpeg_decompress_struct *cinfo;
   g_auto(_openslide_jpeg_decompress) dc =
     _openslide_jpeg_decompress_create(&cinfo);
