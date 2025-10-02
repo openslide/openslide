@@ -14,10 +14,10 @@ concurrency: vcpkg-cache
 jobs:
   vcpkg:
     name: Cache
-    runs-on: windows-2025
+    runs-on: windows-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: vcpkg install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

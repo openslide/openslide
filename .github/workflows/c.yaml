@@ -19,17 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get -y install libfuse3-dev
+          python -m pip install pre-commit
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          key: pre-commit|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/pre-commit
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.1
+        run: pre-commit run -a --show-diff-on-failure --color=always
 
   primary:
     name: Primary tests (Fedora)
@@ -58,7 +64,7 @@ jobs:
             clang doxygen llvm dnf-plugins-core
         dnf debuginfo-install -y cairo fontconfig glib2
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Build
       run: |
         # disable werror for libdicom 1.2.0
@@ -120,7 +126,7 @@ jobs:
       run: cd builddir/test && ./driver exports
 
   build:
-    name: Build
+    name: Build (${{ matrix.name }})
     # wait for test data to be cached
     needs: primary
     runs-on: ${{ matrix.os }}
@@ -128,26 +134,39 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - name: AlmaLinux 8
+            os: ubuntu-latest
             container: quay.io/almalinuxorg/almalinux:8
-          - os: ubuntu-latest
+          - name: CentOS Stream 9
+            os: ubuntu-latest
             container: quay.io/centos/centos:stream9
-          - os: ubuntu-latest
+          - name: CentOS Stream 10
+            os: ubuntu-latest
             container: quay.io/centos/centos:stream10
-          - os: ubuntu-latest
+          - name: Debian 11
+            os: ubuntu-latest
             container: debian:11
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
-          - os: ubuntu-latest
+            ignore-cloexec-leaks: true
+          - name: Debian 12
+            os: ubuntu-latest
             container: debian:12
-          - os: ubuntu-latest
-            container: debian:12
+          - name: Debian 13
+            os: ubuntu-latest
+            container: debian:13
+          - name: Debian 13, i386
+            os: ubuntu-latest
+            container: debian:13
             arch: i386
-          - os: ubuntu-24.04-arm
-            container: debian:12
-          - os: ubuntu-22.04
-          - os: ubuntu-24.04
-          - os: macos-latest
-            sanitize: sanitize
+          - name: Debian 13, aarch64
+            os: ubuntu-24.04-arm
+            container: debian:13
+          - name: Ubuntu 22.04
+            os: ubuntu-22.04
+          - name: Ubuntu 24.04
+            os: ubuntu-24.04
+          - name: macOS
+            os: macos-latest
+            sanitize: true
     steps:
     - name: Install dependencies
       shell: bash
@@ -269,7 +288,7 @@ jobs:
             esac
         esac
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Build
       run: |
         args=
@@ -330,13 +349,18 @@ jobs:
       run: cd builddir/test && ./driver sanitize
 
   windows-build:
-    name: Build
+    name: Build (Windows, ${{ matrix.toolchain }})
     needs: primary
-    runs-on: windows-2025
+    runs-on: windows-latest
     strategy:
       matrix:
-        platform: [Windows]  # cosmetic
-        toolchain: [MinGW, clang-cl]
+        include:
+          - toolchain: clang-cl
+            cc: clang-cl
+            windres: llvm-rc
+          - toolchain: MinGW
+            cc: gcc
+            windres: windres
     defaults:
       run:
         shell: bash
@@ -346,9 +370,9 @@ jobs:
       packages: write
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.13
       - name: Install dependencies
@@ -359,8 +383,8 @@ jobs:
           pip install meson requests PyYAML
       - name: Build
         env:
-          CC: ${{ matrix.toolchain == 'clang-cl' && 'clang-cl' || 'gcc' }}
-          WINDRES: ${{ matrix.toolchain == 'clang-cl' && 'llvm-rc' || 'windres' }}
+          CC: ${{ matrix.cc }}
+          WINDRES: ${{ matrix.windres }}
         run: |
           if ! meson setup builddir --fatal-meson-warnings --werror; then
               cat builddir/meson-logs/meson-log.txt
@@ -422,7 +446,7 @@ jobs:
       contents: write
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         pattern: ${{ needs.primary.outputs.dist-base }}
         merge-multiple: true
