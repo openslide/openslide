@@ -152,6 +152,31 @@ void _openslide_jpeg_decompress_init(struct _openslide_jpeg_decompress *dc,
   jpeg_create_decompress(&dc->cinfo);
 }
 
+void TransformWidthHeightRGBA(uint8_t* const rgbaPixels, int width, int height)
+{
+  //Flip pixels along diagonal and invert in Y. Not worth SIMD
+  printf("Applying Width/Height Transform\n");
+  const uint numbytes=width*height*4;
+  uint8_t* const tempbuf = (uint8_t*)(malloc(numbytes));
+  if (!tempbuf) {
+      fprintf(stderr, "Allocation failed\n");
+      return;
+  }
+  uint32_t* t=(uint32_t*)tempbuf;
+  uint32_t* p;
+  for (int y = width-1; y >=0; --y)
+  {
+    p=(uint32_t*)rgbaPixels+y;
+    for (int x = 0; x < height; ++x)
+    {
+      *t++=*p;
+      p+=width;
+    }
+  }
+  memcpy(rgbaPixels,tempbuf,numbytes);
+  free(tempbuf);
+}
+
 bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
                                     // uint8_t * if grayscale, else uint32_t *
                                     void *_dest,
@@ -174,31 +199,13 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
   // ensure buffer dimensions are correct
   int32_t width = cinfo->output_width;
   int32_t height = cinfo->output_height;
-  if (w != width || h != height) {
-    if (w==height && h==width) {
-          // PPT-1288 (NB Swapping W & H here doesn't work due to compression)
-          printf("***** WARNING: jpeg_decompress_run(): Suspect that width & height are swapped in the image header: This fork suppresses this error\n");
-    } else {
-          // PPT-1288 ROCHE
-          printf("***** WARNING: jpeg_decompress_run(): Width and height in DCM and image are different (Roche?). This fork suppresses this error\n");
-          printf("***** WH: DCM=(%d,%d)\n",width,height);
-          printf("***** WH: JPG=(%d,%d)\n",w,h);
-          /*
-          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Dimensional mismatch reading JPEG, "
-                "expected %dx%d, got %dx%d",
-                w, h, width, height);
-          return false;
-          */
-    }
-  }
+
 
   // verify we haven't run already
   g_assert(dc->rows[0] == NULL);
 
   if (cinfo->out_color_space != JCS_RGB) {
     // decode directly to output
-
     uint8_t *dest = _dest;
     int bytes_per_pixel = cinfo->output_components == 1 ? 1 : 4;
     while (cinfo->output_scanline < cinfo->output_height) {
@@ -217,7 +224,6 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
 
   } else {
     // decode into temporary buffer, then reformat
-
     // allocate scanline buffers
     gsize allocated_row_size = sizeof(JSAMPLE) * cinfo->output_width *
                                cinfo->output_components;
@@ -249,6 +255,11 @@ bool _openslide_jpeg_decompress_run(struct _openslide_jpeg_decompress *dc,
       }
     }
   }
+
+  if (w==height && h==width) {
+    TransformWidthHeightRGBA(_dest, cinfo->output_width, cinfo->output_height);
+  }
+
   return true;
 }
 

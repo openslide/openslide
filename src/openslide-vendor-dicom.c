@@ -470,28 +470,15 @@ static bool decode_frame(struct dicom_file *file,
   uint32_t frame_height = dcm_frame_get_rows(frame);
   
   if (frame_width != w || frame_height != h) {
-    if (frame_width == h && frame_height == w) {
-      // PPT-1288 MOTIC
-      printf("***** WARNING: decode_frame(): Suspect that width & height are swapped in the image header: This fork suppresses this error\n");
-    } else {
-      // PPT-1327 ROCHE
-          printf("***** WARNING: jpeg_decompress_run(): Width and height in DCM and image are different (Roche?). This fork suppresses this error\n");
-          printf("***** WH: DCM=(%d,%d)\n",frame_width,frame_height);
-          printf("***** WH: JPG=(%d,%d)\n",w,h);
-      /*
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected image size: %ux%u != %"PRId64"x%"PRId64,
-                  frame_width, frame_height, w, h);
-      return false;
-      */
-    }
+      printf("Warning: Image dimensions (%d,%d) are different from DCM version (%d,%d). Suppressing exception.\n", frame_width, frame_height, w, h);
   }
   
   switch (file->format) {
-  case FORMAT_JPEG:
+  case FORMAT_JPEG: {
     return _openslide_jpeg_decode_buffer_colorspace(frame_value, frame_length,
                                                     file->jpeg_colorspace,
                                                     dest, w, h, err);
+  }
   case FORMAT_JPEG2000:
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
