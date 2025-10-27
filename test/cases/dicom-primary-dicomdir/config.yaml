@@ -1,0 +1,6 @@
+base: DICOM/Leica-4.zip
+error: "Not a WSI DICOM: class UID 1.2.840.10008.1.3.10"
+slide: DICOMDIR
+success: false
+debug:
+  - detection

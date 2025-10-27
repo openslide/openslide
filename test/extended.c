@@ -24,10 +24,10 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/types.h>
-#include <unistd.h>
 #include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #include <glib.h>
@@ -35,72 +35,89 @@
 #include "openslide-common.h"
 #include "config.h"
 
-#define MAX_LEAK_FD 128
+// SHA-256 of no bytes
+#define UNINIT_QUICKHASH "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 static void test_image_fetch(openslide_t *osr,
 			     int64_t x, int64_t y,
 			     int64_t w, int64_t h) {
-  uint32_t *buf = g_new(uint32_t, w * h);
+  g_autofree uint32_t *buf = g_new(uint32_t, w * h);
   for (int32_t level = 0; level < openslide_get_level_count(osr); level++) {
     openslide_read_region(osr, buf, x, y, level, w, h);
   }
-  g_free(buf);
+  common_fail_on_error(osr,
+                       "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                       x, y, w, h);
+}
 
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64": %s",
-                x, y, w, h, err);
+static void test_read_associated_images(openslide_t *osr) {
+  const char * const *associated_image_names =
+    openslide_get_associated_image_names(osr);
+  common_fail_on_error(osr, "Listing associated images failed");
+  while (*associated_image_names) {
+    int64_t w, h;
+    const char *name = *associated_image_names;
+    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+
+    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
+    openslide_read_associated_image(osr, name, buf);
+
+    int64_t icc_len =
+      openslide_get_associated_image_icc_profile_size(osr, name);
+    if (icc_len >= 0) {
+      g_autofree void *buf = g_malloc(icc_len);
+      openslide_read_associated_image_icc_profile(osr, name, buf);
+    }
+
+    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
+    associated_image_names++;
   }
 }
 
-#if !defined(NONATOMIC_CLOEXEC) && !defined(WIN32)
+static void test_read_icc_profile(openslide_t *osr) {
+  int64_t icc_len = openslide_get_icc_profile_size(osr);
+  if (icc_len >= 0) {
+    g_autofree void *buf = g_malloc(icc_len);
+    openslide_read_icc_profile(osr, buf);
+  }
+  common_fail_on_error(osr, "Reading ICC profile failed");
+}
+
+#if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
 static gint leak_test_running;  /* atomic ops only */
 
 static gpointer cloexec_thread(const gpointer prog) {
-  GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal,
-        g_free, NULL);
+  g_autoptr(GHashTable) seen =
+    g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   gchar *argv[] = {prog, "--leak-check--", NULL};
 
   while (g_atomic_int_get(&leak_test_running)) {
-    gchar *out;
+    g_autofree char *out = NULL;
     if (!g_spawn_sync(NULL, argv, NULL, G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
-          G_SPAWN_SEARCH_PATH | G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL,
-          &out, NULL, NULL, NULL)) {
+          G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL, NULL, NULL,
+          NULL, &out, NULL, NULL)) {
       g_assert_not_reached();
     }
 
-    gchar **lines = g_strsplit(out, "\n", 0);
+    g_auto(GStrv) lines = g_strsplit(out, "\n", 0);
     for (gchar **line = lines; *line != NULL; line++) {
       if (**line == 0) {
         continue;
       }
       if (g_hash_table_lookup(seen, *line) == NULL) {
-        fprintf(stderr, "Exec child received leaked fd to %s\n", *line);
+        fprintf(stderr, "%s\n", *line);
         g_hash_table_insert(seen, g_strdup(*line), (void *) 1);
       }
     }
-    g_strfreev(lines);
-    g_free(out);
   }
 
-  g_hash_table_destroy(seen);
   return NULL;
-}
-
-static void child_check_open_fds(void) {
-  for (int i = 3; i < MAX_LEAK_FD; i++) {
-    gchar *path = common_get_fd_path(i);
-    if (path != NULL) {
-      printf("%s\n", path);
-      g_free(path);
-    }
-  }
 }
 
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
   // ensure any inherited FDs are not leaked to the child
-  for (int i = 3; i < MAX_LEAK_FD; i++) {
+  for (int i = 3; i < COMMON_MAX_FD; i++) {
     int flags = fcntl(i, F_GETFD);
     if (flags != -1) {
       fcntl(i, F_SETFD, flags | FD_CLOEXEC);
@@ -110,25 +127,96 @@ static void check_cloexec_leaks(const char *slide, void *prog,
   g_atomic_int_set(&leak_test_running, 1);
   GThread *thr = g_thread_new("cloexec", cloexec_thread, prog);
   guint32 buf[512 * 512];
-  GTimer *timer = g_timer_new();
+  g_autoptr(GTimer) timer = g_timer_new();
   while (g_timer_elapsed(timer, NULL) < 2) {
     openslide_t *osr = openslide_open(slide);
     openslide_read_region(osr, buf, x, y, 0, 512, 512);
     openslide_close(osr);
   }
-  g_timer_destroy(timer);
   g_atomic_int_set(&leak_test_running, 0);
   g_thread_join(thr);
 }
-#else /* !NONATOMIC_CLOEXEC && !WIN32 */
-static void child_check_open_fds(void) {}
-
+#else /* !NONATOMIC_CLOEXEC && !_WIN32 */
 static void check_cloexec_leaks(const char *slide G_GNUC_UNUSED,
                                 void *prog G_GNUC_UNUSED,
                                 int64_t x G_GNUC_UNUSED,
                                 int64_t y G_GNUC_UNUSED) {}
-#endif /* !NONATOMIC_CLOEXEC && !WIN32 */
+#endif /* !NONATOMIC_CLOEXEC && !_WIN32 */
 
+#define CACHE_THREADS 5
+
+struct cache_thread_params {
+  GThread *thread;
+  openslide_t *osr[CACHE_THREADS];
+  int64_t w, h;
+  size_t cache_size;
+  gint *stop; // atomic ops
+};
+
+static void *cache_thread(void *data) {
+  struct cache_thread_params *params = data;
+  g_autofree uint32_t *buf = g_malloc(4 * params->w * params->h);
+  while (!g_atomic_int_get(params->stop)) {
+    // read some tiles
+    openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);
+    // replace everyone's caches
+    openslide_cache_t *cache = openslide_cache_create(params->cache_size);
+    // redundantly set cache several times
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < CACHE_THREADS; j++) {
+        openslide_set_cache(params->osr[j], cache);
+      }
+    }
+    openslide_cache_release(cache);
+  }
+  return NULL;
+}
+
+static void cache_thread_start(struct cache_thread_params *param_array,
+                               openslide_t **osrs,
+                               int idx,
+                               int64_t w, int64_t h,
+                               size_t cache_size,
+                               gint *stop) {
+  struct cache_thread_params *params = &param_array[idx];
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    params->osr[i] = osrs[(idx + i) % CACHE_THREADS];
+  }
+  params->w = w;
+  params->h = h;
+  params->cache_size = cache_size;
+  params->stop = stop;
+  params->thread = g_thread_new("cache-thread", cache_thread, params);
+}
+
+// test sharing cache among multiple handles
+static void check_shared_cache(const char *slide) {
+  openslide_t *osrs[CACHE_THREADS];
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    osrs[i] = openslide_open(slide);
+    g_assert(osrs[i]);
+    g_assert(openslide_get_error(osrs[i]) == NULL);
+  }
+
+  struct cache_thread_params params[CACHE_THREADS];
+  gint stop = 0;
+  cache_thread_start(params, osrs, 0, 1000, 1000, 4000000, &stop);
+  cache_thread_start(params, osrs, 1, 1000, 1000, 4000000, &stop);
+  cache_thread_start(params, osrs, 2,  500,  500,  250000, &stop);
+  cache_thread_start(params, osrs, 3,  100,  100,  250000, &stop);
+  cache_thread_start(params, osrs, 4,  100,  100,       0, &stop);
+
+  // let them run
+  g_usleep(G_USEC_PER_SEC);
+
+  g_atomic_int_set(&stop, 1);
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    g_thread_join(params[i].thread);
+  }
+  for (int i = 0; i < CACHE_THREADS; i++) {
+    openslide_close(osrs[i]);
+  }
+}
 
 int main(int argc, char **argv) {
   common_fix_argv(&argc, &argv);
@@ -138,9 +226,11 @@ int main(int argc, char **argv) {
   const char *path = argv[1];
 
   if (g_str_equal(path, "--leak-check--")) {
-    child_check_open_fds();
+    common_check_open_fds(NULL, "Leaked file descriptor to exec child");
     return 0;
   }
+
+  g_autoptr(GHashTable) fds = common_get_open_fds();
 
   openslide_get_version();
 
@@ -149,28 +239,23 @@ int main(int argc, char **argv) {
   }
 
   openslide_t *osr = openslide_open(path);
-  if (!osr) {
-    common_fail("Couldn't open %s", path);
-  }
-  const char *err = openslide_get_error(osr);
-  if (err) {
-    common_fail("Open failed: %s", err);
-  }
+  common_fail_on_error(osr, "Couldn't open %s", path);
+  common_check_open_fds(fds, "Open file descriptor after openslide_open()");
   openslide_close(osr);
 
   osr = openslide_open(path);
-  if (!osr || openslide_get_error(osr)) {
-    common_fail("Reopen failed");
-  }
+  common_fail_on_error(osr, "Reopen of %s failed", path);
 
   int64_t w, h;
   openslide_get_level0_dimensions(osr, &w, &h);
+  common_fail_on_error(osr, "Getting level 0 dimensions failed");
 
   int32_t levels = openslide_get_level_count(osr);
   for (int32_t i = -1; i < levels + 1; i++) {
     int64_t ww, hh;
     openslide_get_level_dimensions(osr, i, &ww, &hh);
     openslide_get_level_downsample(osr, i);
+    common_fail_on_error(osr, "Querying level %d failed", i);
   }
 
   openslide_get_best_level_for_downsample(osr, 0.8);
@@ -185,12 +270,15 @@ int main(int argc, char **argv) {
   openslide_get_best_level_for_downsample(osr, 100);
   openslide_get_best_level_for_downsample(osr, 1000);
   openslide_get_best_level_for_downsample(osr, 10000);
+  common_fail_on_error(osr, "Getting best level for downsample failed");
 
   // NULL buffer
   openslide_read_region(osr, NULL, 0, 0, 0, 1000, 1000);
+  common_fail_on_error(osr, "Reading NULL buffer failed");
 
   // empty region
   openslide_read_region(osr, NULL, 0, 0, 0, 0, 0);
+  common_fail_on_error(osr, "Reading null region failed");
 
   // read properties
   const char * const *property_names = openslide_get_property_names(osr);
@@ -199,21 +287,18 @@ int main(int argc, char **argv) {
     openslide_get_property_value(osr, name);
     property_names++;
   }
+  common_fail_on_error(osr, "Reading properties failed");
 
-  // read associated images
-  const char * const *associated_image_names =
-    openslide_get_associated_image_names(osr);
-  while (*associated_image_names) {
-    int64_t w, h;
-    const char *name = *associated_image_names;
-    openslide_get_associated_image_dimensions(osr, name, &w, &h);
-
-    uint32_t *buf = g_new(uint32_t, w * h);
-    openslide_read_associated_image(osr, name, buf);
-    g_free(buf);
-
-    associated_image_names++;
+  // check for uninit quickhash-1
+  const char *quickhash1 =
+    openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_QUICKHASH1);
+  if (quickhash1 && g_str_equal(quickhash1, UNINIT_QUICKHASH)) {
+    common_fail("quickhash-1 exists but no data was hashed");
   }
+
+  test_read_associated_images(osr);
+
+  test_read_icc_profile(osr);
 
   test_image_fetch(osr, -10, -10, 200, 200);
   test_image_fetch(osr, w/2, h/2, 500, 500);
@@ -233,9 +318,13 @@ int main(int argc, char **argv) {
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
   }
 
+  common_check_open_fds(fds, "Open file descriptor after reading pixel data");
+
   openslide_close(osr);
 
   check_cloexec_leaks(path, argv[0], bounds_xx, bounds_yy);
+
+  check_shared_cache(path);
 
   return 0;
 }

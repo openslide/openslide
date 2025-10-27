@@ -13,12 +13,9 @@
 /*
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
  * So we need to compile all our freading into the OpenSlide DLL directly.
- * We also need jpeg_mem_src for libjpegs that are too old to ship it themselves.
  *
- * This file is basically copied from libjpeg-turbo-1.3.0.
+ * This file is originally from libjpeg-turbo-1.3.0.
  */
-
-#include <config.h>
 
 #include "openslide-private.h"
 #include "openslide-decode-jpeg.h"
@@ -32,11 +29,11 @@
 /* Expanded data source object for stdio input */
 
 typedef struct {
-  struct jpeg_source_mgr pub;	/* public fields */
+  struct jpeg_source_mgr pub;		/* public fields */
 
-  FILE * infile;		/* source stream */
-  JOCTET * buffer;		/* start of buffer */
-  boolean start_of_file;	/* have we gotten any data yet? */
+  struct _openslide_file * infile;	/* source stream */
+  JOCTET * buffer;			/* start of buffer */
+  boolean start_of_file;		/* have we gotten any data yet? */
 } my_source_mgr;
 
 typedef my_source_mgr * my_src_ptr;
@@ -58,11 +55,6 @@ static void init_source (j_decompress_ptr cinfo)
    * This is correct behavior for reading a series of images from one source.
    */
   src->start_of_file = true;
-}
-
-static void init_mem_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
-{
-  /* no work necessary here */
 }
 
 
@@ -102,11 +94,15 @@ static void init_mem_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
 static boolean fill_input_buffer (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
-  size_t nbytes;
 
-  nbytes = fread(src->buffer, 1, INPUT_BUF_SIZE, src->infile);
-
-  if (nbytes <= 0) {
+  GError *tmp_err = NULL;
+  size_t nbytes =
+    _openslide_fread(src->infile, src->buffer, INPUT_BUF_SIZE, &tmp_err);
+  if (tmp_err) {
+    g_clear_error(&tmp_err);
+    ERREXIT(cinfo, JERR_FILE_READ);
+  }
+  if (!nbytes) {
     if (src->start_of_file)	/* Treat empty input file as fatal error */
       ERREXIT(cinfo, JERR_INPUT_EMPTY);
     WARNMS(cinfo, JWRN_JPEG_EOF);
@@ -119,26 +115,6 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo)
   src->pub.next_input_byte = src->buffer;
   src->pub.bytes_in_buffer = nbytes;
   src->start_of_file = false;
-
-  return true;
-}
-
-static boolean fill_mem_input_buffer (j_decompress_ptr cinfo)
-{
-  static const JOCTET mybuffer[4] = {
-    (JOCTET) 0xFF, (JOCTET) JPEG_EOI, 0, 0
-  };
-
-  /* The whole JPEG data is expected to reside in the supplied memory
-   * buffer, so any request for more data beyond the given buffer size
-   * is treated as an error.
-   */
-  WARNMS(cinfo, JWRN_JPEG_EOF);
-
-  /* Insert a fake EOI marker */
-
-  cinfo->src->next_input_byte = mybuffer;
-  cinfo->src->bytes_in_buffer = 2;
 
   return true;
 }
@@ -160,7 +136,7 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 {
   struct jpeg_source_mgr * src = cinfo->src;
 
-  /* Just a dumb implementation for now.  Could use fseek() except
+  /* Just a dumb implementation for now.  Could use fseek except
    * it doesn't work on pipes.  Not clear that being smart is worth
    * any trouble anyway --- large skips are infrequent.
    */
@@ -208,7 +184,8 @@ static void term_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
  * for closing it after finishing decompression.
  */
 
-void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo, FILE * infile)
+void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo,
+                                struct _openslide_file * infile)
 {
   my_src_ptr src;
 
@@ -238,38 +215,4 @@ void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo, FILE * infile)
   src->infile = infile;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
   src->pub.next_input_byte = NULL; /* until buffer loaded */
-}
-
-
-/*
- * Prepare for input from a supplied memory buffer.
- * The buffer must contain the whole JPEG data.
- */
-
-void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              const void * inbuffer, size_t insize)
-{
-  struct jpeg_source_mgr * src;
-
-  if (inbuffer == NULL || insize == 0)	/* Treat empty input as fatal error */
-    ERREXIT(cinfo, JERR_INPUT_EMPTY);
-
-  /* The source object is made permanent so that a series of JPEG images
-   * can be read from the same buffer by calling jpeg_mem_src only before
-   * the first one.
-   */
-  if (cinfo->src == NULL) {	/* first time for this JPEG object? */
-    cinfo->src = (struct jpeg_source_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(struct jpeg_source_mgr));
-  }
-
-  src = cinfo->src;
-  src->init_source = init_mem_source;
-  src->fill_input_buffer = fill_mem_input_buffer;
-  src->skip_input_data = skip_input_data;
-  src->resync_to_restart = jpeg_resync_to_restart; /* use default method */
-  src->term_source = term_source;
-  src->bytes_in_buffer = insize;
-  src->next_input_byte = inbuffer;
 }

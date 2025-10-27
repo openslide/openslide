@@ -33,7 +33,7 @@ static void fail(const char *fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
   exit(1);
-};
+}
 
 static void make_ycbcr_tables(FILE *f) {
   // R
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
   }
 
   // open file
-  FILE *f = fopen(argv[1], "w");
+  FILE *f = fopen(argv[1], "w");  // ci-allow
   if (!f) {
     fail("Couldn't create %s", argv[1]);
   }

@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-1.zip
+error: "^Reading .*/000003.dcm: Couldn't read associated image dimensions$"
+slide: 000005.dcm
+success: false
+vendor: dicom

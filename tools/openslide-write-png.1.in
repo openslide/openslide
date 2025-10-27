@@ -2,6 +2,7 @@
 .\" OpenSlide, a library for reading whole slide image files
 .\"
 .\" Copyright (c) 2007-2012 Carnegie Mellon University
+.\" Copyright (c) 2023      Benjamin Gilbert
 .\" All rights reserved.
 .\"
 .\" OpenSlide is free software: you can redistribute it and/or modify
@@ -22,15 +23,15 @@
 .\" See man-pages(7) for formatting conventions.
 
 
-.TH OPENSLIDE-WRITE-PNG 1 2012-02-24 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
+.TH OPENSLIDE\-WRITE\-PNG 1 2023-06-30 "OpenSlide @SUFFIXED_VERSION@" "User Commands"
 
 .mso www.tmac
 
 .SH NAME
-openslide-write-png \- Write a region of a virtual slide to a PNG
+openslide\-write\-png \- Write a region of a virtual slide to a PNG
 
 .SH SYNOPSIS
-.BR "openslide-write-png " [ --help "] [" --version ]
+.BR "openslide\-write\-png " [ \-\-help "] [" \-\-version ]
 .I slide-file x y level width height output-file
 
 .SH DESCRIPTION
@@ -48,32 +49,40 @@ are pixel dimensions in the specified
 .IR level .
 
 The dimensions of each level of a slide can be obtained with
-.BR openslide-show-properties (1).
+.BR openslide\-show\-properties (1).
 
 .SH OPTIONS
 .TP
-.B --help
+.B \-\-help
 Display usage summary.
 
 .TP
-.B --version
+.B \-\-version
 Display version and copyright information.
 
 .SH EXIT STATUS
-.B openslide-write-png
-returns 0 on success, 1 if an error occurred, or 2 if the arguments are
-invalid.
+.B openslide\-write\-png
+returns 0 on success, 1 if an error occurred,
+or 2 if the arguments are invalid.
+
+.SH NOTES
+.B openslide\-write\-png
+is a legacy command and no new features will be added.
+Its replacement is the
+.B region read
+subcommand of
+.BR slidetool (1).
 
 .SH COPYRIGHT
-Copyright \(co 2007-2012 Carnegie Mellon University and others
-
-OpenSlide is free software: you can redistribute it and/or modify it under
-the terms of the
+Copyright \(co 2007-2025 Carnegie Mellon University and others
+.PP
+OpenSlide is free software: you can redistribute it and/or modify it
+under the terms of the
 .URL http://gnu.org/licenses/lgpl-2.1.html "GNU Lesser General Public License, version 2.1" .
-
-OpenSlide comes with NO WARRANTY, to the extent permitted by law.  See the
-GNU Lesser General Public License for more details.
+.PP
+OpenSlide comes with NO WARRANTY, to the extent permitted by law.
+See the GNU Lesser General Public License for more details.
 
 .SH SEE ALSO
-.BR openslide-quickhash1sum (1),
-.BR openslide-show-properties (1)
+.BR openslide\-show\-properties (1),
+.BR slidetool (1)

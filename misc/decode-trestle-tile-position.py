@@ -36,4 +36,3 @@ while True:
     print "%12d:" % (i) + (int_format * 2) % (a0, a1) + "   " + "".join(map(bin, d0)) + (int_format * 2) % (b0, b1) + "   " + "".join(map(bin, d1))
 
     i = i + 1
-

@@ -1,0 +1,10 @@
+# Dual-personality BigTIFF with .tif file extension should be read as TIFF
+base: DICOM/CMU-1-JP2K-33005.zip
+# generic-tiff driver doesn't support converted Aperio JP2K images
+error: "^Unsupported TIFF compression: 33005$"
+slide: DCM_0.tif
+success: false
+vendor: generic-tiff
+rename:
+  ? DCM_0.dcm
+  : DCM_0.tif

@@ -1,0 +1,7 @@
+# thumbnail ICC Profile name doesn't match main image
+base: Aperio/CMU-1.svs
+slide: CMU-1.svs
+success: true
+vendor: aperio
+properties:
+  openslide.associated.thumbnail.icc-size: ""

@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: "^Cannot read slide position record: Cannot seek data file$"
+error: "^Cannot read slide position record: Cannot seek data file:"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

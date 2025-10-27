@@ -19,39 +19,41 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_JPEG_H_
+#pragma once
 
-// jconfig.h redefines HAVE_STDLIB_H if libjpeg was not built with Autoconf
-#undef HAVE_STDLIB_H
+#include "openslide-private.h"
+
 #include <jpeglib.h>
-#undef HAVE_STDLIB_H
-#include <config.h>  // fix damage
-
 #include <stdio.h>
 #include <stdint.h>
 #include <glib.h>
 #include <setjmp.h>
 
-bool _openslide_jpeg_read_dimensions(const char *filename,
-                                     int64_t offset,
-                                     int32_t *w, int32_t *h,
-                                     GError **err);
+bool _openslide_jpeg_read_file_dimensions(struct _openslide_file *f,
+                                          int64_t offset,
+                                          int32_t *w, int32_t *h,
+                                          GError **err);
 
 bool _openslide_jpeg_decode_buffer_dimensions(const void *buf, uint32_t len,
                                               int32_t *w, int32_t *h,
                                               GError **err);
 
-bool _openslide_jpeg_read(const char *filename,
-                          int64_t offset,
-                          uint32_t *dest,
-                          int32_t w, int32_t h,
-                          GError **err);
+bool _openslide_jpeg_read_file(struct _openslide_file *f,
+                               int64_t offset,
+                               uint32_t *dest,
+                               int32_t w, int32_t h,
+                               GError **err);
 
 bool _openslide_jpeg_decode_buffer(const void *buf, uint32_t len,
                                    uint32_t *dest,
                                    int32_t w, int32_t h,
                                    GError **err);
+
+bool _openslide_jpeg_decode_buffer_colorspace(const void *buf, uint32_t len,
+                                              J_COLOR_SPACE space,
+                                              uint32_t *dest,
+                                              int32_t w, int32_t h,
+                                              GError **err);
 
 bool _openslide_jpeg_decode_buffer_gray(const void *buf, uint32_t len,
                                         uint8_t *dest,
@@ -68,13 +70,8 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
  * So we need to compile all our freading into the OpenSlide DLL directly.
  */
-void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo, FILE *infile);
-
-/*
- * Some libjpegs don't provide mem_src, so we have our own copy.
- */
-void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              const void *inbuffer, size_t insize);
+void _openslide_jpeg_stdio_src(j_decompress_ptr cinfo,
+                               struct _openslide_file *infile);
 
 
 /*
@@ -97,4 +94,10 @@ void _openslide_jpeg_propagate_error(GError **err,
 
 void _openslide_jpeg_decompress_destroy(struct _openslide_jpeg_decompress *dc);
 
-#endif
+// volatile pointer, to ensure clang doesn't incorrectly optimize field
+// accesses after setjmp() returns again in the function allocating the struct
+// https://github.com/llvm/llvm-project/issues/57110
+typedef struct _openslide_jpeg_decompress * volatile _openslide_jpeg_decompress;
+G_DEFINE_AUTO_CLEANUP_FREE_FUNC(_openslide_jpeg_decompress,
+                                _openslide_jpeg_decompress_destroy,
+                                NULL)

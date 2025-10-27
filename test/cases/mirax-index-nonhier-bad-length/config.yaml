@@ -1,5 +1,0 @@
-base: Mirax/CMU-1.zip
-error: "^Cannot read macro associated image: Expected 1 value$"
-slide: CMU-1.mrxs
-success: false
-vendor: mirax

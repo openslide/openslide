@@ -1,0 +1,11 @@
+base: DICOM/Leica-4.zip
+# DERIVED\PRIMARY\THUMBNAIL\RESAMPLED
+slide: 1.3.6.1.4.1.36533.1881662823325113479691652532302192524914036.dcm
+success: true
+vendor: dicom
+primary: true
+properties:
+  openslide.associated.thumbnail.icc-size: "13113264"
+  openslide.icc-size: "13113264"
+  openslide.quickhash-1: 7ca87626aa9842b867f284a4ac0c9474f5de295455c8bb25be2ed837efcc5b10
+  openslide.vendor: dicom

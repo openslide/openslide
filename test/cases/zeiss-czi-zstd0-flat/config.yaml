@@ -1,0 +1,5 @@
+base: Zeiss/Zeiss-5-SlidePreview-Zstd0.czi
+slide: Zeiss-5-SlidePreview-Zstd0.czi
+success: true
+primary: true
+vendor: zeiss

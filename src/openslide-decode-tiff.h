@@ -19,15 +19,15 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
+#pragma once
 
 #include "openslide-private.h"
-#include "openslide-hash.h"
 
 #include <stdint.h>
 #include <glib.h>
 #include <tiffio.h>
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(TIFF, TIFFClose)
 
 struct _openslide_tiff_level {
   tdir_t dir;
@@ -44,6 +44,10 @@ struct _openslide_tiff_level {
 };
 
 struct _openslide_tiffcache;
+
+struct _openslide_cached_tiff {
+  TIFF *tiff;
+};
 
 bool _openslide_tiff_level_init(TIFF *tiff,
                                 tdir_t dir,
@@ -78,6 +82,7 @@ bool _openslide_tiff_add_associated_image(openslide_t *osr,
                                           const char *name,
                                           struct _openslide_tiffcache *tc,
                                           tdir_t dir,
+                                          tdir_t *icc_dir,
                                           GError **err);
 
 bool _openslide_tiff_set_dir(TIFF *tiff,
@@ -85,14 +90,37 @@ bool _openslide_tiff_set_dir(TIFF *tiff,
                              GError **err);
 
 
+// get the profile size from a TIFF directory for osr->icc_profile_size
+bool _openslide_tiff_get_icc_profile_size(TIFF *tiff, tdir_t dir,
+                                          int64_t *icc_profile_size,
+                                          GError **err);
+
+// read the profile from a TIFF directory
+// expected_size is from osr->icc_profile_size
+bool _openslide_tiff_read_icc_profile(TIFF *tiff, tdir_t dir,
+                                      void *dest, int64_t expected_size,
+                                      GError **err);
+
+// set error, appending libtiff error message if one is available
+void _openslide_tiff_error(GError **err, TIFF *tiff, const char *fmt, ...);
+
+
 /* TIFF handles are not thread-safe, so we have a handle cache for
    multithreaded access */
 struct _openslide_tiffcache *_openslide_tiffcache_create(const char *filename);
 
-TIFF *_openslide_tiffcache_get(struct _openslide_tiffcache *tc, GError **err);
+// result.tiff is NULL on error
+struct _openslide_cached_tiff _openslide_tiffcache_get(struct _openslide_tiffcache *tc,
+                                                       GError **err);
 
-void _openslide_tiffcache_put(struct _openslide_tiffcache *tc, TIFF *tiff);
+void _openslide_cached_tiff_put(struct _openslide_cached_tiff *ct);
 
 void _openslide_tiffcache_destroy(struct _openslide_tiffcache *tc);
 
-#endif
+typedef struct _openslide_tiffcache _openslide_tiffcache;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tiffcache,
+                              _openslide_tiffcache_destroy)
+
+typedef struct _openslide_cached_tiff _openslide_cached_tiff;
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_cached_tiff,
+                                 _openslide_cached_tiff_put)

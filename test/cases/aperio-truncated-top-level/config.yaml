@@ -1,5 +1,5 @@
 base: Aperio/CMU-1.svs
-error: "^Cannot hash TIFF tiles: Can't read from .*CMU-1.svs$"
+error: "^Cannot hash TIFF tiles: Short read of file .*CMU-1.svs: 0 < 4096$"
 slide: CMU-1.svs
 success: false
 vendor: aperio

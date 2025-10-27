@@ -1,5 +1,5 @@
 base: Hamamatsu-vms/CMU-1.zip
-error: "^Can't validate JPEG 0: Cannot read header in JPEG at 0$"
+error: "^Can't validate JPEG 0: Cannot read header in JPEG at 0: Short read of file .*05.jpg: 652 < 660$"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false
 vendor: hamamatsu

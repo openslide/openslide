@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-1.zip
+error: "^Reading .*/000013.dcm: Unsupported photometric interpretation YBR_ICT for 1.2.840.10008.1.2.4.50$"
+slide: 000005.dcm
+success: false
+vendor: dicom

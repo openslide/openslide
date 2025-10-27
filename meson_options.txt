@@ -1,0 +1,41 @@
+option(
+  'version_suffix',
+  type : 'string',
+  description : 'Suffix to append to the package version string',
+)
+option(
+  'test',
+  type : 'feature',
+  yield : true,
+  description : 'Build tests',
+)
+option(
+  'doc',
+  type : 'feature',
+  yield : true,
+  description : 'Enable building documentation (requires Doxygen)',
+)
+option(
+  '_export_internal_symbols',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)
+option(
+  '_gcov',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)
+option(
+  '_nonatomic_cloexec',
+  type : 'boolean',
+  value : false,
+  description : 'For CI; do not use',
+)
+option(
+  '_sanitize',
+  type : 'boolean',
+  value : false,
+  description : 'For test suite; do not use',
+)

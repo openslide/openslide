@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_XML_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_XML_H_
+#pragma once
 
 #include "openslide-private.h"
 
@@ -30,6 +29,10 @@
 #include <libxml/xpath.h>
 
 /* libxml support code */
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlDoc, xmlFreeDoc)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlXPathContext, xmlXPathFreeContext)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlXPathObject, xmlXPathFreeObject)
 
 xmlDoc *_openslide_xml_parse(const char *xml, GError **err);
 
@@ -57,4 +60,6 @@ void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
                                         const char *property_name,
                                         const char *xpath);
 
-#endif
+void _openslide_xml_char_free(xmlChar *p);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlChar, _openslide_xml_char_free)

@@ -19,11 +19,8 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_ERROR_H_
-#define OPENSLIDE_OPENSLIDE_ERROR_H_
+#pragma once
 
 /* Private error functions: for use only by external API */
 
 void _openslide_propagate_error(openslide_t *osr, GError *err);
-
-#endif

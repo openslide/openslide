@@ -1,0 +1,8 @@
+# clang LSan sanitizer suppressions, which seem to require a separate file
+# https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer#suppressions
+
+# fontconfig leaks
+leak:FcPatternDuplicate
+leak:FcPatternObjectAddWithBinding
+leak:FcPatternObjectInsertElt
+leak:FcValueSave

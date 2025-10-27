@@ -1,0 +1,210 @@
+# exclude vendored files
+exclude: '^(COPYING\.LESSER|subprojects/.*)$'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # We don't want to allow arbitrarily large binary diffs into the
+      # repo, where they'll live in the Git history forever.  At the time
+      # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
+      # set the cutoff at 6000.
+      # https://openslide.org/docs/testsuite/#tips
+      - id: check-added-large-files
+        name: Check for overlarge tests
+        args: [--maxkb=6]
+        files: ^test/cases/
+      - id: check-added-large-files
+        args: [--maxkb=200]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
+    hooks:
+      - id: pyupgrade
+        name: Modernize python code
+        exclude: ^misc/
+        args: ["--py39-plus"]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        name: Reorder python imports with isort
+        exclude: ^misc/
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: Format python code with black
+        exclude: ^misc/
+
+  - repo: https://github.com/asottile/yesqa
+    rev: v1.5.0
+    hooks:
+      - id: yesqa
+        additional_dependencies: [flake8-bugbear, Flake8-pyproject]
+        exclude: ^misc/
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        name: Lint python code with flake8
+        additional_dependencies: [flake8-bugbear, Flake8-pyproject]
+        exclude: ^misc/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        name: Check Python types
+        additional_dependencies:
+          - boto3-stubs[s3]
+          - pyfuse3
+          - types-PyYAML
+          - types-requests
+        exclude: ^misc/
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        name: Check spelling with codespell
+        additional_dependencies:
+          - tomli  # Python < 3.11
+
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
+  - repo: local
+    hooks:
+      - id: meson-format
+        name: meson format
+        entry: meson format --configuration meson.format --inplace
+        types: [meson]
+        language: python
+        additional_dependencies: [meson==1.5.2]
+
+      - id: mkmaintainer
+        name: Sync maintainer issue templates
+        entry: .github/maintainer/mkmaintainer.py
+        files: .github/maintainer/
+        language: python
+        additional_dependencies: [PyYAML]
+
+      - id: autoptr
+        name: Check for g_auto* declarations without initializers
+        language: pygrep
+        types: [c]
+        entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
+
+      # Prevent use of dangerous or deprecated types.
+      #
+      # Deprecated type   Replacement
+      # off_t             int64_t
+      # ssize_t           int64_t
+      - id: deny-prohibited-type
+        name: Check for use of prohibited types
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(^|\\s|\\()(off_t|ssize_t)(\\s|\\))"
+
+      # Prevent use of dangerous or deprecated casts
+      #
+      # Deprecated cast   Replacement
+      # (GDestroyNotify)  OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER()
+      - id: deny-prohibited-cast
+        name: Check for use of prohibited casts
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(\\(GDestroyNotify\\))"
+
+      # Prevent use of dangerous or deprecated functions.
+      # Wrapper implementations can add "// ci-allow" on the same line to
+      # skip the check.
+      #
+      # Deprecated function   Replacement
+      # atoi                  _openslide_parse_int64 or g_ascii_strtoll
+      # atol                  _openslide_parse_int64 or g_ascii_strtoll
+      # atoll                 _openslide_parse_int64 or g_ascii_strtoll
+      # calloc                g_new0
+      # fopen                 _openslide_fopen or common_fopen
+      # free                  g_free
+      # g_slice_alloc0        g_malloc0
+      # g_slice_alloc         g_malloc
+      # g_slice_copy          g_memdup
+      # g_slice_dup           g_memdup
+      # g_slice_free1         g_free
+      # g_slice_free          g_free
+      # g_slice_new0          g_new0
+      # g_slice_new           g_new0
+      # malloc                g_malloc
+      # realloc               g_realloc
+      # stpcpy                g_strdup
+      # strcat                g_string_append
+      # strcpy                g_strdup
+      # strdup                g_strdup
+      # strerror              g_strerror
+      # strerror_l            g_strerror
+      # strndup               g_strndup
+      # strtoimax             _openslide_parse_int64 or g_ascii_strtoll
+      # strtol                _openslide_parse_int64 or g_ascii_strtoll
+      # strtoll               _openslide_parse_int64 or g_ascii_strtoll
+      # strtoul               _openslide_parse_uint64 or g_ascii_strtoull
+      # strtoull              _openslide_parse_uint64 or g_ascii_strtoull
+      # strtoumax             _openslide_parse_uint64 or g_ascii_strtoull
+      - id: deny-prohibited-func
+        name: Check for calls to prohibited functions
+        language: pygrep
+        exclude: ^misc/
+        types: [c]
+        entry: "(^|\\W)(atoi|atol|atoll|calloc|fopen|free|g_slice_alloc0|g_slice_alloc|g_slice_copy|g_slice_dup|g_slice_free1|g_slice_free|g_slice_new0|g_slice_new|malloc|realloc|stpcpy|strcat|strcpy|strdup|strerror|strerror_l|strndup|strtoimax|strtol|strtoll|strtoul|strtoull|strtoumax)\\s*\\((?!.+ci-allow)"
+
+      # Prevent use of functions with mandatory wrappers in OpenSlide.
+      # Wrapper implementations can add "// ci-allow" on the same line to
+      # skip the check.
+      #
+      # Deprecated function   Replacement
+      # atof                  _openslide_parse_double
+      # fclose                _openslide_fclose
+      # fread                 _openslide_fread or _openslide_fread_exact
+      # fseeko                _openslide_fseek
+      # fseek                 _openslide_fseek
+      # ftello                _openslide_ftell
+      # ftell                 _openslide_ftell
+      # g_ascii_strtod        _openslide_parse_double
+      # g_ascii_strtoll       _openslide_parse_int64
+      # g_ascii_strtoull      _openslide_parse_uint64
+      # g_file_test           _openslide_fexists
+      # sqlite3_close         _openslide_sqlite_close
+      # sqlite3_open          _openslide_sqlite_open
+      # sqlite3_open_v2       _openslide_sqlite_open
+      # sscanf                _openslide_parse_{double,int64,uint64}
+      # strtod                _openslide_parse_double
+      # TIFFClientOpenExt     _openslide_tiffcache_get
+      # TIFFClientOpen        _openslide_tiffcache_get
+      # TIFFFdOpenExt         _openslide_tiffcache_get
+      # TIFFFdOpen            _openslide_tiffcache_get
+      # TIFFOpenExt           _openslide_tiffcache_get
+      # TIFFOpen              _openslide_tiffcache_get
+      # TIFFSetDirectory      _openslide_tiff_set_dir
+      - id: deny-wrapped-func
+        name: Check for calls to wrapped functions
+        language: pygrep
+        files: ^src/openslide
+        types: [c]
+        entry: "(^|\\W)(atof|fclose|fread|fseeko|fseek|ftello|ftell|g_ascii_strtod|g_ascii_strtoll|g_ascii_strtoull|g_file_test|sqlite3_close|sqlite3_open|sqlite3_open_v2|sscanf|strtod|TIFFClientOpenExt|TIFFClientOpen|TIFFFdOpenExt|TIFFFdOpen|TIFFOpenExt|TIFFOpen|TIFFSetDirectory)\\s*\\((?!.+ci-allow)"

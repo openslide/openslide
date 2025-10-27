@@ -1,0 +1,60 @@
+# Check for updated Meson wraps
+
+name: Update Meson wraps
+
+on:
+  push:
+    branches: [main]
+    paths: ['subprojects/*.wrap']
+  schedule:
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: none
+
+concurrency: update-check
+
+env:
+  GIT_BRANCH: update-${{ github.repository_owner }}
+  GIT_NAME: OpenSlide Automation
+  GIT_EMAIL: openslide@openslide.org
+
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.OPENSLIDE_BOT_TOKEN }}
+      - name: Get bot username
+        id: user
+        env:
+          GITHUB_TOKEN: ${{ secrets.OPENSLIDE_BOT_TOKEN }}
+        run: echo "username=$(gh api user -q .login)" >> $GITHUB_OUTPUT
+      - name: Update wraps
+        id: modified
+        run: |
+          pip install --user meson
+          meson wrap update
+          modified=$(git status --porcelain "subprojects/*.wrap" |
+                  sed -e 's:.*/::' -e 's/\.wrap$//')
+          modified=$(echo $modified | sed -e 's/ /, /g')
+          echo "modified=$modified" >> $GITHUB_OUTPUT
+      - name: Post updated wraps
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.OPENSLIDE_BOT_TOKEN }}
+          author: "${{ env.GIT_NAME }} <${{ env.GIT_EMAIL }}>"
+          committer: "${{ env.GIT_NAME }} <${{ env.GIT_EMAIL }}>"
+          add-paths: "subprojects/*.wrap"
+          branch: ${{ env.GIT_BRANCH }}
+          commit-message: "meson: update ${{ steps.modified.outputs.modified }}"
+          signoff: true
+          title: "meson: update ${{ steps.modified.outputs.modified }}"
+          body: "<!-- topic=dependencies -->"
+          push-to-fork: ${{ steps.user.outputs.username }}/${{ github.event.repository.name }}
+          delete-branch: true
+          maintainer-can-modify: false

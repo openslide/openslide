@@ -24,12 +24,57 @@
 #include <stdlib.h>
 #include "openslide-common.h"
 
-void common_fail(const char *fmt, ...) {
-  va_list ap;
-
-  va_start(ap, fmt);
+static void warn(const char *fmt, va_list ap) {
+  fprintf(stderr, "%s: ", g_get_prgname());
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
+}
+
+void common_warn(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  warn(fmt, ap);
+  va_end(ap);
+}
+
+void common_fail(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  warn(fmt, ap);
   va_end(ap);
   exit(1);
+}
+
+static bool warn_on_error(openslide_t *osr, const char *fmt, va_list ap) {
+  const char *err;
+  if (osr) {
+    err = openslide_get_error(osr);
+  } else {
+    err = "Not a file that OpenSlide can recognize";
+  }
+  if (err) {
+    fprintf(stderr, "%s: ", g_get_prgname());
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, ": %s\n", err);
+    return true;
+  }
+  return false;
+}
+
+bool common_warn_on_error(openslide_t *osr, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  bool ret = warn_on_error(osr, fmt, ap);
+  va_end(ap);
+  return ret;
+}
+
+void common_fail_on_error(openslide_t *osr, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  bool warned = warn_on_error(osr, fmt, ap);
+  va_end(ap);
+  if (warned) {
+    exit(1);
+  }
 }

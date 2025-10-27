@@ -1,5 +1,5 @@
 base: Mirax/CMU-1.zip
-error: "^Cannot read slide position record: Error while reading data$"
+error: "^Cannot read slide position record: Error while reading data: Short read of file .*Data0019.dat: 193247 < 193248$"
 slide: CMU-1.mrxs
 success: false
 vendor: mirax

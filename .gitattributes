@@ -1,5 +1,13 @@
-# Shell scripts and Automake sources can't have CRLF line endings
-configure.ac	eol=lf
-Makefile.am	eol=lf
-*.m4		eol=lf
-*.sh		eol=lf
+# Shell scripts can't have CRLF line endings
+*.sh				eol=lf
+
+# Omit from release tarball
+.gitattributes			export-ignore
+.gitignore			export-ignore
+/.github			export-ignore
+/.pre-commit-config.yaml	export-ignore
+/meson.format			export-ignore
+/misc				export-ignore
+/pyproject.toml			export-ignore
+/scripts/vcpkg-install.sh	export-ignore
+/test/cases			export-ignore

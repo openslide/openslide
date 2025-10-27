@@ -1,5 +1,5 @@
 base: Leica/Leica-1.scn
-error: "^Cannot hash TIFF tiles: Can't read from .*Leica-1.scn$"
+error: "^Cannot hash TIFF tiles: Short read of file .*Leica-1.scn: 0 < 160$"
 slide: Leica-1.scn
 success: false
 vendor: leica
