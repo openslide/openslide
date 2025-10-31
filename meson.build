@@ -125,6 +125,7 @@ dicom_dep      = dependency(
   version : '>=1.0.0',
 )
 valgrind_dep   = dependency('valgrind', required : false)
+gsf_dep       = dependency('libgsf-1')
 
 doxygen = find_program(
   'doxygen',

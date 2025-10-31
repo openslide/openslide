@@ -3,6 +3,7 @@
  */
 
 #include "openslide-private.h"
+#include "openslide-decode-gsf.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-xml.h"
 
@@ -14,8 +15,16 @@
 #define MDSX_XML_LEN 10000
 
 static const char MDSX_EXT[] = ".mdsx";
+static const char MDS_EXT[] = ".mds";
 
 static const char XML_HEADER[] = "<?xml version=\"1.0\" ?>";
+
+static const char Root[] = "DSI0";
+static const char LabelFileName[] = "Label";
+static const char MacroFileName[] = "Macro";
+static const char MoticDigitalSlideFileName[] = "MoticDigitalSlide";
+static const char PropertyFileName[] = "Property";
+static const char MoticDigitalSlideImageFileName[] = "DSI0/MoticDigitalSlideImage";
 
 struct motic_ops_data {
   char *filename;
@@ -28,6 +37,9 @@ struct image {
   int32_t width;
   int32_t height;
   int refcount;
+
+  uint64_t uncompressed_size;
+  GsfInput *input;
 };
 
 struct tile {
@@ -40,6 +52,7 @@ struct level {
 
   int32_t tiles_across;
   int32_t tiles_down;
+  double zoom_ratio;
 };
 
 static void destroy_level(struct level *l) {
@@ -67,6 +80,8 @@ static void destroy(openslide_t *osr) {
 static void image_unref(struct image *image) {
   if (!--image->refcount) {
     g_free(image);
+    if (image->input)
+      g_object_unref(image->input);
   }
 }
 
@@ -79,10 +94,38 @@ static void tile_free(gpointer data) {
   g_free(tile);
 }
 
-static uint32_t *read_image(openslide_t *osr,
-                            struct image *image,
-                            int w, int h,
-                            GError **err) {
+static uint32_t *read_mds_image(struct image *image,
+                                int w, int h,
+                                GError **err) {
+  bool result = false;
+
+  // make sure the offset is set to the beginning before reading buffer
+  if (gsf_input_seek(image->input, 0, G_SEEK_SET)) {
+    return NULL;
+  }
+  const void *uncompressed = gsf_input_read(image->input, image->uncompressed_size, NULL);
+  if (!uncompressed) {
+    g_prefix_error(err, "Error decompressing tile buffer: ");
+    return NULL;
+  }
+
+  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  result = _openslide_jpeg_decode_buffer(uncompressed,
+                                         image->uncompressed_size,
+                                         dest, w, h,
+                                         err);
+  if (!result) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't decode jpeg buffer");
+    return NULL;
+  }
+  return g_steal_pointer(&dest);
+}
+
+static uint32_t *read_mdsx_image(openslide_t *osr,
+                                 struct image *image,
+                                 int w, int h,
+                                 GError **err) {
   struct motic_ops_data *data = osr->data;
   bool result = false;
 
@@ -148,7 +191,10 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    tiledata = read_image(osr, tile->image, iw, ih, err);
+    if (tile->image->input)
+      tiledata = read_mds_image(tile->image, iw, ih, err);
+    else
+      tiledata = read_mdsx_image(osr, tile->image, iw, ih, err);
     if (tiledata == NULL) {
       return false;
     }
@@ -939,9 +985,409 @@ static bool motic_mdsx_open(openslide_t *osr, const char *filename,
   return true;
 }
 
-const struct _openslide_format _openslide_format_motic = {
+const struct _openslide_format _openslide_format_motic_mdsx = {
   .name = "motic-mdsx",
   .vendor = "motic",
   .detect = motic_mdsx_detect,
   .open = motic_mdsx_open,
+};
+
+static bool motic_mds_detect(const char *filename G_GNUC_UNUSED,
+                             struct _openslide_tifflike *tl,
+                             GError **err) {
+  // reject TIFFs
+  if (tl) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Is a TIFF file");
+    return false;
+  }
+
+  // verify filename
+  if (!g_str_has_suffix(filename, MDS_EXT)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "File does not have %s extension", MDS_EXT);
+    return false;
+  }
+
+  // verify existence
+  GError *tmp_err = NULL;
+  if (!_openslide_fexists(filename, &tmp_err)) {
+    if (tmp_err != NULL) {
+      g_propagate_prefixed_error(err, tmp_err, "Testing whether file exists: ");
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "File does not exist");
+    }
+    return false;
+  }
+
+  return true;
+}
+
+static bool process_local_files(GsfInput *input,
+                                char const *prefix,
+                                int zoom_levels,
+                                int32_t *image_number,
+                                struct level **levels,
+                                GError **err) {
+  if (strcmp(input->name, LabelFileName) == 0 ||
+      strcmp(input->name, MacroFileName) == 0 ||
+      strcmp(input->name, MoticDigitalSlideFileName) == 0 ||
+      strcmp(input->name, PropertyFileName) == 0 ||
+      strcmp(input->name, MoticDigitalSlideImageFileName) == 0)
+    return false;
+
+  char *tiledatafilename = g_strconcat(prefix, input->name, NULL);
+
+  int64_t tile_col = 0;
+  int64_t tile_row = 0;
+  int zoom_level = -1;
+
+  // Split filename by backslashes
+  g_auto(GStrv) path_components = g_strsplit(tiledatafilename, "/", 0);
+  int component_count = g_strv_length(path_components);
+  if (component_count >= 3) {
+    // Parse zoom level (first component)
+    char *zoom_string = path_components[1];
+    double zoom_ratio = 0.0;
+    char *endptr;
+    zoom_ratio = strtod(zoom_string, &endptr);
+    if (endptr != zoom_string && *endptr == '\0') {
+      for (int i = 0; i < zoom_levels; i++) {
+        if (levels[i] != NULL && fabs(levels[i]->zoom_ratio - zoom_ratio) < 1e-6) {
+          zoom_level = i;
+          break;
+        }
+      }
+    }
+
+    // Parse tile row/column (third component)
+    char *coord_string = path_components[component_count - 1];
+    g_auto(GStrv) coord_components = g_strsplit(coord_string, "_", 2);
+    if (g_strv_length(coord_components) >= 2) {
+      int64_t tmp_row;
+      if (_openslide_parse_int64(coord_components[0], &tmp_row)) {
+        tile_row = tmp_row;
+      }
+
+      g_auto(GStrv) col_components = g_strsplit(coord_components[1], ".", 2);
+      if (g_strv_length(col_components) >= 1) {
+        int64_t tmp_col;
+        if (_openslide_parse_int64(col_components[0], &tmp_col)) {
+          tile_col = tmp_col;
+        }
+      }
+    }
+  }
+
+  g_free (tiledatafilename);
+
+  struct level *l = levels[zoom_level];
+  int64_t tile_w = l->base.tile_w;
+  int64_t tile_h = l->base.tile_h;
+
+  // position in this level
+  int32_t pos_x = tile_w * tile_col;
+  int32_t pos_y = tile_h * tile_row;
+
+  // populate the image structure
+  g_autoptr(image) image = g_new0(struct image, 1);
+  g_object_ref(input);
+  image->input = input;
+  image->uncompressed_size = input->size;
+  image->imageno = (*image_number)++;
+  image->refcount = 1;
+  image->width = tile_w;
+  image->height = tile_h;
+
+  // start processing 1 image into 1 tile
+  // increments image refcount
+  insert_tile(l, image,
+              pos_x, pos_y,
+              pos_x / l->base.tile_w,
+              pos_y / l->base.tile_h,
+              tile_w, tile_h,
+              zoom_level);
+
+  return true;
+}
+
+static void ls_R(GsfInput *input,
+                 char const *prefix,
+                 openslide_t *osr,
+                 const char *filename,
+                 GError **err,
+                 bool build_up_tiles,
+                 int zoom_levels,
+                 int32_t *image_number,
+                 struct level **levels) {
+	char const *name = gsf_input_name (input);
+	GsfInfile *infile = GSF_IS_INFILE (input) ? GSF_INFILE (input) : NULL;
+	gboolean is_dir = infile && gsf_infile_num_children (infile) > 0;
+	char *full_name;
+	char *new_prefix;
+	GDateTime *modtime = gsf_input_get_modtime (input);
+	char *modtxt;
+
+	if (prefix) {
+		char *display_name = name ?
+			g_filename_display_name (name)
+			: g_strdup ("?");
+		full_name = g_strconcat (prefix,
+					 display_name,
+					 NULL);
+		new_prefix = g_strconcat (full_name, "/", NULL);
+		g_free (display_name);
+	} else {
+		full_name = g_strdup ("DSI0");
+		new_prefix = g_strdup ("");
+	}
+
+	modtxt = modtime
+		? g_date_time_format (modtime, "%F %H:%M:%S")
+		: g_strdup ("                   ");
+
+  if (strcmp(full_name, MoticDigitalSlideImageFileName) == 0) {
+    if (!build_up_tiles) {
+      // read slide image XML
+      int len = input->size;
+      const void* slide_image_xml = gsf_input_read(input, len, NULL);
+      len = get_length_without_trailing_zeros((const char *) slide_image_xml, len);
+      len -= 4; // remove ending (00 0D 00 0A)
+      char xml_without_inside_zeros[MDSX_XML_LEN];
+      remove_inside_zeros((const char *) slide_image_xml, len, xml_without_inside_zeros);
+      len = len / 2;
+      char xml[MDSX_XML_LEN];
+      replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+      parse_slide_image_xml(osr, xml, err);
+    }
+  } else if (strcmp(full_name, PropertyFileName) == 0) {
+    if (!build_up_tiles) {
+      // read property XML
+      int len = input->size;
+      const void* property_xml = gsf_input_read(input, len, NULL);
+      len = get_length_without_trailing_zeros((const char *) property_xml, len);
+      len -= 4; // remove ending (00 0D 00 0A)
+      int start = find_scan_path_start((const char *) property_xml, len) - 12;
+      int end = find_scan_path_end((const char *) property_xml, len, start) + 4;
+      int scan_path_len = end - start;
+      g_assert(scan_path_len > 0);
+      char xml_without_scan_path[len - scan_path_len + 1];
+      remove_scan_path((const char *) property_xml, len, start, end, xml_without_scan_path);
+      len -= scan_path_len;
+      char xml_without_inside_zeros[MDSX_XML_LEN];
+      remove_inside_zeros((const char *) xml_without_scan_path, len, xml_without_inside_zeros);
+      len = len / 2;
+      char xml[MDSX_XML_LEN];
+      replace_xml_header((const char *)xml_without_inside_zeros, len, xml);
+      parse_property_xml(osr, xml, err);
+    }
+  } else if (strcmp(full_name, LabelFileName) == 0 ||
+             strcmp(full_name, MacroFileName) == 0) {
+    if (!build_up_tiles){
+      const char *associated_image_name = strcmp(full_name, LabelFileName) == 0 ? "label" : "macro";
+
+      // Copy the data instead of using the internal buffer directly
+      uint32_t len = input->size;
+      uint32_t *buf_copy = g_malloc(len);
+      const void *original_buf = gsf_input_read(input, len, NULL);
+      memcpy(buf_copy, original_buf, len);
+      if (!_openslide_jpeg_add_associated_image_2(osr, associated_image_name, filename, buf_copy, len, err)) {
+        g_free(buf_copy);  // Clean up on failure
+        g_prefix_error(err, "Couldn't read associated image: %s", associated_image_name);
+        return;
+      }
+    }
+  } else if (strcmp(full_name, MoticDigitalSlideFileName) != 0 && strcmp(full_name, Root) != 0) {
+    if (build_up_tiles && !is_dir) {
+      if (!process_local_files(input, prefix, zoom_levels, image_number, levels, err))
+        return;
+    }
+  }
+
+	g_free (modtxt);
+
+	if (is_dir) {
+		int i;
+		for (i = 0 ; i < gsf_infile_num_children (infile) ; i++) {
+			GsfInput *child = gsf_infile_child_by_index (infile, i);
+			/* We can get NULL here in case of file corruption.  */
+			if (child) {
+				ls_R (child, new_prefix, osr, filename, err, build_up_tiles, zoom_levels, image_number, levels);
+        g_object_unref (child);
+			}
+		}
+	}
+
+	g_free (full_name);
+	g_free (new_prefix);
+}
+
+static bool motic_mds_open(openslide_t *osr, const char *filename,
+                           struct _openslide_tifflike *tl G_GNUC_UNUSED,
+                           struct _openslide_hash *quickhash1 G_GNUC_UNUSED, GError **err) {
+  g_autoptr(_openslide_file) f = _openslide_fopen(filename, err);
+  if (!f) {
+    return false;
+  }
+
+  GsfInfile *infile = _openslide_gsf_open_archive(filename);
+  if (!infile)
+    return false;
+
+  // read zip archive
+  ls_R(GSF_INPUT(infile), NULL, osr, filename, err, false, 0, 0, 0);
+  // g_object_unref(infile);
+
+  char *bg_str = g_hash_table_lookup(osr->properties, "motic.BackgroundColor");
+  int64_t bg;
+  if (_openslide_parse_int64(bg_str, &bg)) {
+    _openslide_set_background_color_prop(osr,
+                                         (bg >> 16) & 0xFF,
+                                         (bg >> 8) & 0xFF,
+                                         bg & 0xFF);
+  }
+
+  _openslide_duplicate_double_prop(osr, "motic.ScanObjective",
+                                   OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  _openslide_duplicate_double_prop(osr, "motic.Scale",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(osr, "motic.Scale",
+                                   OPENSLIDE_PROPERTY_NAME_MPP_Y);
+
+  // set base dimensions
+  char *width_str = g_hash_table_lookup(osr->properties, "motic.Width");
+  char *height_str = g_hash_table_lookup(osr->properties, "motic.Height");
+  int64_t base_w = 0;
+  int64_t base_h = 0;
+  if (!_openslide_parse_int64(width_str, &base_w)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid width");
+    return false;
+  }
+  if (!_openslide_parse_int64(height_str, &base_h)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid height");
+    return false;
+  }
+
+  char *layer_count_str = g_hash_table_lookup(osr->properties, "motic.LayerCount");
+  int64_t layer_count = 0;
+  if (!_openslide_parse_int64(layer_count_str, &layer_count)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid layer count");
+    return false;
+  }
+  int32_t zoom_levels = layer_count;
+
+  char *cell_width_str = g_hash_table_lookup(osr->properties, "motic.CellWidth");
+  char *cell_height_str = g_hash_table_lookup(osr->properties, "motic.CellHeight");
+  int64_t cell_width = 0;
+  int64_t cell_height = 0;
+  if (!_openslide_parse_int64(cell_width_str, &cell_width)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid cell width");
+    return false;
+  }
+  if (!_openslide_parse_int64(cell_height_str, &cell_height)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid cell height");
+    return false;
+  }
+  g_assert(cell_width == cell_height);
+
+  int32_t tile_size = cell_width;
+
+  // set up level dimensions and such
+  g_autoptr(GPtrArray) level_array =
+    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+  int64_t downsample = 1;
+  for (int i = 0; i < zoom_levels; i++) {
+    // ensure downsample is > 0 and a power of 2
+    if (downsample <= 0 || (downsample & (downsample - 1))) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Invalid downsample %" PRId64, downsample);
+      return false;
+    }
+
+    if (i == 0)
+      downsample = 1;
+    else
+      downsample *= 2;
+
+    struct level *l = g_new0(struct level, 1);
+    g_ptr_array_add(level_array, l);
+
+    l->base.downsample = downsample;
+    l->base.tile_w = (double) tile_size;
+    l->base.tile_h = (double) tile_size;
+
+    l->base.w = base_w / l->base.downsample;
+    if (l->base.w == 0)
+      l->base.w = 1;
+    l->base.h = base_h / l->base.downsample;
+    if (l->base.h == 0)
+      l->base.h = 1;
+
+    char tile_rows_key[] = "motic.Layer0.Rows";
+    tile_rows_key[11] = (char) ('0' + i);
+    char tile_cols_key[] = "motic.Layer0.Cols";
+    tile_cols_key[11] = (char) ('0' + i);
+    char zoom_ratio_key[] = "motic.Layer0.Scale";
+    zoom_ratio_key[11] = (char) ('0' + i);
+    char *tile_rows_str = g_hash_table_lookup(osr->properties, tile_rows_key);
+    char *tile_cols_str = g_hash_table_lookup(osr->properties, tile_cols_key);
+    char *zoom_ratio_str = g_hash_table_lookup(osr->properties, zoom_ratio_key);
+    int64_t tile_rows = 0;
+    int64_t tile_cols = 0;
+    if (!_openslide_parse_int64(tile_rows_str, &tile_rows)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Invalid tile rows");
+      return false;
+    }
+    if (!_openslide_parse_int64(tile_cols_str, &tile_cols)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Invalid tile cols");
+      return false;
+    }
+    double zoom_ratio = _openslide_parse_double(zoom_ratio_str);
+    g_assert(tile_rows >= 1);
+    g_assert(tile_cols >= 1);
+    g_assert(zoom_ratio > 0 && zoom_ratio <= 1);
+    l->tiles_across = tile_cols;
+    l->tiles_down = tile_rows;
+    l->zoom_ratio = zoom_ratio;
+
+    l->grid = _openslide_grid_create_tilemap(osr,
+                                             tile_size,
+                                             tile_size,
+                                             read_tile, tile_free);
+  }
+
+  // build up the tiles
+  int32_t image_number = 0;
+  ls_R(GSF_INPUT(infile), NULL, osr, filename, err, true, zoom_levels, &image_number, (struct level **)level_array->pdata);
+  g_object_unref(infile);
+
+  // build ops data
+  struct motic_ops_data *data = g_new0(struct motic_ops_data, 1);
+  data->filename = g_strdup(filename);
+
+  // store osr data
+  g_assert(osr->data == NULL);
+  g_assert(osr->levels == NULL);
+  osr->level_count = zoom_levels;
+  osr->levels = (struct _openslide_level **)
+    g_ptr_array_free(g_steal_pointer(&level_array), false);
+  osr->data = data;
+  osr->ops = &motic_ops;
+
+  return true;
+}
+
+const struct _openslide_format _openslide_format_motic_mds = {
+  .name = "motic-mds",
+  .vendor = "motic",
+  .detect = motic_mds_detect,
+  .open = motic_mds_open,
 };

@@ -72,6 +72,9 @@ struct associated_image {
   struct _openslide_associated_image base;
   char *filename;
   int64_t offset;
+
+  uint32_t *buf;
+  uint32_t buflen;
 };
 
 
@@ -430,6 +433,13 @@ static bool get_associated_image_data(struct _openslide_associated_image *_img,
   struct associated_image *img = (struct associated_image *) _img;
 
   //g_debug("read JPEG associated image: %s %"PRId64, img->filename, img->offset);
+  if (img->buf) {
+    bool result = _openslide_jpeg_decode_buffer(img->buf,
+                                                img->buflen,
+                                                dest, img->base.w, img->base.h,
+                                                err);
+    return result;
+  }
 
   return _openslide_jpeg_read(img->filename, img->offset, dest,
                               img->base.w, img->base.h, err);
@@ -439,6 +449,8 @@ static void destroy_associated_image(struct _openslide_associated_image *_img) {
   struct associated_image *img = (struct associated_image *) _img;
 
   g_free(img->filename);
+  // if (img->buf)
+  //   g_free(g_steal_pointer(&img->buf));
   g_free(img);
 }
 
@@ -464,6 +476,31 @@ bool _openslide_jpeg_add_associated_image(openslide_t *osr,
   img->base.h = h;
   img->filename = g_strdup(filename);
   img->offset = offset;
+
+  g_hash_table_insert(osr->associated_images, g_strdup(name), img);
+
+  return true;
+}
+
+bool _openslide_jpeg_add_associated_image_2(openslide_t *osr,
+                                            const char *name,
+                                            const char *filename,
+                                            uint32_t *buf,
+                                            uint32_t len,
+                                            GError **err) {
+  int32_t w, h;
+  if (!_openslide_jpeg_decode_buffer_dimensions(buf, len, &w, &h, err)) {
+    g_prefix_error(err, "Can't read %s associated image: ", name);
+    return false;
+  }
+
+  struct associated_image *img = g_new0(struct associated_image, 1);
+  img->base.ops = &jpeg_associated_ops;
+  img->base.w = w;
+  img->base.h = h;
+  img->filename = g_strdup(filename);
+  img->buf = buf;
+  img->buflen = len;
 
   g_hash_table_insert(osr->associated_images, g_strdup(name), img);
 
