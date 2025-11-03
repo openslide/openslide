@@ -88,7 +88,7 @@ jobs:
         mv doc/html ../artifacts/docs/${docroot}
         echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
     - name: Archive docs
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ steps.docs.outputs.doc-base }}
         path: artifacts/docs
@@ -102,7 +102,7 @@ jobs:
         mv builddir/meson-dist/*.tar.xz "artifacts/dist/$dist"
         echo "dist-base=$dist" >> $GITHUB_OUTPUT
     - name: Archive dist
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ steps.dist.outputs.dist-base }}
         path: artifacts/dist
@@ -446,7 +446,7 @@ jobs:
       contents: write
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         pattern: ${{ needs.primary.outputs.dist-base }}
         merge-multiple: true
