@@ -1,7 +1,7 @@
 [tool.black]
 line-length = 79
 skip-string-normalization = true
-target-version = ["py39", "py310", "py311", "py312", "py313"]
+target-version = ["py39", "py310", "py311", "py312", "py313", "py314"]
 
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
 [tool.codespell]
