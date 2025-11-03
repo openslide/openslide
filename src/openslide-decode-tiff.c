@@ -200,7 +200,6 @@ static bool tiff_read_region(TIFF *tiff,
     success = true;
   } else {
     _openslide_tiff_error(err, tiff, "TIFFRGBAImageGet failed");
-    memset(dest, 0, w * h * 4);
   }
 
   // done
