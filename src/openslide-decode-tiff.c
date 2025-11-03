@@ -169,7 +169,7 @@ bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
 static bool tiff_read_region(TIFF *tiff,
                              uint32_t *dest,
                              int64_t x, int64_t y,
-                             int32_t w, int32_t h,
+                             uint32_t w, uint32_t h,
                              GError **err) {
   TIFFRGBAImage img;
   char emsg[1024] = "unknown error";
