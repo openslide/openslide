@@ -143,10 +143,6 @@ jobs:
           - name: CentOS Stream 10
             os: ubuntu-latest
             container: quay.io/centos/centos:stream10
-          - name: Debian 11
-            os: ubuntu-latest
-            container: debian:11
-            ignore-cloexec-leaks: true
           - name: Debian 12
             os: ubuntu-latest
             container: debian:12

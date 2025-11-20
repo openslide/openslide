@@ -8,7 +8,7 @@ project(
     'c_std=gnu99',
     'warning_level=2',
   ],
-  # limited by Debian 11 at 0.56
+  # limited by EL 8 at 0.58
   meson_version : '>=0.54',
 )
 # Shared library version.  Follow SemVer rules.
