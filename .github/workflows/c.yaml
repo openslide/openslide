@@ -288,11 +288,6 @@ jobs:
     - name: Build
       run: |
         args=
-        if [ -n "${{ matrix.ignore-cloexec-leaks }}" ]; then
-            # Some distro versions have leaky libraries
-            echo "Disabling CLOEXEC leak check"
-            args="-D_nonatomic_cloexec=true"
-        fi
         if [ -n "${{ matrix.arch }}" ]; then
             cat > cross.ini << EOF
         [built-in options]
