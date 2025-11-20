@@ -40,7 +40,6 @@ import platform
 import re
 import shlex
 from shutil import copytree, rmtree
-import socket
 import subprocess
 import sys
 import tarfile
@@ -821,11 +820,7 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
                 last_update = now
         if cur != size:
             raise ConnectionInterrupted
-    except (
-        ConnectionInterrupted,
-        requests.exceptions.Timeout,
-        socket.timeout,
-    ):
+    except (ConnectionInterrupted, requests.exceptions.Timeout, TimeoutError):
         print(
             '{:<79}'.format(
                 f'Failure fetching {name} ({cur >> 20}/{size >> 20} MB)'

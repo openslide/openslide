@@ -167,6 +167,7 @@ jobs:
     - name: Install dependencies
       shell: bash
       run: |
+        PYTHON=python3
         case "${{ matrix.os }}" in
         macos-*)
             # https://github.com/actions/setup-python/issues/577
@@ -207,14 +208,15 @@ jobs:
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     dnf install -y epel-release
-                    pyver=39
-                    pydotver=3.9
-                    python=python39
+                    pyver=3.11
+                    PYTHON=python3.11
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release epel-next-release
+                    pyver=3.11
+                    PYTHON=python3.11
                     ;;
                 10)
                     dnf config-manager --set-enabled crb
@@ -226,7 +228,7 @@ jobs:
                 # https://github.com/actions/cache/issues/1169
                 dnf install -y \
                     gcc git-core meson pkg-config \
-                    $python python${pyver}-requests python${pyver}-pyyaml \
+                    python${pyver}-requests python${pyver}-pyyaml \
                     cairo-devel \
                     glib2-devel \
                     libdicom-devel \
@@ -240,10 +242,6 @@ jobs:
                     zlib-devel \
                     xdelta libjpeg-turbo-utils \
                     zstd
-
-                if [ -n "$pydotver" ]; then
-                    alternatives --set python3 "/usr/bin/python${pydotver}"
-                fi
                 ;;
             *debian*|*ubuntu*|"")
                 if [[ "${{ matrix.container }}" =~ debian ]]; then
@@ -283,6 +281,7 @@ jobs:
                 ;;
             esac
         esac
+        echo "PYTHON=${PYTHON}" >> $GITHUB_ENV
     - name: Check out repo
       uses: actions/checkout@v5
     - name: Build
@@ -331,13 +330,13 @@ jobs:
     - name: Unpack tests
       run: |
         cd builddir/test
-        ./driver unfreeze
-        ./driver unpack nonfrozen
+        $PYTHON driver unfreeze
+        $PYTHON driver unpack nonfrozen
     - name: Test
-      run: cd builddir/test && ./driver run
+      run: cd builddir/test && $PYTHON driver run
     - name: Sanitize
       if: matrix.sanitize
-      run: cd builddir/test && ./driver sanitize
+      run: cd builddir/test && $PYTHON driver sanitize
 
   windows-build:
     name: Build (Windows, ${{ matrix.toolchain }})
