@@ -32,7 +32,7 @@ repos:
       - id: pyupgrade
         name: Modernize python code
         exclude: ^misc/
-        args: ["--py39-plus"]
+        args: ["--py310-plus"]
 
   - repo: https://github.com/PyCQA/isort
     rev: 7.0.0
