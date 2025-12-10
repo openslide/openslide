@@ -28,6 +28,7 @@
 #include <glib.h>
 #include "openslide.h"
 #include "openslide-common.h"
+#include "libtest.h"
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -199,7 +200,7 @@ int main(int argc, char **argv) {
   const char *filename = argv[1];
 
   // Record preexisting file descriptors
-  g_autoptr(GHashTable) fds = common_get_open_fds();
+  g_autoptr(GHashTable) fds = libtest_get_open_fds();
 
   g_log_set_handler("OpenSlide", (GLogLevelFlags)
       (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
@@ -245,7 +246,7 @@ int main(int argc, char **argv) {
 
   // Check for file descriptor leaks
   have_error |=
-    !common_check_open_fds(fds, "Leaked file descriptor after close");
+    !libtest_check_open_fds(fds, "Leaked file descriptor after close");
 
   // Do timing run.  The earlier openslide_open() doesn't count because
   // it reads the slide data into the page cache.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!@PYTHON@
 #
 # OpenSlide, a library for reading whole slide image files
 #
@@ -62,6 +62,7 @@ from typing import (
 from urllib.parse import urljoin
 from zipfile import ZipFile
 
+import boto3
 import requests
 import yaml
 
@@ -72,6 +73,11 @@ TESTDATA_URL = os.getenv(
 DEFAULT_FROZEN_BUCKET = 'openslide-frozen-testdata'
 SRCDIR = Path(r'@SRCDIR@')
 BUILDDIR = Path(r'@BUILDDIR@')
+CJPEG = Path(r'@CJPEG@')
+DJPEG = Path(r'@DJPEG@')
+XDELTA3 = Path(r'@XDELTA3@')
+CLANG = Path(r'@CLANG@') if r'@CLANG@' else None
+GCOV = Path(r'@GCOV@') if r'@GCOV@' else None
 CLANG_LSAN_SUPPRESSIONS = SRCDIR / 'clang-lsan.supp'
 VALGRIND_SUPPRESSIONS = SRCDIR / 'valgrind.supp'
 VALGRIND_SUPPRESSIONS_GLIB = Path(
@@ -505,7 +511,7 @@ class TestCase:
                 if not filecmp.cmp(origpath, newpath, shallow=False):
                     subprocess.check_call(
                         [
-                            'xdelta3',
+                            XDELTA3,
                             'encode',
                             '-9',
                             '-W',
@@ -578,7 +584,13 @@ class TestCase:
             for i, cmd in enumerate(cmds):
                 proc = subprocess.Popen(
                     [
-                        a % {'in': inpath, 'out': outpath}
+                        a
+                        % {
+                            'cjpeg': CJPEG,
+                            'djpeg': DJPEG,
+                            'in': inpath,
+                            'out': outpath,
+                        }
                         for a in shlex.split(cmd)
                     ],
                     stdin=fin[i],
@@ -612,7 +624,7 @@ class TestCase:
             # we're trying to avoid copying huge runs of unchanged data.
             blksize = 1 << 20
             proc = subprocess.Popen(
-                ['xdelta3', 'decode', '-cs', inpath, deltapath],
+                [XDELTA3, 'decode', '-cs', inpath, deltapath],
                 stdout=subprocess.PIPE,
                 bufsize=bufsize,
             )
@@ -631,7 +643,7 @@ class TestCase:
                 raise OSError(f'xdelta failed with status {proc.returncode}')
         else:
             subprocess.check_call(
-                ['xdelta3', 'decode', '-s', inpath, deltapath, outpath]
+                [XDELTA3, 'decode', '-s', inpath, deltapath, outpath]
             )
 
     @classmethod
@@ -725,8 +737,6 @@ class TestCase:
 
 class S3Uploader:
     def __init__(self, bucket: str):
-        import boto3
-
         self._s3 = boto3.client('s3')
         self._bucket = bucket
         region = (
@@ -873,7 +883,7 @@ def _fusefs_init(shadowdir: Path) -> None:
     # the distro's error reporting, so reset the excepthook to default.
     sys.excepthook = sys.__excepthook__
 
-    import pyfuse3
+    import pyfuse3  # not installed in virtualenv
     from pyfuse3 import FileHandleT, FileNameT, FUSEError, InodeT
 
     # A Unix file descriptor
@@ -1133,7 +1143,7 @@ def _fusefs_init(shadowdir: Path) -> None:
 
 def _fusefs_run() -> None:
     '''Run an initialized FUSE filesystem.'''
-    import pyfuse3
+    import pyfuse3  # not installed in virtualenv
     import trio
 
     try:
@@ -1361,7 +1371,9 @@ def _rebuild(
     if env:
         setup_env.update(env)
     subprocess.run(
-        ['meson', 'setup', tempdir] + setup_args, check=True, env=setup_env
+        ['meson', 'setup', tempdir, '-Dtest=enabled'] + setup_args,
+        check=True,
+        env=setup_env,
     )
     os.chdir(tempdir)
     subprocess.run(['ninja'], check=True)
@@ -1378,6 +1390,8 @@ def _rebuild(
 @_command
 def coverage(outfile: str) -> None:
     '''Unpack and run all tests and write coverage report to outfile.'''
+    if GCOV is None:
+        raise Exception('gcov was not found during setup')
     with _rebuild(['-D_gcov=true']) as basedir:
         # Run tests
         # Avoid races when writing coverage data
@@ -1390,7 +1404,7 @@ def coverage(outfile: str) -> None:
                 for name in fnmatch.filter(sorted(filenames), '*.gcda')
             ]
             if paths:
-                args: list[str | Path] = ['gcov', '-o', dirpath]
+                args: list[str | Path] = [GCOV, '-o', dirpath]
                 args.extend(paths)
                 subprocess.check_call(args)
 
@@ -1432,7 +1446,9 @@ def sanitize(pattern: str = '*') -> None:
     '''Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
     comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
-    with _rebuild(['-D_sanitize=true'], env={'CC': 'clang'}):
+    if CLANG is None:
+        raise Exception('clang was not found during setup')
+    with _rebuild(['-D_sanitize=true'], env={'CC': CLANG.as_posix()}):
         xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
         xfail = xfail_env.split(',') if xfail_env else []
         if _run_all(pattern, xfail=xfail, progdir=Path('test')):
