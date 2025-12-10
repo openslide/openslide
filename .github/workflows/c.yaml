@@ -347,10 +347,8 @@ jobs:
         include:
           - toolchain: clang-cl
             cc: clang-cl
-            windres: llvm-rc
           - toolchain: MinGW
             cc: gcc
-            windres: windres
     defaults:
       run:
         shell: bash
@@ -374,7 +372,6 @@ jobs:
       - name: Build
         env:
           CC: ${{ matrix.cc }}
-          WINDRES: ${{ matrix.windres }}
         run: |
           if ! meson setup builddir --fatal-meson-warnings --werror; then
               cat builddir/meson-logs/meson-log.txt
