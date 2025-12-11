@@ -242,7 +242,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
       return false;
     }
 
-    // set color space from TIFF photometric tag (for Aperio)
+    // set color space from TIFF photometric tag (for Aperio & Huron)
     cinfo->jpeg_color_space = space;
 
     // decompress
