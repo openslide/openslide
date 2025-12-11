@@ -46,6 +46,7 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_dicom,
   &_openslide_format_hamamatsu_vms_vmu,
   &_openslide_format_hamamatsu_ndpi,
+  &_openslide_format_kfbio,
   &_openslide_format_sakura,
   &_openslide_format_trestle,
   &_openslide_format_aperio,
