@@ -1006,7 +1006,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                     shadowpath.symlink_to(target)
             except OSError as exc:
                 raise FUSEError(exc.errno or errno.EIO)
-            return cast(FileNameT, os.fsencode(target))
+            return os.fsencode(target)
 
         async def opendir(
             self, inode: InodeT, ctx: pyfuse3.RequestContext
@@ -1042,7 +1042,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 if ino <= off:
                     continue
                 if not pyfuse3.readdir_reply(
-                    token, cast(FileNameT, os.fsencode(name)), attr, ino
+                    token, os.fsencode(name), attr, ino
                 ):
                     break
                 self._add_paths(attr.st_ino, relpath, backingpath)
