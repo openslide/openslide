@@ -23,7 +23,7 @@ env:
 jobs:
   update:
     name: Update
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Check out repo
         uses: actions/checkout@v5

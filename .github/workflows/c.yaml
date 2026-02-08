@@ -16,7 +16,7 @@ env:
 jobs:
   pre-commit:
     name: Rerun pre-commit checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Check out repo
         uses: actions/checkout@v5
@@ -416,7 +416,7 @@ jobs:
     name: Release
     if: github.ref_type == 'tag'
     needs: [primary, build, windows-build, bin-build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     concurrency: release-${{ github.ref }}
     permissions:
       contents: write
