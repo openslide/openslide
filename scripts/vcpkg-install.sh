@@ -29,7 +29,7 @@ vcpkg install \
     cairo \
     glib \
     libdicom \
-    libjpeg-turbo \
+    libjpeg-turbo[tools] \
     libpng \
     libxml2 \
     openjpeg \
@@ -43,5 +43,5 @@ if [ -n "${GITHUB_ENV}" ]; then
     origpath="$(echo $PATH | sed -e 's|:|;|g' -e 's|/c/|C:\\|g' -e 's|/|\\|g')"
     echo "PKG_CONFIG=${pfx}\\tools\\pkgconf\\pkgconf.exe" >> $GITHUB_ENV
     echo "PKG_CONFIG_PATH=${pfx}\\lib\\pkgconfig;${pfx}\\share\\pkgconfig;${PKG_CONFIG_PATH}" >> $GITHUB_ENV
-    echo "PATH=${pfx}\\bin;${pfx}\\tools\\glib;${origpath}" >> $GITHUB_ENV
+    echo "PATH=${pfx}\\bin;${pfx}\\tools\\glib;${pfx}\\tools\\libjpeg-turbo;${origpath}" >> $GITHUB_ENV
 fi

@@ -8,8 +8,8 @@ project(
     'c_std=gnu99',
     'warning_level=2',
   ],
-  # limited by Debian 11 at 0.56
-  meson_version : '>=0.54',
+  # limited by EL 8 at 0.58
+  meson_version : '>=0.55',
 )
 # Shared library version.  Follow SemVer rules.
 soversion = '1.0.0'
@@ -116,11 +116,6 @@ else
   conf.set_quoted('FOPEN_CLOEXEC_FLAG', '')
   conf.set('NONATOMIC_CLOEXEC', 1)
 endif
-if get_option('_nonatomic_cloexec')
-  # CI sets this on Linux distros with libraries that don't correctly set
-  # CLOEXEC.  Disable CLOEXEC leak check.
-  conf.set('NONATOMIC_CLOEXEC', 1)
-endif
 
 # Math library, host and build
 foreach i : [[cc, 'libm_dep'], [cc_native, 'libm_native_dep']]
@@ -175,18 +170,7 @@ dicom_dep = dependency(
   'libdicom',
   # avoid 'check' dependency
   default_options : ['tests=false'],
-  fallback : ['libdicom', 'libdicom_dep'],
   version : '>=1.2.0',
-)
-valgrind_dep = dependency(
-  'valgrind',
-  required : false,
-)
-
-doxygen = find_program(
-  'doxygen',
-  required : get_option('doc'),
-  disabler : true,
 )
 
 # Dependency checks
@@ -205,9 +189,6 @@ if tiff_dep.type_name() == 'internal' or cc.has_function(
   # libtiff
   conf.set('HAVE_TIFF_LOG_CALLBACKS', 1)
   feature_flags += 'tiff-log-callbacks'
-endif
-if valgrind_dep.found()
-  conf.set('HAVE_VALGRIND', 1)
 endif
 
 if glib_dep.type_name() != 'internal'
@@ -278,20 +259,21 @@ if get_option('_sanitize')
   )
 endif
 
+# Subdirs
+config_h_include = include_directories('.')
+subdir('src')
+subdir('common')
+subdir('tools')
+# .allowed() in Meson >= 0.59
+if not get_option('test').disabled()
+  subdir('test')
+endif
+if not get_option('doc').disabled()
+  subdir('doc')
+endif
+
 # config.h
 configure_file(
   output : 'config.h',
   configuration : conf,
 )
-config_h_include = include_directories('.')
-
-# Subdirs
-subdir('src')
-subdir('common')
-subdir('tools')
-if not get_option('test').disabled()
-  subdir('test')
-endif
-if doxygen.found()
-  subdir('doc')
-endif

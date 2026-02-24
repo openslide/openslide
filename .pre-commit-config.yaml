@@ -27,22 +27,22 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
         name: Modernize python code
         exclude: ^misc/
-        args: ["--py39-plus"]
+        args: ["--py310-plus"]
 
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
+    rev: 7.0.0
     hooks:
       - id: isort
         name: Reorder python imports with isort
         exclude: ^misc/
 
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 25.12.0
     hooks:
       - id: black
         name: Format python code with black
@@ -64,13 +64,13 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+    rev: v1.19.0
     hooks:
       - id: mypy
         name: Check Python types
         additional_dependencies:
           - boto3-stubs[s3]
-          - pyfuse3
+          - pyfuse3 >= 3.4.2
           - types-PyYAML
           - types-requests
         exclude: ^misc/
@@ -95,7 +95,7 @@ repos:
         entry: meson format --configuration meson.format --inplace
         types: [meson]
         language: python
-        additional_dependencies: [meson==1.5.2]
+        additional_dependencies: [meson==1.10.0]
 
       - id: mkmaintainer
         name: Sync maintainer issue templates

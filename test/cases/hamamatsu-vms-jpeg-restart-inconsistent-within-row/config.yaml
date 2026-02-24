@@ -2,7 +2,7 @@ base: Hamamatsu-vms/CMU-1.zip
 error: "^Can't validate JPEG 4: Inconsistent restart marker spacing within row$"
 generate:
     ? "CMU-1-40x - 2010-01-12 13.24.05_map2.jpg"
-    : "djpeg %(in)s | cjpeg -outfile %(out)s -sample 1x1 -restart 1024B"
+    : "%(djpeg)s %(in)s | %(cjpeg)s -outfile %(out)s -sample 1x1 -restart 1024B"
 slide: CMU-1-40x - 2010-01-12 13.24.05.vms
 success: false
 vendor: hamamatsu

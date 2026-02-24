@@ -33,6 +33,7 @@
 #include <glib.h>
 #include <openslide.h>
 #include "openslide-common.h"
+#include "libtest.h"
 #include "config.h"
 
 // SHA-256 of no bytes
@@ -117,7 +118,7 @@ static gpointer cloexec_thread(const gpointer prog) {
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
   // ensure any inherited FDs are not leaked to the child
-  for (int i = 3; i < COMMON_MAX_FD; i++) {
+  for (int i = 3; i < LIBTEST_MAX_FD; i++) {
     int flags = fcntl(i, F_GETFD);
     if (flags != -1) {
       fcntl(i, F_SETFD, flags | FD_CLOEXEC);
@@ -226,11 +227,11 @@ int main(int argc, char **argv) {
   const char *path = argv[1];
 
   if (g_str_equal(path, "--leak-check--")) {
-    common_check_open_fds(NULL, "Leaked file descriptor to exec child");
+    libtest_check_open_fds(NULL, "Leaked file descriptor to exec child");
     return 0;
   }
 
-  g_autoptr(GHashTable) fds = common_get_open_fds();
+  g_autoptr(GHashTable) fds = libtest_get_open_fds();
 
   openslide_get_version();
 
@@ -240,7 +241,7 @@ int main(int argc, char **argv) {
 
   openslide_t *osr = openslide_open(path);
   common_fail_on_error(osr, "Couldn't open %s", path);
-  common_check_open_fds(fds, "Open file descriptor after openslide_open()");
+  libtest_check_open_fds(fds, "Open file descriptor after openslide_open()");
   openslide_close(osr);
 
   osr = openslide_open(path);
@@ -318,7 +319,7 @@ int main(int argc, char **argv) {
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
   }
 
-  common_check_open_fds(fds, "Open file descriptor after reading pixel data");
+  libtest_check_open_fds(fds, "Open file descriptor after reading pixel data");
 
   openslide_close(osr);
 

@@ -22,27 +22,11 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdio.h>
 #include <glib.h>
-#include <openslide.h>
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
+// fd
 
-// cmdline
+#define LIBTEST_MAX_FD 128
 
-void common_fix_argv(int *argc, char ***argv);
-
-bool common_parse_options(GOptionContext *ctx,
-                          int *argc, char ***argv,
-                          GError **err);
-
-// fail
-
-void common_warn(const char *fmt, ...);
-void common_fail(const char *fmt, ...) G_GNUC_NORETURN;
-bool common_warn_on_error(openslide_t *osr, const char *fmt, ...);
-void common_fail_on_error(openslide_t *osr, const char *fmt, ...);
-
-// file
-
-FILE *common_fopen(const char *path, const char *mode, GError **err);
+GHashTable *libtest_get_open_fds(void);
+bool libtest_check_open_fds(GHashTable *ignore, const char *msg);

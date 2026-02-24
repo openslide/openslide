@@ -1,3 +1,11 @@
+doxygen = find_program(
+  'doxygen',
+  required : get_option('doc'),
+)
+if not doxygen.found()
+  subdir_done()
+endif
+
 doxyfile = configure_file(
   input : 'Doxyfile.in',
   output : 'Doxyfile',
