@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-slim
     steps:
       - name: Check out repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -30,7 +30,7 @@ jobs:
           sudo apt-get -y install libfuse3-dev
           python -m pip install pre-commit
       - name: Cache pre-commit environments
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           key: pre-commit|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
           path: ~/.cache/pre-commit
@@ -63,7 +63,7 @@ jobs:
             clang doxygen llvm dnf-plugins-core
         dnf debuginfo-install -y cairo fontconfig glib2
     - name: Check out repo
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Build
       run: |
         if ! meson setup builddir --fatal-meson-warnings --werror \
@@ -106,7 +106,7 @@ jobs:
         path: artifacts/dist
         compression-level: 0
     - name: Cache pristine slides
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
@@ -269,7 +269,7 @@ jobs:
             esac
         esac
     - name: Check out repo
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Build
       run: |
         args="-Dtest=enabled"
@@ -307,7 +307,7 @@ jobs:
         trap "cat builddir/meson-logs/testlog.txt" EXIT
         meson test -C builddir openslide:
     - name: Cache pristine slides
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
@@ -344,7 +344,7 @@ jobs:
       packages: write
     steps:
       - name: Check out repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install Python
         uses: actions/setup-python@v6
         with:
