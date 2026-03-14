@@ -40,6 +40,7 @@ foreach target : tools_binaries
     install_tag : 'bin',
   )
   set_variable(target.underscorify(), exe)
+  meson.override_find_program(target, exe)
 endforeach
 
 mans = [
