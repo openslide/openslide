@@ -269,7 +269,7 @@ class UnpackedSlide:
             G_MESSAGES_DEBUG='',
             OPENSLIDE_DEBUG=','.join(debug or []),
             GIO_USE_VFS='local',
-            LSAN_OPTIONS=f'suppressions={CLANG_LSAN_SUPPRESSIONS},print_suppressions=0',  # noqa: E501
+            LSAN_OPTIONS=f'suppressions={CLANG_LSAN_SUPPRESSIONS},print_suppressions=0',
             UBSAN_OPTIONS='print_stacktrace=1',
         )
         if extra_checks:
@@ -897,14 +897,12 @@ def _fusefs_init(shadowdir: Path) -> None:
         def __init__(self) -> None:
             super().__init__()
             # inode -> (relative path within FUSE FS, backing path on disk)
-            self._inode_path_map = {
-                pyfuse3.ROOT_INODE: (PurePath('.'), WORKROOT)
-            }
+            self._inode_path_map = {pyfuse3.ROOT_INODE: (PurePath(), WORKROOT)}
             self._lookup_cnt: dict[InodeT, int] = defaultdict(int)
-            self._fd_inode_map: dict[FileDescriptorT, InodeT] = dict()
-            self._inode_fd_map: dict[InodeT, FileDescriptorT] = dict()
-            self._fd_shadow_map: dict[FileDescriptorT, BinaryIO] = dict()
-            self._fd_open_count: dict[FileDescriptorT, int] = dict()
+            self._fd_inode_map: dict[FileDescriptorT, InodeT] = {}
+            self._inode_fd_map: dict[InodeT, FileDescriptorT] = {}
+            self._fd_shadow_map: dict[FileDescriptorT, BinaryIO] = {}
+            self._fd_open_count: dict[FileDescriptorT, int] = {}
 
         def _inode_to_paths(self, inode: InodeT) -> tuple[PurePath, Path]:
             try:
@@ -1375,7 +1373,7 @@ def _rebuild(
     if env:
         setup_env.update(env)
     subprocess.run(
-        ['meson', 'setup', tempdir, '-Dtest=enabled'] + setup_args,
+        ['meson', 'setup', tempdir, '-Dtest=enabled', *setup_args],
         check=True,
         env=setup_env,
     )
@@ -1651,8 +1649,8 @@ def _main() -> None:
             fh.writelines(
                 [
                     'Signature: 8a477f597d28d172789f06886806bc55\n',
-                    "# This file is a cache directory tag created by OpenSlide's test suite.\n",  # noqa: E501
-                    '# For information about cache directory tags, see https://bford.info/cachedir/\n',  # noqa: E501
+                    "# This file is a cache directory tag created by OpenSlide's test suite.\n",
+                    '# For information about cache directory tags, see https://bford.info/cachedir/\n',
                 ]
             )
     f(*sys.argv[2:])

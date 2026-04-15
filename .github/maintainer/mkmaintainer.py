@@ -21,5 +21,5 @@ with open(dir / 'README.md', 'w') as fh:
                 'labels': ','.join(info.get('labels', [])),
             }
         )
-        url = f"https://github.com/{info['repo']}/issues/new?{args}"
-        fh.write(f"- [{info['link-text']}]({url})\n")
+        url = f'https://github.com/{info["repo"]}/issues/new?{args}'
+        fh.write(f'- [{info["link-text"]}]({url})\n')
