@@ -130,7 +130,7 @@ class Command(Protocol):
 # There doesn't seem to be a way to tell mypy that a function taking k
 # strings satisfies a variadic function taking strings, so we type f as Any.
 def _command(f: Any) -> Command:
-    '''Decorator to mark the function as a user command.'''
+    """Decorator to mark the function as a user command."""
     ff = cast(Command, f)
     _commands.append(f.__name__)
     _command_funcs[f.__name__] = ff
@@ -138,7 +138,7 @@ def _command(f: Any) -> Command:
 
 
 def _color(color: str, str: str) -> str:
-    '''Return str, wrapped in the specified ANSI color escape sequence.'''
+    """Return str, wrapped in the specified ANSI color escape sequence."""
     return color + str + RESET
 
 
@@ -154,8 +154,8 @@ def _cpu_count() -> int:
 
 
 class BaseSlide:
-    '''A pristine slide from openslide-testdata, not necessarily present
-    in the filesystem.'''
+    """A pristine slide from openslide-testdata, not necessarily present
+    in the filesystem."""
 
     def __init__(self, relpath: PurePath):
         digests = self._get_digests()
@@ -171,8 +171,8 @@ class BaseSlide:
     @staticmethod
     @lru_cache
     def _get_digests() -> dict[PurePath, str]:
-        '''Return map of relative paths of all base slides and their
-        digests.'''
+        """Return map of relative paths of all base slides and their
+        digests."""
         with SLIDELIST.open() as fh:
             return {PurePath(k): v for k, v in yaml.safe_load(fh).items()}
 
@@ -180,7 +180,7 @@ class BaseSlide:
         return self.relpath.as_posix()
 
     def fetch(self) -> None:
-        '''Download and unpack the slide if we don't already have it.'''
+        """Download and unpack the slide if we don't already have it."""
 
         if self.path.exists():
             return
@@ -221,7 +221,7 @@ class BaseSlide:
 
     @cached_property
     def files(self) -> list[PurePath]:
-        '''Relative paths of files within the slide.'''
+        """Relative paths of files within the slide."""
 
         def walk(basedir: Path) -> list[PurePath]:
             files: list[PurePath] = []
@@ -238,7 +238,7 @@ class BaseSlide:
 
 
 class UnpackedSlide:
-    '''A slide unpacked into a directory so that programs can be run on it.'''
+    """A slide unpacked into a directory so that programs can be run on it."""
 
     def __init__(self, path: Path | None):
         # path of the actual slide file to open
@@ -255,12 +255,12 @@ class UnpackedSlide:
         args: Iterable[str] | None = None,
         **kwargs: Any,
     ) -> subprocess.Popen[str]:
-        '''Start the specified test program from the progdir directory
+        """Start the specified test program from the progdir directory
         against the slide, running under Valgrind if requested.  If
         extra_checks is False, turn off debug instrumentation that would
         invalidate benchmark results.  debug options are passed in
         OPENSLIDE_DEBUG.  args are appended to the command line.  kwargs are
-        passed to the Popen constructor.  Return the Popen instance.'''
+        passed to the Popen constructor.  Return the Popen instance."""
 
         if progdir is None:
             progdir = BUILDDIR
@@ -309,13 +309,13 @@ class UnpackedSlide:
         properties: dict[str, str] | None = None,
         regions: Iterable[Iterable[int]] | None = None,
     ) -> str | None:
-        '''Try opening the slide file, under Valgrind if specified, using
+        """Try opening the slide file, under Valgrind if specified, using
         the test program in the progdir directory.  Return None on success,
         error message on failure.  vendor is the vendor string that should
         be returned by openslide_detect_vendor(), None for NULL, or Skip to
         omit the test.  properties is a map of slide properties and their
         expected values.  regions is a list of region tuples (x, y, level,
-        w, h).  debug is a list of OPENSLIDE_DEBUG options.'''
+        w, h).  debug is a list of OPENSLIDE_DEBUG options."""
 
         args = []
         if vendor is not Skip:
@@ -350,9 +350,9 @@ class UnpackedSlide:
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
     ) -> str | None:
-        '''Run the extended test program against the slide file, under
+        """Run the extended test program against the slide file, under
         Valgrind if specified, using the test program in the progdir
-        directory.  Return None on success, error message on failure.'''
+        directory.  Return None on success, error message on failure."""
 
         proc = self.run_prog(
             'extended',
@@ -372,7 +372,7 @@ class UnpackedSlide:
 
 
 class TestCaseConfig:
-    '''The configuration file for a test case.'''
+    """The configuration file for a test case."""
 
     def __init__(self, testname: str):
         self.testname = testname
@@ -418,8 +418,8 @@ class TestCaseConfig:
 
     @property
     def features_available(self) -> bool:
-        '''True if the features required by the test are available in this
-        build.'''
+        """True if the features required by the test are available in this
+        build."""
         return self.required_features.issubset(FEATURES)
 
     @staticmethod
@@ -466,7 +466,7 @@ class TestCase:
     @classmethod
     @lru_cache
     def list(cls, pattern: str = '*') -> list[TestCase]:
-        '''Return a list of tests matching the specified pattern.'''
+        """Return a list of tests matching the specified pattern."""
         return [
             cls(path.name)
             for path in sorted(CASEROOT.iterdir())
@@ -476,7 +476,7 @@ class TestCase:
 
     @staticmethod
     def create(base_slide: BaseSlide, name: str) -> None:
-        '''Create a new test case with the specified base slide and name.'''
+        """Create a new test case with the specified base slide and name."""
 
         testpath = CASEROOT / name
         if testpath.exists():
@@ -491,7 +491,7 @@ class TestCase:
 
     @staticmethod
     def pack(name: str) -> None:
-        '''Pack a newly-created test case for checkin.'''
+        """Pack a newly-created test case for checkin."""
 
         conf = TestCaseConfig(name)
         print(f'Packing {name}...')
@@ -537,7 +537,7 @@ class TestCase:
             print(f'Delta: {total_size} bytes')
 
     def unpack(self) -> None:
-        '''Unpack the test case.'''
+        """Unpack the test case."""
 
         conf = self.conf
         conf.base_slide.fetch()
@@ -567,7 +567,7 @@ class TestCase:
 
     @staticmethod
     def _run_generator(command_str: str, inpath: Path, outpath: Path) -> None:
-        '''Run the specified generator pipeline.'''
+        """Run the specified generator pipeline."""
 
         cmds = command_str.split('|')
         procs = []
@@ -614,7 +614,7 @@ class TestCase:
     def _decode_xdelta(
         cls, inpath: Path, deltapath: Path, outpath: Path
     ) -> None:
-        '''Apply an xdelta based on inpath and write it to outpath.'''
+        """Apply an xdelta based on inpath and write it to outpath."""
         # If possible, reflink inpath to outpath and write only the changed
         # blocks, saving a lot of disk space.
         if cls._try_reflink(inpath, outpath):
@@ -648,8 +648,8 @@ class TestCase:
 
     @classmethod
     def _try_reflink(cls, inpath: Path, outpath: Path) -> bool:
-        '''Try to make a zero-copy clone of the file inpath at outpath.
-        Return True if successful.'''
+        """Try to make a zero-copy clone of the file inpath at outpath.
+        Return True if successful."""
         # Python can't do this natively yet, and we don't want to require an
         # external module
         # https://github.com/python/cpython/issues/81338
@@ -686,10 +686,10 @@ class TestCase:
         progdir: Path | None = None,
         workdir: Path = WORKROOT,
     ) -> tuple[bool, str]:
-        '''Run the test, under Valgrind if specified.  Also execute extended
+        """Run the test, under Valgrind if specified.  Also execute extended
         tests against cases which 1) are marked primary, 2) are expected to
         succeed, and 3) do in fact succeed.  If xfail is specified, invert
-        the sense of the result.'''
+        the sense of the result."""
 
         conf = self.conf
         if not conf.features_available:
@@ -748,7 +748,7 @@ class S3Uploader:
         )
 
     def url(self, key: PurePath) -> str:
-        '''Return public URL for key.'''
+        """Return public URL for key."""
         return self._baseurl + key.as_posix()
 
     def exists(self, key: PurePath) -> bool:
@@ -767,7 +767,7 @@ class S3Uploader:
         fh: BinaryIO,
         content_type: str = 'application/octet-stream',
     ) -> None:
-        '''Upload content to the specified S3 bucket and key.'''
+        """Upload content to the specified S3 bucket and key."""
         # Set up progress reporting
         length = fh.seek(0, os.SEEK_END)
         last_update = 0.0
@@ -800,9 +800,9 @@ class S3Uploader:
 
 
 def _download(url: str, name: str, fh: BinaryIO) -> str:
-    '''Download the specified URL, write to the specified file handle, and
+    """Download the specified URL, write to the specified file handle, and
     return the SHA-256 of the data.  Raise ConnectionInterrupted on timeout
-    or short read.'''
+    or short read."""
 
     print(f'Fetching {name}...\r', end='')
     sys.stdout.flush()
@@ -844,23 +844,23 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
 
 @_command
 def create(slide: str, testname: str) -> None:
-    '''Create a new test case with the specified name and base slide (e.g.
-    "Mirax/CMU-1.zip").'''
+    """Create a new test case with the specified name and base slide (e.g.
+    "Mirax/CMU-1.zip")."""
 
     TestCase.create(BaseSlide(PurePath(slide)), testname)
 
 
 @_command
 def pack(testname: str) -> None:
-    '''Pack a newly-created test case for checkin.'''
+    """Pack a newly-created test case for checkin."""
 
     TestCase.pack(testname)
 
 
 @_command
 def unpack(pattern: str = '*') -> None:
-    '''Unpack all tests matching the specified pattern.  If pattern is
-    `nonfrozen`, unpack tests for which we don't have a frozen counterpart.'''
+    """Unpack all tests matching the specified pattern.  If pattern is
+    `nonfrozen`, unpack tests for which we don't have a frozen counterpart."""
     conditional = False
     if pattern == 'nonfrozen':
         pattern = '*'
@@ -877,7 +877,7 @@ def unpack(pattern: str = '*') -> None:
 # _fusefs_init() and _fusefs_run() are based on pyfuse3's
 # examples/passthroughfs.py, copyright © Nikolaus Rath <Nikolaus.org>
 def _fusefs_init(shadowdir: Path) -> None:
-    '''Prepare a FUSE filesystem to run, and mount it.'''
+    """Prepare a FUSE filesystem to run, and mount it."""
     # trio, imported by pyfuse3, tries to override sys.excepthook and
     # complains if the distro already put something there.  We don't need
     # the distro's error reporting, so reset the excepthook to default.
@@ -1142,7 +1142,7 @@ def _fusefs_init(shadowdir: Path) -> None:
 
 
 def _fusefs_run() -> None:
-    '''Run an initialized FUSE filesystem.'''
+    """Run an initialized FUSE filesystem."""
     import pyfuse3  # not installed in virtualenv
     import trio
 
@@ -1156,8 +1156,8 @@ def _fusefs_run() -> None:
 
 @_command
 def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
-    '''Create a frozen testdata archive for transport to another system,
-    upload it to an S3 bucket, and record its URL in the source tree.'''
+    """Create a frozen testdata archive for transport to another system,
+    upload it to an S3 bucket, and record its URL in the source tree."""
     for test in TestCase.list():
         test.unpack()
     _fetch_for_mosaic()
@@ -1247,7 +1247,7 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
 
 @_command
 def unfreeze() -> None:
-    '''Download and unpack the current frozen archive.'''
+    """Download and unpack the current frozen archive."""
     with FROZENLIST.open() as fh:
         manifest = yaml.safe_load(fh)
         sha256 = manifest['sha256']
@@ -1297,9 +1297,9 @@ def _run_all(
     progdir: Path | None = None,
     parallel: bool = True,
 ) -> int:
-    '''Run all tests matching the specified pattern, under Valgrind if
+    """Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
-    Return the number of tests producing unexpected results.'''
+    Return the number of tests producing unexpected results."""
     tests = TestCase.list(pattern)
     for test in tests:
         if not (FROZEN / test.name).exists():
@@ -1345,9 +1345,9 @@ def _run_all(
 
 @_command
 def run(pattern: str = '*') -> None:
-    '''Unpack and run all tests matching the specified pattern.  Ignore
+    """Unpack and run all tests matching the specified pattern.  Ignore
     failures of test cases listed in the comma-separated
-    OPENSLIDE_TEST_XFAIL environment variable.'''
+    OPENSLIDE_TEST_XFAIL environment variable."""
     xfail_env = os.environ.get('OPENSLIDE_TEST_XFAIL')
     xfail = xfail_env.split(',') if xfail_env else []
     if _run_all(pattern, xfail=xfail):
@@ -1358,8 +1358,8 @@ def run(pattern: str = '*') -> None:
 def _rebuild(
     setup_args: list[str], env: dict[str, str] | None = None
 ) -> Iterator[Path]:
-    '''Context manager: rebuild the source with the specified setup
-    arguments and environment, and yield to the caller to do profiling.'''
+    """Context manager: rebuild the source with the specified setup
+    arguments and environment, and yield to the caller to do profiling."""
 
     top_srcdir = SRCDIR.parent
     prevdir = Path.cwd()
@@ -1389,7 +1389,7 @@ def _rebuild(
 
 @_command
 def coverage(outfile: str) -> None:
-    '''Unpack and run all tests and write coverage report to outfile.'''
+    """Unpack and run all tests and write coverage report to outfile."""
     if GCOV is None:
         raise Exception('gcov was not found during setup')
     with _rebuild(['-D_gcov=true']) as basedir:
@@ -1432,9 +1432,9 @@ def coverage(outfile: str) -> None:
 
 @_command
 def valgrind(pattern: str = '*') -> None:
-    '''Unpack and Valgrind all tests matching the specified pattern.
+    """Unpack and Valgrind all tests matching the specified pattern.
     Ignore failures of test cases listed in the OPENSLIDE_VALGRIND_XFAIL
-    environment variable.'''
+    environment variable."""
     xfail_env = os.environ.get('OPENSLIDE_VALGRIND_XFAIL')
     xfail = xfail_env.split(',') if xfail_env else []
     if _run_all(pattern, valgrind=True, xfail=xfail):
@@ -1443,9 +1443,9 @@ def valgrind(pattern: str = '*') -> None:
 
 @_command
 def sanitize(pattern: str = '*') -> None:
-    '''Unpack and run all tests matching the specified pattern with
+    """Unpack and run all tests matching the specified pattern with
     clang sanitizers.  Ignore failures of test cases listed in the
-    comma-separated OPENSLIDE_TEST_XFAIL environment variable.'''
+    comma-separated OPENSLIDE_TEST_XFAIL environment variable."""
     if CLANG is None:
         raise Exception('clang was not found during setup')
     with _rebuild(['-D_sanitize=true'], env={'CC': CLANG.as_posix()}):
@@ -1456,7 +1456,7 @@ def sanitize(pattern: str = '*') -> None:
 
 
 def _fetch_for_mosaic() -> None:
-    '''Fetch pristine slides needed for building the mosaic.'''
+    """Fetch pristine slides needed for building the mosaic."""
     cfg = RawConfigParser()
     cfg.read(MOSAICLIST)
     for section in cfg.sections():
@@ -1464,7 +1464,7 @@ def _fetch_for_mosaic() -> None:
 
 
 def _mosaic(outfile: Path, pristinedir: Path = PRISTINE) -> None:
-    '''Produce a mosaic image of slide data from various formats.'''
+    """Produce a mosaic image of slide data from various formats."""
     subprocess.check_call(
         [
             BUILDDIR / 'mosaic',
@@ -1477,7 +1477,7 @@ def _mosaic(outfile: Path, pristinedir: Path = PRISTINE) -> None:
 
 @_command
 def mosaic(outfile: str) -> None:
-    '''Produce a mosaic image of slide data from various formats.'''
+    """Produce a mosaic image of slide data from various formats."""
     if FROZEN.exists():
         pristinedir = FROZEN / '_pristine'
     else:
@@ -1489,7 +1489,7 @@ def mosaic(outfile: str) -> None:
 def _successful_primary_tests(
     pattern: str = '*',
 ) -> Iterator[tuple[TestCase, UnpackedSlide]]:
-    '''Yield test case and unpacked slide for each successful primary test.'''
+    """Yield test case and unpacked slide for each successful primary test."""
     for test in TestCase.list(pattern):
         conf = test.conf
         if not conf.primary or not conf.success or not conf.features_available:
@@ -1505,8 +1505,8 @@ def _successful_primary_tests(
 
 @_command
 def time(pattern: str = '*') -> None:
-    '''Time openslide_open() for all successful primary tests matching the
-    specified pattern.'''
+    """Time openslide_open() for all successful primary tests matching the
+    specified pattern."""
     for test, unpacked in _successful_primary_tests(pattern):
         proc = unpacked.run_prog(
             'try_open',
@@ -1524,7 +1524,7 @@ def time(pattern: str = '*') -> None:
 
 @_command
 def exports() -> None:
-    '''Report exported or hidden symbols with improper names.'''
+    """Report exported or hidden symbols with improper names."""
 
     def get_symbols(basedir: Path) -> Iterator[str]:
         proc = subprocess.Popen(
@@ -1576,9 +1576,9 @@ def exports() -> None:
 
 @_command
 def clean(pattern: str = '*') -> None:
-    '''Delete temporary slide data for tests matching the specified
+    """Delete temporary slide data for tests matching the specified
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
-    test data.'''
+    test data."""
     for test in TestCase.list(pattern):
         path = WORKROOT / test.name
         if path.exists():
@@ -1593,15 +1593,15 @@ def clean(pattern: str = '*') -> None:
 
 @_command
 def fuse() -> None:
-    '''Mount the FUSE filesystem for debugging.'''
+    """Mount the FUSE filesystem for debugging."""
     with TemporaryDirectory(prefix='shadow-', dir=FROZENBASE) as tempdir:
         _fusefs_init(Path(tempdir))
         _fusefs_run()
 
 
 def _get_arglist(f: Command) -> tuple[list[str], list[str]]:
-    '''Return two lists of argument names for the specified function: the
-    mandatory arguments and the optional ones.'''
+    """Return two lists of argument names for the specified function: the
+    mandatory arguments and the optional ones."""
     info = inspect.getfullargspec(f)
     if info.defaults:
         optcount = len(info.defaults)
@@ -1611,7 +1611,7 @@ def _get_arglist(f: Command) -> tuple[list[str], list[str]]:
 
 
 def _usage() -> None:
-    '''Print usage message and exit.'''
+    """Print usage message and exit."""
     wrapper = textwrap.TextWrapper(
         width=76, initial_indent=' ' * 8, subsequent_indent=' ' * 8
     )
