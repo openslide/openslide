@@ -381,8 +381,8 @@ class TestCaseConfig:
         try:
             with open(CASEROOT / testname / TESTCONF) as fh:
                 conf = yaml.safe_load(fh)
-        except FileNotFoundError:
-            raise ValueError('Test does not exist')
+        except FileNotFoundError as exc:
+            raise ValueError('Test does not exist') from exc
         self.base_slide = BaseSlide(PurePath(conf['base']))
         self.filename: str = conf['slide']
         self.success: bool = conf['success']
@@ -830,13 +830,17 @@ def _download(url: str, name: str, fh: BinaryIO) -> str:
                 last_update = now
         if cur != size:
             raise ConnectionInterrupted
-    except (ConnectionInterrupted, requests.exceptions.Timeout, TimeoutError):
+    except (
+        ConnectionInterrupted,
+        requests.exceptions.Timeout,
+        TimeoutError,
+    ) as exc:
         print(
             '{:<79}'.format(
                 f'Failure fetching {name} ({cur >> 20}/{size >> 20} MB)'
             )
         )
-        raise ConnectionInterrupted
+        raise ConnectionInterrupted from exc
     else:
         print('{:<79}'.format(f'Fetched {name} ({size >> 20} MB)'))
         return hash.hexdigest()
@@ -905,8 +909,8 @@ def _fusefs_init(shadowdir: Path) -> None:
         def _inode_to_paths(self, inode: InodeT) -> tuple[PurePath, Path]:
             try:
                 return self._inode_path_map[inode]
-            except KeyError:
-                raise FUSEError(errno.ENOENT)
+            except KeyError as exc:
+                raise FUSEError(errno.ENOENT) from exc
 
         def _add_paths(
             self, inode: InodeT, relpath: PurePath, backingpath: Path
@@ -962,7 +966,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 stat = backingpath.lstat()
             except OSError as exc:
-                raise FUSEError(exc.errno or errno.EIO)
+                raise FUSEError(exc.errno or errno.EIO) from exc
             entry = pyfuse3.EntryAttributes()
             for attr in (
                 'st_ino',
@@ -1005,7 +1009,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 if not os.path.lexists(shadowpath):
                     shadowpath.symlink_to(target)
             except OSError as exc:
-                raise FUSEError(exc.errno or errno.EIO)
+                raise FUSEError(exc.errno or errno.EIO) from exc
             return os.fsencode(target)
 
         async def opendir(
@@ -1054,7 +1058,7 @@ def _fusefs_init(shadowdir: Path) -> None:
             try:
                 statfs = os.statvfs(WORKROOT)
             except OSError as exc:
-                raise FUSEError(exc.errno or errno.EIO)
+                raise FUSEError(exc.errno or errno.EIO) from exc
             for attr in (
                 'f_bsize',
                 'f_frsize',
@@ -1094,7 +1098,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 )
                 shadow.truncate(os.lseek(fd, 0, os.SEEK_END))
             except OSError as exc:
-                raise FUSEError(exc.errno or errno.EIO)
+                raise FUSEError(exc.errno or errno.EIO) from exc
             self._inode_fd_map[inode] = fd
             self._fd_inode_map[fd] = inode
             self._fd_shadow_map[fd] = shadow
@@ -1127,7 +1131,7 @@ def _fusefs_init(shadowdir: Path) -> None:
                 os.close(fd)
                 shadow.close()
             except OSError as exc:
-                raise FUSEError(exc.errno or errno.EIO)
+                raise FUSEError(exc.errno or errno.EIO) from exc
 
     try:
         FUSEMOUNT.stat()
