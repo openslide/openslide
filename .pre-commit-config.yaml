@@ -95,7 +95,7 @@ repos:
         entry: meson format --configuration meson.format --inplace
         types: [meson]
         language: python
-        additional_dependencies: [meson==1.10.0]
+        additional_dependencies: [meson==1.11.0]
 
       - id: mkmaintainer
         name: Sync maintainer issue templates
