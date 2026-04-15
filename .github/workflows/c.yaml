@@ -28,14 +28,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install libfuse3-dev
-          python -m pip install pre-commit
+          python -m pip install prek uv
       - name: Cache pre-commit environments
         uses: actions/cache@v5
         with:
-          key: pre-commit|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
-          path: ~/.cache/pre-commit
+          key: prek|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
       - name: Run pre-commit hooks
-        run: pre-commit run -a --show-diff-on-failure --color=always
+        run: prek run -a --show-diff-on-failure --color=always
 
   primary:
     name: Primary tests (Fedora)

@@ -1,3 +1,8 @@
+# priorities:
+# 0    - read-only
+# 1000 - mutually non-conflicting fixers
+# none - other fixers
+
 # exclude vendored files
 exclude: '^(COPYING\.LESSER|subprojects/.*)$'
 
@@ -11,16 +16,23 @@ repos:
       # set the cutoff at 6000.
       # https://openslide.org/docs/testsuite/#tips
       - id: check-added-large-files
+        priority: 0
         name: Check for overlarge tests
         args: [--maxkb=6]
         files: ^test/cases/
       - id: check-added-large-files
+        priority: 0
         args: [--maxkb=200]
       - id: check-case-conflict
+        priority: 0
       - id: check-merge-conflict
+        priority: 0
       - id: check-toml
+        priority: 0
       - id: check-vcs-permalinks
+        priority: 0
       - id: check-yaml
+        priority: 0
       - id: end-of-file-fixer
       - id: fix-byte-order-marker
       - id: mixed-line-ending
@@ -41,6 +53,7 @@ repos:
     hooks:
       - id: mypy
         name: Check Python types
+        priority: 0
         additional_dependencies:
           - boto3-stubs[s3]
           - pyfuse3 >= 3.4.2
@@ -53,18 +66,22 @@ repos:
     hooks:
       - id: codespell
         name: Check spelling with codespell
+        priority: 0
         additional_dependencies:
           - tomli  # Python < 3.11
 
   - repo: meta
     hooks:
       - id: check-hooks-apply
+        priority: 0
       - id: check-useless-excludes
+        priority: 0
 
   - repo: local
     hooks:
       - id: meson-format
         name: meson format
+        priority: 1000
         entry: meson format --configuration meson.format --inplace
         types: [meson]
         language: python
@@ -72,6 +89,7 @@ repos:
 
       - id: mkmaintainer
         name: Sync maintainer issue templates
+        priority: 1000
         entry: .github/maintainer/mkmaintainer.py
         files: .github/maintainer/
         language: python
@@ -79,6 +97,7 @@ repos:
 
       - id: autoptr
         name: Check for g_auto* declarations without initializers
+        priority: 0
         language: pygrep
         types: [c]
         entry: "(g_auto\\(|g_autoptr\\(|g_autofree )(?!.+=)"
@@ -90,6 +109,7 @@ repos:
       # ssize_t           int64_t
       - id: deny-prohibited-type
         name: Check for use of prohibited types
+        priority: 0
         language: pygrep
         exclude: ^misc/
         types: [c]
@@ -101,6 +121,7 @@ repos:
       # (GDestroyNotify)  OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER()
       - id: deny-prohibited-cast
         name: Check for use of prohibited casts
+        priority: 0
         language: pygrep
         exclude: ^misc/
         types: [c]
@@ -142,6 +163,7 @@ repos:
       # strtoumax             _openslide_parse_uint64 or g_ascii_strtoull
       - id: deny-prohibited-func
         name: Check for calls to prohibited functions
+        priority: 0
         language: pygrep
         exclude: ^misc/
         types: [c]
@@ -177,6 +199,7 @@ repos:
       # TIFFSetDirectory      _openslide_tiff_set_dir
       - id: deny-wrapped-func
         name: Check for calls to wrapped functions
+        priority: 0
         language: pygrep
         files: ^src/openslide
         types: [c]
