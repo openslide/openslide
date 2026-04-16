@@ -78,6 +78,12 @@ To build OpenSlide, you will need:
 - zlib
 - Zstandard
 
+Optional:
+
+- [Grok][] ≥ 20.3 (alternative JPEG 2000 codec)
+
+[Grok]: https://github.com/GrokImageCompression/grok
+
 Then:
 
 ```
@@ -85,6 +91,34 @@ meson setup builddir
 meson compile -C builddir
 meson install -C builddir
 ```
+
+To enable the Grok JPEG 2000 backend:
+
+```
+meson setup builddir -Dgrok=enabled
+```
+
+See [JPEG 2000 Backend Selection](#jpeg-2000-backend-selection) below.
+
+
+## JPEG 2000 Backend Selection
+
+OpenSlide uses [OpenJPEG][] by default for JPEG 2000 decoding (used by
+Aperio and DICOM slide formats).  When built with Grok support
+(`-Dgrok=enabled`), the [Grok][] JPEG 2000 codec is also available as
+an alternative backend.
+
+To select the Grok backend at runtime, set the environment variable:
+
+```
+export OPENSLIDE_JP2K_BACKEND=grok
+```
+
+When the variable is unset or set to any other value, OpenJPEG is used.
+The backend selection is evaluated once at the first JPEG 2000 decode and
+cached for the lifetime of the process.
+
+[OpenJPEG]: https://github.com/uclouvain/openjpeg
 
 
 ## Acknowledgements

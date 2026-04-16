@@ -4,6 +4,12 @@ option(
   description : 'Suffix to append to the package version string',
 )
 option(
+  'grok',
+  type : 'feature',
+  value : 'auto',
+  description : 'Enable Grok JPEG 2000 backend (set OPENSLIDE_JP2K_BACKEND=grok at runtime to use)',
+)
+option(
   'test',
   type : 'feature',
   yield : true,

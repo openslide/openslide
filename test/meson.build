@@ -77,6 +77,19 @@ executable(
   c_args : ['-Wno-deprecated-declarations'],
 )
 
+if grok_dep.found()
+  jp2k_grok_test = executable(
+    'test-jp2k-grok',
+    'test-jp2k-grok.c',
+    dependencies : test_deps,
+  )
+  test(
+    'jp2k-grok',
+    jp2k_grok_test,
+    env : ['OPENSLIDE_DEBUG=synthetic'],
+  )
+endif
+
 # Driver
 subdir('env')
 configure_file(

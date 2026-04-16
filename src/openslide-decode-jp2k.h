@@ -36,3 +36,19 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
+
+/* OpenJPEG backend (always available) */
+bool _openslide_jp2k_decode_buffer_openjpeg(uint32_t *dest,
+                                            int32_t w, int32_t h,
+                                            const void *data, int32_t datalen,
+                                            enum _openslide_jp2k_colorspace space,
+                                            GError **err);
+
+#ifdef HAVE_GROK
+/* Grok backend (optional) */
+bool _openslide_jp2k_decode_buffer_grok(uint32_t *dest,
+                                        int32_t w, int32_t h,
+                                        const void *data, int32_t datalen,
+                                        enum _openslide_jp2k_colorspace space,
+                                        GError **err);
+#endif
