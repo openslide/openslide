@@ -23,7 +23,7 @@ try:
                 or int(possible_lineno) != possible_lineno:
             s = "%7d %11d" % (i, n)
         else:
-            s = "%7d %11d %10d    -> %10s" % (i, n, possible_lineno, \
+            s = "%7d %11d %10d    -> %60s" % (i, n, possible_lineno, \
                                                   "%+d" % (possible_lineno-i))
 
         i = i+1
@@ -33,7 +33,7 @@ try:
 #            continue
 
         if num_skipped > 0:
-            print '%7s %11s %10s %30d' % ('.','.','.', num_skipped)
+            print '%7s %11s %60s %30d' % ('.','.','.', num_skipped)
             num_skipped = 0
 
         print s
