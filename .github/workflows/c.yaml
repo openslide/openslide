@@ -158,6 +158,9 @@ jobs:
             os: ubuntu-22.04
           - name: Ubuntu 24.04
             os: ubuntu-24.04
+          - name: Ubuntu 26.04
+            os: ubuntu-latest
+            container: ubuntu:26.04
           - name: macOS
             os: macos-latest
             sanitize: true
