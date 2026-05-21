@@ -98,7 +98,7 @@ static bool read_tile(openslide_t *osr,
       return true;
     }
 
-    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
                                    buf, tile_col, tile_row,
                                    err)) {

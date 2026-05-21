@@ -78,7 +78,7 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
   if (osr) {
     error = g_strdup(openslide_get_error(osr));
     if (!error) {
-      g_autofree uint32_t *buf = g_malloc(TILE_WIDTH * TILE_HEIGHT * 4);
+      g_autofree uint32_t *buf = g_new(uint32_t, TILE_WIDTH * TILE_HEIGHT);
       openslide_read_region(osr, buf, x, y, level, TILE_WIDTH, TILE_HEIGHT);
       error = g_strdup(openslide_get_error(osr));
       if (!error) {

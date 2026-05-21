@@ -527,7 +527,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tid, 0,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(sb->w * sb->h * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, sb->w * sb->h);
     if (!read_subblk(f, czi->zisraw_offset, sb, buf, err)) {
       return false;
     }

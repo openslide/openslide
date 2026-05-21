@@ -72,7 +72,7 @@ static struct png_ctx *png_ctx_new(uint32_t *dest,
   g_auto(png_ctx) ctx = g_new0(struct png_ctx, 1);
 
   // allocate row pointers
-  ctx->rows = g_malloc(h * sizeof(*ctx->rows));
+  ctx->rows = g_new(png_byte *, h);
   for (int64_t y = 0; y < h; y++) {
     ctx->rows[y] = (png_byte *) &dest[y * w];
   }

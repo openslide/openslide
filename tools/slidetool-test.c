@@ -56,7 +56,7 @@ static int do_test_deps(int narg, char **args) {
   common_fail_on_error(osr, "Opening synthetic slide");
 
   // read region
-  g_autofree void *buf = g_malloc(4 * 1000 * 100);
+  g_autofree uint32_t *buf = g_new(uint32_t, 1000 * 100);
   openslide_read_region(osr, buf, 0, 0, 0, 1000, 100);
   common_fail_on_error(osr, "Reading region");
 

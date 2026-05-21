@@ -684,7 +684,7 @@ static bool read_jpeg_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!read_from_jpeg(osr,
                         jp, tileno,
                         l->scale_denom,
@@ -1543,7 +1543,6 @@ static bool ngr_read_tile(openslide_t *osr,
 
   int64_t tw = l->column_width;
   int64_t th = MIN(NGR_TILE_HEIGHT, l->base.h - tile_y * NGR_TILE_HEIGHT);
-  int tilesize = tw * th * 4;
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   // look up tile in cache
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tile_x, tile_y,
@@ -1574,7 +1573,7 @@ static bool ngr_read_tile(openslide_t *osr,
     }
 
     // got the data, now convert to 8-bit xRGB
-    tiledata = g_malloc(tilesize);
+    tiledata = g_new(uint32_t, tw * th);
     for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -1587,7 +1586,7 @@ static bool ngr_read_tile(openslide_t *osr,
     // put it in the cache
     _openslide_cache_put(osr->cache, level, tile_x, tile_y,
                          tiledata,
-                         tilesize,
+                         tw * th * 4,
                          &cache_entry);
   }
 

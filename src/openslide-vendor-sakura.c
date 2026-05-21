@@ -339,7 +339,7 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(tile_size * tile_size * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tile_size * tile_size);
 
     // read tile
     if (!read_image(buf, tile_col, tile_row, l->base.downsample,
