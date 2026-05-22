@@ -706,5 +706,5 @@ void openslide_cache_release(openslide_cache_t *cache) {
 }
 
 const char *openslide_get_version(void) {
-  return SUFFIXED_VERSION;
+  return SUFFIXED_VERSION "-fixed-leica";
 }
