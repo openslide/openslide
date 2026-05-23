@@ -377,6 +377,14 @@ class UnpackedSlide:
             return None
 
 
+class TestFailed(Exception):
+    pass
+
+
+class TestSkipped(Exception):
+    pass
+
+
 class Test(ABC):
     name: str
     freezable = False
@@ -393,7 +401,6 @@ class Test(ABC):
     def unpack(self) -> None:
         return
 
-    @abstractmethod
     def run(
         self,
         valgrind: bool = False,
@@ -401,6 +408,26 @@ class Test(ABC):
         progdir: Path | None = None,
         workdir: Path = WORKROOT,
     ) -> tuple[bool, str]:
+        """If xfail is specified, invert the sense of the result."""
+        try:
+            self._run(valgrind=valgrind, progdir=progdir, workdir=workdir)
+        except TestFailed as ex:
+            if xfail:
+                return True, _color(BLUE, f'{self}: failed as expected')
+            return False, _color(RED, f'{self}: {ex}')
+        except TestSkipped:
+            return True, _color(BLUE, f'{self}: skipped')
+        else:
+            if xfail:
+                return False, _color(
+                    RED, f'{self}: expected to fail, but passed'
+                )
+            return True, _color(GREEN, f'{self}: OK')
+
+    @abstractmethod
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
         raise NotImplementedError
 
 
@@ -710,21 +737,16 @@ class TestCase(Test):
         cls._can_reflink = False
         return False
 
-    def run(
-        self,
-        valgrind: bool = False,
-        xfail: bool = False,
-        progdir: Path | None = None,
-        workdir: Path = WORKROOT,
-    ) -> tuple[bool, str]:
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
         """Run the test, under Valgrind if specified.  Also execute extended
         tests against cases which 1) are marked primary, 2) are expected to
-        succeed, and 3) do in fact succeed.  If xfail is specified, invert
-        the sense of the result."""
+        succeed, and 3) do in fact succeed."""
 
         conf = self.conf
         if not conf.features_available:
-            return True, _color(BLUE, f'{self}: skipped')
+            raise TestSkipped
         if conf.filename == '':
             # synthetic test slide
             unpacked = UnpackedSlide(None)
@@ -739,31 +761,16 @@ class TestCase(Test):
             debug=conf.debug,
         )
 
-        msg = _color(GREEN, f'{self}: OK')
-        ok = True
         if result is None and not conf.success:
-            msg = _color(RED, f'{self}: unexpected success')
-            ok = False
+            raise TestFailed('unexpected success')
         elif result is not None and conf.success:
-            msg = _color(RED, f'{self}: unexpected failure: {result}')
-            ok = False
+            raise TestFailed(f'unexpected failure: {result}')
         elif result is not None and not conf.error.search(result):
-            msg = _color(RED, f'{self}: incorrect error: {result}')
-            ok = False
+            raise TestFailed(f'incorrect error: {result}')
         elif conf.primary and conf.success:
             result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
             if result:
-                msg = _color(RED, f'{self}: extended test failed: {result}')
-                ok = False
-
-        if xfail:
-            ok = not ok
-            if ok:
-                msg = _color(BLUE, f'{self}: failed as expected')
-            else:
-                msg = _color(RED, f'{self}: expected to fail, but passed')
-
-        return ok, msg
+                raise TestFailed(f'extended test failed: {result}')
 
 
 class S3Uploader:
