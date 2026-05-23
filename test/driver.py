@@ -28,6 +28,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
+from enum import Enum
 import errno
 import filecmp
 import fnmatch
@@ -240,6 +241,9 @@ class BaseSlide:
 class UnpackedSlide:
     """A slide unpacked into a directory so that programs can be run on it."""
 
+    class Param(Enum):
+        PATH = 0
+
     def __init__(self, path: Path | None):
         # path of the actual slide file to open
         self.path = path
@@ -248,19 +252,24 @@ class UnpackedSlide:
     def run_prog(
         self,
         prog: str,
+        *,
         valgrind: bool = False,
         extra_checks: bool = True,
+        with_path: bool = True,
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
-        args: Iterable[str] | None = None,
+        args: Sequence[str | Param] | None = None,
         **kwargs: Any,
     ) -> subprocess.Popen[str]:
         """Start the specified test program from the progdir directory
         against the slide, running under Valgrind if requested.  If
         extra_checks is False, turn off debug instrumentation that would
-        invalidate benchmark results.  debug options are passed in
-        OPENSLIDE_DEBUG.  args are appended to the command line.  kwargs are
-        passed to the Popen constructor.  Return the Popen instance."""
+        invalidate benchmark results.  If with_path is False, the slide path
+        is not automatically added to the command line.  debug options are
+        passed in OPENSLIDE_DEBUG.  args are appended to the command line,
+        and may contain UnpackedSlide.Param.PATH to manually specify the
+        slide path.  kwargs are passed to the Popen constructor.  Return the
+        Popen instance."""
 
         if progdir is None:
             progdir = BUILDDIR
@@ -295,9 +304,14 @@ class UnpackedSlide:
                 # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
                 JSIMD_FORCENONE='1',
             )
-        args_.extend([progdir / prog, self.path_str])
+        args_.append(progdir / prog)
+        if with_path:
+            args_.append(self.path_str)
         if args:
-            args_.extend(args)
+            args_.extend(
+                self.path_str if arg == self.Param.PATH else arg
+                for arg in args
+            )
         return subprocess.Popen(args_, env=env, text=True, **kwargs)
 
     def try_open(
@@ -394,9 +408,13 @@ class Test(ABC):
 
     @classmethod
     def list(cls, pattern: str = '*') -> list[Test]:
-        return [
-            *TestCase.list(pattern),
-        ]
+        return sorted(
+            [
+                *TestCase.list(pattern),
+                *SlidetoolTest.list(pattern),
+            ],
+            key=lambda t: t.name,
+        )
 
     def unpack(self) -> None:
         return
@@ -771,6 +789,109 @@ class TestCase(Test):
             result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
             if result:
                 raise TestFailed(f'extended test failed: {result}')
+
+
+class SlidetoolTest(Test):
+    SLIDE = BaseSlide(PurePath('Aperio/CMU-1-Small-Region.svs'))
+
+    class Param(Enum):
+        SLIDE = 1
+        SLIDES = 2
+        ASSOC = 3
+        PROP = 4
+        OUTFILE = 5
+
+        def __str__(self) -> str:
+            return self.name
+
+    def __init__(self, args: tuple[str | Param, ...], *, success: bool = True):
+        self.name = '-'.join(['slidetool', *(str(a) for a in args)])
+        self._args = args
+        self._success = success
+
+    @classmethod
+    def list(cls, pattern: str = '*') -> list[Test]:
+        P = cls.Param
+        good = (
+            ('assoc', 'list', P.SLIDES),
+            ('assoc', 'read', P.SLIDE, P.ASSOC, P.OUTFILE),
+            ('prop', 'get', P.PROP, P.SLIDES),
+            ('prop', 'list', P.SLIDES),
+            (
+                'region',
+                'read',
+                P.SLIDE,
+                '0',
+                '0',
+                '0',
+                '100',
+                '100',
+                P.OUTFILE,
+            ),
+            ('slide', 'open', P.SLIDES),
+            ('slide', 'quickhash1', P.SLIDES),
+            ('slide', 'vendor', P.SLIDES),
+            ('test', 'deps'),
+        )
+        bad = (
+            ('slide',),
+            ('slide', 'open'),
+            # CMU-1-Small-Region.svs doesn't have ICC profiles
+            ('assoc', 'icc', 'read', P.SLIDE, P.ASSOC, P.OUTFILE),
+            ('region', 'icc', 'read', P.SLIDE, P.OUTFILE),
+        )
+        all = [
+            *[cls(args) for args in good],
+            *[cls(args, success=False) for args in bad],
+        ]
+        return [t for t in all if fnmatch.fnmatch(t.name, pattern)]
+
+    def unpack(self) -> None:
+        self.SLIDE.fetch()
+
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
+        unpacked = UnpackedSlide(self.SLIDE.path / self.SLIDE.relpath.name)
+        with NamedTemporaryFile(prefix='openslide-') as outfile:
+            proc = unpacked.run_prog(
+                '../tools/slidetool',
+                valgrind=valgrind,
+                with_path=False,
+                progdir=progdir,
+                args=list(self._resolve_args(Path(outfile.name))),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            out, err = proc.communicate()
+            if proc.returncode == 0 and not self._success:
+                raise TestFailed('unexpected success')
+            elif proc.returncode and self._success:
+                if out or err:
+                    msg = (out + err).strip()
+                else:
+                    msg = f'exited with status {proc.returncode}'
+                raise TestFailed(f'unexpected failure: {msg}')
+
+    def _resolve_args(
+        self, outfile: Path
+    ) -> Iterator[str | UnpackedSlide.Param]:
+        P = self.Param
+        for arg in self._args:
+            match arg:
+                case P.SLIDE:
+                    yield UnpackedSlide.Param.PATH
+                case P.SLIDES:
+                    yield UnpackedSlide.Param.PATH
+                    yield UnpackedSlide.Param.PATH
+                case P.ASSOC:
+                    yield 'label'
+                case P.PROP:
+                    yield 'openslide.vendor'
+                case P.OUTFILE:
+                    yield outfile.as_posix()
+                case _:
+                    yield arg
 
 
 class S3Uploader:
