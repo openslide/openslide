@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -376,6 +377,33 @@ class UnpackedSlide:
             return None
 
 
+class Test(ABC):
+    name: str
+    freezable = False
+
+    def __str__(self) -> str:
+        return self.name
+
+    @classmethod
+    def list(cls, pattern: str = '*') -> list[Test]:
+        return [
+            *TestCase.list(pattern),
+        ]
+
+    def unpack(self) -> None:
+        return
+
+    @abstractmethod
+    def run(
+        self,
+        valgrind: bool = False,
+        xfail: bool = False,
+        progdir: Path | None = None,
+        workdir: Path = WORKROOT,
+    ) -> tuple[bool, str]:
+        raise NotImplementedError
+
+
 class TestCaseConfig:
     """The configuration file for a test case."""
 
@@ -458,19 +486,17 @@ class TestCaseConfig:
         return (CASEROOT / testname / TESTCONF).exists()
 
 
-class TestCase:
+class TestCase(Test):
     _can_reflink = True
 
     def __init__(self, name: str):
         self.name = name
         self.conf = TestCaseConfig(name)
-
-    def __str__(self) -> str:
-        return self.name
+        self.freezable = self.conf.freezable
 
     @classmethod
     @lru_cache
-    def list(cls, pattern: str = '*') -> list[TestCase]:
+    def list(cls, pattern: str = '*') -> list[Test]:
         """Return a list of tests matching the specified pattern."""
         return [
             cls(path.name)
@@ -871,7 +897,7 @@ def unpack(pattern: str = '*') -> None:
     if pattern == 'nonfrozen':
         pattern = '*'
         conditional = True
-    for test in TestCase.list(pattern):
+    for test in Test.list(pattern):
         if not conditional or not (FROZEN / test.name).exists():
             test.unpack()
 
@@ -1162,7 +1188,7 @@ def _fusefs_run() -> None:
 def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
     """Create a frozen testdata archive for transport to another system,
     upload it to an S3 bucket, and record its URL in the source tree."""
-    for test in TestCase.list():
+    for test in Test.list():
         test.unpack()
     _fetch_for_mosaic()
 
@@ -1173,8 +1199,8 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         _fusefs_init(tempdir)
         Thread(name='fuse', target=_fusefs_run, daemon=False).start()
         # Run all tests that we might want to run on thawed testdata
-        for test in TestCase.list():
-            if test.conf.freezable:
+        for test in Test.list():
+            if test.freezable:
                 _, msg = test.run(workdir=FUSEMOUNT)
                 print(msg)
                 # Ensure we at least have a shadow directory for the test.
@@ -1304,7 +1330,7 @@ def _run_all(
     """Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results."""
-    tests = TestCase.list(pattern)
+    tests = Test.list(pattern)
     for test in tests:
         if not (FROZEN / test.name).exists():
             test.unpack()
@@ -1492,9 +1518,10 @@ def mosaic(outfile: str) -> None:
 
 def _successful_primary_tests(
     pattern: str = '*',
-) -> Iterator[tuple[TestCase, UnpackedSlide]]:
-    """Yield test case and unpacked slide for each successful primary test."""
+) -> Iterator[tuple[Test, UnpackedSlide]]:
+    """Yield test and unpacked slide for each successful primary test."""
     for test in TestCase.list(pattern):
+        assert isinstance(test, TestCase)
         conf = test.conf
         if not conf.primary or not conf.success or not conf.features_available:
             continue
@@ -1580,7 +1607,7 @@ def exports() -> None:
 
 @_command
 def clean(pattern: str = '*') -> None:
-    """Delete temporary slide data for tests matching the specified
+    """Delete temporary slide data for test cases matching the specified
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
     test data."""
     for test in TestCase.list(pattern):
