@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 #  Delete one tag from a TIFF file.
 #
 #  Copyright (c) 2012 Carnegie Mellon University
+#  Copyright (c) 2026 Benjamin Gilbert
 #  All rights reserved.
 #
 #  OpenSlide is free software: you can redistribute it and/or modify
@@ -19,22 +20,21 @@
 #  <http://www.gnu.org/licenses/>.
 #
 
-from optparse import OptionParser
-import string
+from argparse import ArgumentParser
+from contextlib import closing
 import struct
-import sys
 
-class TiffFile(file):
+class TiffFile:
     def __init__(self, path):
-        file.__init__(self, path, 'r+b')
+        self._fh = open(path, 'r+b')
         # Check header, decide endianness
         endian = self.read(2)
-        if endian == 'II':
+        if endian == b'II':
             self._fmt_prefix = '<'
-        elif endian == 'MM':
+        elif endian == b'MM':
             self._fmt_prefix = '>'
         else:
-            raise IOError('Not a TIFF file')
+            raise Exception('Not a TIFF file')
         # Check TIFF version
         self._bigtiff = False
         version = self.read_fmt('H')
@@ -44,9 +44,9 @@ class TiffFile(file):
             self._bigtiff = True
             magic2, reserved = self.read_fmt('HH')
             if magic2 != 8 or reserved != 0:
-                raise IOError('Bad BigTIFF header')
+                raise Exception('Bad BigTIFF header')
         else:
-            raise IOError('Not a TIFF file')
+            raise Exception('Not a TIFF file')
         # Leave file offset at pointer to first directory
 
     def _convert_format(self, fmt):
@@ -56,13 +56,25 @@ class TiffFile(file):
         # z: 32-bit   signed on little TIFF, 64-bit   signed on BigTIFF
         # Z: 32-bit unsigned on little TIFF, 64-bit unsigned on BigTIFF
         if self._bigtiff:
-            fmt = fmt.translate(string.maketrans('yYzZ', 'qQqQ'))
+            fmt = fmt.translate(str.maketrans('yYzZ', 'qQqQ'))
         else:
-            fmt = fmt.translate(string.maketrans('yYzZ', 'hHiI'))
+            fmt = fmt.translate(str.maketrans('yYzZ', 'hHiI'))
         return self._fmt_prefix + fmt
 
     def fmt_size(self, fmt):
         return struct.calcsize(self._convert_format(fmt))
+
+    def read(self, *args):
+        return self._fh.read(*args)
+
+    def write(self, *args):
+        return self._fh.write(*args)
+
+    def seek(self, *args):
+        self._fh.seek(*args)
+
+    def tell(self):
+        return self._fh.tell()
 
     def read_fmt(self, fmt):
         fmt = self._convert_format(fmt)
@@ -76,22 +88,20 @@ class TiffFile(file):
         fmt = self._convert_format(fmt)
         self.write(struct.pack(fmt, *args))
 
+    def close(self):
+        self._fh.close()
 
-# Parse command line
-parser = OptionParser(usage='%prog [options] filename tag_number')
-parser.add_option('-d', '--directory', dest='directory', type=int, default=0,
-        help='Directory number (default 0)')
-opts, args = parser.parse_args()
-if len(args) != 2:
-    parser.print_usage()
-    sys.exit(2)
 
-# Get arguments
-filename, tag = args
-directory = opts.directory
-tag = int(tag, 0)
+parser = ArgumentParser()
+parser.add_argument('-d', '--directory', type=int, default=0,
+        help='directory number')
+parser.add_argument('filename', help='TIFF to modify')
+parser.add_argument('tag', type=int, help='tag number to remove')
+args = parser.parse_args()
 
-with TiffFile(filename) as fh:
+directory: int = args.directory
+
+with closing(TiffFile(args.filename)) as fh:
     entry_size = fh.fmt_size('HHZZ')
 
     # Seek to correct directory
@@ -102,25 +112,42 @@ with TiffFile(filename) as fh:
         fh.seek(entry_size * count, 1)
         dir_base = fh.read_fmt('Z')
         if dir_base == 0:
-            raise IOError('No such TIFF directory')
+            raise Exception('No such TIFF directory')
         fh.seek(dir_base)
         directory -= 1
 
-    # Find the desired tag
+    # Check for NDPI
     tag_count = fh.read_fmt('Y')
+    tags_remaining = tag_count
+    ndpi = False
+    while tags_remaining > 0:
+        cur_tag, _type, _count, _value = fh.read_fmt('HHZZ')
+        tags_remaining -= 1
+        if cur_tag == 65420:
+            ndpi = True
+            break
+
+    # Find the desired tag
+    fh.seek(dir_base)
+    fh.read_fmt('Y')
     tags_remaining = tag_count
     while tags_remaining > 0:
         pos = fh.tell()
         cur_tag, _type, _count, _value = fh.read_fmt('HHZZ')
         tags_remaining -= 1
-        if cur_tag == tag:
+        if cur_tag == args.tag:
             # Delete it.  Always copy the next-IFD offset as a 64-bit value
             # to support NDPI.
             buf = fh.read(entry_size * tags_remaining + fh.fmt_size('Q'))
+            if ndpi:
+                # Move value extensions, deleting this one
+                buf += fh.read(4 * (tag_count - tags_remaining - 1))
+                fh.seek(4, 1)
+                buf += fh.read(4 * tags_remaining)
             fh.seek(pos)
             fh.write(buf)
             fh.seek(dir_base)
             fh.write_fmt('Y', tag_count - 1)
             break
     else:
-        raise IOError('No such tag')
+        raise Exception('No such tag')
