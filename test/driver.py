@@ -364,7 +364,11 @@ class UnpackedSlide:
         )
         out, err = proc.communicate()
         if out or err:
-            return (out + err).strip()
+            return '\n'.join(
+                line
+                for line in (out + err).strip().split('\n')
+                if 'Rejecting overlarge cache entry' not in line
+            )
         elif proc.returncode:
             return f'Exited with status {proc.returncode}'
         else:
