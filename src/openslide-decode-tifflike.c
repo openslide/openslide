@@ -508,8 +508,27 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
       // if the value/offset contains the value and the extension is
       // nonzero, update the value size and item type
       if (is_value && value_ext) {
-        value_size = 8;
-        item->type = TIFF_LONG8;
+        switch (item->type) {
+        case TIFF_LONG:
+          item->type = TIFF_LONG8;
+          value_size = 8;
+          break;
+        case TIFF_SLONG:
+          item->type = TIFF_SLONG8;
+          value_size = 8;
+          break;
+        case TIFF_ASCII:
+          // NDPI may always store ASCII out-of-line, but for now we only
+          // assume this if the value extension is nonzero
+          is_value = false;
+          break;
+        default:
+          // unclear what is meant
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "Found nonzero NDPI value extension for "
+                      "field type %d in tag %d", type, tag);
+          return NULL;
+        }
       }
     }
 
