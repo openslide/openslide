@@ -2227,18 +2227,22 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
       // read MCU starts, if this directory is tiled
       if (jp->tile_count > 1) {
-        int64_t mcu_start_count =
+        int64_t mcu_start_count_low =
           _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_LOW);
+        int64_t mcu_start_count_high =
+          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_HIGH);
 
-        if (mcu_start_count == jp->tile_count) {
+        if (mcu_start_count_low == jp->tile_count &&
+            (!mcu_start_count_high || mcu_start_count_high == jp->tile_count)) {
           //g_debug("loading MCU starts for directory %"PRId64, dir);
           const uint64_t *unreliable_mcu_starts_low =
             _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW, NULL);
           const uint64_t *unreliable_mcu_starts_high =
             _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH, NULL);
-          if (unreliable_mcu_starts_low) {
-            jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
-            for (int64_t tile = 0; tile < mcu_start_count; tile++) {
+          if (unreliable_mcu_starts_low &&
+              (unreliable_mcu_starts_high || !mcu_start_count_high)) {
+            jp->unreliable_mcu_starts = g_new(int64_t, jp->tile_count);
+            for (int32_t tile = 0; tile < jp->tile_count; tile++) {
               uint64_t start_high = unreliable_mcu_starts_high ?
                 (unreliable_mcu_starts_high[tile] << 32) : 0;
               jp->unreliable_mcu_starts[tile] =
