@@ -116,8 +116,20 @@ with closing(TiffFile(args.filename)) as fh:
         fh.seek(dir_base)
         directory -= 1
 
-    # Find the desired tag
+    # Check for NDPI
     tag_count = fh.read_fmt('Y')
+    tags_remaining = tag_count
+    ndpi = False
+    while tags_remaining > 0:
+        cur_tag, _type, _count, _value = fh.read_fmt('HHZZ')
+        tags_remaining -= 1
+        if cur_tag == 65420:
+            ndpi = True
+            break
+
+    # Find the desired tag
+    fh.seek(dir_base)
+    fh.read_fmt('Y')
     tags_remaining = tag_count
     while tags_remaining > 0:
         pos = fh.tell()
@@ -127,6 +139,11 @@ with closing(TiffFile(args.filename)) as fh:
             # Delete it.  Always copy the next-IFD offset as a 64-bit value
             # to support NDPI.
             buf = fh.read(entry_size * tags_remaining + fh.fmt_size('Q'))
+            if ndpi:
+                # Move value extensions, deleting this one
+                buf += fh.read(4 * (tag_count - tags_remaining - 1))
+                fh.seek(4, 1)
+                buf += fh.read(4 * tags_remaining)
             fh.seek(pos)
             fh.write(buf)
             fh.seek(dir_base)
