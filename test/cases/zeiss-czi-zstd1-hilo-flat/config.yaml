@@ -3,3 +3,5 @@ slide: Zeiss-5-SlidePreview-Zstd1-HiLo.czi
 success: true
 primary: true
 vendor: zeiss
+properties:
+  openslide.associated.thumbnail.width: '256'

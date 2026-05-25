@@ -4,5 +4,8 @@ success: true
 vendor: aperio
 primary: true
 properties:
+  openslide.associated.label.width: '387'
+  openslide.associated.macro.width: '1280'
+  openslide.associated.thumbnail.width: '574'
   openslide.quickhash-1: 6335ea0e6cc54c2cba64bb265d3c713a50cd84484924e3a9c109558c13521d5c
   openslide.vendor: aperio

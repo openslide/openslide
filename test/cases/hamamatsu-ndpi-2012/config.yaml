@@ -10,5 +10,6 @@ debug:
   - jpeg-markers
   - performance
 properties:
+  openslide.associated.macro.width: '1160'
   openslide.vendor: hamamatsu
   openslide.quickhash-1: ff6a1e5e6dce63ee3b2dc37f05884cadb3f2c07e71f476fa9928b4c33daaf896
