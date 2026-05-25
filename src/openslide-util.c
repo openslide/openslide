@@ -64,11 +64,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
                                    GKeyFileFlags flags, GError **err) {
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
-   * because the load_from_file function incorrectly parses a value when
-   * the terminating '\r\n' falls across a 4KB boundary.
-   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
-
-  /* this also allows us to skip a UTF-8 BOM which the g_key_file parser
+   * because that allows us to skip a UTF-8 BOM which the g_key_file parser
    * does not expect to find. */
 
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
