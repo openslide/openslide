@@ -61,11 +61,12 @@ static const struct debug_option {
 static uint32_t debug_flags;
 
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
-                                   GKeyFileFlags flags, GError **err) {
+                                   enum _openslide_key_file_flavor flavor,
+                                   GError **err) {
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
    * because that allows us to skip a UTF-8 BOM which the g_key_file parser
-   * does not expect to find. */
+   * does not expect to find, and to do some extra preprocessing. */
 
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
@@ -105,11 +106,55 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     offset = 3;
   }
 
+  // remove empty keys reported to occur in MIRAX Slidedat.ini
+  if (flavor == OPENSLIDE_KEY_FILE_MIRAX) {
+    static gsize have_re = 0;
+    static GRegex *re = NULL;
+    // g_once_init_enter_pointer() on glib 2.80+
+    if (g_once_init_enter(&have_re)) {
+      re = g_regex_new("^\\s*=.*$",
+                       G_REGEX_MULTILINE | G_REGEX_RAW | G_REGEX_OPTIMIZE,
+                       G_REGEX_MATCH_NEWLINE_ANYCRLF, err);
+      g_once_init_leave(&have_re, 1);
+      if (!re) {
+        g_prefix_error(err, "Compiling regex for key file preprocessing: ");
+        return NULL;
+      }
+    } else if (!re) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Couldn't compile regex for key file preprocessing");
+      return NULL;
+    }
+
+    g_autoptr(GArray) pos_array = g_array_new(false, false, sizeof(int));
+    g_autoptr(GMatchInfo) info = NULL;
+    GError *tmp_err = NULL;
+    for (g_regex_match_full(re, buf, size, offset, 0, &info, &tmp_err);
+         !tmp_err && g_match_info_matches(info);
+         g_match_info_next(info, &tmp_err)) {
+      int pos[2] = {-1, -1};
+      bool ok = g_match_info_fetch_pos(info, 0, pos, pos + 1);
+      g_assert(ok && pos[0] != -1 && pos[1] != -1);
+      // modifying buffer in-place invalidates GMatchInfo
+      g_array_append_vals(pos_array, pos, 2);
+    }
+    if (tmp_err) {
+      g_propagate_prefixed_error(err, tmp_err, "Preprocessing key file: ");
+      return NULL;
+    }
+
+    // overwrite with spaces to avoid having to duplicate the buffer
+    int *pos = (int *) pos_array->data;
+    for (unsigned i = 0; i < pos_array->len; i += 2) {
+      memset(buf + pos[i], ' ', pos[i + 1] - pos[i]);
+    }
+  }
+
   // parse
   g_autoptr(GKeyFile) key_file = g_key_file_new();
   if (!g_key_file_load_from_data(key_file,
                                  buf + offset, size - offset,
-                                 flags, err)) {
+                                 G_KEY_FILE_NONE, err)) {
     return NULL;
   }
   return g_steal_pointer(&key_file);

@@ -1386,7 +1386,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   g_autoptr(GKeyFile) slidedat =
     _openslide_read_key_file(slidedat_path, SLIDEDAT_MAX_SIZE,
-                             G_KEY_FILE_NONE, err);
+                             OPENSLIDE_KEY_FILE_MIRAX, err);
   if (!slidedat) {
     g_prefix_error(err, "Can't load Slidedat.ini file: ");
     return false;

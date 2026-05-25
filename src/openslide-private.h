@@ -152,8 +152,13 @@ extern const struct _openslide_format _openslide_format_ventana;
 extern const struct _openslide_format _openslide_format_zeiss;
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
+enum _openslide_key_file_flavor {
+  OPENSLIDE_KEY_FILE_GENERIC,
+  OPENSLIDE_KEY_FILE_MIRAX,
+};
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
-                                   GKeyFileFlags flags, GError **err);
+                                   enum _openslide_key_file_flavor flavor,
+                                   GError **err);
 
 void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
