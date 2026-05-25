@@ -741,6 +741,9 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_UNDEFINED: {
     const uint8_t *data = _openslide_tifflike_get_buffer(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
+      if (i && !(i % 8)) {
+        printf("\n ");
+      }
       printf(" %u", data[i]);
     }
     break;
@@ -752,6 +755,9 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_LONG8: {
     const uint64_t *uints = _openslide_tifflike_get_uints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
+      if (i && !(i % 8)) {
+        printf("\n ");
+      }
       printf(" %"PRIu64, uints[i]);
     }
     break;
@@ -761,6 +767,9 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_IFD8: {
     const uint64_t *uints = _openslide_tifflike_get_uints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
+      if (i && !(i % 8)) {
+        printf("\n ");
+      }
       printf(" %.16"PRIx64, uints[i]);
     }
     break;
@@ -772,6 +781,9 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_SLONG8: {
     const int64_t *sints = _openslide_tifflike_get_sints(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
+      if (i && !(i % 8)) {
+        printf("\n ");
+      }
       printf(" %"PRId64, sints[i]);
     }
     break;
@@ -783,6 +795,9 @@ static void print_tag(struct _openslide_tifflike *tl,
   case TIFF_SRATIONAL: {
     const double *floats = _openslide_tifflike_get_floats(tl, dir, tag, NULL);
     for (int64_t i = 0; i < item->count; i++) {
+      if (i && !(i % 4)) {
+        printf("\n ");
+      }
       printf(" %g", floats[i]);
     }
     break;
