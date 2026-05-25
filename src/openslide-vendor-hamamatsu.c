@@ -2165,25 +2165,25 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   int64_t min_width_dir = 0;
   for (int64_t dir = 0; dir < directories; dir++) {
     // read tags
-    int64_t width, height, rows_per_strip, start_in_file, num_bytes;
+    int64_t width, height, start_in_file, num_bytes;
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_IMAGEWIDTH, width, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_IMAGELENGTH, height, false);
-    TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes, false);
+
+    int64_t strip_count =
+      _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_STRIPOFFSETS);
+    if (strip_count != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unexpected strip count %"PRId64" (height %"PRId64")",
+                  strip_count, height);
+      return false;
+    }
 
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
     if (tmp_err) {
       g_propagate_error(err, tmp_err);
-      return false;
-    }
-
-    // check results
-    if (height != rows_per_strip) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected rows per strip %"PRId64" (height %"PRId64")",
-                  rows_per_strip, height);
       return false;
     }
 
