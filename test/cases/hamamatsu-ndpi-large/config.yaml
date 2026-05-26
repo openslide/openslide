@@ -3,7 +3,9 @@ slide: Hamamatsu-1.ndpi
 success: true
 vendor: hamamatsu
 primary: true
-# omit debug: [jpeg-markers], since that would read the entire file (6+ GiB)
+debug:
+  # omit jpeg-markers, since that would read the entire file (6+ GiB)
+  - performance
 properties:
   # no openslide.quickhash-1 due to #79
   openslide.vendor: hamamatsu

@@ -29,7 +29,7 @@
 
 #define TILE_WIDTH 256
 #define TILE_HEIGHT 256
-#define TILES_PER_ROW 4
+#define TILES_PER_ROW 6
 #define TEXT_MARGIN 5
 #define TEXT_BACKDROP_MARGIN 2
 #define COLOR_BACKGROUND 0.6, 0.75, 0.9

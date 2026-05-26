@@ -1401,7 +1401,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
 
     // comment?
-    char *comment = NULL;
+    g_autofree char *comment = NULL;
     char **comment_ptr = NULL;
     if (i == 0) {
       comment_ptr = &comment;
@@ -1423,7 +1423,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (comment) {
       g_hash_table_insert(osr->properties,
 			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
-			  comment);
+			  g_steal_pointer(&comment));
     }
 
     jp->end_in_file = _openslide_fsize(f, err);
@@ -2096,6 +2096,56 @@ static void ndpi_set_props(openslide_t *osr,
   }
 }
 
+static int64_t *ndpi_read_unreliable_mcu_starts(struct _openslide_tifflike *tl,
+                                                int64_t dir,
+                                                int64_t start_in_file,
+                                                int32_t tile_count,
+                                                GError **err) {
+  int64_t mcu_start_count_low =
+    _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_LOW);
+  if (mcu_start_count_low != tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid low MCU start count %"PRId64" != %d",
+                mcu_start_count_low, tile_count);
+    return NULL;
+  }
+  int64_t mcu_start_count_high =
+    _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_HIGH);
+  if (mcu_start_count_high && mcu_start_count_high != tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid high MCU start count %"PRId64" != %d",
+                mcu_start_count_high, tile_count);
+    return NULL;
+  }
+
+  //g_debug("loading MCU starts for directory %"PRId64, dir);
+
+  const uint64_t *unreliable_mcu_starts_low =
+    _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW, err);
+  if (!unreliable_mcu_starts_low) {
+    g_prefix_error(err, "Reading low MCU starts: ");
+    return NULL;
+  }
+  const uint64_t *unreliable_mcu_starts_high =
+    _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH, err);
+  if (mcu_start_count_high && !unreliable_mcu_starts_high) {
+    g_prefix_error(err, "Reading high MCU starts: ");
+    return NULL;
+  } else {
+    g_clear_error(err);
+  }
+
+  g_autofree int64_t *unreliable_mcu_starts = g_new(int64_t, tile_count);
+  for (int32_t tile = 0; tile < tile_count; tile++) {
+    uint64_t start_high =
+      unreliable_mcu_starts_high ? (unreliable_mcu_starts_high[tile] << 32) : 0;
+    unreliable_mcu_starts[tile] =
+      start_in_file + (unreliable_mcu_starts_low[tile] | start_high);
+    //g_debug("mcu start at %"PRId64, unreliable_mcu_starts[tile]);
+  }
+  return g_steal_pointer(&unreliable_mcu_starts);
+}
+
 static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                                 struct _openslide_tifflike *tl,
                                 struct _openslide_hash *quickhash1,
@@ -2227,39 +2277,16 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
       // read MCU starts, if this directory is tiled
       if (jp->tile_count > 1) {
-        int64_t mcu_start_count_low =
-          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_LOW);
-        int64_t mcu_start_count_high =
-          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_HIGH);
-
-        if (mcu_start_count_low == jp->tile_count &&
-            (!mcu_start_count_high || mcu_start_count_high == jp->tile_count)) {
-          //g_debug("loading MCU starts for directory %"PRId64, dir);
-          const uint64_t *unreliable_mcu_starts_low =
-            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW, NULL);
-          const uint64_t *unreliable_mcu_starts_high =
-            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH, NULL);
-          if (unreliable_mcu_starts_low &&
-              (unreliable_mcu_starts_high || !mcu_start_count_high)) {
-            jp->unreliable_mcu_starts = g_new(int64_t, jp->tile_count);
-            for (int32_t tile = 0; tile < jp->tile_count; tile++) {
-              uint64_t start_high = unreliable_mcu_starts_high ?
-                (unreliable_mcu_starts_high[tile] << 32) : 0;
-              jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file +
-                (unreliable_mcu_starts_low[tile] | start_high);
-              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
-            }
-          } else {
-            //g_debug("failed to load MCU starts for directory %"PRId64, dir);
-          }
-        }
-
+        jp->unreliable_mcu_starts =
+          ndpi_read_unreliable_mcu_starts(tl, dir, jp->start_in_file,
+                                          jp->tile_count, &tmp_err);
         if (jp->unreliable_mcu_starts == NULL) {
           // no marker positions; scan for them in the background
           //g_debug("enabling restart marker thread for directory %"PRId64, dir);
           _openslide_performance_warn("Bad or missing MCU starts for "
-                                      "directory %"PRId64, dir);
+                                      "directory %"PRId64": %s", dir,
+                                      tmp_err->message);
+          g_clear_error(&tmp_err);
           restart_marker_scan = true;
         }
       }
