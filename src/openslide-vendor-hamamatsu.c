@@ -164,14 +164,6 @@ struct ngr_level {
   int32_t column_width;
 };
 
-enum OpenSlideHamamatsuError {
-  // JPEG does not contain restart markers
-  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
-};
-static G_DEFINE_QUARK(openslide-hamamatsu-error-quark,
-                      _openslide_hamamatsu_error)
-#define OPENSLIDE_HAMAMATSU_ERROR _openslide_hamamatsu_error_quark()
-
 /*
  * Source manager for reading a run of MCUs between two restart markers
  * as a complete JPEG.  Originally based on jdatasrc.c from IJG libjpeg.
@@ -983,6 +975,7 @@ static gpointer restart_marker_thread_func(gpointer d) {
 // if !use_jpeg_dimensions, use *w and *h instead of setting them
 static bool validate_jpeg_header(struct _openslide_file *f,
                                  bool use_jpeg_dimensions,
+                                 bool require_restart_markers,
                                  int32_t *w, int32_t *h,
                                  int32_t *tw, int32_t *th,
                                  uint8_t **header_data,
@@ -1033,12 +1026,6 @@ static bool validate_jpeg_header(struct _openslide_file *f,
                   "JPEG color components != 3");
       return false;
     }
-    if (cinfo->restart_interval == 0) {
-      g_set_error(err, OPENSLIDE_HAMAMATSU_ERROR,
-                  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
-                  "No restart markers");
-      return false;
-    }
 
     jpeg_start_decompress(cinfo);
 
@@ -1058,6 +1045,21 @@ static bool validate_jpeg_header(struct _openslide_file *f,
       *w = cinfo->output_width;
       *h = cinfo->output_height;
     }
+
+    if (cinfo->restart_interval == 0) {
+      if (!require_restart_markers && use_jpeg_dimensions) {
+        // nothing else to check
+        *tw = cinfo->output_width;
+        *th = cinfo->output_height;
+        return true;
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "No restart markers");
+        return false;
+      }
+    }
+
+    // now check restart interval
 
     int32_t mcu_width = DCTSIZE;
     int32_t mcu_height = DCTSIZE;
@@ -1409,7 +1411,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
       comment_ptr = &comment;
     }
 
-    if (!validate_jpeg_header(f, true,
+    if (!validate_jpeg_header(f, true, true,
                               &jp->width, &jp->height,
                               &jp->tile_width, &jp->tile_height,
                               &jp->header_data,
@@ -2230,25 +2232,15 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         g_prefix_error(err, "Couldn't seek to JPEG start: ");
         return false;
       }
-      if (!validate_jpeg_header(f, dimensions_valid,
+      if (!validate_jpeg_header(f, dimensions_valid, false,
                                 &jp_w, &jp_h,
                                 &jp_tw, &jp_th,
                                 &header_data,
                                 &header_sof_offset, &header_length,
-                                NULL, &tmp_err)) {
-        if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
-                            OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
-          // non-tiled image
-          //g_debug("non-tiled image %"PRId64, dir);
-          g_clear_error(&tmp_err);
-          jp_w = jp_tw = width;
-          jp_h = jp_th = height;
-        } else {
-          g_propagate_prefixed_error(err, tmp_err,
-                                     "Can't validate JPEG for directory "
-                                     "%"PRId64": ", dir);
-          return false;
-        }
+                                NULL, err)) {
+        g_prefix_error(err, "Can't validate JPEG for directory %"PRId64": ",
+                       dir);
+        return false;
       }
       if (width != jp_w || height != jp_h) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
