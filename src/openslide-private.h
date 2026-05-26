@@ -186,7 +186,12 @@ double _openslide_parse_double(const char *value);
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 
+/* Decode Base64 to string */
+char *_openslide_decode_base64_str(const char *base64);
+
 /* Duplicate OpenSlide properties */
+void _openslide_duplicate_str_prop(openslide_t *osr, const char *src,
+                                   const char *dest);
 void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest);
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,

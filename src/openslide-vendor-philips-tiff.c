@@ -461,6 +461,14 @@ static void add_openslide_properties(openslide_t *osr) {
                           g_strdup_printf("%u", objective_power));
     }
   }
+
+  const char *barcode = g_hash_table_lookup(osr->properties,
+                                            "philips.PIM_DP_UFS_BARCODE");
+  if (barcode) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BARCODE),
+                        _openslide_decode_base64_str(barcode));
+  }
 }
 
 static bool fix_level_dimensions(struct level **levels,

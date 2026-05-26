@@ -404,11 +404,7 @@ static struct collection *parse_xml_description(const char *xml,
     _openslide_xml_xpath_get_string(ctx, "/d:scn/d:collection/d:barcode/text()");
   if (barcode) {
     // Decode Base64
-    gsize len;
-    void *decoded = g_base64_decode(barcode, &len);
-    // null-terminate
-    collection->barcode = g_realloc(decoded, len + 1);
-    collection->barcode[len] = 0;
+    collection->barcode = _openslide_decode_base64_str(barcode);
   } else {
     // Fall back to 2010/03/10 namespace.  It's not clear whether this
     // namespace also Base64-encodes the barcode, so we avoid performing
@@ -554,8 +550,9 @@ static bool create_levels_from_collection(openslide_t *osr,
                                           GError **err) {
   *quickhash_dir = -1;
 
-  // set barcode property
+  // set barcode properties
   set_prop(osr, "leica.barcode", collection->barcode);
+  set_prop(osr, OPENSLIDE_PROPERTY_NAME_BARCODE, collection->barcode);
 
   // determine quickhash mode
   bool legacy_quickhash = should_use_legacy_quickhash(collection);
