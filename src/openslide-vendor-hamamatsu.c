@@ -1401,7 +1401,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
 
     // comment?
-    char *comment = NULL;
+    g_autofree char *comment = NULL;
     char **comment_ptr = NULL;
     if (i == 0) {
       comment_ptr = &comment;
@@ -1423,7 +1423,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (comment) {
       g_hash_table_insert(osr->properties,
 			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
-			  comment);
+			  g_steal_pointer(&comment));
     }
 
     jp->end_in_file = _openslide_fsize(f, err);
