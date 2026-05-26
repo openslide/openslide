@@ -492,19 +492,17 @@ static bool aperio_open(openslide_t *osr,
       if (dir == 1) {
         name = "thumbnail";
 
-        g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, err);
-        if (!thumbnail_props) {
-          g_prefix_error(err, "Reading thumbnail properties: ");
-          return false;
-        }
-        const char *main_icc_name =
-          g_hash_table_lookup(osr->properties, "aperio.ICC Profile");
-        const char *thumbnail_icc_name =
-          g_hash_table_lookup(thumbnail_props, "ICC Profile");
-        if (main_icc_name && thumbnail_icc_name &&
-            g_str_equal(main_icc_name, thumbnail_icc_name)) {
-          // use ICC profile from first directory
-          icc_dir = g_new0(tdir_t, 1);
+        g_autoptr(GHashTable) thumbnail_props = read_properties(ct.tiff, NULL);
+        if (thumbnail_props) {
+          const char *main_icc_name =
+            g_hash_table_lookup(osr->properties, "aperio.ICC Profile");
+          const char *thumbnail_icc_name =
+            g_hash_table_lookup(thumbnail_props, "ICC Profile");
+          if (main_icc_name && thumbnail_icc_name &&
+              g_str_equal(main_icc_name, thumbnail_icc_name)) {
+            // use ICC profile from first directory
+            icc_dir = g_new0(tdir_t, 1);
+          }
         }
       } else {
         uint32_t subfile;
