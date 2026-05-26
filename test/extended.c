@@ -156,7 +156,7 @@ struct cache_thread_params {
 
 static void *cache_thread(void *data) {
   struct cache_thread_params *params = data;
-  g_autofree uint32_t *buf = g_malloc(4 * params->w * params->h);
+  g_autofree uint32_t *buf = g_new(uint32_t, params->w * params->h);
   while (!g_atomic_int_get(params->stop)) {
     // read some tiles
     openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);

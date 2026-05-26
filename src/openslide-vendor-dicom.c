@@ -495,7 +495,7 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(l->base.tile_w * l->base.tile_h * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
     GError *tmp_err = NULL;
     if (!decode_frame(l->file, tile_col, tile_row,
                       buf, l->base.tile_w, l->base.tile_h,

@@ -220,7 +220,7 @@ static uint32_t *read_image(openslide_t *osr,
   struct mirax_ops_data *data = osr->data;
   bool result = false;
 
-  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  g_autofree uint32_t *dest = g_new(uint32_t, w * h);
 
   g_autoptr(_openslide_file) f =
     _openslide_fopen(data->datafile_paths[image->fileno], err);
