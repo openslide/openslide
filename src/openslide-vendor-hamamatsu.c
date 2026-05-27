@@ -2206,18 +2206,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         continue;
       }
 
-      // is smallest level?
-      if (width < min_width) {
-        min_width = width;
-        min_width_dir = dir;
-      } else {
-        // The slide's levels are in an unexpected order.  Reject the slide
-        // out of paranoia.
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "Unexpected directory layout");
-        return false;
-      }
-
       // will the JPEG image dimensions be valid?
       bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
                                height <= JPEG_MAX_DIMENSION);
@@ -2243,10 +2231,32 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         return false;
       }
       if (width != jp_w || height != jp_h) {
+        if (jp_w == jp_tw && jp_h == jp_th) {
+          // non-tiled directory
+          // allow the JPEG dimensions to override the TIFF ones, since
+          // these sometimes disagree at high downsamples
+
+          //g_debug("using JPEG dimensions %dx%d instead of TIFF dimensions %"PRId64"x%"PRId64" for non-tiled directory %"PRId64, jp_w, jp_h, width, height, dir);
+          width = jp_w;
+          height = jp_h;
+        } else {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "JPEG dimension mismatch for directory %"PRId64": "
+                      "expected %"PRId64"x%"PRId64", found %dx%d",
+                      dir, width, height, jp_w, jp_h);
+          return false;
+        }
+      }
+
+      // is smallest level?
+      if (width < min_width) {
+        min_width = width;
+        min_width_dir = dir;
+      } else {
+        // The slide's levels are in an unexpected order.  Reject the slide
+        // out of paranoia.
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "JPEG dimension mismatch for directory %"PRId64": "
-                    "expected %"PRId64"x%"PRId64", found %dx%d",
-                    dir, width, height, jp_w, jp_h);
+                    "Unexpected directory layout");
         return false;
       }
 
