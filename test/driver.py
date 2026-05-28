@@ -319,7 +319,7 @@ class UnpackedSlide:
 
         args = []
         if vendor is not Skip:
-            vendor_str = cast(str, 'none' if vendor is None else vendor)
+            vendor_str = cast(str, 'NULL' if vendor is None else vendor)
             args.extend(['-n', vendor_str])
         if properties:
             for k, v in properties.items():

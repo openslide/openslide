@@ -171,7 +171,7 @@ static void check_regions(openslide_t *osr) {
 
 static GOptionEntry options[] = {
   {"vendor", 'n', 0, G_OPTION_ARG_STRING, &vendor_check,
-   "Check for specified vendor (\"none\" for NULL)", "\"VENDOR\""},
+   "Check for specified vendor (\"NULL\" for NULL)", "\"VENDOR\""},
   {"property", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &prop_checks,
    "Check for specified property value", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
   // Check vendor if requested
   if (vendor_check) {
     const char *expected_vendor = vendor_check;
-    if (!strcmp(expected_vendor, "none")) {
+    if (!strcmp(expected_vendor, "NULL")) {
       expected_vendor = NULL;
     }
     if ((expected_vendor == NULL) != (vendor == NULL) ||
