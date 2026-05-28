@@ -21,7 +21,12 @@ int main(int argc, char **argv) {
   int64_t w = atoi(argv[5]);
   int64_t h = atoi(argv[6]);
 
-  uint32_t *buf = malloc(w * h * 4);
+  if (w <= 0 || h <= 0 || w > (int64_t)(SIZE_MAX / 4) / h) {
+    fprintf(stderr, "Dimensions too large or invalid\n");
+    return 1;
+  }
+  size_t nelem = (size_t) w * (size_t) h;
+  uint32_t *buf = calloc(nelem, sizeof(uint32_t));
   openslide_t *osr = openslide_open(slide);
   assert(osr != NULL && openslide_get_error(osr) == NULL);
   openslide_read_region(osr, buf, x, y, 0, w, h);
