@@ -2,6 +2,6 @@ base: Leica/Leica-1.scn
 error: "tifflike: Value count too large"
 slide: Leica-1.scn
 success: false
-vendor: null
+vendor: ~
 debug:
   - detection

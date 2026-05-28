@@ -2,6 +2,6 @@ base: Hamamatsu/CMU-1.ndpi
 error: "tifflike: Unrecognized TIFF magic number"
 slide: CMU-1.ndpi
 success: false
-vendor: null
+vendor: ~
 debug:
   - detection
