@@ -1,0 +1,12 @@
+base: Hamamatsu/CMU-1.ndpi
+error: "^JPEG dimension mismatch for directory 3: expected 804x596, found 800x596$"
+slide: CMU-1.ndpi
+success: true
+vendor: hamamatsu
+properties:
+  openslide.level[6].height: '596'
+  openslide.level[6].tile-height: '596'
+  openslide.level[6].tile-width: '800'
+  openslide.level[6].width: '800'
+regions:
+  - [0, 0, 6, 100, 100]
