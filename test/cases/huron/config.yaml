@@ -1,0 +1,11 @@
+base: Huron/Huron-1.tif
+slide: Huron-1.tif
+success: true
+vendor: huron
+primary: true
+properties:
+  openslide.associated.label.width: '250'
+  openslide.associated.macro.width: '273'
+  openslide.associated.thumbnail.width: '377'
+  openslide.quickhash-1: 4648281e2c9e10ecbbc4b5674f9f12b598142cabdff8c6408ceacadc9b8be896
+  openslide.vendor: huron

@@ -12,6 +12,7 @@ OpenSlide can read brightfield whole slide images in [several formats][]:
 * [Aperio][] (`.svs`, `.tif`)
 * [DICOM][] (`.dcm`)
 * [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
+* [Huron][] (`.tif`)
 * [Leica][] (`.scn`)
 * [MIRAX][] (`.mrxs`)
 * [Philips][] (`.tiff`)
@@ -28,6 +29,7 @@ associated images such as a slide label and thumbnail.
 [Aperio]: https://openslide.org/formats/aperio/
 [DICOM]: https://openslide.org/formats/dicom/
 [Hamamatsu]: https://openslide.org/formats/hamamatsu/
+[Huron]: https://openslide.org/formats/huron/
 [Leica]: https://openslide.org/formats/leica/
 [MIRAX]: https://openslide.org/formats/mirax/
 [Philips]: https://openslide.org/formats/philips/

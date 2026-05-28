@@ -1,0 +1,6 @@
+base: Huron/Huron-1.tif
+slide: Huron-1.tif
+success: true
+vendor: huron
+properties:
+  huron.DeviceID: ~

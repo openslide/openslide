@@ -1,0 +1,5 @@
+base: Huron/Huron-1.tif
+error: "^Couldn't read ImageDescription field$"
+slide: Huron-1.tif
+success: false
+vendor: huron
