@@ -134,7 +134,7 @@ static void check_props(openslide_t *osr) {
     const char *value = openslide_get_property_value(osr, key);
     check_error(osr);
 
-    if (!*expected_value) {
+    if (!strcmp(expected_value, "ABSENT")) {
       // value should be missing
       if (value != NULL) {
         fail("Property %s exists; should be missing", key);
@@ -143,7 +143,7 @@ static void check_props(openslide_t *osr) {
       if (value == NULL) {
         fail("Property %s does not exist", key);
       } else if (strcmp(value, expected_value)) {
-        fail("Property %s is %s; should be %s", key, value, expected_value);
+        fail("Property %s is \"%s\"; should be \"%s\"", key, value, expected_value);
       }
     }
   }
@@ -173,7 +173,7 @@ static GOptionEntry options[] = {
   {"vendor", 'n', 0, G_OPTION_ARG_STRING, &vendor_check,
    "Check for specified vendor (\"NULL\" for NULL)", "\"VENDOR\""},
   {"property", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &prop_checks,
-   "Check for specified property value", "\"NAME=VALUE\""},
+   "Check property value (\"ABSENT\" for absent)", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
    "Read specified region", "\"X Y LEVEL W H\""},
   {"time", 't', 0, G_OPTION_ARG_NONE, &time_check,

@@ -306,7 +306,7 @@ class UnpackedSlide:
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
         vendor: str | None | type[Skip] = Skip,
-        properties: dict[str, str] | None = None,
+        properties: dict[str, str | None] | None = None,
         regions: Iterable[Iterable[int]] | None = None,
     ) -> str | None:
         """Try opening the slide file, under Valgrind if specified, using
@@ -323,7 +323,9 @@ class UnpackedSlide:
             args.extend(['-n', vendor_str])
         if properties:
             for k, v in properties.items():
-                args.extend(['-p', '='.join([k, (v or '')])])
+                args.extend(
+                    ['-p', '='.join([k, ('ABSENT' if v is None else v)])]
+                )
         if regions:
             for region in regions:
                 args.extend(['-r', ' '.join(str(d) for d in region)])
@@ -398,7 +400,7 @@ class TestCaseConfig:
         self.required_features: set[str] = set(conf.get('requires', []))
         self.debug: set[str] = set(conf.get('debug', []))
         self.regions: list[list[int]] = conf.get('regions', [])
-        self.properties: dict[str, str] = conf.get('properties', {})
+        self.properties: dict[str, str | None] = conf.get('properties', {})
         self.generators = self._generator_map(conf, 'generate')
         self.copies = self._file_map(conf, 'copy')
         self.renames = self._file_map(conf, 'rename')
