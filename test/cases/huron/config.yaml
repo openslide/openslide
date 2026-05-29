@@ -3,6 +3,7 @@ slide: Huron-1.tif
 success: true
 vendor: huron
 primary: true
+requires: [tiff-log-callbacks]
 properties:
   openslide.associated.label.width: '250'
   openslide.associated.macro.width: '273'

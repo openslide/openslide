@@ -3,3 +3,4 @@ error: "^Unsupported TIFF compression: 10000$"
 slide: Huron-1.tif
 success: false
 vendor: huron
+requires: [tiff-log-callbacks]
