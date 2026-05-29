@@ -2,6 +2,6 @@ base: Generic-TIFF/CMU-1.tiff
 error: "tifflike: TIFF contains no directories"
 slide: CMU-1.tiff
 success: false
-vendor: null
+vendor: ~
 debug:
   - detection
