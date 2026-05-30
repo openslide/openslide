@@ -50,6 +50,7 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_trestle,
   &_openslide_format_aperio,
   &_openslide_format_huron,
+  &_openslide_format_argos,
   &_openslide_format_leica,
   &_openslide_format_philips_tiff,
   &_openslide_format_ventana,

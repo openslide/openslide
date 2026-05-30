@@ -60,6 +60,7 @@ openslide_sources = files(
   'openslide-jdatasrc.c',
   'openslide-util.c',
   'openslide-vendor-aperio.c',
+  'openslide-vendor-argos.c',
   'openslide-vendor-dicom.c',
   'openslide-vendor-generic-tiff.c',
   'openslide-vendor-hamamatsu.c',
