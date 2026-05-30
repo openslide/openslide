@@ -317,6 +317,7 @@ void _openslide_grid_destroy(struct _openslide_grid *grid);
 
 /* Bounds properties helper */
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid);
 
 

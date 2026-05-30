@@ -1,0 +1,9 @@
+base: Generic-TIFF/CMU-1.tiff
+slide: CMU-1.tiff
+success: true
+vendor: generic-tiff
+properties:
+  openslide.bounds-height: '32512'
+  openslide.bounds-width: '45568'
+  openslide.bounds-x: '256'
+  openslide.bounds-y: '256'

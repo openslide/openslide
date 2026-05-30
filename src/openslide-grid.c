@@ -310,8 +310,51 @@ static void simple_get_bounds(struct _openslide_grid *_grid,
                               struct bounds *bounds) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  bounds->w = grid->tiles_across * grid->base.tile_advance_x;
-  bounds->h = grid->tiles_down * grid->base.tile_advance_y;
+  if (grid->tiles_missing) {
+    int64_t min_col = -1;
+    for (int64_t col = 0; min_col < 0 && col < grid->tiles_across; col++) {
+      for (int64_t row = 0; min_col < 0 && row < grid->tiles_down; row++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          min_col = col;
+        }
+      }
+    }
+    int64_t min_row = -1;
+    for (int64_t row = 0; min_row < 0 && row < grid->tiles_down; row++) {
+      for (int64_t col = 0; min_row < 0 && col < grid->tiles_across; col++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          min_row = row;
+        }
+      }
+    }
+    int64_t max_col = -1;
+    for (int64_t col = grid->tiles_across - 1; max_col < 0 && col >= 0; col--) {
+      for (int64_t row = 0; max_col < 0 && row < grid->tiles_down; row++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          max_col = col;
+        }
+      }
+    }
+    int64_t max_row = -1;
+    for (int64_t row = grid->tiles_down - 1; max_row < 0 && row >= 0; row--) {
+      for (int64_t col = 0; max_row < 0 && col < grid->tiles_across; col++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          max_row = row;
+        }
+      }
+    }
+    if (min_col >= 0) {
+      // have at least one tile
+      g_assert(min_row >= 0 && max_col >= 0 && max_row >= 0);
+      bounds->x = min_col * grid->base.tile_advance_x;
+      bounds->y = min_row * grid->base.tile_advance_y;
+      bounds->w = (max_col + 1 - min_col) * grid->base.tile_advance_x;
+      bounds->h = (max_row + 1 - min_row) * grid->base.tile_advance_y;
+    }
+  } else {
+    bounds->w = grid->tiles_across * grid->base.tile_advance_x;
+    bounds->h = grid->tiles_down * grid->base.tile_advance_y;
+  }
 }
 
 static bool simple_read_tile(struct _openslide_grid *_grid,
