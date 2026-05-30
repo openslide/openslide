@@ -30,6 +30,9 @@
 #define COLOR_TILE 0.6, 0,   0,   0.3
 #define COLOR_BIN  0,   0,   0.6, 0.15
 
+#define BITMAP_ELEMENT_SHIFT 6  // uint64_t
+#define BITMAP_BIT_MASK ((1 << BITMAP_ELEMENT_SHIFT) - 1)
+
 struct region {
   double x;
   double y;
@@ -85,6 +88,7 @@ struct simple_grid {
 
   int64_t tiles_across;
   int64_t tiles_down;
+  uint64_t *tiles_missing;
   _openslide_grid_simple_read_fn read_tile;
 };
 
@@ -294,6 +298,14 @@ static void label_tile(cairo_t *cr,
 
 
 
+static bool simple_tile_missing(struct simple_grid *grid,
+                                int64_t tile_col, int64_t tile_row) {
+  uint64_t tile_index = tile_row * grid->tiles_across + tile_col;
+  return grid->tiles_missing &&
+         grid->tiles_missing[tile_index >> BITMAP_ELEMENT_SHIFT] &
+           1ULL << (tile_index & BITMAP_BIT_MASK);
+}
+
 static void simple_get_bounds(struct _openslide_grid *_grid,
                               struct bounds *bounds) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
@@ -311,6 +323,9 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
                              GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
+  if (simple_tile_missing(grid, tile_col, tile_row)) {
+    return true;
+  }
   if (!grid->read_tile(grid->base.osr, cr, level,
                        tile_col, tile_row, arg, err)) {
     return false;
@@ -368,6 +383,7 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
 static void simple_destroy(struct _openslide_grid *_grid) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
+  g_free(grid->tiles_missing);
   g_free(grid);
 }
 
@@ -392,6 +408,25 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
   grid->tiles_down = tiles_down;
   grid->read_tile = read_tile;
   return (struct _openslide_grid *) grid;
+}
+
+void _openslide_grid_simple_set_missing(struct _openslide_grid *_grid,
+                                        int64_t tile_col, int64_t tile_row) {
+  struct simple_grid *grid = (struct simple_grid *) _grid;
+  g_assert(grid->base.ops == &simple_grid_ops);
+  g_assert(tile_col >= 0 && tile_row >= 0 &&
+           tile_col < grid->tiles_across &&
+           tile_row < grid->tiles_down);
+
+  if (!grid->tiles_missing) {
+    uint64_t tile_count = grid->tiles_across * grid->tiles_down;
+    grid->tiles_missing =
+      g_new0(uint64_t, (tile_count >> BITMAP_ELEMENT_SHIFT) +
+                       !!(tile_count & BITMAP_BIT_MASK));
+  }
+  uint64_t tile_index = tile_row * grid->tiles_across + tile_col;
+  grid->tiles_missing[tile_index >> BITMAP_ELEMENT_SHIFT] |=
+    1ULL << (tile_index & BITMAP_BIT_MASK);
 }
 
 

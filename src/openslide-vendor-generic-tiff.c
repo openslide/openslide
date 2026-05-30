@@ -86,18 +86,6 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    // TIFF doesn't allow missing tiles, but WSI-derived TIFFs might have them
-    bool is_missing;
-    if (!_openslide_tiff_check_missing_tile(tiffl, tiff,
-                                            tile_col, tile_row,
-                                            &is_missing, err)) {
-      return false;
-    }
-    if (is_missing) {
-      // nothing to draw
-      return true;
-    }
-
     g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
                                    buf, tile_col, tile_row,
@@ -263,6 +251,11 @@ static bool generic_tiff_open(openslide_t *osr,
                                             tiffl->tile_w,
                                             tiffl->tile_h,
                                             read_tile);
+    // TIFF doesn't allow missing tiles, but WSI-derived TIFFs might have them
+    if (!_openslide_tiff_missing_tiles_to_simple_grid(tiffl, ct.tiff, l->grid,
+                                                      err)) {
+      return false;
+    }
 
     // add to array
     g_ptr_array_add(level_array, g_steal_pointer(&l));

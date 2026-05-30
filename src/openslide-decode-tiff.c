@@ -352,36 +352,34 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   return true;
 }
 
-// sets out-argument to indicate whether the tile data is zero bytes long
-// returns false on error
-bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
-                                        TIFF *tiff,
-                                        int64_t tile_col, int64_t tile_row,
-                                        bool *is_missing,
-                                        GError **err) {
+bool _openslide_tiff_missing_tiles_to_simple_grid(struct _openslide_tiff_level *tiffl,
+                                                  TIFF *tiff,
+                                                  struct _openslide_grid *grid,
+                                                  GError **err) {
   // set directory
   if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
     return false;
   }
 
-  // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff,
-                                    tile_col * tiffl->tile_w,
-                                    tile_row * tiffl->tile_h,
-                                    0, 0);
-
-  //g_debug("_openslide_tiff_check_missing_tile: tile %d", tile_no);
-
-  // get tile size
+  // get tile sizes
   toff_t *sizes;
   if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
-    _openslide_tiff_error(err, tiff, "Cannot get tile size");
+    _openslide_tiff_error(err, tiff, "Cannot get tile sizes");
     return false;
   }
-  tsize_t tile_size = sizes[tile_no];
 
-  // return result
-  *is_missing = tile_size == 0;
+  // walk
+  for (int64_t tile_row = 0; tile_row < tiffl->tiles_down; tile_row++) {
+    for (int64_t tile_col = 0; tile_col < tiffl->tiles_across; tile_col++) {
+      ttile_t tile_no = TIFFComputeTile(tiff,
+                                        tile_col * tiffl->tile_w,
+                                        tile_row * tiffl->tile_h,
+                                        0, 0);
+      if (sizes[tile_no] == 0) {
+        _openslide_grid_simple_set_missing(grid, tile_col, tile_row);
+      }
+    }
+  }
   return true;
 }
 

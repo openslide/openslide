@@ -270,6 +270,9 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int32_t tile_h,
                                                       _openslide_grid_simple_read_fn read_tile);
 
+void _openslide_grid_simple_set_missing(struct _openslide_grid *grid,
+                                        int64_t tile_col, int64_t tile_row);
+
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_x,
                                                        double tile_advance_y,
