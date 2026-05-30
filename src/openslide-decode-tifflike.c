@@ -494,7 +494,8 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
       g_prefix_error(err, "Cannot read value/offset: ");
       return NULL;
     }
-    bool is_value = value_len <= read_size;
+    bool is_value = value_len <= read_size &&
+                    !(ndpi && type == TIFF_ASCII);
 
     // in ndpi files all values/offsets have a 4 byte extension at the end
     // of the IFD
@@ -516,11 +517,6 @@ static struct tiff_directory *read_directory(struct _openslide_file *f,
         case TIFF_SLONG:
           item->type = TIFF_SLONG8;
           value_size = 8;
-          break;
-        case TIFF_ASCII:
-          // NDPI may always store ASCII out-of-line, but for now we only
-          // assume this if the value extension is nonzero
-          is_value = false;
           break;
         default:
           // unclear what is meant
