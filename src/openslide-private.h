@@ -186,6 +186,9 @@ void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest);
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest);
+void _openslide_duplicate_double_prop_scaled(openslide_t *osr,
+                                             const char *src, double scale,
+                                             const char *dest);
 
 // background color helper
 void _openslide_set_background_color_prop(openslide_t *osr,

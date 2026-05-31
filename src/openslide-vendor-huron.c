@@ -288,6 +288,7 @@ static bool huron_open(openslide_t *osr,
   _openslide_tifflike_set_resolution_props(osr, tl, 0);
 
   // set hash and TIFF properties
+  g_assert(level_array->len);
   struct level *top_level = level_array->pdata[level_array->len - 1];
   if (!_openslide_tifflike_init_properties_and_hash(osr, tl, quickhash1,
                                                     top_level->tiffl.dir,
