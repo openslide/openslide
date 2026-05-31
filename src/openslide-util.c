@@ -346,12 +346,20 @@ void _openslide_set_background_color_prop(openslide_t *osr,
 }
 
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid) {
   g_return_if_fail(g_hash_table_lookup(osr->properties,
                                        OPENSLIDE_PROPERTY_NAME_BOUNDS_X) == NULL);
 
   double x, y, w, h;
   _openslide_grid_get_bounds(grid, &x, &y, &w, &h);
+  // simple grid doesn't know about padding in bottom/right tiles
+  w = MIN(w, level->w - x);
+  h = MIN(h, level->h - y);
+
+  if (x == 0 && y == 0 && w == level->w && h == level->h) {
+    return;
+  }
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),

@@ -30,6 +30,9 @@
 #define COLOR_TILE 0.6, 0,   0,   0.3
 #define COLOR_BIN  0,   0,   0.6, 0.15
 
+#define BITMAP_ELEMENT_SHIFT 6  // uint64_t
+#define BITMAP_BIT_MASK ((1 << BITMAP_ELEMENT_SHIFT) - 1)
+
 struct region {
   double x;
   double y;
@@ -85,6 +88,7 @@ struct simple_grid {
 
   int64_t tiles_across;
   int64_t tiles_down;
+  uint64_t *tiles_missing;
   _openslide_grid_simple_read_fn read_tile;
 };
 
@@ -294,12 +298,63 @@ static void label_tile(cairo_t *cr,
 
 
 
+static bool simple_tile_missing(struct simple_grid *grid,
+                                int64_t tile_col, int64_t tile_row) {
+  uint64_t tile_index = tile_row * grid->tiles_across + tile_col;
+  return grid->tiles_missing &&
+         grid->tiles_missing[tile_index >> BITMAP_ELEMENT_SHIFT] &
+           1ULL << (tile_index & BITMAP_BIT_MASK);
+}
+
 static void simple_get_bounds(struct _openslide_grid *_grid,
                               struct bounds *bounds) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
-  bounds->w = grid->tiles_across * grid->base.tile_advance_x;
-  bounds->h = grid->tiles_down * grid->base.tile_advance_y;
+  if (grid->tiles_missing) {
+    int64_t min_col = -1;
+    for (int64_t col = 0; min_col < 0 && col < grid->tiles_across; col++) {
+      for (int64_t row = 0; min_col < 0 && row < grid->tiles_down; row++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          min_col = col;
+        }
+      }
+    }
+    int64_t min_row = -1;
+    for (int64_t row = 0; min_row < 0 && row < grid->tiles_down; row++) {
+      for (int64_t col = 0; min_row < 0 && col < grid->tiles_across; col++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          min_row = row;
+        }
+      }
+    }
+    int64_t max_col = -1;
+    for (int64_t col = grid->tiles_across - 1; max_col < 0 && col >= 0; col--) {
+      for (int64_t row = 0; max_col < 0 && row < grid->tiles_down; row++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          max_col = col;
+        }
+      }
+    }
+    int64_t max_row = -1;
+    for (int64_t row = grid->tiles_down - 1; max_row < 0 && row >= 0; row--) {
+      for (int64_t col = 0; max_row < 0 && col < grid->tiles_across; col++) {
+        if (!simple_tile_missing(grid, col, row)) {
+          max_row = row;
+        }
+      }
+    }
+    if (min_col >= 0) {
+      // have at least one tile
+      g_assert(min_row >= 0 && max_col >= 0 && max_row >= 0);
+      bounds->x = min_col * grid->base.tile_advance_x;
+      bounds->y = min_row * grid->base.tile_advance_y;
+      bounds->w = (max_col + 1 - min_col) * grid->base.tile_advance_x;
+      bounds->h = (max_row + 1 - min_row) * grid->base.tile_advance_y;
+    }
+  } else {
+    bounds->w = grid->tiles_across * grid->base.tile_advance_x;
+    bounds->h = grid->tiles_down * grid->base.tile_advance_y;
+  }
 }
 
 static bool simple_read_tile(struct _openslide_grid *_grid,
@@ -311,6 +366,9 @@ static bool simple_read_tile(struct _openslide_grid *_grid,
                              GError **err) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
+  if (simple_tile_missing(grid, tile_col, tile_row)) {
+    return true;
+  }
   if (!grid->read_tile(grid->base.osr, cr, level,
                        tile_col, tile_row, arg, err)) {
     return false;
@@ -368,6 +426,7 @@ static bool simple_paint_region(struct _openslide_grid *_grid,
 static void simple_destroy(struct _openslide_grid *_grid) {
   struct simple_grid *grid = (struct simple_grid *) _grid;
 
+  g_free(grid->tiles_missing);
   g_free(grid);
 }
 
@@ -392,6 +451,25 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
   grid->tiles_down = tiles_down;
   grid->read_tile = read_tile;
   return (struct _openslide_grid *) grid;
+}
+
+void _openslide_grid_simple_set_missing(struct _openslide_grid *_grid,
+                                        int64_t tile_col, int64_t tile_row) {
+  struct simple_grid *grid = (struct simple_grid *) _grid;
+  g_assert(grid->base.ops == &simple_grid_ops);
+  g_assert(tile_col >= 0 && tile_row >= 0 &&
+           tile_col < grid->tiles_across &&
+           tile_row < grid->tiles_down);
+
+  if (!grid->tiles_missing) {
+    uint64_t tile_count = grid->tiles_across * grid->tiles_down;
+    grid->tiles_missing =
+      g_new0(uint64_t, (tile_count >> BITMAP_ELEMENT_SHIFT) +
+                       !!(tile_count & BITMAP_BIT_MASK));
+  }
+  uint64_t tile_index = tile_row * grid->tiles_across + tile_col;
+  grid->tiles_missing[tile_index >> BITMAP_ELEMENT_SHIFT] |=
+    1ULL << (tile_index & BITMAP_BIT_MASK);
 }
 
 

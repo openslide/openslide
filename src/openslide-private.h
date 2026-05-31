@@ -270,6 +270,9 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int32_t tile_h,
                                                       _openslide_grid_simple_read_fn read_tile);
 
+void _openslide_grid_simple_set_missing(struct _openslide_grid *grid,
+                                        int64_t tile_col, int64_t tile_row);
+
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_x,
                                                        double tile_advance_y,
@@ -314,6 +317,7 @@ void _openslide_grid_destroy(struct _openslide_grid *grid);
 
 /* Bounds properties helper */
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid);
 
 
