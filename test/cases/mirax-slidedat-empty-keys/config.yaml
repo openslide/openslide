@@ -1,0 +1,13 @@
+# https://github.com/openslide/openslide/issues/255
+# Test case includes a BOM, plus some invalid UTF-8 to ensure
+# _openslide_read_key_file() isn't requiring valid Unicode
+base: Mirax/CMU-1.zip
+slide: CMU-1.mrxs
+success: true
+vendor: mirax
+properties:
+  # ensure neighboring properties are present and not truncated
+  mirax.GENERAL.SLIDE_ID: 176E0EA4F1F24519A9CFCE64A3E9E5BD
+  mirax.GENERAL.IMAGENUMBER_X: '352'
+  mirax.GENERAL.IMAGENUMBER_Y: '976'
+  mirax.GENERAL.CURRENT_SLIDE_VERSION: '1.9'
