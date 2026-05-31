@@ -75,10 +75,6 @@ struct dicom_level {
   struct _openslide_level base;
   struct _openslide_grid *grid;
 
-  double pixel_spacing_x;
-  double pixel_spacing_y;
-  double objective_lens_power;
-
   struct dicom_file *file;
 };
 
@@ -165,18 +161,13 @@ static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
 static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
-static const char ObjectiveLensPower[] = "ObjectiveLensPower";
 static const char OpticalPathSequence[] = "OpticalPathSequence";
 static const char PhotometricInterpretation[] = "PhotometricInterpretation";
-static const char PixelMeasuresSequence[] = "PixelMeasuresSequence";
 static const char PixelRepresentation[] = "PixelRepresentation";
-static const char PixelSpacing[] = "PixelSpacing";
 static const char PlanarConfiguration[] = "PlanarConfiguration";
 static const char Rows[] = "Rows";
 static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
-static const char SharedFunctionalGroupsSequence[] =
-  "SharedFunctionalGroupsSequence";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
@@ -266,22 +257,6 @@ static bool get_tag_binary(const DcmDataSet *dataset,
   if (length) {
     *length = dcm_element_get_length(element);
   }
-  return true;
-}
-
-static bool get_tag_decimal_str(const DcmDataSet *dataset,
-                                const char *keyword,
-                                int index,
-                                double *result) {
-  const char *value_ptr;
-  if (!get_tag_str(dataset, keyword, index, &value_ptr)) {
-    return false;
-  }
-  const double value = _openslide_parse_double(value_ptr);
-  if (isnan(value)) {
-    return false;
-  }
-  *result = value;
   return true;
 }
 
@@ -793,27 +768,6 @@ static bool add_level(openslide_t *osr,
     return false;
   }
 
-  // read PixelSpacing to expose as the mpp settings, if present
-  DcmDataSet *shared_functional_group;
-  DcmDataSet *pixel_measures;
-  if (get_tag_seq_item(f->metadata,
-                       SharedFunctionalGroupsSequence,
-                       0,
-                       &shared_functional_group) &&
-      get_tag_seq_item(shared_functional_group,
-                       PixelMeasuresSequence,
-                       0,
-                       &pixel_measures)) {
-    get_tag_decimal_str(pixel_measures, PixelSpacing, 0, &l->pixel_spacing_x);
-    get_tag_decimal_str(pixel_measures, PixelSpacing, 1, &l->pixel_spacing_y);
-  }
-
-  // objective power
-  DcmDataSet *optical_path;
-  if (get_tag_seq_item(f->metadata, OpticalPathSequence, 0, &optical_path)) {
-    get_tag_decimal_str(optical_path, ObjectiveLensPower, 0, &l->objective_lens_power);
-  }
-
   // grid
   int64_t tiles_across = (l->base.w / l->base.tile_w) + !!(l->base.w % l->base.tile_w);
   int64_t tiles_down = (l->base.h / l->base.tile_h) + !!(l->base.h % l->base.tile_h);
@@ -1042,25 +996,25 @@ static bool add_properties_element(const DcmElement *element,
 }
 
 static void add_properties(openslide_t *osr, struct dicom_level *level0) {
-  // pixel spacing is in mm, so convert to microns
-  if (level0->pixel_spacing_x && level0->pixel_spacing_y) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                        _openslide_format_double(1000.0 * level0->pixel_spacing_x));
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                        _openslide_format_double(1000.0 * level0->pixel_spacing_y));
-  }
-  if (level0->objective_lens_power) {
-    g_hash_table_insert(osr->properties,
-                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                        _openslide_format_double(level0->objective_lens_power));
-  }
-
   // add all dicom elements
   struct property_iterate iter = { osr, "dicom", true };
   add_properties_dataset(level0->file->file_meta, 0, &iter);
   add_properties_dataset(level0->file->metadata, 0, &iter);
+
+  // add MPP and objective power
+  // pixel spacing is in mm, so convert to microns
+  // row spacing, then column spacing
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "dicom.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing[0]",
+                                          1000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_Y);
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "dicom.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing[1]",
+                                          1000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop(osr,
+                                   "dicom.OpticalPathSequence[0].ObjectiveLensPower",
+                                   OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
 }
 
 static gint compare_level_width(const void *a, const void *b) {
