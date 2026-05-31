@@ -467,9 +467,7 @@ static bool decode_frame(struct dicom_file *file,
 }
 
 static struct dicom_file *get_file_for_tile(struct dicom_level *l,
-                                            int col,
-                                            int row)
-{
+                                            int col, int row) {
   guint k = l->file_index ? l->file_index[col + row * l->tiles_across] : 0;
   return k == 0xffffffff ? NULL : (struct dicom_file *) l->files->pdata[k];
 }
@@ -493,8 +491,8 @@ static bool read_tile(openslide_t *osr,
       return true;
     }
 
-    GError *tmp_err = NULL;
     g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
+    GError *tmp_err = NULL;
     if (!decode_frame(f, tile_col, tile_row,
                       buf, l->base.tile_w, l->base.tile_h,
                       &tmp_err)) {
@@ -700,10 +698,9 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
 static const char *get_underlying_sopinstance(struct dicom_file *f) {
   const char *sop;
   if (get_tag_str(f->metadata, SOPInstanceUIDOfConcatenationSource, 0, &sop) ||
-	  get_tag_str(f->metadata, SOPInstanceUID, 0, &sop)) {
-	  return sop;
+      get_tag_str(f->metadata, SOPInstanceUID, 0, &sop)) {
+    return sop;
   }
-
   return NULL;
 }
 
@@ -793,10 +790,10 @@ static struct dicom_level *find_level_by_dimensions(GPtrArray *level_array,
 }
 
 // unconditionally takes ownership of dicom_file
-static bool add_level(openslide_t *osr,
-                      GPtrArray *level_array,
-                      struct dicom_file *file,
-                      GError **err) {
+static bool add_level_file(openslide_t *osr,
+                           GPtrArray *level_array,
+                           struct dicom_file *file,
+                           GError **err) {
   g_autoptr(dicom_file) f = file;
 
   int64_t level_width;
@@ -815,23 +812,23 @@ static bool add_level(openslide_t *osr,
   struct dicom_level *l =
     find_level_by_dimensions(level_array, level_width, level_height);
   if (l) {
-    // all files in a level should have the same UID
-	for (guint j = 0; j < l->files->len; j++) {
+    // all files in a level must have the same UID
+    for (guint j = 0; j < l->files->len; j++) {
       struct dicom_file *previous = l->files->pdata[j];
-
       if (!ensure_sop_instance_uids_equal(file, previous, err)) {
-	    return false;
-	  }
-	}
+        return false;
+      }
+    }
 
     // all files in a level must have the same tile size
     if (l->base.tile_w != tile_width || l->base.tile_h != tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Tile sizes in level are not equal");
+                  "Tile size %"PRId64"x%"PRId64" doesn't match "
+                  "level tile size %"PRId64"x%"PRId64,
+                  tile_width, tile_height, l->base.tile_w, l->base.tile_h);
       return false;
     }
-  }
-  else {
+  } else {
     // we must make a new level
     g_autoptr(dicom_level) new_l = l = g_new0(struct dicom_level, 1);
 
@@ -912,11 +909,12 @@ static bool maybe_add_file(openslide_t *osr,
     return false;
   }
 
-  int64_t value;
-  if (!get_tag_int(f->metadata, SamplesPerPixel, &value)) {
-      return false;
+  // check samples per pixel
+  int64_t samples_per_pixel;
+  if (!get_tag_int(f->metadata, SamplesPerPixel, &samples_per_pixel)) {
+    return false;
   }
-  switch (value) {
+  switch (samples_per_pixel) {
   case 1:
     break;
   case 3:
@@ -927,7 +925,7 @@ static bool maybe_add_file(openslide_t *osr,
     break;
   default:
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported SamplesPerPixel");
+                "Unsupported SamplesPerPixel %"PRId64, samples_per_pixel);
     return false;
   }
 
@@ -971,7 +969,7 @@ static bool maybe_add_file(openslide_t *osr,
 
   // add
   if (is_level) {
-    return add_level(osr, level_array, g_steal_pointer(&f), err);
+    return add_level_file(osr, level_array, g_steal_pointer(&f), err);
   } else {
     return add_associated(osr, g_steal_pointer(&f), image_type, err);
   }
@@ -1117,8 +1115,7 @@ static gint compare_level_width(const void *a, const void *b) {
   return bb->base.w - aa->base.w;
 }
 
-static void build_level_index(struct dicom_level *l)
-{
+static void build_level_index(struct dicom_level *l) {
   if (l->files->len > 1 && !l->file_index) {
     l->file_index = g_new0(guint, l->tiles_across * l->tiles_down);
 
