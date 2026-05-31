@@ -274,6 +274,14 @@ void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
 // if the src prop is a double, canonicalize it and copy it to dest
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest) {
+  _openslide_duplicate_double_prop_scaled(osr, src, 1, dest);
+}
+
+// if the src prop is a double, canonicalize it, multiply it by scale,
+// and copy it to dest
+void _openslide_duplicate_double_prop_scaled(openslide_t *osr,
+                                             const char *src, double scale,
+                                             const char *dest) {
   g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
   char *value = g_hash_table_lookup(osr->properties, src);
@@ -281,7 +289,7 @@ void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
     double result = _openslide_parse_double(value);
     if (!isnan(result)) {
       g_hash_table_insert(osr->properties, g_strdup(dest),
-                          _openslide_format_double(result));
+                          _openslide_format_double(scale * result));
     }
   }
 }

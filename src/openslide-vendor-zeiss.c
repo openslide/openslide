@@ -1018,28 +1018,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
   czi->h = h;
   czi->nscene = nscene;
 
-  // in meter/pixel
-  const char *meters =
-    g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.X.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      // in um/pixel
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
-
-  meters = g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.Y.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
+  // meter/pixel -> um/pixel
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.X.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.Y.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   char *objective_id = g_hash_table_lookup(osr->properties,
                                            "zeiss.Information.Image.ObjectiveSettings.ObjectiveRef.Id");
