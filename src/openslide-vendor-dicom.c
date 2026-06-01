@@ -74,7 +74,7 @@ struct dicom_file_io {
 // g_auto wrapper struct for fio array
 struct dicom_file_io_set {
   struct dicom_file_io *fios;
-  int32_t len;
+  uint16_t len;
 };
 
 struct dicom_level {
@@ -85,7 +85,7 @@ struct dicom_level {
   int64_t tiles_down;
 
   GPtrArray *files;
-  guint *file_index;
+  uint16_t *tile_files;
 };
 
 struct associated {
@@ -236,7 +236,7 @@ static void dicom_file_io_put(struct dicom_file_io *fio) {
 typedef struct dicom_file_io dicom_file_io;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(dicom_file_io, dicom_file_io_put)
 
-static struct dicom_file_io_set dicom_file_io_set_make(int32_t len) {
+static struct dicom_file_io_set dicom_file_io_set_make(uint16_t len) {
   struct dicom_file_io_set fioset = {
     .fios = g_new0(struct dicom_file_io, len),
     .len = len,
@@ -245,7 +245,7 @@ static struct dicom_file_io_set dicom_file_io_set_make(int32_t len) {
 }
 
 static void dicom_file_io_set_put(struct dicom_file_io_set *fioset) {
-  for (int32_t i = 0; i < fioset->len; i++) {
+  for (uint16_t i = 0; i < fioset->len; i++) {
     if (fioset->fios[i].file) {
       dicom_file_io_put(&fioset->fios[i]);
     }
@@ -411,9 +411,7 @@ static void level_destroy(struct dicom_level *l) {
   if (l->files) {
     g_ptr_array_unref(l->files);
   }
-  if (l->file_index) {
-    g_free(l->file_index);
-  }
+  g_free(l->tile_files);
   g_free(l);
 }
 OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(level_destroy)
@@ -508,8 +506,8 @@ static bool read_tile(openslide_t *osr,
                                             &cache_entry);
   if (!tiledata) {
     // get file
-    guint file_num =
-      l->file_index ? l->file_index[tile_col + tile_row * l->tiles_across] : 0;
+    uint16_t file_num =
+      l->tile_files ? l->tile_files[tile_col + tile_row * l->tiles_across] : 0;
     g_assert(file_num < l->files->len);
     if (!fios[file_num].file) {
       fios[file_num] = dicom_file_io_get(l->files->pdata[file_num]);
@@ -829,7 +827,7 @@ static bool add_level_file(openslide_t *osr,
     find_level_by_dimensions(level_array, level_width, level_height);
   if (l) {
     // all files in a level must have the same UID
-    for (guint j = 0; j < l->files->len; j++) {
+    for (uint16_t j = 0; j < l->files->len; j++) {
       struct dicom_file *previous = l->files->pdata[j];
       if (!ensure_sop_instance_uids_equal(file, previous, err)) {
         return false;
@@ -871,8 +869,12 @@ static bool add_level_file(openslide_t *osr,
     g_ptr_array_add(level_array, g_steal_pointer(&new_l));
   }
 
+  if (l->files->len == UINT16_MAX) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Too many files in level");
+    return false;
+  }
   g_ptr_array_add(l->files, g_steal_pointer(&f));
-
   return true;
 }
 
@@ -1112,15 +1114,17 @@ static gint compare_level_width(const void *a, const void *b) {
 }
 
 static void finalize_level(struct dicom_level *l) {
-  if (l->files->len > 1 && !l->file_index) {
-    l->file_index = g_new0(guint, l->tiles_across * l->tiles_down);
+  if (l->files->len > 1) {
+    g_assert(l->files->len <= UINT16_MAX);
+    g_assert(!l->tile_files);
+    l->tile_files = g_new(uint16_t, l->tiles_across * l->tiles_down);
 
     // find the first file containing each tile
     for (int64_t y = 0; y < l->tiles_down; y++) {
       for (int64_t x = 0; x < l->tiles_across; x++) {
         int64_t i = x + y * l->tiles_across;
 
-        guint j;
+        uint16_t j;
 
         for (j = 0; j < l->files->len; j++) {
           struct dicom_file *f = (struct dicom_file *) l->files->pdata[j];
@@ -1128,14 +1132,14 @@ static void finalize_level(struct dicom_level *l) {
           uint32_t n;
           if (dcm_filehandle_get_frame_number(NULL, f->filehandle, x, y, &n)) {
             // found one, record the file that has this tile and break
-            l->file_index[i] = j;
+            l->tile_files[i] = j;
             break;
           }
         }
 
         if (j == l->files->len) {
           _openslide_grid_simple_set_missing(l->grid, x, y);
-          l->file_index[i] = G_MAXUINT;
+          l->tile_files[i] = UINT16_MAX;
         }
       }
     }
