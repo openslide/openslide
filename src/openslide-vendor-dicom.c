@@ -84,7 +84,8 @@ struct dicom_level {
   int64_t tiles_across;
   int64_t tiles_down;
 
-  GPtrArray *files;
+  struct dicom_file **files;
+  uint16_t file_count;
   uint16_t *tile_files;
 };
 
@@ -201,7 +202,12 @@ static struct syntax_format supported_syntax_formats[] = {
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(g_ptr_array_unref)
+
 static void dicom_file_destroy(struct dicom_file *f) {
+  if (!f) {
+    return;
+  }
   dcm_filehandle_destroy(f->filehandle);
   g_mutex_clear(&f->lock);
   g_free(f->filename);
@@ -408,9 +414,10 @@ static struct dicom_file *dicom_file_new(const char *filename,
 
 static void level_destroy(struct dicom_level *l) {
   _openslide_grid_destroy(l->grid);
-  if (l->files) {
-    g_ptr_array_unref(l->files);
+  for (uint16_t i = 0; i < l->file_count; i++) {
+    dicom_file_destroy(l->files[i]);
   }
+  g_free(l->files);
   g_free(l->tile_files);
   g_free(l);
 }
@@ -508,9 +515,9 @@ static bool read_tile(openslide_t *osr,
     // get file
     uint16_t file_num =
       l->tile_files ? l->tile_files[tile_col + tile_row * l->tiles_across] : 0;
-    g_assert(file_num < l->files->len);
+    g_assert(file_num < l->file_count);
     if (!fios[file_num].file) {
-      fios[file_num] = dicom_file_io_get(l->files->pdata[file_num]);
+      fios[file_num] = dicom_file_io_get(l->files[file_num]);
     }
 
     g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
@@ -565,7 +572,7 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                          GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
 
-  g_auto(dicom_file_io_set) fioset = dicom_file_io_set_make(l->files->len);
+  g_auto(dicom_file_io_set) fioset = dicom_file_io_set_make(l->file_count);
   return _openslide_grid_paint_region(l->grid, cr, fioset.fios,
                                       x / l->base.downsample,
                                       y / l->base.downsample,
@@ -589,9 +596,8 @@ static const void *get_icc_profile(struct dicom_file *file, int64_t *len) {
 static bool read_icc_profile(openslide_t *osr, void *dest,
                              GError **err) {
   struct dicom_level *l = (struct dicom_level *) osr->levels[0];
-  struct dicom_file *f = (struct dicom_file *) l->files->pdata[0];
   int64_t icc_profile_size;
-  const void *icc_profile = get_icc_profile(f, &icc_profile_size);
+  const void *icc_profile = get_icc_profile(l->files[0], &icc_profile_size);
   if (!icc_profile) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "No ICC profile");
@@ -683,9 +689,7 @@ static bool associated_read_icc_profile(struct _openslide_associated_image *img,
 }
 
 static void _associated_destroy(struct associated *a) {
-  if (a->file) {
-    dicom_file_destroy(a->file);
-  }
+  dicom_file_destroy(a->file);
   g_free(a);
 }
 
@@ -792,20 +796,26 @@ static bool add_associated(openslide_t *osr,
   return true;
 }
 
-static struct dicom_level *find_level_by_dimensions(GPtrArray *level_array,
-                                                    int64_t w, int64_t h) {
+static bool find_level_by_dimensions(GPtrArray *level_array,
+                                     GPtrArray *level_files_array,
+                                     int64_t w, int64_t h,
+                                     struct dicom_level **level,
+                                     GPtrArray **level_files) {
   for (guint i = 0; i < level_array->len; i++) {
-    struct dicom_level *l = (struct dicom_level *) level_array->pdata[i];
+    struct dicom_level *l = level_array->pdata[i];
     if (l->base.w == w && l->base.h == h) {
-      return l;
+      *level = l;
+      *level_files = level_files_array->pdata[i];
+      return true;
     }
   }
-  return NULL;
+  return false;
 }
 
 // unconditionally takes ownership of dicom_file
 static bool add_level_file(openslide_t *osr,
                            GPtrArray *level_array,
+                           GPtrArray *level_files_array,
                            struct dicom_file *file,
                            GError **err) {
   g_autoptr(dicom_file) f = file;
@@ -823,12 +833,14 @@ static bool add_level_file(openslide_t *osr,
     return false;
   }
 
-  struct dicom_level *l =
-    find_level_by_dimensions(level_array, level_width, level_height);
-  if (l) {
+  struct dicom_level *l;
+  GPtrArray *files;
+  if (find_level_by_dimensions(level_array, level_files_array,
+                               level_width, level_height,
+                               &l, &files)) {
     // all files in a level must have the same UID
-    for (uint16_t j = 0; j < l->files->len; j++) {
-      struct dicom_file *previous = l->files->pdata[j];
+    for (uint16_t j = 0; j < files->len; j++) {
+      struct dicom_file *previous = files->pdata[j];
       if (!ensure_sop_instance_uids_equal(file, previous, err)) {
         return false;
       }
@@ -845,9 +857,6 @@ static bool add_level_file(openslide_t *osr,
   } else {
     // we must make a new level
     l = g_new0(struct dicom_level, 1);
-    l->files =
-      g_ptr_array_new_full(10,
-                           OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(dicom_file_destroy));
     l->base.w = level_width;
     l->base.h = level_height;
     l->base.tile_w = tile_width;
@@ -860,21 +869,27 @@ static bool add_level_file(openslide_t *osr,
                                             l->tiles_across, l->tiles_down,
                                             l->base.tile_w, l->base.tile_h,
                                             read_tile);
+
+    files = g_ptr_array_new_full(4,
+                                 OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(dicom_file_destroy));
+
     g_ptr_array_add(level_array, l);
+    g_ptr_array_add(level_files_array, files);
   }
 
-  if (l->files->len == UINT16_MAX) {
+  if (files->len == UINT16_MAX) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Too many files in level");
     return false;
   }
-  g_ptr_array_add(l->files, g_steal_pointer(&f));
+  g_ptr_array_add(files, g_steal_pointer(&f));
   return true;
 }
 
 // unconditionally takes ownership of dicom_file
 static bool maybe_add_file(openslide_t *osr,
                            GPtrArray *level_array,
+                           GPtrArray *level_files_array,
                            struct dicom_file *file,
                            GError **err) {
   g_autoptr(dicom_file) f = file;
@@ -961,7 +976,8 @@ static bool maybe_add_file(openslide_t *osr,
 
   // add
   if (is_level) {
-    return add_level_file(osr, level_array, g_steal_pointer(&f), err);
+    return add_level_file(osr, level_array, level_files_array,
+                          g_steal_pointer(&f), err);
   } else {
     return add_associated(osr, g_steal_pointer(&f), image_type, err);
   }
@@ -1080,9 +1096,8 @@ static bool add_properties_element(const DcmElement *element,
 static void add_properties(openslide_t *osr, struct dicom_level *level0) {
   // add all dicom elements
   struct property_iterate iter = { osr, "dicom", true };
-  struct dicom_file *f = (struct dicom_file *) level0->files->pdata[0];
-  add_properties_dataset(f->file_meta, 0, &iter);
-  add_properties_dataset(f->metadata, 0, &iter);
+  add_properties_dataset(level0->files[0]->file_meta, 0, &iter);
+  add_properties_dataset(level0->files[0]->metadata, 0, &iter);
 
   // add MPP and objective power
   // pixel spacing is in mm, so convert to microns
@@ -1107,9 +1122,17 @@ static gint compare_level_width(const void *a, const void *b) {
   return bb->base.w - aa->base.w;
 }
 
-static void finalize_level(struct dicom_level *l) {
-  if (l->files->len > 1) {
-    g_assert(l->files->len <= UINT16_MAX);
+static void finalize_level(struct dicom_level *l, GPtrArray *files) {
+  // convert to file array
+  g_assert(files->len <= UINT16_MAX);
+  l->file_count = files->len;
+  // g_ptr_array_steal() on glib 2.64+
+  l->files = g_new(struct dicom_file *, l->file_count);
+  for (uint16_t file_num = 0; file_num < l->file_count; file_num++) {
+    l->files[file_num] = g_steal_pointer(&files->pdata[file_num]);
+  }
+
+  if (l->file_count > 1) {
     g_assert(!l->tile_files);
     l->tile_files = g_new(uint16_t, l->tiles_across * l->tiles_down);
 
@@ -1120,8 +1143,8 @@ static void finalize_level(struct dicom_level *l) {
 
         uint16_t j;
 
-        for (j = 0; j < l->files->len; j++) {
-          struct dicom_file *f = (struct dicom_file *) l->files->pdata[j];
+        for (j = 0; j < l->file_count; j++) {
+          struct dicom_file *f = l->files[j];
 
           uint32_t n;
           if (dcm_filehandle_get_frame_number(NULL, f->filehandle, x, y, &n)) {
@@ -1131,7 +1154,7 @@ static void finalize_level(struct dicom_level *l) {
           }
         }
 
-        if (j == l->files->len) {
+        if (j == l->file_count) {
           _openslide_grid_simple_set_missing(l->grid, x, y);
           l->tile_files[i] = UINT16_MAX;
         }
@@ -1156,6 +1179,9 @@ static bool dicom_open(openslide_t *osr,
   g_autoptr(GPtrArray) level_array =
     g_ptr_array_new_full(10,
                          OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(level_destroy));
+  g_autoptr(GPtrArray) level_files_array =
+    g_ptr_array_new_full(10,
+                         OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(g_ptr_array_unref));
 
   // open the passed-in file and get the slide-id
   g_autoptr(dicom_file) start = dicom_file_new(filename, true, err);
@@ -1164,7 +1190,8 @@ static bool dicom_open(openslide_t *osr,
   }
   g_autofree char *slide_id = g_strdup(start->slide_id);
 
-  if (!maybe_add_file(osr, level_array, g_steal_pointer(&start), err)) {
+  if (!maybe_add_file(osr, level_array, level_files_array,
+                      g_steal_pointer(&start), err)) {
     g_prefix_error(err, "Reading %s: ", filename);
     return false;
   }
@@ -1198,7 +1225,8 @@ static bool dicom_open(openslide_t *osr,
       continue;
     }
 
-    if (!maybe_add_file(osr, level_array, g_steal_pointer(&f), err)) {
+    if (!maybe_add_file(osr, level_array, level_files_array,
+                        g_steal_pointer(&f), err)) {
       g_prefix_error(err, "Reading %s: ", path);
       return false;
     }
@@ -1216,7 +1244,7 @@ static bool dicom_open(openslide_t *osr,
 
   // finalize levels
   for (uint32_t i = 0; i < level_array->len; i++) {
-    finalize_level(level_array->pdata[i]);
+    finalize_level(level_array->pdata[i], level_files_array->pdata[i]);
   }
 
   // sort levels by width
@@ -1226,8 +1254,7 @@ static bool dicom_open(openslide_t *osr,
   struct dicom_level *level0 = level_array->pdata[0];
   add_properties(osr, level0);
 
-  struct dicom_file *f = (struct dicom_file *) level0->files->pdata[0];
-  (void) get_icc_profile(f, &osr->icc_profile_size);
+  (void) get_icc_profile(level0->files[0], &osr->icc_profile_size);
 
   // compute quickhash
   _openslide_hash_string(quickhash1, slide_id);
