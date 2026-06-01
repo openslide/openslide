@@ -29,7 +29,8 @@ struct _openslide_dicom_io {
   DcmIOMethods *methods;
   char *filename;
   struct _openslide_file *file;  // may not be present without ensure_file()
-  int64_t offset;
+  int64_t virt_offset;
+  int64_t phys_offset;
   int64_t size;
 };
 
@@ -64,15 +65,9 @@ static bool ensure_file(struct _openslide_dicom_io *dio, GError **err) {
   if (dio->file) {
     return true;
   }
-  g_autoptr(_openslide_file) f = _openslide_fopen(dio->filename, err);
-  if (!f) {
-    return false;
-  }
-  if (dio->offset && !_openslide_fseek(f, dio->offset, SEEK_SET, err)) {
-    return false;
-  }
-  dio->file = g_steal_pointer(&f);
-  return true;
+  g_assert(dio->phys_offset == 0);
+  dio->file = _openslide_fopen(dio->filename, err);
+  return dio->file != NULL;
 }
 
 static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
@@ -105,29 +100,29 @@ static int64_t vfs_read(DcmError **dcm_error, DcmIO *io,
     propagate_gerror(dcm_error, tmp_err);
     return -1;
   }
+  if (dio->virt_offset != dio->phys_offset) {
+    if (!_openslide_fseek(dio->file, dio->virt_offset, SEEK_SET, &tmp_err)) {
+      propagate_gerror(dcm_error, tmp_err);
+      return -1;
+    }
+    dio->phys_offset = dio->virt_offset;
+  }
   int64_t count = _openslide_fread(dio->file, buffer, length, &tmp_err);
   if (tmp_err) {
     propagate_gerror(dcm_error, tmp_err);
     return -1;
   }
-  dio->offset += count;
+  dio->virt_offset += count;
+  dio->phys_offset = dio->virt_offset;
   return count;
 }
 
-static int64_t vfs_seek(DcmError **dcm_error, DcmIO *io,
+static int64_t vfs_seek(DcmError **dcm_error G_GNUC_UNUSED, DcmIO *io,
                         int64_t offset, int whence) {
   struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
-  int64_t new_offset =
-    _openslide_compute_seek(dio->offset, dio->size, offset, whence);
-  if (dio->file) {
-    GError *tmp_err = NULL;
-    if (!_openslide_fseek(dio->file, new_offset, SEEK_SET, &tmp_err)) {
-      propagate_gerror(dcm_error, tmp_err);
-      return -1;
-    }
-  }
-  dio->offset = new_offset;
-  return new_offset;
+  dio->virt_offset =
+    _openslide_compute_seek(dio->virt_offset, dio->size, offset, whence);
+  return dio->virt_offset;
 }
 
 static const DcmIOMethods dicom_open_methods = {
@@ -162,5 +157,6 @@ DcmFilehandle *_openslide_dicom_open(const char *filename,
 void _openslide_dicom_io_suspend(struct _openslide_dicom_io *dio) {
   if (dio->file) {
     _openslide_fclose(g_steal_pointer(&dio->file));
+    dio->phys_offset = 0;
   }
 }
