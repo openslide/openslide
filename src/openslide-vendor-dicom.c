@@ -510,9 +510,6 @@ static bool read_tile(openslide_t *osr,
     // get file
     guint file_num =
       l->file_index ? l->file_index[tile_col + tile_row * l->tiles_across] : 0;
-    if (file_num == 0xffffffff) {
-      return true;
-    }
     g_assert(file_num < l->files->len);
     if (!fios[file_num].file) {
       fios[file_num] = dicom_file_io_get(l->files->pdata[file_num]);
@@ -1137,8 +1134,8 @@ static void build_level_index(struct dicom_level *l) {
         }
 
         if (j == l->files->len) {
-          // no tile found, set "unknown" value
-          l->file_index[i] = 0xffffffff;
+          _openslide_grid_simple_set_missing(l->grid, x, y);
+          l->file_index[i] = G_MAXUINT;
         }
       }
     }
