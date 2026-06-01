@@ -3,7 +3,7 @@
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
  *  Copyright (c) 2011 Google, Inc.
- *  Copyright (c) 2022-2024 Benjamin Gilbert
+ *  Copyright (c) 2022-2026 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -69,6 +69,12 @@ struct dicom_file {
 // g_auto wrapper struct with reference for runtime I/O
 struct dicom_file_io {
   struct dicom_file *file;
+};
+
+// g_auto wrapper struct for fio array
+struct dicom_file_io_set {
+  struct dicom_file_io *fios;
+  int32_t len;
 };
 
 struct dicom_level {
@@ -229,6 +235,26 @@ static void dicom_file_io_put(struct dicom_file_io *fio) {
 
 typedef struct dicom_file_io dicom_file_io;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(dicom_file_io, dicom_file_io_put)
+
+static struct dicom_file_io_set dicom_file_io_set_make(int32_t len) {
+  struct dicom_file_io_set fioset = {
+    .fios = g_new0(struct dicom_file_io, len),
+    .len = len,
+  };
+  return fioset;
+}
+
+static void dicom_file_io_set_put(struct dicom_file_io_set *fioset) {
+  for (int32_t i = 0; i < fioset->len; i++) {
+    if (fioset->fios[i].file) {
+      dicom_file_io_put(&fioset->fios[i]);
+    }
+  }
+  g_free(fioset->fios);
+}
+
+typedef struct dicom_file_io_set dicom_file_io_set;
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(dicom_file_io_set, dicom_file_io_set_put)
 
 static bool get_tag_int(const DcmDataSet *dataset,
                         const char *keyword,
@@ -466,19 +492,14 @@ static bool decode_frame(struct dicom_file *file,
   return true;
 }
 
-static struct dicom_file *get_file_for_tile(struct dicom_level *l,
-                                            int col, int row) {
-  guint k = l->file_index ? l->file_index[col + row * l->tiles_across] : 0;
-  return k == 0xffffffff ? NULL : (struct dicom_file *) l->files->pdata[k];
-}
-
 static bool read_tile(openslide_t *osr,
                       cairo_t *cr,
                       struct _openslide_level *level,
                       int64_t tile_col, int64_t tile_row,
-                      void *arg G_GNUC_UNUSED,
+                      void *arg,
                       GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
+  struct dicom_file_io *fios = arg;
 
   // cache
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
@@ -486,14 +507,20 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    struct dicom_file *f = get_file_for_tile(l, tile_col, tile_row);
-    if (!f) {
+    // get file
+    guint file_num =
+      l->file_index ? l->file_index[tile_col + tile_row * l->tiles_across] : 0;
+    if (file_num == 0xffffffff) {
       return true;
+    }
+    g_assert(file_num < l->files->len);
+    if (!fios[file_num].file) {
+      fios[file_num] = dicom_file_io_get(l->files->pdata[file_num]);
     }
 
     g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
     GError *tmp_err = NULL;
-    if (!decode_frame(f, tile_col, tile_row,
+    if (!decode_frame(fios[file_num].file, tile_col, tile_row,
                       buf, l->base.tile_w, l->base.tile_h,
                       &tmp_err)) {
       if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
@@ -542,17 +569,9 @@ static bool paint_region(openslide_t *osr G_GNUC_UNUSED,
                          int32_t w, int32_t h,
                          GError **err) {
   struct dicom_level *l = (struct dicom_level *) level;
-  int64_t tile_col = x / (l->base.downsample * l->base.tile_w);
-  int64_t tile_row = y / (l->base.downsample * l->base.tile_h);
 
-  struct dicom_file *f = get_file_for_tile(l, tile_col, tile_row);
-  if (!f) {
-    // no file has a tile at this position
-    return true;
-  }
-
-  g_auto(dicom_file_io) fio G_GNUC_UNUSED = dicom_file_io_get(f);
-  return _openslide_grid_paint_region(l->grid, cr, NULL,
+  g_auto(dicom_file_io_set) fioset = dicom_file_io_set_make(l->files->len);
+  return _openslide_grid_paint_region(l->grid, cr, fioset.fios,
                                       x / l->base.downsample,
                                       y / l->base.downsample,
                                       level, w, h,
