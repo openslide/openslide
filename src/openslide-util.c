@@ -113,7 +113,7 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     // g_once_init_enter_pointer() on glib 2.80+
     if (g_once_init_enter(&have_re)) {
       re = g_regex_new("^\\s*=.*$",
-                       G_REGEX_MULTILINE | G_REGEX_RAW | G_REGEX_OPTIMIZE,
+                       G_REGEX_MULTILINE | G_REGEX_RAW,
                        G_REGEX_MATCH_NEWLINE_ANYCRLF, err);
       g_once_init_leave(&have_re, 1);
       if (!re) {
