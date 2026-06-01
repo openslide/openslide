@@ -1671,18 +1671,12 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     }
 
     // read w, h, column width, headersize
-    if (!_openslide_fseek(f, 4, SEEK_SET, err)) {
-      g_prefix_error(err, "Couldn't seek to NGR header: ");
-      return false;
-    }
+    char unused[8];
+    _openslide_fread_exact(f, unused, 2, NULL);
     l->base.w = read_le_int32_from_file(f);
     l->base.h = read_le_int32_from_file(f);
     l->column_width = read_le_int32_from_file(f);
-
-    if (!_openslide_fseek(f, 24, SEEK_SET, err)) {
-      g_prefix_error(err, "Couldn't seek within NGR header: ");
-      return false;
-    }
+    _openslide_fread_exact(f, unused, 8, NULL);
     l->start_in_file = read_le_int32_from_file(f);
 
     // validate
