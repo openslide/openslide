@@ -409,9 +409,6 @@ static struct dicom_file *dicom_file_new(const char *filename,
     }
   }
 
-  // done with I/O for now
-  _openslide_dicom_io_suspend(f->dio);
-
   return g_steal_pointer(&f);
 }
 
@@ -774,6 +771,9 @@ static bool add_associated(openslide_t *osr,
       return false;
     }
   }
+
+  // done with I/O
+  _openslide_dicom_io_suspend(f->dio);
 
   // add
   g_hash_table_insert(osr->associated_images,
@@ -1237,6 +1237,11 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
         }
       }
     }
+  }
+
+  // done with I/O
+  for (uint16_t file_num = 0; file_num < l->file_count; file_num++) {
+    _openslide_dicom_io_suspend(l->files[file_num]->dio);
   }
   return true;
 }
