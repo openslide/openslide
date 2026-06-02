@@ -61,6 +61,8 @@ struct dicom_file {
   const DcmDataSet *file_meta;
   const DcmDataSet *metadata;
   const char *slide_id;
+  const char *instance_id;
+  const char *concatenation_id;
   enum image_format format;
   J_COLOR_SPACE jpeg_colorspace;
   enum _openslide_jp2k_colorspace jp2k_colorspace;
@@ -168,6 +170,7 @@ static const struct allowed_types ASSOCIATED_TYPES = {
 static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char Columns[] = "Columns";
+static const char ConcatenationUID[] = "ConcatenationUID";
 static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
@@ -180,8 +183,6 @@ static const char Rows[] = "Rows";
 static const char SamplesPerPixel[] = "SamplesPerPixel";
 static const char SeriesInstanceUID[] = "SeriesInstanceUID";
 static const char SOPInstanceUID[] = "SOPInstanceUID";
-static const char SOPInstanceUIDOfConcatenationSource[] =
-  "SOPInstanceUIDOfConcatenationSource";
 static const char TotalPixelMatrixColumns[] = "TotalPixelMatrixColumns";
 static const char TotalPixelMatrixFocalPlanes[] = "TotalPixelMatrixFocalPlanes";
 static const char TotalPixelMatrixRows[] = "TotalPixelMatrixRows";
@@ -707,44 +708,12 @@ static const struct _openslide_associated_image_ops dicom_associated_ops = {
   .destroy = associated_destroy,
 };
 
-/* Get the underlying SOPInstanceUID.
- *
- * DICOM levels split into parts will have different SOPInstanceUID, so to be
- * able to check that the files we are combining to make a level are correct,
- * we must fetch SOPInstanceUIDOfConcatenationSource instead.
- */
-static const char *get_underlying_sopinstance(struct dicom_file *f) {
-  const char *sop;
-  if (get_tag_str(f->metadata, SOPInstanceUIDOfConcatenationSource, 0, &sop) ||
-      get_tag_str(f->metadata, SOPInstanceUID, 0, &sop)) {
-    return sop;
-  }
-  return NULL;
-}
-
-static bool ensure_sop_instance_uids_equal(struct dicom_file *cur,
-                                           struct dicom_file *prev,
-                                           GError **err) {
-  const char *cur_sop = get_underlying_sopinstance(cur);
-  const char *prev_sop = get_underlying_sopinstance(prev);
-  if (!cur_sop || !prev_sop) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't read SOPInstanceUID");
-    return false;
-  }
-
-  if (!g_str_equal(cur_sop, prev_sop)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Slide contains unexpected image (%s vs. %s)",
-                cur_sop, prev_sop);
-    return false;
-  }
-
+static void log_duplicate_file(struct dicom_file *cur,
+                               struct dicom_file *prev) {
   if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
     g_message("opening %s: SOP instance UID %s matches %s",
-              cur->filename, cur_sop, prev->filename);
+              cur->filename, cur->instance_id, prev->filename);
   }
-  return true;
 }
 
 // unconditionally takes ownership of dicom_file
@@ -755,6 +724,13 @@ static bool add_associated(openslide_t *osr,
   g_autoptr(associated) a = g_new0(struct associated, 1);
   a->base.ops = &dicom_associated_ops;
   a->file = f;
+
+  // do checks
+  if (f->concatenation_id) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Found associated image as a concatenation member");
+    return false;
+  }
 
   // dimensions
   if (!get_tag_int(f->metadata, TotalPixelMatrixColumns, &a->base.w) ||
@@ -786,7 +762,15 @@ static bool add_associated(openslide_t *osr,
   struct associated *previous =
     g_hash_table_lookup(osr->associated_images, name);
   if (previous) {
-    return ensure_sop_instance_uids_equal(f, previous->file, err);
+    if (g_str_equal(f->instance_id, previous->file->instance_id)) {
+      log_duplicate_file(f, previous->file);
+      return true;
+    } else {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Slide contains unexpected associated image (%s vs. %s)",
+                  f->instance_id, previous->file->instance_id);
+      return false;
+    }
   }
 
   // add
@@ -838,15 +822,38 @@ static bool add_level_file(openslide_t *osr,
   if (find_level_by_dimensions(level_array, level_files_array,
                                level_width, level_height,
                                &l, &files)) {
-    // all files in a level must have the same UID
-    for (uint16_t j = 0; j < files->len; j++) {
-      struct dicom_file *previous = files->pdata[j];
-      if (!ensure_sop_instance_uids_equal(file, previous, err)) {
-        return false;
+    g_assert(files->len > 0);
+
+    // check for duplicate SOP Instance UIDs
+    for (uint16_t file_num = 0; file_num < files->len; file_num++) {
+      struct dicom_file *prev = files->pdata[file_num];
+      if (g_str_equal(f->instance_id, prev->instance_id)) {
+        // someone duplicated a file; ignore it
+        log_duplicate_file(f, prev);
+        return true;
       }
     }
 
-    // all files in a level must have the same tile size
+    // must be in the same concatenation
+    struct dicom_file *first = files->pdata[0];
+    if (!f->concatenation_id && !first->concatenation_id) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Slide contains unexpected image (%s vs. %s)",
+                  f->instance_id, first->instance_id);
+      return false;
+    }
+    if (!f->concatenation_id ||
+        !first->concatenation_id ||
+        !g_str_equal(f->concatenation_id, first->concatenation_id)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Concatenation UID %s must match UID %s in existing level file %s",
+                  f->concatenation_id ?: "<none>",
+                  first->concatenation_id ?: "<none>",
+                  first->filename);
+      return false;
+    }
+
+    // must have the same tile size
     if (l->base.tile_w != tile_width || l->base.tile_h != tile_height) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Tile size %"PRId64"x%"PRId64" doesn't match "
@@ -973,6 +980,15 @@ static bool maybe_add_file(openslide_t *osr,
                 photometric, syntax);
     return false;
   }
+
+  // populate IDs
+  if (!get_tag_str(f->metadata, SOPInstanceUID, 0, &f->instance_id)) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "SOPInstanceUID not found");
+    return false;
+  }
+  // optional
+  get_tag_str(f->metadata, ConcatenationUID, 0, &f->concatenation_id);
 
   // add
   if (is_level) {
