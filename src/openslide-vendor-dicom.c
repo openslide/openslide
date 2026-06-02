@@ -174,6 +174,7 @@ static const char ConcatenationUID[] = "ConcatenationUID";
 static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
+static const char InConcatenationTotalNumber[] = "InConcatenationTotalNumber";
 static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char OpticalPathSequence[] = "OpticalPathSequence";
 static const char PhotometricInterpretation[] = "PhotometricInterpretation";
@@ -1138,7 +1139,8 @@ static gint compare_level_width(const void *a, const void *b) {
   return bb->base.w - aa->base.w;
 }
 
-static void finalize_level(struct dicom_level *l, GPtrArray *files) {
+static bool finalize_level(struct dicom_level *l, GPtrArray *files,
+                           GError **err) {
   // convert to file array
   g_assert(files->len <= UINT16_MAX);
   l->file_count = files->len;
@@ -1148,35 +1150,54 @@ static void finalize_level(struct dicom_level *l, GPtrArray *files) {
     l->files[file_num] = g_steal_pointer(&files->pdata[file_num]);
   }
 
+  // check file count
+  g_assert(l->file_count > 0);
+  if (l->file_count > 1) {
+    int64_t total_instances;
+    // optional
+    if (get_tag_int(l->files[0]->metadata, InConcatenationTotalNumber,
+                    &total_instances) &&
+        total_instances != l->file_count) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Expected %"PRId64" SOP instances in concatenation %s, found %d",
+                  total_instances, l->files[0]->concatenation_id,
+                  l->file_count);
+      return false;
+    }
+  } else if (l->files[0]->concatenation_id) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Found only one SOP instance in concatenation %s",
+                l->files[0]->concatenation_id);
+    return false;
+  }
+
+  // for concatenations, find the first file containing each tile
   if (l->file_count > 1) {
     g_assert(!l->tile_files);
     l->tile_files = g_new(uint16_t, l->tiles_across * l->tiles_down);
-
-    // find the first file containing each tile
-    for (int64_t y = 0; y < l->tiles_down; y++) {
-      for (int64_t x = 0; x < l->tiles_across; x++) {
-        int64_t i = x + y * l->tiles_across;
-
-        uint16_t j;
-
-        for (j = 0; j < l->file_count; j++) {
-          struct dicom_file *f = l->files[j];
-
+    for (int64_t tile_row = 0; tile_row < l->tiles_down; tile_row++) {
+      for (int64_t tile_col = 0; tile_col < l->tiles_across; tile_col++) {
+        int64_t tile_index = tile_col + tile_row * l->tiles_across;
+        uint16_t file_num;
+        for (file_num = 0; file_num < l->file_count; file_num++) {
           uint32_t n;
-          if (dcm_filehandle_get_frame_number(NULL, f->filehandle, x, y, &n)) {
+          if (dcm_filehandle_get_frame_number(NULL,
+                                              l->files[file_num]->filehandle,
+                                              tile_col, tile_row, &n)) {
             // found one, record the file that has this tile and break
-            l->tile_files[i] = j;
+            l->tile_files[tile_index] = file_num;
             break;
           }
         }
-
-        if (j == l->file_count) {
-          _openslide_grid_simple_set_missing(l->grid, x, y);
-          l->tile_files[i] = UINT16_MAX;
+        if (file_num == l->file_count) {
+          // none
+          _openslide_grid_simple_set_missing(l->grid, tile_col, tile_row);
+          l->tile_files[tile_index] = UINT16_MAX;
         }
       }
     }
   }
+  return true;
 }
 
 static bool dicom_open(openslide_t *osr,
@@ -1260,7 +1281,10 @@ static bool dicom_open(openslide_t *osr,
 
   // finalize levels
   for (uint32_t i = 0; i < level_array->len; i++) {
-    finalize_level(level_array->pdata[i], level_files_array->pdata[i]);
+    if (!finalize_level(level_array->pdata[i], level_files_array->pdata[i],
+                        err)) {
+      return false;
+    }
   }
 
   // sort levels by width
