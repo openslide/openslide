@@ -174,6 +174,7 @@ static const char ConcatenationUID[] = "ConcatenationUID";
 static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
+static const char InConcatenationNumber[] = "InConcatenationNumber";
 static const char InConcatenationTotalNumber[] = "InConcatenationTotalNumber";
 static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char OpticalPathSequence[] = "OpticalPathSequence";
@@ -818,6 +819,17 @@ static bool add_level_file(openslide_t *osr,
     return false;
   }
 
+  // get index within concatenation, if concatenation
+  int64_t file_num = 1;
+  get_tag_int(f->metadata, InConcatenationNumber, &file_num);
+  if (file_num <= 0 || file_num > UINT16_MAX) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "In-concatenation number out of range: %"PRId64, file_num);
+    return false;
+  }
+  // zero-index
+  file_num--;
+
   struct dicom_level *l;
   GPtrArray *files;
   if (find_level_by_dimensions(level_array, level_files_array,
@@ -828,7 +840,7 @@ static bool add_level_file(openslide_t *osr,
     // check for duplicate SOP Instance UIDs
     for (uint16_t file_num = 0; file_num < files->len; file_num++) {
       struct dicom_file *prev = files->pdata[file_num];
-      if (g_str_equal(f->instance_id, prev->instance_id)) {
+      if (prev && g_str_equal(f->instance_id, prev->instance_id)) {
         // someone duplicated a file; ignore it
         log_duplicate_file(f, prev);
         return true;
@@ -836,22 +848,27 @@ static bool add_level_file(openslide_t *osr,
     }
 
     // must be in the same concatenation
-    struct dicom_file *first = files->pdata[0];
-    if (!f->concatenation_id && !first->concatenation_id) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Slide contains unexpected image (%s vs. %s)",
-                  f->instance_id, first->instance_id);
-      return false;
-    }
-    if (!f->concatenation_id ||
-        !first->concatenation_id ||
-        !g_str_equal(f->concatenation_id, first->concatenation_id)) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Concatenation UID %s must match UID %s in existing level file %s",
-                  f->concatenation_id ?: "<none>",
-                  first->concatenation_id ?: "<none>",
-                  first->filename);
-      return false;
+    for (uint16_t file_num = 0; file_num < files->len; file_num++) {
+      struct dicom_file *prev = files->pdata[file_num];
+      if (prev) {
+        if (!f->concatenation_id && !prev->concatenation_id) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "Slide contains unexpected image (%s vs. %s)",
+                      f->instance_id, prev->instance_id);
+          return false;
+        }
+        if (!f->concatenation_id ||
+            !prev->concatenation_id ||
+            !g_str_equal(f->concatenation_id, prev->concatenation_id)) {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "Concatenation UID %s must match UID %s in existing level file %s",
+                      f->concatenation_id ?: "<none>",
+                      prev->concatenation_id ?: "<none>",
+                      prev->filename);
+          return false;
+        }
+        break;
+      }
     }
 
     // must have the same tile size
@@ -885,12 +902,20 @@ static bool add_level_file(openslide_t *osr,
     g_ptr_array_add(level_files_array, files);
   }
 
-  if (files->len == UINT16_MAX) {
+  // put it in the correct spot in the array.  having a defined ordering
+  // ensures we always read properties from the same SOP Instance and allows
+  // us to cross-check for missing files when InConcatenationTotalNumber is
+  // omitted
+  if (files->len < file_num + 1) {
+    g_ptr_array_set_size(files, file_num + 1);
+  }
+  if (files->pdata[file_num]) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Too many files in level");
+                "Found multiple SOP instances in concatenation with index %"PRId64,
+                file_num + 1);
     return false;
   }
-  g_ptr_array_add(files, g_steal_pointer(&f));
+  files->pdata[file_num] = g_steal_pointer(&f);
   return true;
 }
 
@@ -1141,6 +1166,16 @@ static gint compare_level_width(const void *a, const void *b) {
 
 static bool finalize_level(struct dicom_level *l, GPtrArray *files,
                            GError **err) {
+  // check for each file
+  for (uint16_t file_num = 0; file_num < files->len; file_num++) {
+    if (!files->pdata[file_num]) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Missing SOP instance %u/%u in concatenation",
+                  file_num + 1, files->len);
+      return false;
+    }
+  }
+
   // convert to file array
   g_assert(files->len <= UINT16_MAX);
   l->file_count = files->len;
