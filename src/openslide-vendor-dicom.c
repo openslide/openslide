@@ -1215,13 +1215,19 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
         int64_t tile_index = tile_col + tile_row * l->tiles_across;
         uint16_t file_num;
         for (file_num = 0; file_num < l->file_count; file_num++) {
+          DcmError *dcm_error = NULL;
           uint32_t n;
-          if (dcm_filehandle_get_frame_number(NULL,
+          if (dcm_filehandle_get_frame_number(&dcm_error,
                                               l->files[file_num]->filehandle,
                                               tile_col, tile_row, &n)) {
             // found one, record the file that has this tile and break
             l->tile_files[tile_index] = file_num;
             break;
+          } else if (dcm_error_get_code(dcm_error) == DCM_ERROR_CODE_MISSING_FRAME) {
+            dcm_error_clear(&dcm_error);
+          } else {
+            _openslide_dicom_propagate_error(err, dcm_error);
+            return false;
           }
         }
         if (file_num == l->file_count) {
