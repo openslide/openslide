@@ -1,0 +1,6 @@
+# missing concatenation file, not the last one
+base: DICOM/3DHISTECH-2.zip
+error: ^Missing SOP instance 1/2 in concatenation$
+slide: '5_0'
+success: false
+vendor: dicom
