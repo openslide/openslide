@@ -899,33 +899,13 @@ static bool maybe_add_file(openslide_t *osr,
   }
 
   // check the other image format tags
-  if (!verify_tag_int(f->metadata, BitsAllocated, 8, true, err) ||
+  if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, true, err) ||
+      !verify_tag_int(f->metadata, BitsAllocated, 8, true, err) ||
       !verify_tag_int(f->metadata, BitsStored, 8, true, err) ||
       !verify_tag_int(f->metadata, HighBit, 7, true, err) ||
+      !verify_tag_int(f->metadata, SamplesPerPixel, 3, true, err) ||
       !verify_tag_int(f->metadata, PixelRepresentation, 0, true, err) ||
       !verify_tag_int(f->metadata, TotalPixelMatrixFocalPlanes, 1, false, err)) {
-    return false;
-  }
-
-  // check samples per pixel
-  int64_t samples_per_pixel;
-  if (!get_tag_int(f->metadata, SamplesPerPixel, &samples_per_pixel)) {
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported image format");
-    return false;
-  }
-  switch (samples_per_pixel) {
-  case 1:
-    break;
-  case 3:
-    // must be interleaved RGB
-    if (!verify_tag_int(f->metadata, PlanarConfiguration, 0, true, err)) {
-      return false;
-    }
-    break;
-  default:
-    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Unsupported SamplesPerPixel %"PRId64, samples_per_pixel);
     return false;
   }
 
