@@ -1111,7 +1111,7 @@ static gint compare_level_width(const void *a, const void *b) {
   return bb->base.w - aa->base.w;
 }
 
-static void build_level_index(struct dicom_level *l) {
+static void finalize_level(struct dicom_level *l) {
   if (l->files->len > 1 && !l->file_index) {
     l->file_index = g_new0(guint, l->tiles_across * l->tiles_down);
 
@@ -1216,9 +1216,15 @@ static bool dicom_open(openslide_t *osr,
     return false;
   }
 
+  // finalize levels
+  for (uint32_t i = 0; i < level_array->len; i++) {
+    finalize_level(level_array->pdata[i]);
+  }
+
   // sort levels by width
   g_ptr_array_sort(level_array, compare_level_width);
 
+  // add properties
   struct dicom_level *level0 = level_array->pdata[0];
   add_properties(osr, level0);
 
@@ -1235,11 +1241,6 @@ static bool dicom_open(openslide_t *osr,
   osr->levels = (struct _openslide_level **)
     g_ptr_array_free(g_steal_pointer(&level_array), false);
   osr->ops = &dicom_ops;
-
-  for (int32_t i = 0; i < osr->level_count; i++) {
-    build_level_index((struct dicom_level *) osr->levels[i]);
-  }
-
   return true;
 }
 
