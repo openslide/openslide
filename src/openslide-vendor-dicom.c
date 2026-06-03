@@ -844,29 +844,23 @@ static bool add_level_file(openslide_t *osr,
     }
   } else {
     // we must make a new level
-    g_autoptr(dicom_level) new_l = l = g_new0(struct dicom_level, 1);
-
-    new_l->files =
+    l = g_new0(struct dicom_level, 1);
+    l->files =
       g_ptr_array_new_full(10,
                            OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(dicom_file_destroy));
-    new_l->base.w = level_width;
-    new_l->base.h = level_height;
-    new_l->base.tile_w = tile_width;
-    new_l->base.tile_h = tile_height;
-    new_l->tiles_across = (new_l->base.w / new_l->base.tile_w) +
-                          !!(new_l->base.w % new_l->base.tile_w);
-    new_l->tiles_down = (new_l->base.h / new_l->base.tile_h) +
-                        !!(new_l->base.h % new_l->base.tile_h);
-
-    // grid
-    new_l->grid = _openslide_grid_create_simple(osr,
-                                                new_l->tiles_across,
-                                                new_l->tiles_down,
-                                                new_l->base.tile_w,
-                                                new_l->base.tile_h,
-                                                read_tile);
-
-    g_ptr_array_add(level_array, g_steal_pointer(&new_l));
+    l->base.w = level_width;
+    l->base.h = level_height;
+    l->base.tile_w = tile_width;
+    l->base.tile_h = tile_height;
+    l->tiles_across = (l->base.w / l->base.tile_w) +
+                      !!(l->base.w % l->base.tile_w);
+    l->tiles_down = (l->base.h / l->base.tile_h) +
+                    !!(l->base.h % l->base.tile_h);
+    l->grid = _openslide_grid_create_simple(osr,
+                                            l->tiles_across, l->tiles_down,
+                                            l->base.tile_w, l->base.tile_h,
+                                            read_tile);
+    g_ptr_array_add(level_array, l);
   }
 
   if (l->files->len == UINT16_MAX) {
