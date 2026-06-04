@@ -41,7 +41,7 @@
 static const char APERIO_DESCRIPTION[] = "Aperio";
 
 #define APERIO_COMPRESSION_JP2K_YCBCR 33003
-#define APERIO_COMPRESSION_JP2K_RGB   33005
+#define APERIO_COMPRESSION_JP2K_MCT   33005
 
 struct aperio_ops_data {
   struct _openslide_tiffcache *tc;
@@ -141,7 +141,7 @@ static bool decode_tile(struct level *l,
   case APERIO_COMPRESSION_JP2K_YCBCR:
     space = OPENSLIDE_JP2K_YCBCR;
     break;
-  case APERIO_COMPRESSION_JP2K_RGB:
+  case APERIO_COMPRESSION_JP2K_MCT:
     space = OPENSLIDE_JP2K_RGB;
     break;
   default:
@@ -429,7 +429,7 @@ static bool aperio_open(openslide_t *osr,
       return false;
     }
     if ((compression != APERIO_COMPRESSION_JP2K_YCBCR) &&
-        (compression != APERIO_COMPRESSION_JP2K_RGB) &&
+        (compression != APERIO_COMPRESSION_JP2K_MCT) &&
         !TIFFIsCODECConfigured(compression)) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Unsupported TIFF compression: %u", compression);
