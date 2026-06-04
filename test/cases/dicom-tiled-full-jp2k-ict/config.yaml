@@ -1,16 +1,16 @@
-base: DICOM/JP2K-33003-1.zip
-# DERIVED\PRIMARY\LABEL\NONE
-slide: DCM_4.dcm
+base: DICOM/CMU-1-JP2K-ICT.zip
+# DERIVED\PRIMARY\VOLUME\NONE
+slide: img_0.dcm
 success: true
 vendor: dicom
 primary: true
 properties:
   openslide.associated.label.icc-size: "141992"
-  openslide.associated.label.width: "415"
+  openslide.associated.label.width: "387"
   openslide.associated.macro.icc-size: "141992"
   openslide.associated.macro.width: "1280"
   openslide.associated.thumbnail.icc-size: "141992"
-  openslide.associated.thumbnail.width: "674"
+  openslide.associated.thumbnail.width: "1024"
   openslide.icc-size: "141992"
-  openslide.quickhash-1: 2431797d260ab5fab926a01f3cee1d35dbb7281f82aed46d97c5aafeff16079c
+  openslide.quickhash-1: b5e154fde58f02cad3d1dd003b6da83b0106385383ab112eac8e1115d2630f9b
   openslide.vendor: dicom

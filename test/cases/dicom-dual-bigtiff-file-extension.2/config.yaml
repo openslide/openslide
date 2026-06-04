@@ -1,0 +1,11 @@
+# Dual-personality BigTIFF with .tif file extension should be read as TIFF
+base: DICOM/CMU-1-JP2K-RCT.zip
+# generic-tiff driver doesn't support JP2K
+# (and also the compression type is wrong)
+error: "^Unsupported TIFF compression: 33003$"
+slide: img_0.tif
+success: false
+vendor: generic-tiff
+rename:
+  ? img_0.dcm
+  : img_0.tif

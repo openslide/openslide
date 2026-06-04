@@ -65,7 +65,6 @@ struct dicom_file {
   const char *concatenation_id;
   enum image_format format;
   J_COLOR_SPACE jpeg_colorspace;
-  enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
 
 // g_auto wrapper struct with reference for runtime I/O
@@ -149,8 +148,7 @@ static struct syntax_format supported_syntax_formats[] = {
   // jpeg baseline, we don't handle lossless or 12 bit
   { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
 
-  // lossless and lossy jp2k
-  // we separate RGB and YCbCr with other tags
+  // jp2k, forbidding or permitting lossy compression
   { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
@@ -413,10 +411,10 @@ static bool decode_frame(struct dicom_file *file,
                                                     file->jpeg_colorspace,
                                                     dest, w, h, err);
   case FORMAT_JPEG2000:
+    // ICT and RCT are processed by OpenJPEG and return RGB
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
-                                         file->jp2k_colorspace,
-                                         err);
+                                         OPENSLIDE_JP2K_RGB, err);
   case FORMAT_RGB:
     if (frame_length != w * h * 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -891,13 +889,10 @@ static bool maybe_add_file(openslide_t *osr,
   found = false;
   switch (f->format) {
   case FORMAT_JPEG2000:
-    if (g_str_equal(photometric, "YBR_ICT")) {
-      f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
-      found = true;
-    } else if (g_str_equal(photometric, "RGB")) {
-      f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
-      found = true;
-    }
+    found =
+      g_str_equal(photometric, "YBR_ICT") ||
+      g_str_equal(photometric, "YBR_RCT") ||
+      g_str_equal(photometric, "RGB");
     break;
   case FORMAT_JPEG:
     if (g_str_equal(photometric, "YBR_FULL_422")) {
