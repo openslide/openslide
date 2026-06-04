@@ -102,8 +102,8 @@ BLUE = '\033[1;34m'
 RED = '\033[1;31m'
 RESET = '\033[1;0m'
 
-_commands = []
-_command_funcs = {}
+_commands: list[str] = []
+_command_funcs: dict[str, Command] = {}
 
 http = requests.Session()
 http.headers.update(
@@ -131,10 +131,9 @@ class Command(Protocol):
 # strings satisfies a variadic function taking strings, so we type f as Any.
 def _command(f: Any) -> Command:
     """Decorator to mark the function as a user command."""
-    ff = cast(Command, f)
     _commands.append(f.__name__)
-    _command_funcs[f.__name__] = ff
-    return ff
+    _command_funcs[f.__name__] = f
+    return cast(Command, f)
 
 
 def _color(color: str, str: str) -> str:
