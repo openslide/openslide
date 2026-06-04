@@ -1,0 +1,6 @@
+# put 4_2 at a high file_num so 4_1 has to walk the files array to find it
+base: DICOM/3DHISTECH-2.zip
+error: ^Missing SOP instance 2/65535 in concatenation$
+slide: '4_2'
+success: false
+vendor: dicom

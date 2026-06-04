@@ -1,0 +1,7 @@
+# only 4_1 is modified, so we intentionally open 4_2 first to verify we pull
+# InConcatenationTotalNumber from the lowest-index instance
+base: DICOM/3DHISTECH-2.zip
+error: ^Expected 3 SOP instances in concatenation 2.25.186936537980103457039587390032156603358, found 2$
+slide: '4_2'
+success: false
+vendor: dicom
