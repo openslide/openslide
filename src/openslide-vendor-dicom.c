@@ -48,6 +48,7 @@
 enum image_format {
   FORMAT_JPEG,
   FORMAT_JPEG2000,
+  FORMAT_JPEG2000_LOSSLESS,
   FORMAT_RGB,
 };
 
@@ -149,7 +150,7 @@ static struct syntax_format supported_syntax_formats[] = {
   { "1.2.840.10008.1.2.4.50", FORMAT_JPEG },
 
   // jp2k, forbidding or permitting lossy compression
-  { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000 },
+  { "1.2.840.10008.1.2.4.90", FORMAT_JPEG2000_LOSSLESS },
   { "1.2.840.10008.1.2.4.91", FORMAT_JPEG2000 },
 };
 
@@ -411,6 +412,7 @@ static bool decode_frame(struct dicom_file *file,
                                                     file->jpeg_colorspace,
                                                     dest, w, h, err);
   case FORMAT_JPEG2000:
+  case FORMAT_JPEG2000_LOSSLESS:
     // ICT and RCT are processed by OpenJPEG and return RGB
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
@@ -891,6 +893,11 @@ static bool maybe_add_file(openslide_t *osr,
   case FORMAT_JPEG2000:
     found =
       g_str_equal(photometric, "YBR_ICT") ||
+      g_str_equal(photometric, "YBR_RCT") ||
+      g_str_equal(photometric, "RGB");
+    break;
+  case FORMAT_JPEG2000_LOSSLESS:
+    found =
       g_str_equal(photometric, "YBR_RCT") ||
       g_str_equal(photometric, "RGB");
     break;
