@@ -102,67 +102,17 @@ struct syntax_format {
   enum image_format format;
 };
 
-// a set of allowed image types for a class of image
-struct allowed_types {
-  const char *const *const *types;
-  int n_types;
-};
-
-// the ImageTypes we allow for pyr levels
-static const char *const ORIGINAL_TYPES[] = {
-  "ORIGINAL", "PRIMARY", "VOLUME", "NONE", NULL
-};
-// if the image has been re-encoded during conversion to DICOM
-static const char *const DERIVED_ORIGINAL_TYPES[] = {
-  "DERIVED", "PRIMARY", "VOLUME", "NONE", NULL
-};
-static const char *const RESAMPLED_TYPES[] = {
-  "DERIVED", "PRIMARY", "VOLUME", "RESAMPLED", NULL
-};
-static const char *const *const LEVEL_TYPE_STRINGS[] = {
-  ORIGINAL_TYPES,
-  DERIVED_ORIGINAL_TYPES,
-  RESAMPLED_TYPES,
-};
-
-static const struct allowed_types LEVEL_TYPES = {
-  LEVEL_TYPE_STRINGS,
-  G_N_ELEMENTS(LEVEL_TYPE_STRINGS)
-};
-
-// the ImageTypes we allow for associated images
-static const char LABEL_TYPE[] = "LABEL";
-static const char OVERVIEW_TYPE[] = "OVERVIEW";
-static const char THUMBNAIL_TYPE[] = "THUMBNAIL";
-static const char *const LABEL_TYPES[] = {
-  "ORIGINAL", "PRIMARY", LABEL_TYPE, "NONE", NULL
-};
-static const char *const DERIVED_LABEL_TYPES[] = {
-  "DERIVED", "PRIMARY", LABEL_TYPE, "NONE", NULL
-};
-static const char *const OVERVIEW_TYPES[] = {
-  "ORIGINAL", "PRIMARY", OVERVIEW_TYPE, "NONE", NULL
-};
-static const char *const DERIVED_OVERVIEW_TYPES[] = {
-  "DERIVED", "PRIMARY", OVERVIEW_TYPE, "NONE", NULL
-};
-static const char *const THUMBNAIL_TYPES[] = {
-  "ORIGINAL", "PRIMARY", THUMBNAIL_TYPE, "RESAMPLED", NULL
-};
-static const char *const DERIVED_THUMBNAIL_TYPES[] = {
-  "DERIVED", "PRIMARY", THUMBNAIL_TYPE, "RESAMPLED", NULL
-};
-static const char *const *const ASSOCIATED_TYPE_STRINGS[] = {
-  LABEL_TYPES,
-  DERIVED_LABEL_TYPES,
-  OVERVIEW_TYPES,
-  DERIVED_OVERVIEW_TYPES,
-  THUMBNAIL_TYPES,
-  DERIVED_THUMBNAIL_TYPES,
-};
-static const struct allowed_types ASSOCIATED_TYPES = {
-  ASSOCIATED_TYPE_STRINGS,
-  G_N_ELEMENTS(ASSOCIATED_TYPE_STRINGS)
+// pyramid level flavor
+static const char FLAVOR_VOLUME[] = "VOLUME";
+// associated image flavors
+static const char FLAVOR_LABEL[] = "LABEL";
+static const char FLAVOR_OVERVIEW[] = "OVERVIEW";
+static const char FLAVOR_THUMBNAIL[] = "THUMBNAIL";
+static const char *const ASSOCIATED_FLAVORS[] = {
+  FLAVOR_LABEL,
+  FLAVOR_OVERVIEW,
+  FLAVOR_THUMBNAIL,
+  NULL,
 };
 
 /* The DICOM UIDs and fields we check.
@@ -321,25 +271,6 @@ static bool get_tag_seq_item(const DcmDataSet *dataset,
   }
   *result = dcm_sequence_get(NULL, seq, index);
   return *result != NULL;
-}
-
-static char **get_tag_strv(const DcmDataSet *dataset,
-                           const char *keyword,
-                           int length) {
-  g_auto(GStrv) a = g_new0(char *, length + 1);
-  uint32_t tag = dcm_dict_tag_from_keyword(keyword);
-  DcmElement *element = dcm_dataset_get(NULL, dataset, tag);
-  if (!element) {
-    return NULL;
-  }
-  for (int i = 0; i < length; i++) {
-    const char *item;
-    if (!dcm_element_get_value_string(NULL, element, i, &item)) {
-      return NULL;
-    }
-    a[i] = g_strdup(item);
-  }
-  return g_steal_pointer(&a);
 }
 
 static bool verify_tag_int(const DcmDataSet *dataset,
@@ -635,30 +566,6 @@ static bool dicom_detect(const char *filename, struct _openslide_tifflike *tl,
   return f != NULL;
 }
 
-// replace with g_strv_equal() once we have glib 2.60
-static bool strv_equal(const char *const *a, const char *const *b) {
-  while (1) {
-    if (!*a && !*b) {
-      return true;
-    }
-    if (!*a || !*b || !g_str_equal(*a, *b)) {
-      return false;
-    }
-    a++;
-    b++;
-  }
-}
-
-static bool is_type(char **type, const struct allowed_types *types) {
-  // ImageType must be one of the combinations we accept
-  for (int i = 0; i < types->n_types; i++) {
-    if (strv_equal(types->types[i], (const char *const *) type)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static bool associated_get_argb_data(struct _openslide_associated_image *img,
                                      uint32_t *dest,
                                      GError **err) {
@@ -718,7 +625,7 @@ static void log_duplicate_file(struct dicom_file *cur,
 // unconditionally takes ownership of dicom_file
 static bool add_associated(openslide_t *osr,
                            struct dicom_file *f,
-                           char **image_type,
+                           const char *image_flavor,
                            GError **err) {
   g_autoptr(associated) a = g_new0(struct associated, 1);
   a->base.ops = &dicom_associated_ops;
@@ -744,14 +651,14 @@ static bool add_associated(openslide_t *osr,
 
   // associated image name
   char *name;
-  if (g_str_equal(image_type[2], LABEL_TYPE)) {
+  if (g_str_equal(image_flavor, FLAVOR_LABEL)) {
     name = "label";
-  } else if (g_str_equal(image_type[2], OVERVIEW_TYPE)) {
+  } else if (g_str_equal(image_flavor, FLAVOR_OVERVIEW)) {
     name = "macro";
-  } else if (g_str_equal(image_type[2], THUMBNAIL_TYPE)) {
+  } else if (g_str_equal(image_flavor, FLAVOR_THUMBNAIL)) {
     name = "thumbnail";
   } else {
-    // is_type() let something unexpected through
+    // ASSOCIATED_FLAVORS contains something unexpected
     g_assert_not_reached();
   }
 
@@ -928,17 +835,18 @@ static bool maybe_add_file(openslide_t *osr,
   g_autoptr(dicom_file) f = file;
   g_assert(f->metadata);
 
-  // check ImageType
-  g_auto(GStrv) image_type = get_tag_strv(f->metadata, ImageType, 4);
-  if (!image_type) {
+  // check image flavor; ignore the rest of ImageType
+  // see discussion in https://github.com/openslide/openslide/issues/642
+  const char *image_flavor;
+  if (!get_tag_str(f->metadata, ImageType, 2, &image_flavor)) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                "Couldn't get ImageType");
+                "Couldn't get image flavor");
     return false;
   }
-  bool is_level = is_type(image_type, &LEVEL_TYPES);
-  bool is_associated = is_type(image_type, &ASSOCIATED_TYPES);
+  bool is_level = g_str_equal(image_flavor, FLAVOR_VOLUME);
+  bool is_associated = g_strv_contains(ASSOCIATED_FLAVORS, image_flavor);
   if (!is_level && !is_associated) {
-    // unknown type; ignore
+    // unknown flavor; ignore
     return true;
   }
 
@@ -1021,7 +929,7 @@ static bool maybe_add_file(openslide_t *osr,
     return add_level_file(osr, level_array, level_files_array,
                           g_steal_pointer(&f), err);
   } else {
-    return add_associated(osr, g_steal_pointer(&f), image_type, err);
+    return add_associated(osr, g_steal_pointer(&f), image_flavor, err);
   }
 }
 
