@@ -121,6 +121,7 @@ static const char BitsAllocated[] = "BitsAllocated";
 static const char BitsStored[] = "BitsStored";
 static const char Columns[] = "Columns";
 static const char ConcatenationUID[] = "ConcatenationUID";
+static const char DimensionOrganizationType[] = "DimensionOrganizationType";
 static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
 static const char ImageType[] = "ImageType";
@@ -385,13 +386,7 @@ static bool decode_frame(struct dicom_file *file,
   g_mutex_unlock(&file->lock);
 
   if (!frame) {
-    if (dcm_error_get_code(dcm_error) == DCM_ERROR_CODE_MISSING_FRAME) {
-      dcm_error_clear(&dcm_error);
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE,
-                  "No frame for (%"PRId64", %"PRId64")", tile_col, tile_row);
-    } else {
-      _openslide_dicom_propagate_error(err, dcm_error);
-    }
+    _openslide_dicom_propagate_error(err, dcm_error);
     return false;
   }
 
@@ -452,18 +447,9 @@ static bool read_tile(openslide_t *osr,
     }
 
     g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
-    GError *tmp_err = NULL;
     if (!decode_frame(fios[file_num].file, tile_col, tile_row,
-                      buf, l->base.tile_w, l->base.tile_h,
-                      &tmp_err)) {
-      if (g_error_matches(tmp_err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_NO_VALUE)) {
-        // missing tile
-        g_clear_error(&tmp_err);
-        return true;
-      } else {
-        g_propagate_error(err, tmp_err);
-        return false;
-      }
+                      buf, l->base.tile_w, l->base.tile_h, err)) {
+      return false;
     }
 
     // clip, if necessary
@@ -1120,10 +1106,21 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
     return false;
   }
 
+  // sparse dimension organization?
+  const char *organization;
+  bool sparse =
+    // optional, defaults to TILED_SPARSE
+    !get_tag_str(l->files[0]->metadata, DimensionOrganizationType, 0,
+                 &organization) ||
+    !g_str_equal(organization, "TILED_FULL");
+
   // for concatenations, find the first file containing each tile
-  if (l->file_count > 1) {
-    g_assert(!l->tile_files);
-    l->tile_files = g_new(uint16_t, l->tiles_across * l->tiles_down);
+  // for concatenations and sparse levels, inform grid of missing tiles
+  if (sparse || l->file_count > 1) {
+    if (l->file_count > 1) {
+      g_assert(!l->tile_files);
+      l->tile_files = g_new(uint16_t, l->tiles_across * l->tiles_down);
+    }
     for (int64_t tile_row = 0; tile_row < l->tiles_down; tile_row++) {
       for (int64_t tile_col = 0; tile_col < l->tiles_across; tile_col++) {
         int64_t tile_index = tile_col + tile_row * l->tiles_across;
@@ -1135,7 +1132,9 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
                                               l->files[file_num]->filehandle,
                                               tile_col, tile_row, &n)) {
             // found one, record the file that has this tile and break
-            l->tile_files[tile_index] = file_num;
+            if (l->tile_files) {
+              l->tile_files[tile_index] = file_num;
+            }
             break;
           } else if (dcm_error_get_code(dcm_error) == DCM_ERROR_CODE_MISSING_FRAME) {
             dcm_error_clear(&dcm_error);
@@ -1147,7 +1146,9 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
         if (file_num == l->file_count) {
           // none
           _openslide_grid_simple_set_missing(l->grid, tile_col, tile_row);
-          l->tile_files[tile_index] = UINT16_MAX;
+          if (l->tile_files) {
+            l->tile_files[tile_index] = UINT16_MAX;
+          }
         }
       }
     }
