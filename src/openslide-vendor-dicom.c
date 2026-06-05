@@ -847,6 +847,10 @@ static bool maybe_add_file(openslide_t *osr,
   bool is_associated = g_strv_contains(ASSOCIATED_FLAVORS, image_flavor);
   if (!is_level && !is_associated) {
     // unknown flavor; ignore
+    if (_openslide_debug(OPENSLIDE_DEBUG_SEARCH)) {
+      g_message("opening %s: unknown image flavor %s",
+                file->filename, image_flavor);
+    }
     return true;
   }
 
