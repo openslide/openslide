@@ -26,7 +26,9 @@
 
 /* JPEG 2000 support */
 
+// the colorspace that comes out of OpenJPEG
 enum _openslide_jp2k_colorspace {
+  // includes MCT
   OPENSLIDE_JP2K_RGB,
   OPENSLIDE_JP2K_YCBCR,
 };
