@@ -170,7 +170,7 @@ dicom_dep = dependency(
   'libdicom',
   # avoid 'check' dependency
   default_options : ['tests=false'],
-  version : '>=1.2.0',
+  version : '>=1.3.0',
 )
 
 # Dependency checks

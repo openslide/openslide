@@ -490,9 +490,9 @@ static bool read_tile(openslide_t *osr,
       DcmError *dcm_error = NULL;
       g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
         g_mutex_locker_new(&file->lock);
-      if (!dcm_filehandle_get_frame_number(&dcm_error, file->filehandle,
-                                           tile_col, tile_row,
-                                           &frame_number)) {
+      if (!dcm_filehandle_find_frame_number(&dcm_error, file->filehandle,
+                                            tile_col, tile_row,
+                                            &frame_number)) {
         _openslide_dicom_propagate_error(err, dcm_error);
         return false;
       }
@@ -1160,20 +1160,19 @@ static bool finalize_level(struct dicom_level *l, GPtrArray *files,
         uint16_t file_num;
         for (file_num = 0; file_num < l->file_count; file_num++) {
           DcmError *dcm_error = NULL;
-          uint32_t n;
-          if (dcm_filehandle_get_frame_number(&dcm_error,
-                                              l->files[file_num]->filehandle,
-                                              tile_col, tile_row, &n)) {
+          uint32_t frame;
+          if (!dcm_filehandle_find_frame_number(&dcm_error,
+                                                l->files[file_num]->filehandle,
+                                                tile_col, tile_row, &frame)) {
+            _openslide_dicom_propagate_error(err, dcm_error);
+            return false;
+          }
+          if (frame) {
             // found one, record the file that has this tile and break
             if (l->tile_files) {
               l->tile_files[tile_index] = file_num;
             }
             break;
-          } else if (dcm_error_get_code(dcm_error) == DCM_ERROR_CODE_MISSING_FRAME) {
-            dcm_error_clear(&dcm_error);
-          } else {
-            _openslide_dicom_propagate_error(err, dcm_error);
-            return false;
           }
         }
         if (file_num == l->file_count) {
