@@ -8,6 +8,7 @@ foreach dep : ['cjpeg', 'djpeg', 'xdelta3']
     ),
   )
   if not get_variable(dep).found()
+    message(dep + ' not found, disabling developer test suite')
     subdir_done()
   endif
 endforeach
