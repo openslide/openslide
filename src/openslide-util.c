@@ -298,6 +298,27 @@ char *_openslide_format_double(double d) {
   return g_strdup(buf);
 }
 
+char *_openslide_decode_base64_str(const char *base64) {
+  gsize len;
+  char *decoded = (char *) g_base64_decode(base64, &len);
+  decoded = g_realloc(decoded, len + 1);
+  decoded[len] = 0;
+  return decoded;
+}
+
+// copy the src prop to dest if it exists
+void _openslide_duplicate_str_prop(openslide_t *osr, const char *src,
+                                   const char *dest) {
+  g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
+
+  char *value = g_hash_table_lookup(osr->properties, src);
+  if (value) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(dest),
+                        g_strdup(value));
+  }
+}
+
 // if the src prop is an int, canonicalize it and copy it to dest
 void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest) {

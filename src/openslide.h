@@ -301,6 +301,13 @@ const char *openslide_get_error(openslide_t *osr);
 #define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
 
 /**
+ * The name of the property containing a slide's barcode, if any.
+ *
+ * @since 4.0.1
+ */
+#define OPENSLIDE_PROPERTY_NAME_BARCODE "openslide.barcode"
+
+/**
  * The name of the property containing the height of the rectangle bounding
  * the non-empty region of the slide, if available.
  *

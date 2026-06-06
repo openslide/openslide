@@ -1071,7 +1071,7 @@ static void add_properties(openslide_t *osr, struct dicom_level *level0) {
   add_properties_dataset(level0->files[0]->file_meta, 0, &iter);
   add_properties_dataset(level0->files[0]->metadata, 0, &iter);
 
-  // add MPP and objective power
+  // add MPP, objective power, barcode
   // pixel spacing is in mm, so convert to microns
   // row spacing, then column spacing
   _openslide_duplicate_double_prop_scaled(osr,
@@ -1085,6 +1085,9 @@ static void add_properties(openslide_t *osr, struct dicom_level *level0) {
   _openslide_duplicate_double_prop(osr,
                                    "dicom.OpticalPathSequence[0].ObjectiveLensPower",
                                    OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  _openslide_duplicate_str_prop(osr,
+                                "dicom.BarcodeValue",
+                                OPENSLIDE_PROPERTY_NAME_BARCODE);
 }
 
 static gint compare_level_width(const void *a, const void *b) {

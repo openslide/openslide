@@ -1038,6 +1038,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
   }
 
+  // schema allows for more than one barcode; just take the first one
+  char *barcode =
+    _openslide_xml_xpath_get_string(ctx, "(/ImageDocument/Metadata/AttachmentInfos/AttachmentInfo/Label/Barcodes/Barcode/Content)[1]/text()");
+  if (barcode) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BARCODE),
+                        barcode);
+  }
+
   return true;
 }
 

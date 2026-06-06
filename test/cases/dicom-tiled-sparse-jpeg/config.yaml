@@ -9,6 +9,7 @@ properties:
   openslide.associated.macro.width: "1491"
   openslide.associated.thumbnail.icc-size: "13113264"
   openslide.associated.thumbnail.width: "1920"
+  openslide.barcode: "PV22;LEI;Case-D;Slide-D-5\r\n"
   openslide.icc-size: "13113264"
   openslide.quickhash-1: 7ca87626aa9842b867f284a4ac0c9474f5de295455c8bb25be2ed837efcc5b10
   openslide.vendor: dicom
