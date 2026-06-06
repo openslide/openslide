@@ -1,7 +1,7 @@
 project(
   'openslide',
   'c',
-  version : '4.0.0',
+  version : '4.0.1',
   license : 'LGPL-2.1-only',
   default_options : [
     'buildtype=debugoptimized',
@@ -12,7 +12,7 @@ project(
   meson_version : '>=0.55',
 )
 # Shared library version.  Follow SemVer rules.
-soversion = '1.0.0'
+soversion = '1.0.1'
 
 if not meson.is_subproject()
   meson.add_dist_script('scripts/dist.py')
