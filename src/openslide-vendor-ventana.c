@@ -652,8 +652,9 @@ static bool parse_level_info(const char *desc,
   for (char **pair = pairs; *pair; pair++) {
     g_auto(GStrv) kv = g_strsplit(*pair, "=", 2);
     if (g_strv_length(kv) == 2) {
-      g_hash_table_insert(fields, kv[0], kv[1]);
-      g_free(g_steal_pointer(&kv));
+      g_hash_table_insert(fields,
+                          g_steal_pointer(&kv[0]),
+                          g_steal_pointer(&kv[1]));
     }
   }
 
