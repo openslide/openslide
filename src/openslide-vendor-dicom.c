@@ -437,18 +437,23 @@ static bool read_tile(openslide_t *osr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache,
                                             level, tile_col, tile_row,
                                             &cache_entry);
-  if (!tiledata) {
-    // get file
+
+  // get file
+  struct dicom_file *file = NULL;
+  if (!tiledata || _openslide_debug(OPENSLIDE_DEBUG_TILES)) {
     uint16_t file_num =
       l->tile_files ? l->tile_files[tile_col + tile_row * l->tiles_across] : 0;
     g_assert(file_num < l->file_count);
     if (!fios[file_num].file) {
       fios[file_num] = dicom_file_io_get(l->files[file_num]);
     }
+    file = fios[file_num].file;
+  }
 
+  if (!tiledata) {
     g_autofree uint32_t *buf = g_new(uint32_t, l->base.tile_w * l->base.tile_h);
-    if (!decode_frame(fios[file_num].file, tile_col, tile_row,
-                      buf, l->base.tile_w, l->base.tile_h, err)) {
+    if (!decode_frame(file, tile_col, tile_row, buf,
+                      l->base.tile_w, l->base.tile_h, err)) {
       return false;
     }
 
@@ -477,6 +482,31 @@ static bool read_tile(openslide_t *osr,
                                         l->base.tile_w * 4);
   cairo_set_source_surface(cr, surface, 0, 0);
   cairo_paint(cr);
+
+  // draw debug info
+  if (_openslide_debug(OPENSLIDE_DEBUG_TILES)) {
+    uint32_t frame_number;
+    {
+      DcmError *dcm_error = NULL;
+      g_autoptr(GMutexLocker) locker G_GNUC_UNUSED =
+        g_mutex_locker_new(&file->lock);
+      if (!dcm_filehandle_get_frame_number(&dcm_error, file->filehandle,
+                                           tile_col, tile_row,
+                                           &frame_number)) {
+        _openslide_dicom_propagate_error(err, dcm_error);
+        return false;
+      }
+    }
+    g_autofree char *basename = g_path_get_basename(file->filename);
+    size_t namelen = strlen(basename);
+    const size_t maxlen = 13;
+    char *basename_start = basename;
+    if (namelen > maxlen) {
+      basename_start = basename + (namelen - maxlen);
+      memset(basename_start, '.', 3);
+    }
+    _openslide_grid_draw_tile_info(cr, "%s [%u]", basename_start, frame_number);
+  }
 
   return true;
 }
