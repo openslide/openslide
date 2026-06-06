@@ -10,6 +10,7 @@ from multiple vendors.
 OpenSlide can read brightfield whole slide images in [several formats][]:
 
 * [Aperio][] (`.svs`, `.tif`)
+* [ARGOS][] (`.avs`)
 * [DICOM][] (`.dcm`)
 * [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
 * [Huron][] (`.tif`)
@@ -27,6 +28,7 @@ associated images such as a slide label and thumbnail.
 
 [several formats]: https://openslide.org/formats/
 [Aperio]: https://openslide.org/formats/aperio/
+[ARGOS]: https://openslide.org/formats/argos/
 [DICOM]: https://openslide.org/formats/dicom/
 [Hamamatsu]: https://openslide.org/formats/hamamatsu/
 [Huron]: https://openslide.org/formats/huron/
