@@ -102,7 +102,7 @@ static void write_lines_png(png_structp png_ptr, uint32_t *buf,
       uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
       uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
       uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
-      buf[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
+      buf[i] = GUINT32_TO_BE((uint32_t) r << 24 | g << 16 | b << 8 | a);
     }
   }
 
