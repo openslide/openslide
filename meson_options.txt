@@ -7,7 +7,7 @@ option(
   'test',
   type : 'feature',
   yield : true,
-  description : 'Build tests',
+  description : 'Build developer test suite (requires additional deps)',
 )
 option(
   'doc',
