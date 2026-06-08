@@ -12,7 +12,7 @@ labels: [release]
 - [ ] Verify that GitHub Actions created a draft [GitHub release](https://github.com/openslide/openslide/releases) with release notes and a source tarball
 - [ ] Add a long-form release description to the GitHub release; publish
 - [ ] [Update openslide-bin](https://github.com/openslide/openslide-bin/issues/new?labels=release&template=release.md)
-- [ ] Update website: `_data/releases.yaml`, `_includes/news.md`, `api/`
+- [ ] `cd` into website checkout; `_scripts/sync-releases.py`; update `_includes/news.md`
 - [ ] Start a [CI build](https://github.com/openslide/openslide.github.io/actions/workflows/retile.yml) of the demo site
 - [ ] Update Ubuntu PPA
 - [ ] Update Fedora and EPEL packages

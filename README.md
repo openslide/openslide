@@ -9,7 +9,7 @@ from multiple vendors.
 
 OpenSlide can read brightfield whole slide images in [several formats][]:
 
-* [Aperio][] (`.svs`, `.tif`)
+* [Aperio][] (`.svs`)
 * [ARGOS][] (`.avs`)
 * [DICOM][] (`.dcm`)
 * [Hamamatsu][] (`.ndpi`, `.vms`, `.vmu`)
