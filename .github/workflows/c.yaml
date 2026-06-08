@@ -419,7 +419,7 @@ jobs:
     name: Release
     if: github.ref_type == 'tag'
     needs: [primary, build, windows-build, bin-build]
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     concurrency: release-${{ github.ref }}
     permissions:
       contents: write
