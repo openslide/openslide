@@ -38,7 +38,11 @@ static int do_test_deps(int narg, char **args) {
       g_environ_setenv(child_env, "OPENSLIDE_DEBUG", "synthetic", true);
     GError *tmp_err = NULL;
     int status;
-    if (!g_spawn_sync(NULL, child_argv, child_env, G_SPAWN_SEARCH_PATH,
+    if (!g_spawn_sync(NULL, child_argv, child_env,
+                      G_SPAWN_SEARCH_PATH |
+                      // avoid requiring gspawn-win64-helper.exe on Windows
+                      G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+                      G_SPAWN_CHILD_INHERITS_STDIN,
                       NULL, NULL, NULL, NULL, &status, &tmp_err)) {
       common_fail("Spawning child failed: %s", tmp_err->message);
     }
