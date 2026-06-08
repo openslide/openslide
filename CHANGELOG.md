@@ -1,5 +1,49 @@
 # Notable Changes in OpenSlide
 
+## Version 4.0.1, 2026-06-07
+
+### Security
+
+* Fix arbitrary memory write with crafted Ventana BIF file (CVE-2026-48977)
+* Fix return of uninitialized pixels with libtiff 4.7.1 (GHSA-f734-jv98-5677)
+
+### Format support
+
+* New formats: ARGOS AVS, Huron TIFF
+* New format: Zeiss CZI, uncompressed or zstd-compressed (thanks, Wei Chen)
+* aperio: Support label and macro images on newer slides
+* aperio: Add main image ICC profile to thumbnail if indicated by metadata
+* dicom: Support levels split into multiple files (thanks, John Cupitt)
+* dicom: Support reversible JPEG 2000 compression
+* dicom: Fix colors with RGB JPEG (thanks, John) and irreversible JPEG 2000
+* dicom: Support files with Image Type `ORIGINAL\PRIMARY\VOLUME\RESAMPLED`
+* dicom: Fix swapped X and Y MPP
+* generic-tiff: Support TIFFs with missing tiles
+* hamamatsu: Fully support NDPI larger than 4 GB (thanks, Nick Trahearn)
+* hamamatsu: Fix errors reading highly downsampled NDPI levels
+* hamamatsu: Support NDPI files without `RowsPerStrip`
+* hamamatsu: Correctly read NDPI ASCII strings shorter than 4 characters
+* mirax: Support missing or variant `OBJECTIVE_MAGNIFICATION`
+* mirax: Ignore empty `Slidedat.ini` key names
+
+### New features
+
+* Add `openslide.barcode` property
+* Support building directly on Windows with GCC or clang-cl
+* Add `slidetool test deps` command to run self-tests
+
+### Changes
+
+* Require Zstandard
+* Require Meson ≥ 0.55; libdicom ≥ 1.3; libjpeg-turbo ≥ 1.3 or libjpeg ≥ 9c
+* Replace GDK-PixBuf dependency with built-in BMP parser
+* Improve I/O performance with DICOM, Hamamatsu, TIFF
+* Prevent libtiff ≥ 4.5.0 from logging to stderr
+
+### Bug fixes
+
+* Fix filename character set of command-line tool output files on Windows
+
 
 ## Version 4.0.0, 2023-10-11
 
