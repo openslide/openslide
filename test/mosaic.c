@@ -29,7 +29,7 @@
 
 #define TILE_WIDTH 256
 #define TILE_HEIGHT 256
-#define TILES_PER_ROW 4
+#define TILES_PER_ROW 6
 #define TEXT_MARGIN 5
 #define TEXT_BACKDROP_MARGIN 2
 #define COLOR_BACKGROUND 0.6, 0.75, 0.9
@@ -78,7 +78,7 @@ static void render_tile(cairo_t *cr, const char *name, const char *path,
   if (osr) {
     error = g_strdup(openslide_get_error(osr));
     if (!error) {
-      g_autofree uint32_t *buf = g_malloc(TILE_WIDTH * TILE_HEIGHT * 4);
+      g_autofree uint32_t *buf = g_new(uint32_t, TILE_WIDTH * TILE_HEIGHT);
       openslide_read_region(osr, buf, x, y, level, TILE_WIDTH, TILE_HEIGHT);
       error = g_strdup(openslide_get_error(osr));
       if (!error) {

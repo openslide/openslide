@@ -1,0 +1,6 @@
+# ImageType with too low multiplicity
+base: DICOM/3DHISTECH-1.zip
+error: "^Reading .*/000014.dcm: Couldn't get image flavor$"
+slide: 000005.dcm
+success: false
+vendor: dicom

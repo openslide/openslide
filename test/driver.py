@@ -102,8 +102,8 @@ BLUE = '\033[1;34m'
 RED = '\033[1;31m'
 RESET = '\033[1;0m'
 
-_commands = []
-_command_funcs = {}
+_commands: list[str] = []
+_command_funcs: dict[str, Command] = {}
 
 http = requests.Session()
 http.headers.update(
@@ -131,10 +131,9 @@ class Command(Protocol):
 # strings satisfies a variadic function taking strings, so we type f as Any.
 def _command(f: Any) -> Command:
     """Decorator to mark the function as a user command."""
-    ff = cast(Command, f)
     _commands.append(f.__name__)
-    _command_funcs[f.__name__] = ff
-    return ff
+    _command_funcs[f.__name__] = f
+    return cast(Command, f)
 
 
 def _color(color: str, str: str) -> str:
@@ -306,7 +305,7 @@ class UnpackedSlide:
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
         vendor: str | None | type[Skip] = Skip,
-        properties: dict[str, str] | None = None,
+        properties: dict[str, str | None] | None = None,
         regions: Iterable[Iterable[int]] | None = None,
     ) -> str | None:
         """Try opening the slide file, under Valgrind if specified, using
@@ -319,11 +318,13 @@ class UnpackedSlide:
 
         args = []
         if vendor is not Skip:
-            vendor_str = cast(str, 'none' if vendor is None else vendor)
+            vendor_str = cast(str, 'NULL' if vendor is None else vendor)
             args.extend(['-n', vendor_str])
         if properties:
             for k, v in properties.items():
-                args.extend(['-p', '='.join([k, (v or '')])])
+                args.extend(
+                    ['-p', '='.join([k, ('ABSENT' if v is None else v)])]
+                )
         if regions:
             for region in regions:
                 args.extend(['-r', ' '.join(str(d) for d in region)])
@@ -364,7 +365,11 @@ class UnpackedSlide:
         )
         out, err = proc.communicate()
         if out or err:
-            return (out + err).strip()
+            return '\n'.join(
+                line
+                for line in (out + err).strip().split('\n')
+                if 'Rejecting overlarge cache entry' not in line
+            )
         elif proc.returncode:
             return f'Exited with status {proc.returncode}'
         else:
@@ -394,7 +399,7 @@ class TestCaseConfig:
         self.required_features: set[str] = set(conf.get('requires', []))
         self.debug: set[str] = set(conf.get('debug', []))
         self.regions: list[list[int]] = conf.get('regions', [])
-        self.properties: dict[str, str] = conf.get('properties', {})
+        self.properties: dict[str, str | None] = conf.get('properties', {})
         self.generators = self._generator_map(conf, 'generate')
         self.copies = self._file_map(conf, 'copy')
         self.renames = self._file_map(conf, 'rename')
@@ -739,10 +744,7 @@ class S3Uploader:
     def __init__(self, bucket: str):
         self._s3 = boto3.client('s3')
         self._bucket = bucket
-        region = (
-            self._s3.get_bucket_location(Bucket=bucket)['LocationConstraint']
-            or 'us-east-1'
-        )
+        region = self._s3.head_bucket(Bucket=bucket)['BucketRegion']
         self._baseurl = (
             f'https://{bucket}.s3.dualstack.{region}.amazonaws.com/'
         )

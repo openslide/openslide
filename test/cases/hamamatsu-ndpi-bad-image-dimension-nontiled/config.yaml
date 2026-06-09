@@ -1,0 +1,11 @@
+base: Hamamatsu/CMU-1.ndpi
+slide: CMU-1.ndpi
+success: true
+vendor: hamamatsu
+properties:
+  openslide.level[6].height: '596'
+  openslide.level[6].tile-height: '596'
+  openslide.level[6].tile-width: '800'
+  openslide.level[6].width: '800'
+regions:
+  - [0, 0, 6, 100, 100]

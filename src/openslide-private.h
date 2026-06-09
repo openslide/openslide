@@ -137,10 +137,12 @@ struct _openslide_format {
 };
 
 extern const struct _openslide_format _openslide_format_aperio;
+extern const struct _openslide_format _openslide_format_argos;
 extern const struct _openslide_format _openslide_format_dicom;
 extern const struct _openslide_format _openslide_format_generic_tiff;
 extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
+extern const struct _openslide_format _openslide_format_huron;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips_tiff;
@@ -151,8 +153,13 @@ extern const struct _openslide_format _openslide_format_ventana;
 extern const struct _openslide_format _openslide_format_zeiss;
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
+enum _openslide_key_file_flavor {
+  OPENSLIDE_KEY_FILE_GENERIC,
+  OPENSLIDE_KEY_FILE_MIRAX,
+};
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
-                                   GKeyFileFlags flags, GError **err);
+                                   enum _openslide_key_file_flavor flavor,
+                                   GError **err);
 
 void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
@@ -180,11 +187,19 @@ double _openslide_parse_double(const char *value);
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 
+/* Decode Base64 to string */
+char *_openslide_decode_base64_str(const char *base64);
+
 /* Duplicate OpenSlide properties */
+void _openslide_duplicate_str_prop(openslide_t *osr, const char *src,
+                                   const char *dest);
 void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest);
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest);
+void _openslide_duplicate_double_prop_scaled(openslide_t *osr,
+                                             const char *src, double scale,
+                                             const char *dest);
 
 // background color helper
 void _openslide_set_background_color_prop(openslide_t *osr,
@@ -261,6 +276,9 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int32_t tile_h,
                                                       _openslide_grid_simple_read_fn read_tile);
 
+void _openslide_grid_simple_set_missing(struct _openslide_grid *grid,
+                                        int64_t tile_col, int64_t tile_row);
+
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_x,
                                                        double tile_advance_y,
@@ -305,6 +323,7 @@ void _openslide_grid_destroy(struct _openslide_grid *grid);
 
 /* Bounds properties helper */
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid);
 
 

@@ -1,5 +1,0 @@
-base: Hamamatsu/CMU-1.ndpi
-error: "^Unexpected rows per strip 16 \\(height 9536\\)$"
-slide: CMU-1.ndpi
-success: false
-vendor: hamamatsu

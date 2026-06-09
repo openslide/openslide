@@ -35,7 +35,7 @@
 
 #include "openslide-error.h"
 
-const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2025 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
+const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2026 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
 static const char * const EMPTY_STRING_ARRAY[] = { NULL };
 
@@ -49,6 +49,8 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_sakura,
   &_openslide_format_trestle,
   &_openslide_format_aperio,
+  &_openslide_format_huron,
+  &_openslide_format_argos,
   &_openslide_format_leica,
   &_openslide_format_philips_tiff,
   &_openslide_format_ventana,

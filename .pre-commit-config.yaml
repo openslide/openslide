@@ -11,14 +11,12 @@ repos:
     rev: v6.0.0
     hooks:
       # We don't want to allow arbitrarily large binary diffs into the
-      # repo, where they'll live in the Git history forever.  At the time
-      # of writing, our largest xdelta diff is 4881 bytes.  Arbitrarily
-      # set the cutoff at 6000.
+      # repo, where they'll live in the Git history forever.
       # https://openslide.org/docs/testsuite/#tips
       - id: check-added-large-files
         priority: 0
         name: Check for overlarge tests
-        args: [--maxkb=6]
+        args: [--maxkb=15]
         files: ^test/cases/
       - id: check-added-large-files
         priority: 0
@@ -39,7 +37,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.12
+    rev: v0.15.15
     hooks:
       - id: ruff-check
         types_or: [python, pyproject]
@@ -49,7 +47,7 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.2
+    rev: v2.1.0
     hooks:
       - id: mypy
         name: Check Python types

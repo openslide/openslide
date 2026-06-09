@@ -5,6 +5,6 @@ base: Aperio/CMU-1.svs
 error: "generic-tiff: TIFF is not tiled"
 slide: CMU-1.svs
 success: false
-vendor: null
+vendor: ~
 debug:
   - detection

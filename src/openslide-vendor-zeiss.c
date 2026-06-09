@@ -527,7 +527,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tid, 0,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(sb->w * sb->h * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, sb->w * sb->h);
     if (!read_subblk(f, czi->zisraw_offset, sb, buf, err)) {
       return false;
     }
@@ -1018,28 +1018,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
   czi->h = h;
   czi->nscene = nscene;
 
-  // in meter/pixel
-  const char *meters =
-    g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.X.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      // in um/pixel
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
-
-  meters = g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.Y.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
+  // meter/pixel -> um/pixel
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.X.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.Y.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   char *objective_id = g_hash_table_lookup(osr->properties,
                                            "zeiss.Information.Image.ObjectiveSettings.ObjectiveRef.Id");
@@ -1049,6 +1036,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                       objective_id);
     _openslide_duplicate_double_prop(osr, objective_key,
                                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  }
+
+  // schema allows for more than one barcode; just take the first one
+  char *barcode =
+    _openslide_xml_xpath_get_string(ctx, "(/ImageDocument/Metadata/AttachmentInfos/AttachmentInfo/Label/Barcodes/Barcode/Content)[1]/text()");
+  if (barcode) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BARCODE),
+                        barcode);
   }
 
   return true;

@@ -134,7 +134,7 @@ static void check_props(openslide_t *osr) {
     const char *value = openslide_get_property_value(osr, key);
     check_error(osr);
 
-    if (!*expected_value) {
+    if (!strcmp(expected_value, "ABSENT")) {
       // value should be missing
       if (value != NULL) {
         fail("Property %s exists; should be missing", key);
@@ -143,7 +143,7 @@ static void check_props(openslide_t *osr) {
       if (value == NULL) {
         fail("Property %s does not exist", key);
       } else if (strcmp(value, expected_value)) {
-        fail("Property %s is %s; should be %s", key, value, expected_value);
+        fail("Property %s is \"%s\"; should be \"%s\"", key, value, expected_value);
       }
     }
   }
@@ -163,7 +163,7 @@ static void check_regions(openslide_t *osr) {
     int64_t w = g_ascii_strtoll(args[3], NULL, 10);
     int64_t h = g_ascii_strtoll(args[4], NULL, 10);
 
-    g_autofree uint32_t *buf = g_malloc(w * h * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
     openslide_read_region(osr, buf, x, y, level, w, h);
     check_error(osr);
   }
@@ -171,9 +171,9 @@ static void check_regions(openslide_t *osr) {
 
 static GOptionEntry options[] = {
   {"vendor", 'n', 0, G_OPTION_ARG_STRING, &vendor_check,
-   "Check for specified vendor (\"none\" for NULL)", "\"VENDOR\""},
+   "Check for specified vendor (\"NULL\" for NULL)", "\"VENDOR\""},
   {"property", 'p', 0, G_OPTION_ARG_STRING_ARRAY, &prop_checks,
-   "Check for specified property value", "\"NAME=VALUE\""},
+   "Check property value (\"ABSENT\" for absent)", "\"NAME=VALUE\""},
   {"region", 'r', 0, G_OPTION_ARG_STRING_ARRAY, &region_checks,
    "Read specified region", "\"X Y LEVEL W H\""},
   {"time", 't', 0, G_OPTION_ARG_NONE, &time_check,
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
   // Check vendor if requested
   if (vendor_check) {
     const char *expected_vendor = vendor_check;
-    if (!strcmp(expected_vendor, "none")) {
+    if (!strcmp(expected_vendor, "NULL")) {
       expected_vendor = NULL;
     }
     if ((expected_vendor == NULL) != (vendor == NULL) ||

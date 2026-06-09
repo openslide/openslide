@@ -77,7 +77,8 @@ static const int KEY_FILE_MAX_SIZE = 64 << 10;
 #define NDPI_XOFFSET 65422
 #define NDPI_YOFFSET 65423
 #define NDPI_FOCAL_PLANE 65424
-#define NDPI_MCU_STARTS 65426
+#define NDPI_MCU_STARTS_LOW 65426
+#define NDPI_MCU_STARTS_HIGH 65432
 #define NDPI_REFERENCE 65427
 #define NDPI_PROPERTY_MAP 65449
 #define JPEG_MAX_DIMENSION_HIGH ((JPEG_MAX_DIMENSION >> 8) & 0xff)
@@ -108,8 +109,9 @@ struct jpeg {
   int64_t *mcu_starts;
   int64_t *unreliable_mcu_starts;
 
-  int64_t sof_position;
-  int64_t header_stop_position;
+  uint8_t *header_data;
+  int64_t header_sof_offset;
+  int64_t header_length;
 };
 
 struct jpeg_level {
@@ -162,47 +164,36 @@ struct ngr_level {
   int32_t column_width;
 };
 
-enum OpenSlideHamamatsuError {
-  // JPEG does not contain restart markers
-  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
-};
-static G_DEFINE_QUARK(openslide-hamamatsu-error-quark,
-                      _openslide_hamamatsu_error)
-#define OPENSLIDE_HAMAMATSU_ERROR _openslide_hamamatsu_error_quark()
-
 /*
  * Source manager for reading a run of MCUs between two restart markers
  * as a complete JPEG.  Originally based on jdatasrc.c from IJG libjpeg.
  */
 static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                    struct _openslide_file *infile,
-                                   int64_t header_start_position,
-                                   int64_t sof_position,
-                                   int64_t header_stop_position,
+                                   const uint8_t *header_data,
+                                   int64_t header_sof_offset,
+                                   int64_t header_length,
                                    int64_t start_position,
                                    int64_t stop_position,
                                    GError **err) {
   // check for problems
-  if ((0 > header_start_position) ||
-      (header_start_position >= sof_position) ||
-      (sof_position + 9 >= header_stop_position) ||
+  if ((0 >= header_sof_offset) ||
+      (header_sof_offset + 9 >= header_length) ||
       (start_position != -1 &&
-       ((header_stop_position > start_position) ||
+       ((header_length > start_position) ||
         (start_position >= stop_position)))) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                "Can't do random access JPEG read: "
-	       "header_start_position: %"PRId64", "
-	       "sof_position: %"PRId64", "
-	       "header_stop_position: %"PRId64", "
+	       "header_sof_offset: %"PRId64", "
+	       "header_length: %"PRId64", "
 	       "start_position: %"PRId64", "
 	       "stop_position: %"PRId64,
-	       header_start_position, sof_position, header_stop_position,
+	       header_sof_offset, header_length,
 	       start_position, stop_position);
     return false;
   }
 
   // compute size of buffer and allocate
-  int header_length = header_stop_position - header_start_position;
   int data_length = 0;
   if (start_position != -1) {
     data_length = stop_position - start_position;
@@ -214,17 +205,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
                                               JPOOL_IMAGE, buffer_size);
 
   // read in the 2 parts
-  //  g_debug("reading header from %"PRId64, header_start_position);
-  if (!_openslide_fseek(infile, header_start_position, SEEK_SET, err)) {
-    g_prefix_error(err, "Couldn't seek to header start: ");
-    return false;
-  }
-  if (!_openslide_fread_exact(infile, buffer, header_length, err)) {
-    g_prefix_error(err, "Cannot read header in JPEG at %"PRId64": ",
-                   header_start_position);
-    return false;
-  }
-
+  memcpy(buffer, header_data, header_length);
   if (data_length) {
     //  g_debug("reading from %"PRId64, start_position);
     if (!_openslide_fseek(infile, start_position, SEEK_SET, err)) {
@@ -249,7 +230,7 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
 
   // check for overlarge or 0 X/Y in SOF (some NDPI JPEGs have this)
   // change them to a value libjpeg will accept
-  int64_t size_offset = sof_position - header_start_position + 5;
+  int64_t size_offset = header_sof_offset + 5;
   uint16_t y = (buffer[size_offset + 0] << 8) +
                 buffer[size_offset + 1];
   if (y > JPEG_MAX_DIMENSION || y == 0) {
@@ -286,6 +267,7 @@ static void jpeg_free(struct jpeg *jpeg) {
   g_free(jpeg->filename);
   g_free(jpeg->mcu_starts);
   g_free(jpeg->unreliable_mcu_starts);
+  g_free(jpeg->header_data);
   g_free(jpeg);
 }
 OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(jpeg_free)
@@ -312,9 +294,9 @@ static void jpeg_setup_free(struct jpeg_setup *setup) {
 typedef struct jpeg_setup jpeg_setup;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(jpeg_setup, jpeg_setup_free)
 
-static bool find_bitstream_start(struct _openslide_file *f,
-                                 int64_t *sof_position,
-                                 int64_t *header_stop_position,
+static uint8_t *load_jpeg_header(struct _openslide_file *f,
+                                 int64_t *header_sof_offset,
+                                 int64_t *header_length,
                                  GError **err) {
   uint8_t buf[2];
   uint8_t marker_byte;
@@ -322,21 +304,28 @@ static bool find_bitstream_start(struct _openslide_file *f,
   int64_t pos;
   bool have_sof = false;
 
+  g_autoptr(GByteArray) data = g_byte_array_new();
+  int64_t header_start_position = _openslide_ftell(f, err);
+  if (header_start_position == -1) {
+    g_prefix_error(err, "Couldn't get JPEG header start position: ");
+    return NULL;
+  }
   while (true) {
     // read marker
     pos = _openslide_ftell(f, err);
     if (pos == -1) {
       g_prefix_error(err, "Couldn't seek to JPEG marker: ");
-      return false;
+      return NULL;
     }
     if (!_openslide_fread_exact(f, buf, sizeof(buf), err)) {
       g_prefix_error(err, "Couldn't read JPEG marker at %"PRId64": ", pos);
-      return false;
+      return NULL;
     }
+    g_byte_array_append(data, buf, sizeof(buf));
     if (buf[0] != 0xFF) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "Expected marker at %"PRId64", found none", pos);
-      return false;
+      return NULL;
     }
     marker_byte = buf[1];
     if (marker_byte == 0xD8) {
@@ -349,7 +338,7 @@ static bool find_bitstream_start(struct _openslide_file *f,
         (marker_byte >= 0xC5 && marker_byte <= 0xC7) ||
         (marker_byte >= 0xC9 && marker_byte <= 0xCB) ||
         (marker_byte >= 0xCD && marker_byte <= 0xCF)) {
-      *sof_position = pos;
+      *header_sof_offset = pos - header_start_position;
       have_sof = true;
     }
 
@@ -357,26 +346,29 @@ static bool find_bitstream_start(struct _openslide_file *f,
     if (!_openslide_fread_exact(f, buf, sizeof(buf), err)) {
       g_prefix_error(err, "Couldn't read JPEG marker length at %"PRId64": ",
                      pos);
-      return false;
+      return NULL;
     }
+    g_byte_array_append(data, buf, sizeof(buf));
     memcpy(&len, buf, sizeof(len));
     len = GUINT16_FROM_BE(len);
+    if (len < sizeof(len)) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "JPEG marker length %d < %zu", len, sizeof(len));
+      return NULL;
+    }
+    len -= sizeof(len);
 
-    // seek
-    if (!_openslide_fseek(f, pos + sizeof(buf) + len, SEEK_SET, err)) {
-      g_prefix_error(err, "Couldn't seek to next marker: ");
-      return false;
+    // read segment data
+    g_byte_array_set_size(data, data->len + len);
+    if (!_openslide_fread_exact(f, data->data + data->len - len, len, err)) {
+      g_prefix_error(err, "Couldn't read JPEG marker data at %"PRId64": ", pos);
+      return NULL;
     }
 
     // check for SOS
     if (marker_byte == 0xDA) {
       // found it; done
-      *header_stop_position = _openslide_ftell(f, err);
-      if (*header_stop_position == -1) {
-        g_prefix_error(err, "Couldn't get header stop position: ");
-        return false;
-      }
-      //g_debug("found bitstream start at %"PRId64, *header_stop_position);
+      //g_debug("found bitstream start at %"PRId64, header_start_position + data->len);
       break;
     }
   }
@@ -384,10 +376,11 @@ static bool find_bitstream_start(struct _openslide_file *f,
   if (!have_sof) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "Reached SOS marker without finding SOF");
-    return false;
+    return NULL;
   }
 
-  return true;
+  *header_length = data->len;
+  return g_byte_array_free(g_steal_pointer(&data), false);
 }
 
 static bool find_next_ff_marker(struct _openslide_file *f,
@@ -468,7 +461,7 @@ static bool _compute_mcu_start(struct jpeg *jpeg,
 			       GError **err) {
   // special case for first
   if (jpeg->mcu_starts[0] == -1) {
-    jpeg->mcu_starts[0] = jpeg->header_stop_position;
+    jpeg->mcu_starts[0] = jpeg->start_in_file + jpeg->header_length;
   }
 
   // walk backwards to find the first non -1 offset
@@ -621,9 +614,9 @@ static bool read_from_jpeg(openslide_t *osr,
     _openslide_jpeg_decompress_init(dc, &env);
 
     if (!jpeg_random_access_src(cinfo, f,
-                                jpeg->start_in_file,
-                                jpeg->sof_position,
-                                jpeg->header_stop_position,
+                                jpeg->header_data,
+                                jpeg->header_sof_offset,
+                                jpeg->header_length,
                                 start_position,
                                 stop_position,
                                 err)) {
@@ -683,7 +676,7 @@ static bool read_jpeg_tile(openslide_t *osr,
                                             &cache_entry);
 
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!read_from_jpeg(osr,
                         jp, tileno,
                         l->scale_denom,
@@ -816,7 +809,8 @@ static bool hamamatsu_vms_vmu_detect(const char *filename,
 
   // try to parse key file
   g_autoptr(GKeyFile) key_file =
-    _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE, G_KEY_FILE_NONE, err);
+    _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
+                             OPENSLIDE_KEY_FILE_GENERIC, err);
   if (!key_file) {
     g_prefix_error(err, "Can't read key file: ");
     return false;
@@ -982,10 +976,12 @@ static gpointer restart_marker_thread_func(gpointer d) {
 // if !use_jpeg_dimensions, use *w and *h instead of setting them
 static bool validate_jpeg_header(struct _openslide_file *f,
                                  bool use_jpeg_dimensions,
+                                 bool require_restart_markers,
                                  int32_t *w, int32_t *h,
                                  int32_t *tw, int32_t *th,
-                                 int64_t *sof_position,
-                                 int64_t *header_stop_position,
+                                 uint8_t **header_data,
+                                 int64_t *header_sof_offset,
+                                 int64_t *header_length,
                                  char **comment, GError **err) {
   jmp_buf env;
 
@@ -993,13 +989,14 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     *comment = NULL;
   }
 
-  // find limits of JPEG header
+  // find limits of JPEG header and buffer it
   int64_t header_start = _openslide_ftell(f, err);
   if (header_start == -1) {
     g_prefix_error(err, "Couldn't get header start position: ");
     return false;
   }
-  if (!find_bitstream_start(f, sof_position, header_stop_position, err)) {
+  *header_data = load_jpeg_header(f, header_sof_offset, header_length, err);
+  if (!*header_data) {
     return false;
   }
 
@@ -1010,8 +1007,8 @@ static bool validate_jpeg_header(struct _openslide_file *f,
   if (setjmp(env) == 0) {
     _openslide_jpeg_decompress_init(dc, &env);
     if (!jpeg_random_access_src(cinfo, f,
-                                header_start, *sof_position,
-                                *header_stop_position, -1, -1, err)) {
+                                *header_data, *header_sof_offset,
+                                *header_length, -1, -1, err)) {
       return false;
     }
 
@@ -1028,12 +1025,6 @@ static bool validate_jpeg_header(struct _openslide_file *f,
     if (cinfo->num_components != 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                   "JPEG color components != 3");
-      return false;
-    }
-    if (cinfo->restart_interval == 0) {
-      g_set_error(err, OPENSLIDE_HAMAMATSU_ERROR,
-                  OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS,
-                  "No restart markers");
       return false;
     }
 
@@ -1055,6 +1046,21 @@ static bool validate_jpeg_header(struct _openslide_file *f,
       *w = cinfo->output_width;
       *h = cinfo->output_height;
     }
+
+    if (cinfo->restart_interval == 0) {
+      if (!require_restart_markers && use_jpeg_dimensions) {
+        // nothing else to check
+        *tw = cinfo->output_width;
+        *th = cinfo->output_height;
+        return true;
+      } else {
+        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "No restart markers");
+        return false;
+      }
+    }
+
+    // now check restart interval
 
     int32_t mcu_width = DCTSIZE;
     int32_t mcu_height = DCTSIZE;
@@ -1400,17 +1406,18 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     }
 
     // comment?
-    char *comment = NULL;
+    g_autofree char *comment = NULL;
     char **comment_ptr = NULL;
     if (i == 0) {
       comment_ptr = &comment;
     }
 
-    if (!validate_jpeg_header(f, true,
+    if (!validate_jpeg_header(f, true, true,
                               &jp->width, &jp->height,
                               &jp->tile_width, &jp->tile_height,
-                              &jp->sof_position,
-                              &jp->header_stop_position,
+                              &jp->header_data,
+                              &jp->header_sof_offset,
+                              &jp->header_length,
                               comment_ptr, err)) {
       g_prefix_error(err, "Can't validate JPEG %d: ", i);
       return false;
@@ -1422,7 +1429,7 @@ static bool hamamatsu_vms_part2(openslide_t *osr,
     if (comment) {
       g_hash_table_insert(osr->properties,
 			  g_strdup(OPENSLIDE_PROPERTY_NAME_COMMENT),
-			  comment);
+			  g_steal_pointer(&comment));
     }
 
     jp->end_in_file = _openslide_fsize(f, err);
@@ -1542,7 +1549,6 @@ static bool ngr_read_tile(openslide_t *osr,
 
   int64_t tw = l->column_width;
   int64_t th = MIN(NGR_TILE_HEIGHT, l->base.h - tile_y * NGR_TILE_HEIGHT);
-  int tilesize = tw * th * 4;
   g_autoptr(_openslide_cache_entry) cache_entry = NULL;
   // look up tile in cache
   uint32_t *tiledata = _openslide_cache_get(osr->cache, level, tile_x, tile_y,
@@ -1573,7 +1579,7 @@ static bool ngr_read_tile(openslide_t *osr,
     }
 
     // got the data, now convert to 8-bit xRGB
-    tiledata = g_malloc(tilesize);
+    tiledata = g_new(uint32_t, tw * th);
     for (int i = 0; i < tw * th; i++) {
       // scale down from 12 bits
       uint8_t r = GINT16_FROM_LE(buf[(i * 3)]) >> 4;
@@ -1586,7 +1592,7 @@ static bool ngr_read_tile(openslide_t *osr,
     // put it in the cache
     _openslide_cache_put(osr->cache, level, tile_x, tile_y,
                          tiledata,
-                         tilesize,
+                         tw * th * 4,
                          &cache_entry);
   }
 
@@ -1665,18 +1671,12 @@ static bool hamamatsu_vmu_part2(openslide_t *osr,
     }
 
     // read w, h, column width, headersize
-    if (!_openslide_fseek(f, 4, SEEK_SET, err)) {
-      g_prefix_error(err, "Couldn't seek to NGR header: ");
-      return false;
-    }
+    char unused[8];
+    _openslide_fread_exact(f, unused, 2, NULL);
     l->base.w = read_le_int32_from_file(f);
     l->base.h = read_le_int32_from_file(f);
     l->column_width = read_le_int32_from_file(f);
-
-    if (!_openslide_fseek(f, 24, SEEK_SET, err)) {
-      g_prefix_error(err, "Couldn't seek within NGR header: ");
-      return false;
-    }
+    _openslide_fread_exact(f, unused, 8, NULL);
     l->start_in_file = read_le_int32_from_file(f);
 
     // validate
@@ -1726,7 +1726,7 @@ static bool hamamatsu_vms_vmu_open(openslide_t *osr, const char *filename,
   // first, see if it's a VMS/VMU file
   g_autoptr(GKeyFile) key_file =
     _openslide_read_key_file(filename, KEY_FILE_MAX_SIZE,
-                             G_KEY_FILE_NONE, err);
+                             OPENSLIDE_KEY_FILE_GENERIC, err);
   if (!key_file) {
     g_prefix_error(err, "Can't load key file: ");
     return false;
@@ -2095,6 +2095,56 @@ static void ndpi_set_props(openslide_t *osr,
   }
 }
 
+static int64_t *ndpi_read_unreliable_mcu_starts(struct _openslide_tifflike *tl,
+                                                int64_t dir,
+                                                int64_t start_in_file,
+                                                int32_t tile_count,
+                                                GError **err) {
+  int64_t mcu_start_count_low =
+    _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_LOW);
+  if (mcu_start_count_low != tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid low MCU start count %"PRId64" != %d",
+                mcu_start_count_low, tile_count);
+    return NULL;
+  }
+  int64_t mcu_start_count_high =
+    _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS_HIGH);
+  if (mcu_start_count_high && mcu_start_count_high != tile_count) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Invalid high MCU start count %"PRId64" != %d",
+                mcu_start_count_high, tile_count);
+    return NULL;
+  }
+
+  //g_debug("loading MCU starts for directory %"PRId64, dir);
+
+  const uint64_t *unreliable_mcu_starts_low =
+    _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_LOW, err);
+  if (!unreliable_mcu_starts_low) {
+    g_prefix_error(err, "Reading low MCU starts: ");
+    return NULL;
+  }
+  const uint64_t *unreliable_mcu_starts_high =
+    _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS_HIGH, err);
+  if (mcu_start_count_high && !unreliable_mcu_starts_high) {
+    g_prefix_error(err, "Reading high MCU starts: ");
+    return NULL;
+  } else {
+    g_clear_error(err);
+  }
+
+  g_autofree int64_t *unreliable_mcu_starts = g_new(int64_t, tile_count);
+  for (int32_t tile = 0; tile < tile_count; tile++) {
+    uint64_t start_high =
+      unreliable_mcu_starts_high ? (unreliable_mcu_starts_high[tile] << 32) : 0;
+    unreliable_mcu_starts[tile] =
+      start_in_file + (unreliable_mcu_starts_low[tile] | start_high);
+    //g_debug("mcu start at %"PRId64, unreliable_mcu_starts[tile]);
+  }
+  return g_steal_pointer(&unreliable_mcu_starts);
+}
+
 static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
                                 struct _openslide_tifflike *tl,
                                 struct _openslide_hash *quickhash1,
@@ -2115,27 +2165,25 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
   int64_t min_width_dir = 0;
   for (int64_t dir = 0; dir < directories; dir++) {
     // read tags
-    int64_t width, height, rows_per_strip, start_in_file, num_bytes;
+    int64_t width, height, start_in_file, num_bytes;
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_IMAGEWIDTH, width, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_IMAGELENGTH, height, false);
-    TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_ROWSPERSTRIP, rows_per_strip, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_STRIPOFFSETS, start_in_file, false);
     TIFF_GET_UINT_OR_RETURN(tl, dir, TIFFTAG_STRIPBYTECOUNTS, num_bytes, false);
-    start_in_file = _openslide_tifflike_uint_fix_offset_ndpi(tl, dir,
-                                                             start_in_file);
+
+    int64_t strip_count =
+      _openslide_tifflike_get_value_count(tl, dir, TIFFTAG_STRIPOFFSETS);
+    if (strip_count != 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Unexpected strip count %"PRId64" (height %"PRId64")",
+                  strip_count, height);
+      return false;
+    }
 
     double lens =
       _openslide_tifflike_get_float(tl, dir, NDPI_SOURCELENS, &tmp_err);
     if (tmp_err) {
       g_propagate_error(err, tmp_err);
-      return false;
-    }
-
-    // check results
-    if (height != rows_per_strip) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Unexpected rows per strip %"PRId64" (height %"PRId64")",
-                  rows_per_strip, height);
       return false;
     }
 
@@ -2153,6 +2201,48 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         continue;
       }
 
+      // will the JPEG image dimensions be valid?
+      bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
+                               height <= JPEG_MAX_DIMENSION);
+
+      // validate JPEG
+      int32_t jp_w = width;  // overwritten if dimensions_valid
+      int32_t jp_h = height; // overwritten if dimensions_valid
+      int32_t jp_tw, jp_th;
+      g_autofree uint8_t *header_data = NULL;
+      int64_t header_sof_offset, header_length;
+      if (!_openslide_fseek(f, start_in_file, SEEK_SET, err)) {
+        g_prefix_error(err, "Couldn't seek to JPEG start: ");
+        return false;
+      }
+      if (!validate_jpeg_header(f, dimensions_valid, false,
+                                &jp_w, &jp_h,
+                                &jp_tw, &jp_th,
+                                &header_data,
+                                &header_sof_offset, &header_length,
+                                NULL, err)) {
+        g_prefix_error(err, "Can't validate JPEG for directory %"PRId64": ",
+                       dir);
+        return false;
+      }
+      if (width != jp_w || height != jp_h) {
+        if (jp_w == jp_tw && jp_h == jp_th) {
+          // non-tiled directory
+          // allow the JPEG dimensions to override the TIFF ones, since
+          // these sometimes disagree at high downsamples
+
+          //g_debug("using JPEG dimensions %dx%d instead of TIFF dimensions %"PRId64"x%"PRId64" for non-tiled directory %"PRId64, jp_w, jp_h, width, height, dir);
+          width = jp_w;
+          height = jp_h;
+        } else {
+          g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                      "JPEG dimension mismatch for directory %"PRId64": "
+                      "expected %"PRId64"x%"PRId64", found %dx%d",
+                      dir, width, height, jp_w, jp_h);
+          return false;
+        }
+      }
+
       // is smallest level?
       if (width < min_width) {
         min_width = width;
@@ -2162,46 +2252,6 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
         // out of paranoia.
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Unexpected directory layout");
-        return false;
-      }
-
-      // will the JPEG image dimensions be valid?
-      bool dimensions_valid = (width <= JPEG_MAX_DIMENSION &&
-                               height <= JPEG_MAX_DIMENSION);
-
-      // validate JPEG
-      int32_t jp_w = width;  // overwritten if dimensions_valid
-      int32_t jp_h = height; // overwritten if dimensions_valid
-      int32_t jp_tw, jp_th;
-      int64_t sof_position, header_stop_position;
-      if (!_openslide_fseek(f, start_in_file, SEEK_SET, err)) {
-        g_prefix_error(err, "Couldn't seek to JPEG start: ");
-        return false;
-      }
-      if (!validate_jpeg_header(f, dimensions_valid,
-                                &jp_w, &jp_h,
-                                &jp_tw, &jp_th,
-                                &sof_position, &header_stop_position,
-                                NULL, &tmp_err)) {
-        if (g_error_matches(tmp_err, OPENSLIDE_HAMAMATSU_ERROR,
-                            OPENSLIDE_HAMAMATSU_ERROR_NO_RESTART_MARKERS)) {
-          // non-tiled image
-          //g_debug("non-tiled image %"PRId64, dir);
-          g_clear_error(&tmp_err);
-          jp_w = jp_tw = width;
-          jp_h = jp_th = height;
-        } else {
-          g_propagate_prefixed_error(err, tmp_err,
-                                     "Can't validate JPEG for directory "
-                                     "%"PRId64": ", dir);
-          return false;
-        }
-      }
-      if (width != jp_w || height != jp_h) {
-        g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                    "JPEG dimension mismatch for directory %"PRId64": "
-                    "expected %"PRId64"x%"PRId64", found %dx%d",
-                    dir, width, height, jp_w, jp_h);
         return false;
       }
 
@@ -2218,8 +2268,9 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
       jp->tile_width = jp_tw;
       jp->tile_height = jp_th;
       jp->tile_count = jp->tiles_across * jp->tiles_down;
-      jp->sof_position = sof_position;
-      jp->header_stop_position = header_stop_position;
+      jp->header_data = g_steal_pointer(&header_data);
+      jp->header_sof_offset = header_sof_offset;
+      jp->header_length = header_length;
       jp->mcu_starts = g_new(int64_t, jp->tile_count);
       // init all to -1
       for (int32_t i = 0; i < jp->tile_count; i++) {
@@ -2228,30 +2279,16 @@ static bool hamamatsu_ndpi_open(openslide_t *osr, const char *filename,
 
       // read MCU starts, if this directory is tiled
       if (jp->tile_count > 1) {
-        int64_t mcu_start_count =
-          _openslide_tifflike_get_value_count(tl, dir, NDPI_MCU_STARTS);
-
-        if (mcu_start_count == jp->tile_count) {
-          //g_debug("loading MCU starts for directory %"PRId64, dir);
-          const uint64_t *unreliable_mcu_starts =
-            _openslide_tifflike_get_uints(tl, dir, NDPI_MCU_STARTS, NULL);
-          if (unreliable_mcu_starts) {
-            jp->unreliable_mcu_starts = g_new(int64_t, mcu_start_count);
-            for (int64_t tile = 0; tile < mcu_start_count; tile++) {
-              jp->unreliable_mcu_starts[tile] =
-                jp->start_in_file + unreliable_mcu_starts[tile];
-              //g_debug("mcu start at %"PRId64, jp->unreliable_mcu_starts[tile]);
-            }
-          } else {
-            //g_debug("failed to load MCU starts for directory %"PRId64, dir);
-          }
-        }
-
+        jp->unreliable_mcu_starts =
+          ndpi_read_unreliable_mcu_starts(tl, dir, jp->start_in_file,
+                                          jp->tile_count, &tmp_err);
         if (jp->unreliable_mcu_starts == NULL) {
           // no marker positions; scan for them in the background
           //g_debug("enabling restart marker thread for directory %"PRId64, dir);
           _openslide_performance_warn("Bad or missing MCU starts for "
-                                      "directory %"PRId64, dir);
+                                      "directory %"PRId64": %s", dir,
+                                      tmp_err->message);
+          g_clear_error(&tmp_err);
           restart_marker_scan = true;
         }
       }

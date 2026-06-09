@@ -3,5 +3,5 @@ slide: CMU-1.ndpi
 success: true
 vendor: hamamatsu
 properties:
-  openslide.mpp-x: null
-  openslide.mpp-y: null
+  openslide.mpp-x: ~
+  openslide.mpp-y: ~

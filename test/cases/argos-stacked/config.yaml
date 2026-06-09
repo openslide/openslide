@@ -1,0 +1,11 @@
+base: Argos/Argos-1-Stacked.avs
+slide: Argos-1-Stacked.avs
+success: true
+vendor: argos
+primary: true
+requires: [tiff-log-callbacks]
+properties:
+  openslide.associated.macro.width: '1489'
+  openslide.associated.thumbnail.width: '3180'
+  openslide.quickhash-1: 3cf368204f24f1ed21caf5df9f5408a35255c8794416d30d0fa6328f82e0f571
+  openslide.vendor: argos

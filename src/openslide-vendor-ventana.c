@@ -177,7 +177,7 @@ static bool read_subtile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
                                    buf, tile_col, tile_row,
                                    err)) {
@@ -516,6 +516,12 @@ static struct bif *parse_level0_xml(const char *xml,
     // get tile counts
     PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_NUM_COLS, area->tiles_across, NULL);
     PARSE_INT_ATTRIBUTE_OR_RETURN(info, ATTR_NUM_ROWS, area->tiles_down, NULL);
+    if (area->tiles_across < 1 || area->tiles_down < 1) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "Area has invalid tile count %"PRId64"x%"PRId64,
+                  area->tiles_across, area->tiles_down);
+      return NULL;
+    }
 
     // get position
     // it seems these are always whole numbers, but they are sometimes
@@ -652,8 +658,9 @@ static bool parse_level_info(const char *desc,
   for (char **pair = pairs; *pair; pair++) {
     g_auto(GStrv) kv = g_strsplit(*pair, "=", 2);
     if (g_strv_length(kv) == 2) {
-      g_hash_table_insert(fields, kv[0], kv[1]);
-      g_free(g_steal_pointer(&kv));
+      g_hash_table_insert(fields,
+                          g_steal_pointer(&kv[0]),
+                          g_steal_pointer(&kv[1]));
     }
   }
 

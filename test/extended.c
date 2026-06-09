@@ -51,6 +51,38 @@ static void test_image_fetch(openslide_t *osr,
                        x, y, w, h);
 }
 
+static void assert_region_opacity(openslide_t *osr,
+                                  int64_t x, int64_t y, int64_t w, int64_t h,
+                                  const char *desc, const char *region,
+                                  bool want_opaque) {
+  g_autofree uint32_t *buf = g_new(uint32_t, w * h);
+  openslide_read_region(osr, buf, x, y, 0, w, h);
+  common_fail_on_error(osr,
+                       "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                       x, y, w, h);
+  for (int64_t i = 0; i < w * h; i++) {
+    if (buf[i] >> 24) {
+      if (want_opaque) {
+        return;
+      } else {
+        common_fail("%s of %s has an opaque pixel", region, desc);
+      }
+    }
+  }
+  if (want_opaque) {
+    common_fail("%s of %s has no opaque pixels", region, desc);
+  }
+}
+
+static void assert_border_opacity(openslide_t *osr,
+                                  int64_t x, int64_t y, int64_t w, int64_t h,
+                                  const char *desc, bool want_opaque) {
+  assert_region_opacity(osr, x, y, 1, h, desc, "left edge", want_opaque);
+  assert_region_opacity(osr, x + w - 1, y, 1, h, desc, "right edge", want_opaque);
+  assert_region_opacity(osr, x, y, w, 1, desc, "top edge", want_opaque);
+  assert_region_opacity(osr, x, y + h - 1, w, 1, desc, "bottom edge", want_opaque);
+}
+
 static void test_read_associated_images(openslide_t *osr) {
   const char * const *associated_image_names =
     openslide_get_associated_image_names(osr);
@@ -156,7 +188,7 @@ struct cache_thread_params {
 
 static void *cache_thread(void *data) {
   struct cache_thread_params *params = data;
-  g_autofree uint32_t *buf = g_malloc(4 * params->w * params->h);
+  g_autofree uint32_t *buf = g_new(uint32_t, params->w * params->h);
   while (!g_atomic_int_get(params->stop)) {
     // read some tiles
     openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);
@@ -308,15 +340,34 @@ int main(int argc, char **argv) {
   test_image_fetch(osr, w - 20, 0, 40, 100);
   test_image_fetch(osr, 0, h - 20, 100, 40);
 
+  assert_border_opacity(osr, -1, -1, w + 2, h + 2,
+                        "just outside level dimensions", false);
+
   // active region
   const char *bounds_x = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_X);
   const char *bounds_y = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y);
+  const char *bounds_w = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH);
+  const char *bounds_h = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT);
+  int bounds_prop_count = !!bounds_x + !!bounds_y + !!bounds_w + !!bounds_h;
+  if (bounds_prop_count != 0 && bounds_prop_count != 4) {
+    common_fail("Found %d bounds properties, expected 0 or 4", bounds_prop_count);
+  }
   int64_t bounds_xx = 0;
   int64_t bounds_yy = 0;
-  if (bounds_x && bounds_y) {
+  if (bounds_x) {
     bounds_xx = g_ascii_strtoll(bounds_x, NULL, 10);
     bounds_yy = g_ascii_strtoll(bounds_y, NULL, 10);
+    int64_t bounds_ww = g_ascii_strtoll(bounds_w, NULL, 10);
+    int64_t bounds_hh = g_ascii_strtoll(bounds_h, NULL, 10);
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
+    assert_border_opacity(osr, bounds_xx, bounds_yy, bounds_ww, bounds_hh,
+                          "tile bounds", true);
+    assert_border_opacity(osr,
+                          bounds_xx - 1, bounds_yy - 1,
+                          bounds_ww + 2, bounds_hh + 2,
+                          "just outside tile bounds", false);
+  } else {
+    assert_border_opacity(osr, 0, 0, w, h, "level dimensions", true);
   }
 
   libtest_check_open_fds(fds, "Open file descriptor after reading pixel data");

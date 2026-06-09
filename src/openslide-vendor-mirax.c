@@ -220,7 +220,7 @@ static uint32_t *read_image(openslide_t *osr,
   struct mirax_ops_data *data = osr->data;
   bool result = false;
 
-  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  g_autofree uint32_t *dest = g_new(uint32_t, w * h);
 
   g_autoptr(_openslide_file) f =
     _openslide_fopen(data->datafile_paths[image->fileno], err);
@@ -1386,7 +1386,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   g_autoptr(GKeyFile) slidedat =
     _openslide_read_key_file(slidedat_path, SLIDEDAT_MAX_SIZE,
-                             G_KEY_FILE_NONE, err);
+                             OPENSLIDE_KEY_FILE_MIRAX, err);
   if (!slidedat) {
     g_prefix_error(err, "Can't load Slidedat.ini file: ");
     return false;
@@ -1407,9 +1407,21 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   int images_y = 0;
   READ_KEY_OR_FAIL(images_y, slidedat, GROUP_GENERAL,
                    KEY_IMAGENUMBER_Y, integer);
-  int objective_magnification = 0;
-  READ_KEY_OR_FAIL(objective_magnification, slidedat, GROUP_GENERAL,
-                   KEY_OBJECTIVE_MAGNIFICATION, integer);
+
+  g_autofree char *objective_magnification_str =
+    g_key_file_get_value(slidedat, GROUP_GENERAL, KEY_OBJECTIVE_MAGNIFICATION,
+                         NULL);
+  int64_t objective_magnification = 0;
+  if (objective_magnification_str) {
+    size_t len = strlen(objective_magnification_str);
+    if (len && objective_magnification_str[len - 1] == 'x') {
+      // reportedly some old files have this
+      objective_magnification_str[len - 1] = 0;
+    }
+    // sets value to 0 on error
+    _openslide_parse_int64(objective_magnification_str,
+                           &objective_magnification);
+  }
 
   GError *tmp_err = NULL;
   int image_divisions =
@@ -1807,15 +1819,17 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set properties
   struct level *l0 = level_array->pdata[0];
-  _openslide_set_bounds_props_from_grid(osr, l0->grid);
+  _openslide_set_bounds_props_from_grid(osr, &l0->base, l0->grid);
   uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
   _openslide_set_background_color_prop(osr,
                                        (fill >> 16) & 0xFF,
                                        (fill >> 8) & 0xFF,
                                        fill & 0xFF);
-  g_hash_table_insert(osr->properties,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                      g_strdup_printf("%d", objective_magnification));
+  if (objective_magnification > 0) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                        g_strdup_printf("%"PRId64, objective_magnification));
+  }
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
                       _openslide_format_double(slide_zoom_level_sections[0].mpp_x));

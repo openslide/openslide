@@ -38,7 +38,11 @@ static int do_test_deps(int narg, char **args) {
       g_environ_setenv(child_env, "OPENSLIDE_DEBUG", "synthetic", true);
     GError *tmp_err = NULL;
     int status;
-    if (!g_spawn_sync(NULL, child_argv, child_env, G_SPAWN_SEARCH_PATH,
+    if (!g_spawn_sync(NULL, child_argv, child_env,
+                      G_SPAWN_SEARCH_PATH |
+                      // avoid requiring gspawn-win64-helper.exe on Windows
+                      G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+                      G_SPAWN_CHILD_INHERITS_STDIN,
                       NULL, NULL, NULL, NULL, &status, &tmp_err)) {
       common_fail("Spawning child failed: %s", tmp_err->message);
     }
@@ -56,7 +60,7 @@ static int do_test_deps(int narg, char **args) {
   common_fail_on_error(osr, "Opening synthetic slide");
 
   // read region
-  g_autofree void *buf = g_malloc(4 * 1000 * 100);
+  g_autofree uint32_t *buf = g_new(uint32_t, 1000 * 100);
   openslide_read_region(osr, buf, 0, 0, 0, 1000, 100);
   common_fail_on_error(osr, "Reading region");
 

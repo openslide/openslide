@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-2.zip
+error: ^Found only one SOP instance in concatenation 2.25.186936537980103457039587390032156603358$
+slide: '5_0'
+success: false
+vendor: dicom
