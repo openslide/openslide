@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2026 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -53,19 +54,29 @@ static void test_image_fetch(openslide_t *osr,
 
 static void assert_region_opacity(openslide_t *osr,
                                   int64_t x, int64_t y, int64_t w, int64_t h,
+                                  int64_t tw, int64_t th,
                                   const char *desc, const char *region,
                                   bool want_opaque) {
-  g_autofree uint32_t *buf = g_new(uint32_t, w * h);
-  openslide_read_region(osr, buf, x, y, 0, w, h);
-  common_fail_on_error(osr,
-                       "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
-                       x, y, w, h);
-  for (int64_t i = 0; i < w * h; i++) {
-    if (buf[i] >> 24) {
-      if (want_opaque) {
-        return;
-      } else {
-        common_fail("%s of %s has an opaque pixel", region, desc);
+  // check in chunks so we don't load all four complete slide edges into the
+  // frozen archive.  we don't need to exactly align with tile boundaries,
+  // just try to work with about a tile at a time
+  for (int64_t cur_y = y; cur_y < y + h; cur_y += th) {
+    for (int64_t cur_x = x; cur_x < x + w; cur_x += tw) {
+      int64_t cur_w = MIN(w - (cur_x - x), tw);
+      int64_t cur_h = MIN(h - (cur_y - y), th);
+      g_autofree uint32_t *buf = g_new(uint32_t, cur_w * cur_h);
+      openslide_read_region(osr, buf, cur_x, cur_y, 0, cur_w, cur_h);
+      common_fail_on_error(osr,
+                           "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                           cur_x, cur_y, cur_w, cur_h);
+      for (int64_t i = 0; i < cur_w * cur_h; i++) {
+        if (buf[i] >> 24) {
+          if (want_opaque) {
+            return;
+          } else {
+            common_fail("%s of %s has an opaque pixel", region, desc);
+          }
+        }
       }
     }
   }
@@ -76,11 +87,16 @@ static void assert_region_opacity(openslide_t *osr,
 
 static void assert_border_opacity(openslide_t *osr,
                                   int64_t x, int64_t y, int64_t w, int64_t h,
+                                  int64_t tw, int64_t th,
                                   const char *desc, bool want_opaque) {
-  assert_region_opacity(osr, x, y, 1, h, desc, "left edge", want_opaque);
-  assert_region_opacity(osr, x + w - 1, y, 1, h, desc, "right edge", want_opaque);
-  assert_region_opacity(osr, x, y, w, 1, desc, "top edge", want_opaque);
-  assert_region_opacity(osr, x, y + h - 1, w, 1, desc, "bottom edge", want_opaque);
+  assert_region_opacity(osr, x, y, 1, h, tw, th,
+                        desc, "left edge", want_opaque);
+  assert_region_opacity(osr, x + w - 1, y, 1, h, tw, th,
+                        desc, "right edge", want_opaque);
+  assert_region_opacity(osr, x, y, w, 1, tw, th,
+                        desc, "top edge", want_opaque);
+  assert_region_opacity(osr, x, y + h - 1, w, 1, tw, th,
+                        desc, "bottom edge", want_opaque);
 }
 
 static void test_read_associated_images(openslide_t *osr) {
@@ -340,7 +356,15 @@ int main(int argc, char **argv) {
   test_image_fetch(osr, w - 20, 0, 40, 100);
   test_image_fetch(osr, 0, h - 20, 100, 40);
 
-  assert_border_opacity(osr, -1, -1, w + 2, h + 2,
+  const char *tw = openslide_get_property_value(osr, "openslide.level[0].tile-width");
+  const char *th = openslide_get_property_value(osr, "openslide.level[0].tile-height");
+  if (!tw ^ !th) {
+    common_fail("Expected both level 0 tile-size properties or neither");
+  }
+  // tile size for opacity checks
+  int64_t otw = tw ? g_ascii_strtoll(tw, NULL, 10) : 256;
+  int64_t oth = th ? g_ascii_strtoll(th, NULL, 10) : 256;
+  assert_border_opacity(osr, -1, -1, w + 2, h + 2, otw, oth,
                         "just outside level dimensions", false);
 
   // active region
@@ -361,13 +385,14 @@ int main(int argc, char **argv) {
     int64_t bounds_hh = g_ascii_strtoll(bounds_h, NULL, 10);
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
     assert_border_opacity(osr, bounds_xx, bounds_yy, bounds_ww, bounds_hh,
-                          "tile bounds", true);
+                          otw, oth, "tile bounds", true);
     assert_border_opacity(osr,
                           bounds_xx - 1, bounds_yy - 1,
                           bounds_ww + 2, bounds_hh + 2,
+                          otw, oth,
                           "just outside tile bounds", false);
   } else {
-    assert_border_opacity(osr, 0, 0, w, h, "level dimensions", true);
+    assert_border_opacity(osr, 0, 0, w, h, otw, oth, "level dimensions", true);
   }
 
   libtest_check_open_fds(fds, "Open file descriptor after reading pixel data");
