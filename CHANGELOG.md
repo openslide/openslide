@@ -5,7 +5,7 @@
 ### Security
 
 * Fix arbitrary memory write with crafted Ventana BIF file (CVE-2026-48977)
-* Fix return of uninitialized pixels with libtiff 4.7.1 (GHSA-f734-jv98-5677)
+* Fix return of uninitialized pixels with libtiff 4.7.1 (CVE-2026-54604)
 
 ### Format support
 
