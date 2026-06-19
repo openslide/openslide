@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
- *  Copyright (c) 2015-2022 Benjamin Gilbert
+ *  Copyright (c) 2015-2026 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -108,45 +108,25 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
 
   // remove empty keys reported to occur in MIRAX Slidedat.ini
   if (flavor == OPENSLIDE_KEY_FILE_MIRAX) {
-    static gsize have_re = 0;
-    static GRegex *re = NULL;
-    // g_once_init_enter_pointer() on glib 2.80+
-    if (g_once_init_enter(&have_re)) {
-      re = g_regex_new("^\\s*=.*$",
-                       G_REGEX_MULTILINE | G_REGEX_RAW,
-                       G_REGEX_MATCH_NEWLINE_ANYCRLF, err);
-      g_once_init_leave(&have_re, 1);
-      if (!re) {
-        g_prefix_error(err, "Compiling regex for key file preprocessing: ");
-        return NULL;
+    char *end = buf + size;
+    char *cur = buf + offset;
+    while (cur < end) {
+      // end of previous line
+      while (cur < end && g_ascii_isspace(*cur)) {
+        cur++;
       }
-    } else if (!re) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't compile regex for key file preprocessing");
-      return NULL;
-    }
-
-    g_autoptr(GArray) pos_array = g_array_new(false, false, sizeof(int));
-    g_autoptr(GMatchInfo) info = NULL;
-    GError *tmp_err = NULL;
-    for (g_regex_match_full(re, buf, size, offset, 0, &info, &tmp_err);
-         !tmp_err && g_match_info_matches(info);
-         g_match_info_next(info, &tmp_err)) {
-      int pos[2] = {-1, -1};
-      bool ok = g_match_info_fetch_pos(info, 0, pos, pos + 1);
-      g_assert(ok && pos[0] != -1 && pos[1] != -1);
-      // modifying buffer in-place invalidates GMatchInfo
-      g_array_append_vals(pos_array, pos, 2);
-    }
-    if (tmp_err) {
-      g_propagate_prefixed_error(err, tmp_err, "Preprocessing key file: ");
-      return NULL;
-    }
-
-    // overwrite with spaces to avoid having to duplicate the buffer
-    int *pos = (int *) pos_array->data;
-    for (unsigned i = 0; i < pos_array->len; i += 2) {
-      memset(buf + pos[i], ' ', pos[i + 1] - pos[i]);
+      // first non-whitespace
+      if (cur < end && *cur == '=') {
+        // value but no key; replace rest of line with spaces
+        while (cur < end && *cur != '\r' && *cur != '\n') {
+          *cur++ = ' ';
+        }
+      } else {
+        // walk to end of line
+        while (cur < end && *cur != '\r' && *cur != '\n') {
+          cur++;
+        }
+      }
     }
   }
 
