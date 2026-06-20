@@ -22,11 +22,13 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from configparser import RawConfigParser
 from contextlib import closing, contextmanager
+from enum import Enum
 import errno
 import filecmp
 import fnmatch
@@ -239,6 +241,9 @@ class BaseSlide:
 class UnpackedSlide:
     """A slide unpacked into a directory so that programs can be run on it."""
 
+    class Param(Enum):
+        PATH = 0
+
     def __init__(self, path: Path | None):
         # path of the actual slide file to open
         self.path = path
@@ -247,19 +252,24 @@ class UnpackedSlide:
     def run_prog(
         self,
         prog: str,
+        *,
         valgrind: bool = False,
         extra_checks: bool = True,
+        with_path: bool = True,
         progdir: Path | None = None,
         debug: Iterable[str] | None = None,
-        args: Iterable[str] | None = None,
+        args: Sequence[str | Param] | None = None,
         **kwargs: Any,
     ) -> subprocess.Popen[str]:
         """Start the specified test program from the progdir directory
         against the slide, running under Valgrind if requested.  If
         extra_checks is False, turn off debug instrumentation that would
-        invalidate benchmark results.  debug options are passed in
-        OPENSLIDE_DEBUG.  args are appended to the command line.  kwargs are
-        passed to the Popen constructor.  Return the Popen instance."""
+        invalidate benchmark results.  If with_path is False, the slide path
+        is not automatically added to the command line.  debug options are
+        passed in OPENSLIDE_DEBUG.  args are appended to the command line,
+        and may contain UnpackedSlide.Param.PATH to manually specify the
+        slide path.  kwargs are passed to the Popen constructor.  Return the
+        Popen instance."""
 
         if progdir is None:
             progdir = BUILDDIR
@@ -294,9 +304,14 @@ class UnpackedSlide:
                 # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/277
                 JSIMD_FORCENONE='1',
             )
-        args_.extend([progdir / prog, self.path_str])
+        args_.append(progdir / prog)
+        if with_path:
+            args_.append(self.path_str)
         if args:
-            args_.extend(args)
+            args_.extend(
+                self.path_str if arg == self.Param.PATH else arg
+                for arg in args
+            )
         return subprocess.Popen(args_, env=env, text=True, **kwargs)
 
     def try_open(
@@ -374,6 +389,64 @@ class UnpackedSlide:
             return f'Exited with status {proc.returncode}'
         else:
             return None
+
+
+class TestFailed(Exception):
+    pass
+
+
+class TestSkipped(Exception):
+    pass
+
+
+class Test(ABC):
+    name: str
+    freezable = False
+
+    def __str__(self) -> str:
+        return self.name
+
+    @classmethod
+    def list(cls, pattern: str = '*') -> list[Test]:
+        return sorted(
+            [
+                *TestCase.list(pattern),
+                *SlidetoolTest.list(pattern),
+            ],
+            key=lambda t: t.name,
+        )
+
+    def unpack(self) -> None:
+        return
+
+    def run(
+        self,
+        valgrind: bool = False,
+        xfail: bool = False,
+        progdir: Path | None = None,
+        workdir: Path = WORKROOT,
+    ) -> tuple[bool, str]:
+        """If xfail is specified, invert the sense of the result."""
+        try:
+            self._run(valgrind=valgrind, progdir=progdir, workdir=workdir)
+        except TestFailed as ex:
+            if xfail:
+                return True, _color(BLUE, f'{self}: failed as expected')
+            return False, _color(RED, f'{self}: {ex}')
+        except TestSkipped:
+            return True, _color(BLUE, f'{self}: skipped')
+        else:
+            if xfail:
+                return False, _color(
+                    RED, f'{self}: expected to fail, but passed'
+                )
+            return True, _color(GREEN, f'{self}: OK')
+
+    @abstractmethod
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
+        raise NotImplementedError
 
 
 class TestCaseConfig:
@@ -458,19 +531,17 @@ class TestCaseConfig:
         return (CASEROOT / testname / TESTCONF).exists()
 
 
-class TestCase:
+class TestCase(Test):
     _can_reflink = True
 
     def __init__(self, name: str):
         self.name = name
         self.conf = TestCaseConfig(name)
-
-    def __str__(self) -> str:
-        return self.name
+        self.freezable = self.conf.freezable
 
     @classmethod
     @lru_cache
-    def list(cls, pattern: str = '*') -> list[TestCase]:
+    def list(cls, pattern: str = '*') -> list[Test]:
         """Return a list of tests matching the specified pattern."""
         return [
             cls(path.name)
@@ -684,21 +755,16 @@ class TestCase:
         cls._can_reflink = False
         return False
 
-    def run(
-        self,
-        valgrind: bool = False,
-        xfail: bool = False,
-        progdir: Path | None = None,
-        workdir: Path = WORKROOT,
-    ) -> tuple[bool, str]:
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
         """Run the test, under Valgrind if specified.  Also execute extended
         tests against cases which 1) are marked primary, 2) are expected to
-        succeed, and 3) do in fact succeed.  If xfail is specified, invert
-        the sense of the result."""
+        succeed, and 3) do in fact succeed."""
 
         conf = self.conf
         if not conf.features_available:
-            return True, _color(BLUE, f'{self}: skipped')
+            raise TestSkipped
         if conf.filename == '':
             # synthetic test slide
             unpacked = UnpackedSlide(None)
@@ -713,31 +779,119 @@ class TestCase:
             debug=conf.debug,
         )
 
-        msg = _color(GREEN, f'{self}: OK')
-        ok = True
         if result is None and not conf.success:
-            msg = _color(RED, f'{self}: unexpected success')
-            ok = False
+            raise TestFailed('unexpected success')
         elif result is not None and conf.success:
-            msg = _color(RED, f'{self}: unexpected failure: {result}')
-            ok = False
+            raise TestFailed(f'unexpected failure: {result}')
         elif result is not None and not conf.error.search(result):
-            msg = _color(RED, f'{self}: incorrect error: {result}')
-            ok = False
+            raise TestFailed(f'incorrect error: {result}')
         elif conf.primary and conf.success:
             result = unpacked.try_extended(valgrind, progdir, debug=conf.debug)
             if result:
-                msg = _color(RED, f'{self}: extended test failed: {result}')
-                ok = False
+                raise TestFailed(f'extended test failed: {result}')
 
-        if xfail:
-            ok = not ok
-            if ok:
-                msg = _color(BLUE, f'{self}: failed as expected')
-            else:
-                msg = _color(RED, f'{self}: expected to fail, but passed')
 
-        return ok, msg
+class SlidetoolTest(Test):
+    SLIDE = BaseSlide(PurePath('Aperio/CMU-1-Small-Region.svs'))
+
+    class Param(Enum):
+        SLIDE = 1
+        SLIDES = 2
+        ASSOC = 3
+        PROP = 4
+        OUTFILE = 5
+
+        def __str__(self) -> str:
+            return self.name
+
+    def __init__(self, args: tuple[str | Param, ...], *, success: bool = True):
+        self.name = '-'.join(['slidetool', *(str(a) for a in args)])
+        self._args = args
+        self._success = success
+
+    @classmethod
+    def list(cls, pattern: str = '*') -> list[Test]:
+        P = cls.Param
+        good = (
+            ('assoc', 'list', P.SLIDES),
+            ('assoc', 'read', P.SLIDE, P.ASSOC, P.OUTFILE),
+            ('prop', 'get', P.PROP, P.SLIDES),
+            ('prop', 'list', P.SLIDES),
+            (
+                'region',
+                'read',
+                P.SLIDE,
+                '0',
+                '0',
+                '0',
+                '100',
+                '100',
+                P.OUTFILE,
+            ),
+            ('slide', 'open', P.SLIDES),
+            ('slide', 'quickhash1', P.SLIDES),
+            ('slide', 'vendor', P.SLIDES),
+            ('test', 'deps'),
+        )
+        bad = (
+            ('slide',),
+            ('slide', 'open'),
+            # CMU-1-Small-Region.svs doesn't have ICC profiles
+            ('assoc', 'icc', 'read', P.SLIDE, P.ASSOC, P.OUTFILE),
+            ('region', 'icc', 'read', P.SLIDE, P.OUTFILE),
+        )
+        all = [
+            *[cls(args) for args in good],
+            *[cls(args, success=False) for args in bad],
+        ]
+        return [t for t in all if fnmatch.fnmatch(t.name, pattern)]
+
+    def unpack(self) -> None:
+        self.SLIDE.fetch()
+
+    def _run(
+        self, valgrind: bool, progdir: Path | None, workdir: Path
+    ) -> None:
+        unpacked = UnpackedSlide(self.SLIDE.path / self.SLIDE.relpath.name)
+        with NamedTemporaryFile(prefix='openslide-') as outfile:
+            proc = unpacked.run_prog(
+                '../tools/slidetool',
+                valgrind=valgrind,
+                with_path=False,
+                progdir=progdir,
+                args=list(self._resolve_args(Path(outfile.name))),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            out, err = proc.communicate()
+            if proc.returncode == 0 and not self._success:
+                raise TestFailed('unexpected success')
+            elif proc.returncode and self._success:
+                if out or err:
+                    msg = (out + err).strip()
+                else:
+                    msg = f'exited with status {proc.returncode}'
+                raise TestFailed(f'unexpected failure: {msg}')
+
+    def _resolve_args(
+        self, outfile: Path
+    ) -> Iterator[str | UnpackedSlide.Param]:
+        P = self.Param
+        for arg in self._args:
+            match arg:
+                case P.SLIDE:
+                    yield UnpackedSlide.Param.PATH
+                case P.SLIDES:
+                    yield UnpackedSlide.Param.PATH
+                    yield UnpackedSlide.Param.PATH
+                case P.ASSOC:
+                    yield 'label'
+                case P.PROP:
+                    yield 'openslide.vendor'
+                case P.OUTFILE:
+                    yield outfile.as_posix()
+                case _:
+                    yield arg
 
 
 class S3Uploader:
@@ -871,7 +1025,7 @@ def unpack(pattern: str = '*') -> None:
     if pattern == 'nonfrozen':
         pattern = '*'
         conditional = True
-    for test in TestCase.list(pattern):
+    for test in Test.list(pattern):
         if not conditional or not (FROZEN / test.name).exists():
             test.unpack()
 
@@ -1162,7 +1316,7 @@ def _fusefs_run() -> None:
 def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
     """Create a frozen testdata archive for transport to another system,
     upload it to an S3 bucket, and record its URL in the source tree."""
-    for test in TestCase.list():
+    for test in Test.list():
         test.unpack()
     _fetch_for_mosaic()
 
@@ -1173,8 +1327,8 @@ def freeze(bucket: str = DEFAULT_FROZEN_BUCKET) -> None:
         _fusefs_init(tempdir)
         Thread(name='fuse', target=_fusefs_run, daemon=False).start()
         # Run all tests that we might want to run on thawed testdata
-        for test in TestCase.list():
-            if test.conf.freezable:
+        for test in Test.list():
+            if test.freezable:
                 _, msg = test.run(workdir=FUSEMOUNT)
                 print(msg)
                 # Ensure we at least have a shadow directory for the test.
@@ -1304,7 +1458,7 @@ def _run_all(
     """Run all tests matching the specified pattern, under Valgrind if
     specified.  xfail specifies a list of tests which are expected to fail.
     Return the number of tests producing unexpected results."""
-    tests = TestCase.list(pattern)
+    tests = Test.list(pattern)
     for test in tests:
         if not (FROZEN / test.name).exists():
             test.unpack()
@@ -1492,9 +1646,10 @@ def mosaic(outfile: str) -> None:
 
 def _successful_primary_tests(
     pattern: str = '*',
-) -> Iterator[tuple[TestCase, UnpackedSlide]]:
-    """Yield test case and unpacked slide for each successful primary test."""
+) -> Iterator[tuple[Test, UnpackedSlide]]:
+    """Yield test and unpacked slide for each successful primary test."""
     for test in TestCase.list(pattern):
+        assert isinstance(test, TestCase)
         conf = test.conf
         if not conf.primary or not conf.success or not conf.features_available:
             continue
@@ -1580,7 +1735,7 @@ def exports() -> None:
 
 @_command
 def clean(pattern: str = '*') -> None:
-    """Delete temporary slide data for tests matching the specified
+    """Delete temporary slide data for test cases matching the specified
     pattern.  If pattern is `frozen` or omitted, also delete unfrozen
     test data."""
     for test in TestCase.list(pattern):
