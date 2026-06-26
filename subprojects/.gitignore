@@ -1,4 +1,5 @@
 /libdicom-*
+/xdelta3-*
 
 /.wraplock
 /packagecache
