@@ -341,7 +341,7 @@ jobs:
           # Give the run some time to populate, less than the job ever takes
           # to complete.  If we lose the race, we may redundantly build
           # vcpkg packages.
-          sleep 60
+          sleep 30
           info=$(gh run list $repo_arg -w vcpkg-cache.yml -L 1 \
               --json databaseId,url)
           echo "Waiting for $(echo $info | jq -r .[].url)"
