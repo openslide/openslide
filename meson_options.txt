@@ -13,7 +13,7 @@ option(
   'doc',
   type : 'feature',
   yield : true,
-  description : 'Enable building documentation (requires Doxygen)',
+  description : 'Enable building docs with `ninja doc/html` (requires Doxygen)',
 )
 option(
   '_export_internal_symbols',
