@@ -37,7 +37,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.15
+    rev: v0.15.20
     hooks:
       - id: ruff-check
         types_or: [python, pyproject]
@@ -54,7 +54,7 @@ repos:
         priority: 0
         additional_dependencies:
           - boto3-stubs[s3]
-          - pyfuse3 >= 3.4.2
+          - pyfuse3>=3.5.0
           - types-PyYAML
           - types-requests
         exclude: ^misc/
