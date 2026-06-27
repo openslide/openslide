@@ -1,0 +1,32 @@
+name: Prune vcpkg cache
+
+on:
+  schedule:
+    - cron: '0 10 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency: vcpkg-prune
+
+jobs:
+  prune:
+    name: Prune cache
+    runs-on: ubuntu-slim
+    # vcpkg-install.sh ignores caches in forks
+    if: github.repository_owner == 'openslide'
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14
+      - name: Install dependencies
+        run: python -m pip install requests
+      - name: Prune package versions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/vcpkg-prune.py

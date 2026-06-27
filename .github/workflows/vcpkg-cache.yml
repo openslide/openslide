@@ -1,6 +1,9 @@
 name: Update vcpkg cache
 
 on:
+  pull_request_target:
+    branches: [main]
+    tags: ["*"]
   schedule:
     - cron: '0 12 * * 1'
   workflow_dispatch:
@@ -15,9 +18,13 @@ jobs:
   vcpkg:
     name: Cache
     runs-on: windows-latest
+    # vcpkg-install.sh ignores caches in forks
+    if: github.repository_owner == 'openslide'
     steps:
       - name: Check out repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+        with:
+          ref: main
       - name: vcpkg install
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -326,9 +326,31 @@ jobs:
       if: matrix.sanitize
       run: cd builddir/test && ./driver sanitize
 
+  vcpkg-wait:
+    name: Wait for vcpkg cache
+    # ideally ubuntu-slim, but that has a hard timeout of 15 minutes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for cache
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${{ github.repository }}"
+          # always use upstream repo
+          repo_arg="-R openslide/${repo##*/}"
+          # Give the run some time to populate, less than the job ever takes
+          # to complete.  If we lose the race, we may redundantly build
+          # vcpkg packages.
+          sleep 60
+          info=$(gh run list $repo_arg -w vcpkg-cache.yml -L 1 \
+              --json databaseId,url)
+          echo "Waiting for $(echo $info | jq -r .[].url)"
+          gh run watch $repo_arg \
+              "$(echo $info | jq -r .[].databaseId)" >/dev/null
+
   windows-build:
     name: Build (Windows, ${{ matrix.toolchain }})
-    needs: primary
+    needs: [primary, vcpkg-wait]
     runs-on: windows-latest
     strategy:
       matrix:
@@ -343,7 +365,7 @@ jobs:
     permissions:
       contents: read
       # for vcpkg caching
-      packages: write
+      packages: read
     steps:
       - name: Check out repo
         uses: actions/checkout@v6
