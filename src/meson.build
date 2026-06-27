@@ -74,7 +74,11 @@ openslide_sources = files(
   'openslide-vendor-ventana.c',
   'openslide-vendor-zeiss.c',
   'openslide.c',
-) + [
+)
+if grok_dep.found()
+  openslide_sources += files('openslide-decode-jp2k-grok.c')
+endif
+openslide_sources += [
   openslide_dll_o,
   openslide_tables_c,
 ]
@@ -98,6 +102,7 @@ libopenslide = library(
     xml_dep,
     tiff_dep,
     openjpeg_dep,
+    grok_dep,
     jpeg_dep,
     png_dep,
     zlib_dep,

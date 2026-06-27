@@ -142,6 +142,15 @@ openjpeg_dep = dependency(
   'libopenjp2',
   version : '>=2.1.0',
 )
+grok_dep = dependency(
+  'libgrokj2k',
+  version : '>=20.3.0',
+  required : get_option('grok'),
+)
+if grok_dep.found()
+  conf.set('HAVE_GROK', 1)
+  feature_flags += 'grok'
+endif
 tiff_dep = dependency('libtiff-4')
 glib_dep = dependency(
   'glib-2.0',

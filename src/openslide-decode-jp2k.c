@@ -21,6 +21,7 @@
  *
  */
 
+#include <config.h>
 #include <string.h>
 
 #include "openslide-private.h"
@@ -219,7 +220,7 @@ static OPJ_BOOL seek_callback(OPJ_OFF_T offset, void *data) {
   return OPJ_TRUE;
 }
 
-bool _openslide_jp2k_decode_buffer(uint32_t *dest,
+bool _openslide_jp2k_decode_buffer_openjpeg(uint32_t *dest,
                                    int32_t w, int32_t h,
                                    const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
@@ -295,4 +296,31 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
   unpack_argb(space, image->comps, dest, w, h);
 
   return true;
+}
+
+#ifdef HAVE_GROK
+static bool use_grok_backend(void) {
+  static gint cached = -1;
+  if (g_atomic_int_get(&cached) < 0) {
+    const char *env = g_getenv("OPENSLIDE_JP2K_BACKEND");
+    int val = (env && !g_ascii_strcasecmp(env, "grok")) ? 1 : 0;
+    g_atomic_int_set(&cached, val);
+  }
+  return g_atomic_int_get(&cached) == 1;
+}
+#endif
+
+bool _openslide_jp2k_decode_buffer(uint32_t *dest,
+                                   int32_t w, int32_t h,
+                                   const void *data, int32_t datalen,
+                                   enum _openslide_jp2k_colorspace space,
+                                   GError **err) {
+#ifdef HAVE_GROK
+  if (use_grok_backend()) {
+    return _openslide_jp2k_decode_buffer_grok(dest, w, h, data, datalen,
+                                              space, err);
+  }
+#endif
+  return _openslide_jp2k_decode_buffer_openjpeg(dest, w, h, data, datalen,
+                                                space, err);
 }
