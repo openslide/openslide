@@ -15,6 +15,8 @@ jobs:
   vcpkg:
     name: Cache
     runs-on: windows-latest
+    # vcpkg-install.sh ignores caches in forks
+    if: github.repository_owner == 'openslide'
     steps:
       - name: Check out repo
         uses: actions/checkout@v6
