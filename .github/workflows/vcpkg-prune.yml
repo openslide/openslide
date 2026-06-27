@@ -29,4 +29,5 @@ jobs:
       - name: Prune package versions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONUNBUFFERED: 1
         run: scripts/vcpkg-prune.py
