@@ -1,12 +1,12 @@
 name: Update vcpkg cache
 
 on:
-  pull_request_target:
-    branches: [main]
-    tags: ["*"]
   schedule:
     - cron: '0 12 * * 1'
   workflow_dispatch:
+  workflow_run:
+    workflows: [C]
+    types: [requested]
 
 permissions:
   contents: read
