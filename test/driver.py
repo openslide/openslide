@@ -1015,12 +1015,12 @@ def _fusefs_init(shadowdir: Path) -> None:
         async def opendir(
             self, inode: InodeT, ctx: pyfuse3.RequestContext
         ) -> FileHandleT:
-            return cast(FileHandleT, inode)
+            return cast(FileHandleT, inode)  # type: ignore[redundant-cast]
 
         async def readdir(
             self, fh: FileHandleT, off: int, token: pyfuse3.ReaddirToken
         ) -> None:
-            inode = cast(InodeT, fh)
+            inode = cast(InodeT, fh)  # type: ignore[redundant-cast]
             reldir, backingdir = self._inode_to_paths(inode)
             entries = []
             if inode == pyfuse3.ROOT_INODE:
