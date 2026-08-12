@@ -66,6 +66,7 @@ struct dicom_file {
   const char *concatenation_id;
   enum image_format format;
   J_COLOR_SPACE jpeg_colorspace;
+  enum _openslide_jp2k_colorspace jp2k_colorspace;
 };
 
 // g_auto wrapper struct with reference for runtime I/O
@@ -408,10 +409,9 @@ static bool decode_frame(struct dicom_file *file,
                                                     dest, w, h, err);
   case FORMAT_JPEG2000:
   case FORMAT_JPEG2000_LOSSLESS:
-    // ICT and RCT are processed by OpenJPEG and return RGB
     return _openslide_jp2k_decode_buffer(dest, w, h,
                                          frame_value, frame_length,
-                                         OPENSLIDE_JP2K_RGB, err);
+                                         file->jp2k_colorspace, err);
   case FORMAT_RGB:
     if (frame_length != w * h * 3) {
       g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
@@ -907,15 +907,27 @@ static bool maybe_add_file(openslide_t *osr,
   found = false;
   switch (f->format) {
   case FORMAT_JPEG2000:
-    found =
-      g_str_equal(photometric, "YBR_ICT") ||
-      g_str_equal(photometric, "YBR_RCT") ||
-      g_str_equal(photometric, "RGB");
+    if (g_str_equal(photometric, "YBR_FULL") ||
+        g_str_equal(photometric, "YBR_FULL_422")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
+      found = true;
+    } else if (g_str_equal(photometric, "YBR_ICT") ||
+               g_str_equal(photometric, "YBR_RCT") ||
+               g_str_equal(photometric, "RGB")) {
+      // ICT and RCT are processed by OpenJPEG and return RGB
+      f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
+      found = true;
+    }
     break;
   case FORMAT_JPEG2000_LOSSLESS:
-    found =
-      g_str_equal(photometric, "YBR_RCT") ||
-      g_str_equal(photometric, "RGB");
+    if (g_str_equal(photometric, "YBR_FULL")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
+      found = true;
+    } else if (g_str_equal(photometric, "YBR_RCT") ||
+               g_str_equal(photometric, "RGB")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_RGB;
+      found = true;
+    }
     break;
   case FORMAT_JPEG:
     if (g_str_equal(photometric, "YBR_FULL_422")) {
