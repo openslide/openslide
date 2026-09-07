@@ -42,6 +42,7 @@
 
 #include <glib.h>
 #include <math.h>
+#include <string.h>
 
 #include <dicom/dicom.h>
 
@@ -125,9 +126,11 @@ static const char ConcatenationUID[] = "ConcatenationUID";
 static const char DimensionOrganizationType[] = "DimensionOrganizationType";
 static const char HighBit[] = "HighBit";
 static const char ICCProfile[] = "ICCProfile";
+static const char ImageComments[] = "ImageComments";
 static const char ImageType[] = "ImageType";
 static const char InConcatenationNumber[] = "InConcatenationNumber";
 static const char InConcatenationTotalNumber[] = "InConcatenationTotalNumber";
+static const char ManufacturerModelName[] = "ManufacturerModelName";
 static const char MediaStorageSOPClassUID[] = "MediaStorageSOPClassUID";
 static const char OpticalPathSequence[] = "OpticalPathSequence";
 static const char PhotometricInterpretation[] = "PhotometricInterpretation";
@@ -904,11 +907,24 @@ static bool maybe_add_file(openslide_t *osr,
                 "Couldn't get PhotometricInterpretation");
     return false;
   }
+  const char *model = NULL;
+  const char *comments = NULL;
+  get_tag_str(f->metadata, ManufacturerModelName, 0, &model);
+  get_tag_str(f->metadata, ImageComments, 0, &comments);
   found = false;
   switch (f->format) {
   case FORMAT_JPEG2000:
     if (g_str_equal(photometric, "YBR_FULL") ||
         g_str_equal(photometric, "YBR_FULL_422")) {
+      f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
+      found = true;
+    } else if (model && comments &&
+               g_str_equal(photometric, "YBR_ICT") &&
+               g_str_equal(model,
+                           "Aperio converted by com.pixelmed.convert.TIFFToDicom") &&
+               strstr(comments, " J2K/YUV16 ")) {
+      // workaround for older PixelMed TIFFToDicom conversion of Aperio 33003
+      //g_debug("forcing TIFFToDicom 33003 YBR_ICT to decode YCbCr: %s", file->filename);
       f->jp2k_colorspace = OPENSLIDE_JP2K_YCBCR;
       found = true;
     } else if (g_str_equal(photometric, "YBR_ICT") ||
