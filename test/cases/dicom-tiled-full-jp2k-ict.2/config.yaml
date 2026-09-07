@@ -1,6 +1,6 @@
-base: DICOM/CMU-1-JP2K-RCT.zip
-# DERIVED\PRIMARY\LABEL\NONE
-slide: img_4.dcm
+base: DICOM/CMU-1-JP2K-ICT-v2.zip
+# DERIVED\PRIMARY\VOLUME\NONE
+slide: img_0.dcm
 success: true
 vendor: dicom
 primary: true
@@ -12,5 +12,5 @@ properties:
   openslide.associated.thumbnail.icc-size: "141992"
   openslide.associated.thumbnail.width: "1024"
   openslide.icc-size: "141992"
-  openslide.quickhash-1: 858631722d813667de09dab08c7deb2cbc24b6cac4238cf3404753e14e65b57a
+  openslide.quickhash-1: 773627652348e29364ed13820b889ad17f2d676aaf3ad01d172f0b4cb283091d
   openslide.vendor: dicom
