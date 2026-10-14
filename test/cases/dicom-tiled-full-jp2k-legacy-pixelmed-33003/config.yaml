@@ -1,0 +1,18 @@
+# Aperio 33003 converted with older PixelMed TIFFToDicom that incorrectly sets
+# the DICOM PhotometricInterpretation to YBR_ICT instead of YBR_FULL_422
+base: DICOM/JP2K-33003-1.zip
+# DERIVED\PRIMARY\LABEL\NONE
+slide: DCM_4.dcm
+success: true
+vendor: dicom
+primary: true
+properties:
+  openslide.associated.label.icc-size: "141992"
+  openslide.associated.label.width: "415"
+  openslide.associated.macro.icc-size: "141992"
+  openslide.associated.macro.width: "1280"
+  openslide.associated.thumbnail.icc-size: "141992"
+  openslide.associated.thumbnail.width: "674"
+  openslide.icc-size: "141992"
+  openslide.quickhash-1: 2431797d260ab5fab926a01f3cee1d35dbb7281f82aed46d97c5aafeff16079c
+  openslide.vendor: dicom
