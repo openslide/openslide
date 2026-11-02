@@ -37,7 +37,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.17.3
     hooks:
       - id: ruff-check
         types_or: [python, pyproject]
@@ -47,7 +47,7 @@ repos:
         exclude: ^misc/
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+    rev: v2.4.1
     hooks:
       - id: mypy
         name: Check Python types
