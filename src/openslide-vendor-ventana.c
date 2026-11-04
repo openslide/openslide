@@ -67,7 +67,9 @@ static const char ATTR_TILE2[] = "Tile2";
 static const char ATTR_OVERLAP_X[] = "OverlapX";
 static const char ATTR_OVERLAP_Y[] = "OverlapY";
 static const char DIRECTION_RIGHT[] = "RIGHT";
+static const char DIRECTION_LEFT[] = "LEFT";
 static const char DIRECTION_UP[] = "UP";
+static const char DIRECTION_DOWN[] = "DOWN";
 
 #define PARSE_INT_ATTRIBUTE_OR_RETURN(NODE, NAME, OUT, RET)	\
   do {								\
@@ -575,8 +577,23 @@ static struct bif *parse_level0_xml(const char *xml,
           &area->tiles[tile2_row * area->tiles_across + tile2_col];
         joint = &tile->left;
         ok = (tile2_col == tile1_col + 1 && tile2_row == tile1_row);
+      } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_LEFT)) {
+        // same adjacency as RIGHT; direction indicates overlap
+        // measurement direction, not tile adjacency
+        struct tile *tile =
+          &area->tiles[tile2_row * area->tiles_across + tile2_col];
+        joint = &tile->left;
+        ok = (tile2_col == tile1_col + 1 && tile2_row == tile1_row);
       } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_UP)) {
         // get top joint of bottom tile
+        struct tile *tile =
+          &area->tiles[tile1_row * area->tiles_across + tile1_col];
+        joint = &tile->top;
+        ok = (tile2_col == tile1_col && tile2_row == tile1_row - 1);
+        direction_y = true;
+      } else if (!xmlStrcmp(direction, BAD_CAST DIRECTION_DOWN)) {
+        // same adjacency as UP; direction indicates overlap
+        // measurement direction, not tile adjacency
         struct tile *tile =
           &area->tiles[tile1_row * area->tiles_across + tile1_col];
         joint = &tile->top;
