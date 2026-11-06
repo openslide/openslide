@@ -1,4 +1,8 @@
+# promoted from libdicom
+/uthash.wrap
+
 /libdicom-*
+/uthash-*
 /xdelta3-*
 
 /.wraplock

@@ -1,0 +1,8 @@
+# JP2K lossless-only transfer syntax with YBR_FULL_422 photometric
+# interpretation
+# We could choose to allow this, but Postel was wrong
+base: DICOM/JP2K-33003-1-v2.zip
+error: "^Reading .*/DCM_3.dcm: Unsupported photometric interpretation YBR_FULL_422 for 1.2.840.10008.1.2.4.90$"
+slide: DCM_0.dcm
+success: false
+vendor: dicom

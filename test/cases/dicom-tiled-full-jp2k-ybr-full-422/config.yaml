@@ -1,0 +1,16 @@
+base: DICOM/JP2K-33003-1-v2.zip
+# DERIVED\PRIMARY\LABEL\NONE
+slide: DCM_4.dcm
+success: true
+vendor: dicom
+primary: true
+properties:
+  openslide.associated.label.icc-size: "141992"
+  openslide.associated.label.width: "415"
+  openslide.associated.macro.icc-size: "141992"
+  openslide.associated.macro.width: "1280"
+  openslide.associated.thumbnail.icc-size: "141992"
+  openslide.associated.thumbnail.width: "674"
+  openslide.icc-size: "141992"
+  openslide.quickhash-1: 210bbf5a558caa2c3a457801a36a7e1be714b023befd732a32e42f5e04cf239d
+  openslide.vendor: dicom
