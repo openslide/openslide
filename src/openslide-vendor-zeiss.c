@@ -567,14 +567,27 @@ static bool read_subblk(struct _openslide_file *f, int64_t zisraw_offset,
   return true;
 }
 
+struct paint_arg {
+  struct _openslide_file *f;
+  GArray *rects;  // x, y, w, h of each drawn tile, in device coordinates
+};
+
 static bool read_tile(openslide_t *osr, cairo_t *cr,
                       struct _openslide_level *level,
                       int64_t tid, void *tile_data,
                       void *arg, GError **err) {
   struct zeiss_ops_data *data = osr->data;
   struct czi *czi = data->czi;
-  struct _openslide_file *f = arg;
+  struct paint_arg *pa = arg;
+  struct _openslide_file *f = pa->f;
   struct czi_subblk *sb = tile_data;
+
+  // remember where the tile went, for the white fill in paint_region
+  double x0 = 0, y0 = 0, x1 = sb->w, y1 = sb->h;
+  cairo_user_to_device(cr, &x0, &y0);
+  cairo_user_to_device(cr, &x1, &y1);
+  double rect[4] = {x0, y0, x1 - x0, y1 - y0};
+  g_array_append_vals(pa->rects, rect, 4);
 
   int pixel_bytes;
   if (czi->pixel_type == PT_GRAY8) {
@@ -641,6 +654,15 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
       // argb32 is aleady aligned to 4 byte
       tiledata = g_steal_pointer(&buf);
       tiledata_len = img_len;
+      // Scenes pad their rectangles with pure white, and scene rectangles
+      // can overlap.  Make the padding transparent so it can't hide another
+      // scene's tissue; paint_region fills white behind the tiles at the end.
+      uint32_t *px = (uint32_t *) tiledata;
+      for (uint64_t i = 0; i < img_len / 4; i++) {
+        if (px[i] == 0xFFFFFFFF) {
+          px[i] = 0;
+        }
+      }
     }
 
     _openslide_cache_put(osr->cache, level, tid, cr_fmt, tiledata, tiledata_len,
@@ -667,10 +689,29 @@ static bool paint_region(openslide_t *osr, cairo_t *cr,
   if (!f) {
     return false;
   }
-  return _openslide_grid_paint_region(l->grid, cr, f,
-                                      x / l->base.downsample,
-                                      y / l->base.downsample,
-                                      level, w, h, err);
+  g_autoptr(GArray) rects = g_array_new(FALSE, FALSE, sizeof(double));
+  struct paint_arg pa = {f, rects};
+  if (!_openslide_grid_paint_region(l->grid, cr, &pa,
+                                    x / l->base.downsample,
+                                    y / l->base.downsample,
+                                    level, w, h, err)) {
+    return false;
+  }
+  // padding was made transparent; where no scene drew anything inside a
+  // tile, show white as before
+  if (rects->len) {
+    cairo_save(cr);
+    cairo_identity_matrix(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_DEST_OVER);
+    cairo_set_source_rgb(cr, 1, 1, 1);
+    double *r = (double *) rects->data;
+    for (guint i = 0; i < rects->len; i += 4) {
+      cairo_rectangle(cr, r[i], r[i + 1], r[i + 2], r[i + 3]);
+    }
+    cairo_fill(cr);
+    cairo_restore(cr);
+  }
+  return true;
 }
 
 static const struct _openslide_ops zeiss_ops = {
