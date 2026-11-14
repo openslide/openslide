@@ -1648,6 +1648,17 @@ static bool add_one_associated_image(openslide_t *osr, const char *filename,
     img->base.w = w;
     img->base.h = h;
   } else if (g_str_equal(file_type, "CZI")) {
+    // Some files keep the attachment entry but blank its data (for example
+    // a label removed for anonymisation).  Treat that as no associated image
+    // instead of failing to open the whole slide.
+    struct zisraw_seg_hdr seg;
+    if (!freadn_to_buf(f, data_offset, &seg, sizeof(seg), err)) {
+      g_prefix_error(err, "Reading CZI for associated image \"%s\": ", name);
+      return false;
+    }
+    if (memcmp(seg.sid, SID_ZISRAWFILE, strlen(SID_ZISRAWFILE))) {
+      return true;
+    }
     g_autoptr(czi) czi = create_czi(f, data_offset, err);
     if (!czi) {
       g_prefix_error(err, "Reading CZI for associated image \"%s\": ", name);
