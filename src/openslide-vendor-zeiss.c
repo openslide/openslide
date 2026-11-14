@@ -582,13 +582,6 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   struct _openslide_file *f = pa->f;
   struct czi_subblk *sb = tile_data;
 
-  // remember where the tile went, for the white fill in paint_region
-  double x0 = 0, y0 = 0, x1 = sb->w, y1 = sb->h;
-  cairo_user_to_device(cr, &x0, &y0);
-  cairo_user_to_device(cr, &x1, &y1);
-  double rect[4] = {x0, y0, x1 - x0, y1 - y0};
-  g_array_append_vals(pa->rects, rect, 4);
-
   int pixel_bytes;
   if (czi->pixel_type == PT_GRAY8) {
     pixel_bytes = 1;
@@ -597,6 +590,17 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
   } else {
     // for all other supported pixel types, re-mixed them into argb32
     pixel_bytes = 4;
+  }
+
+  // Remember where a colour tile went, for the white fill in paint_region.
+  // Only colour tiles get transparent padding.  Gray tiles are drawn to an
+  // A8 surface whose alpha is the sample value, so they must not be filled.
+  if (pixel_bytes == 4) {
+    double x0 = 0, y0 = 0, x1 = sb->w, y1 = sb->h;
+    cairo_user_to_device(cr, &x0, &y0);
+    cairo_user_to_device(cr, &x1, &y1);
+    double rect[4] = {x0, y0, x1 - x0, y1 - y0};
+    g_array_append_vals(pa->rects, rect, 4);
   }
 
   // depends on user request, the output cairo surface can be gray8 for gray16.
