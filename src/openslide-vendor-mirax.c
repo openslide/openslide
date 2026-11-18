@@ -613,6 +613,7 @@ static bool get_tile_position(int32_t *slide_positions,
                               const struct slide_zoom_level_params *slide_zoom_level_params,
                               struct level **levels,
                               int images_across,
+                              int images_down,
                               int image_divisions,
                               int zoom_level, int xx, int yy,
                               int *pos0_x, int *pos0_y)
@@ -626,6 +627,12 @@ static bool get_tile_position(int32_t *slide_positions,
   // camera position coordinates
   int xp = xx / image_divisions;
   int yp = yy / image_divisions;
+  if (xp >= images_across / image_divisions ||
+      yp >= images_down / image_divisions) {
+    // partial camera position at the right or bottom edge; not in the
+    // position map
+    return false;
+  }
   int cp = yp * (images_across / image_divisions) + xp;
   //g_debug("xx %d, yy %d, xp %d, yp %d, cp %d, spp %d, sc %d, image0: %d %d tile: %g %g", xx, yy, xp, yp, cp, tiles_per_position, lp->tiles_per_image, image0_w, image0_h, l->tile_w, l->tile_h);
 
@@ -865,6 +872,7 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
                                    slide_zoom_level_params,
                                    levels,
                                    images_across,
+                                   images_down,
                                    image_divisions,
                                    zoom_level,
                                    xx, yy,
