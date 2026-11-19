@@ -277,7 +277,29 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                 "Expected 3 image components, found %u", image->numcomps);
     return false;
   }
-  // TODO more checks?
+  // unpack_argb() derives each component's subsampling factor from
+  // w / comp.w (and h / comp.h) and indexes comp.data accordingly.  The
+  // checks above only constrain the reference grid (image->x1/y1), not the
+  // component sample grids, so a component smaller than that subsampling
+  // implies would be read out of bounds.  Reject those here.
+  for (unsigned i = 0; i < image->numcomps; i++) {
+    opj_image_comp_t *comp = &image->comps[i];
+    if (comp->w == 0 || comp->h == 0) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "JP2K component %u has zero size", i);
+      return false;
+    }
+    int sub_x = w / comp->w;
+    int sub_y = h / comp->h;
+    if (sub_x == 0 || sub_y == 0 ||
+        (w - 1) / sub_x >= (int) comp->w ||
+        (h - 1) / sub_y >= (int) comp->h) {
+      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                  "JP2K component %u size %ux%u inconsistent with image %dx%d",
+                  i, comp->w, comp->h, w, h);
+      return false;
+    }
+  }
 
   // decode
   if (!opj_decode(codec, stream, image)) {
