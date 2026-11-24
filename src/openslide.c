@@ -626,6 +626,16 @@ static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
     surface = cairo_image_surface_create(cr_fmt, 0, 0);
   }
 
+  cairo_status_t rc = cairo_surface_status(surface);
+  if (rc != CAIRO_STATUS_SUCCESS) {
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                  "read_region_area_gray() error when creating"
+                                  " cairo surface: %s",
+                                  cairo_status_to_string(rc));
+    _openslide_propagate_error(osr, tmp_err);
+    return false;
+  }
+
   g_autoptr(cairo_t) cr = cairo_create(surface);
 
   // attach the cairo destination type to cairo context, so that read_tile()
@@ -719,7 +729,9 @@ static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
 
   uint8_t *buf;
   g_autofree uint8_t *buf_cr = NULL;
+  // stride is padded to 4-byte boundary
   int64_t stride = cairo_format_stride_for_width(cr_fmt, w);
+  int64_t w_padded = stride / pixel_bytes;
   size_t len = h * stride;
   if (stride == w * pixel_bytes) {
     // do not need additional padding for image row
@@ -749,24 +761,22 @@ static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
 
   const int64_t d = 4096;
   double ds = openslide_get_level_downsample_gray(osr, level);
-  int64_t area_stride;
   for (int64_t row = 0; row < (h + d - 1) / d; row++) {
-    for (int64_t col = 0; col < (w + d - 1) / d; col++) {
+    for (int64_t col = 0; col < (w_padded + d - 1) / d; col++) {
       // calculate surface coordinates and size
       int64_t sx = x + col * d * ds;    // level 0 plane
       int64_t sy = y + row * d * ds;    // level 0 plane
-      int64_t sw = MIN(w - col * d, d); // level plane
-      int64_t sh = MIN(h - row * d, d); // level plane
+      int64_t sw = MIN(w_padded - col * d, d); // level plane
+      int64_t sh = MIN(h - row * d, d);        // level plane
 
       GError *tmp_err = NULL;
-      area_stride = cairo_format_stride_for_width(cr_fmt, sw);
-      if (!read_region_area_gray(osr, buf ? buf + w * row * d + col * d : NULL,
-                                 area_stride, pixel_bytes, sx, sy, level, sw,
-                                 sh, &tmp_err)) {
+      if (!read_region_area_gray(
+              osr, buf ? buf + stride * row * d + col * d * pixel_bytes : NULL,
+              stride, pixel_bytes, sx, sy, level, sw, sh, &tmp_err)) {
         _openslide_propagate_error(osr, tmp_err);
         if (buf) {
           // ensure we don't return a partial result
-          memset(buf, 0, h * stride);
+          memset(buf, 0, len);
         }
         return;
       }

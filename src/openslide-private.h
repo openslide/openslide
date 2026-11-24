@@ -419,6 +419,8 @@ extern const int16_t _openslide_B_Cb[256];
 #define _NO_W32_PSEUDO_MODIFIERS
 #endif
 
+// Only the pointer address of cairo_user_data_key_t is used as key for storing
+// data in cairo surface
 extern const cairo_user_data_key_t _openslide_cairo_key;
 
 #endif
