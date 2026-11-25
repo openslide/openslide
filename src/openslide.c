@@ -628,11 +628,9 @@ static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
 
   cairo_status_t rc = cairo_surface_status(surface);
   if (rc != CAIRO_STATUS_SUCCESS) {
-    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                                  "read_region_area_gray() error when creating"
-                                  " cairo surface: %s",
-                                  cairo_status_to_string(rc));
-    _openslide_propagate_error(osr, tmp_err);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "read_region_area_gray() error when creating cairo surface: %s",
+                cairo_status_to_string(rc));
     return false;
   }
 
@@ -650,9 +648,8 @@ static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
   //cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
   if (level > osr->level_count_all - 1) {
-    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                                  "invalid level %d", level);
-    _openslide_propagate_error(osr, tmp_err);
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "invalid level %d", level);
     return false;
   }
 
@@ -731,7 +728,6 @@ static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
   g_autofree uint8_t *buf_cr = NULL;
   // stride is padded to 4-byte boundary
   int64_t stride = cairo_format_stride_for_width(cr_fmt, w);
-  int64_t w_padded = stride / pixel_bytes;
   size_t len = h * stride;
   if (stride == w * pixel_bytes) {
     // do not need additional padding for image row
@@ -762,12 +758,14 @@ static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
   const int64_t d = 4096;
   double ds = openslide_get_level_downsample_gray(osr, level);
   for (int64_t row = 0; row < (h + d - 1) / d; row++) {
-    for (int64_t col = 0; col < (w_padded + d - 1) / d; col++) {
+    // only read the requested width; row padding up to stride is left as
+    // zeros and removed afterwards
+    for (int64_t col = 0; col < (w + d - 1) / d; col++) {
       // calculate surface coordinates and size
       int64_t sx = x + col * d * ds;    // level 0 plane
       int64_t sy = y + row * d * ds;    // level 0 plane
-      int64_t sw = MIN(w_padded - col * d, d); // level plane
-      int64_t sh = MIN(h - row * d, d);        // level plane
+      int64_t sw = MIN(w - col * d, d); // level plane
+      int64_t sh = MIN(h - row * d, d); // level plane
 
       GError *tmp_err = NULL;
       if (!read_region_area_gray(
