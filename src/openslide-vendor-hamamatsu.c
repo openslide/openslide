@@ -194,12 +194,12 @@ static bool jpeg_random_access_src(j_decompress_ptr cinfo,
   }
 
   // compute size of buffer and allocate
-  int data_length = 0;
+  int64_t data_length = 0;
   if (start_position != -1) {
     data_length = stop_position - start_position;
   }
 
-  int buffer_size = header_length + data_length;
+  int64_t buffer_size = header_length + data_length;
   // automatically freed when decompression is terminated
   JOCTET *buffer = (*cinfo->mem->alloc_large)((j_common_ptr) cinfo,
                                               JPOOL_IMAGE, buffer_size);
@@ -402,14 +402,14 @@ static bool find_next_ff_marker(struct _openslide_file *f,
     if (*bytes_in_buf == 0) {
       // fill buffer
       *buf = buf_start;
-      int bytes_to_read = MIN(buf_size, file_size - file_pos);
-
-      //g_debug("bytes_to_read: %d", bytes_to_read);
-      if (bytes_to_read == 0) {
+      if (file_pos >= file_size) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "EOF searching for JPEG marker at %"PRId64, file_pos);
         return false;
       }
+      int bytes_to_read = MIN(buf_size, file_size - file_pos);
+
+      //g_debug("bytes_to_read: %d", bytes_to_read);
       if (!_openslide_fread_exact(f, *buf, bytes_to_read, err)) {
         g_prefix_error(err, "Searching for JPEG marker at %"PRId64": ",
                        file_pos);
