@@ -647,7 +647,7 @@ static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
   // only show the all zeros destination.
   //cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 
-  if (level > osr->level_count_all - 1) {
+  if (level < 0 || level > osr->level_count_all - 1) {
     g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                 "invalid level %d", level);
     return false;
