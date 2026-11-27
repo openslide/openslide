@@ -1133,27 +1133,47 @@ static void add_xml_props(openslide_t *osr, xmlDoc *doc, GPtrArray *path,
   g_ptr_array_remove_index(path, path->len - 1);
 }
 
-/* parse version number such as 3.5.093.8 into major ver * 1000 + minor ver */
-static int64_t parse_zen_version(const char *s, GError **err) {
-  GMatchInfo *match_info;
-  // accept version number with or without minor version
-  GRegex *re = g_regex_new("(\\d+)(?:\\.(\\d+))?", 0, 0, NULL);
-  g_regex_match(re, s, 0, &match_info);
+// return the run of ASCII digits starting at *p, and advance *p past it
+static char *take_digits(const char **p) {
+  const char *start = *p;
+  while (g_ascii_isdigit(**p)) {
+    (*p)++;
+  }
+  return g_strndup(start, *p - start);
+}
+
+/* parse version number such as 3.5.093.8 into major ver * 1000 + minor ver.
+   The first run of digits is the major version, optionally followed by
+   ".minor".  A missing version or minor version counts as 0. */
+static bool parse_zen_version(const char *s, int64_t *version, GError **err) {
   int64_t major = 0;
   int64_t minor = 0;
-  if (g_match_info_matches(match_info)) {
-    g_autofree gchar *smajor = g_match_info_fetch(match_info, 1);
-    g_autofree gchar *sminor = g_match_info_fetch(match_info, 2);
-    if ((smajor && !_openslide_parse_int64(smajor, &major)) ||
-        (sminor && !_openslide_parse_int64(sminor, &minor))) {
-      g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                  "Couldn't parse ZEN software version");
-    }
+  *version = 0;
+  if (!s) {
+    return true;
   }
-
-  g_match_info_free(match_info);
-  g_regex_unref(re);
-  return major * 1000 + minor;
+  const char *p = s;
+  while (*p && !g_ascii_isdigit(*p)) {
+    p++;
+  }
+  if (!*p) {
+    return true;
+  }
+  g_autofree char *smajor = take_digits(&p);
+  g_autofree char *sminor = NULL;
+  if (p[0] == '.' && g_ascii_isdigit(p[1])) {
+    p++;
+    sminor = take_digits(&p);
+  }
+  if (!_openslide_parse_int64(smajor, &major) ||
+      (sminor && !_openslide_parse_int64(sminor, &minor)) ||
+      major > (INT64_MAX - minor) / 1000) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "Couldn't parse ZEN software version: %s", s);
+    return false;
+  }
+  *version = major * 1000 + minor;
+  return true;
 }
 
 // parse XML, set CZI parameters and OpenSlide properties
@@ -1219,7 +1239,9 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
 
   const char *zen_version =
     g_hash_table_lookup(osr->properties, "zeiss.Information.Application.Version");
-  czi->zen_version = parse_zen_version(zen_version, err);
+  if (!parse_zen_version(zen_version, &czi->zen_version, err)) {
+    return false;
+  }
 
   const char *size_c =
     g_hash_table_lookup(osr->properties, "zeiss.Information.Image.SizeC");
