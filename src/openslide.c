@@ -737,7 +737,7 @@ static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
     buf_cr = g_try_malloc(len);
     if (!buf_cr) {
       GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
-                                    "Couldn't allocate %" PRId64
+                                    "Couldn't allocate %zu"
                                     " bytes for openslide_read_region_gray()",
                                     len);
       _openslide_propagate_error(osr, tmp_err);
