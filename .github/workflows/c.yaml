@@ -50,6 +50,7 @@ jobs:
             gcc git-core meson pkg-config \
             cairo-devel \
             glib2-devel \
+            jxrlib-devel \
             libdicom-devel \
             libjpeg-turbo-devel \
             libpng-devel \
