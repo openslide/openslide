@@ -1,0 +1,10 @@
+# libtiff 4.7.1 fails to initialize the relevant portion of the output
+# buffer if we try to fully read a partial bottom tile (not a JPEG one,
+# since we bypass libtiff for those).  valgrind finds the problem but
+# sanitize doesn't.
+base: Generic-TIFF/CMU-1.tiff
+slide: CMU-1.tiff
+success: true
+vendor: generic-tiff
+regions:
+  - [16, 16, 0, 8, 8]

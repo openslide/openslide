@@ -6,16 +6,14 @@ option(
 option(
   'test',
   type : 'feature',
-  value : 'auto',
   yield : true,
-  description : 'Build tests',
+  description : 'Build developer test suite (requires additional deps)',
 )
 option(
   'doc',
   type : 'feature',
-  value : 'auto',
   yield : true,
-  description : 'Enable building documentation (requires Doxygen)',
+  description : 'Enable building docs with `ninja doc/html` (requires Doxygen)',
 )
 option(
   '_export_internal_symbols',
@@ -28,12 +26,6 @@ option(
   type : 'boolean',
   value : false,
   description : 'For test suite; do not use',
-)
-option(
-  '_nonatomic_cloexec',
-  type : 'boolean',
-  value : false,
-  description : 'For CI; do not use',
 )
 option(
   '_sanitize',

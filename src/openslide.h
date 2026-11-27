@@ -28,8 +28,7 @@
  * See the openslide_close() documentation for its restrictions.
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_H_
-#define OPENSLIDE_OPENSLIDE_H_
+#pragma once
 
 #include "openslide-features.h"
 
@@ -316,6 +315,13 @@ const char *openslide_get_error(openslide_t *osr);
  * @since 3.2.3
  */
 #define OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR "openslide.background-color"
+
+/**
+ * The name of the property containing a slide's barcode, if any.
+ *
+ * @since 4.0.1
+ */
+#define OPENSLIDE_PROPERTY_NAME_BARCODE "openslide.barcode"
 
 /**
  * The name of the property containing the height of the rectangle bounding
@@ -633,6 +639,4 @@ const char *openslide_get_version(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

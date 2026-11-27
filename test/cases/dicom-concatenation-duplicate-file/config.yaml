@@ -1,0 +1,7 @@
+base: DICOM/3DHISTECH-2.zip
+slide: '5_0'
+success: true
+vendor: dicom
+copy:
+  ? '4_3'
+  : '4_2'

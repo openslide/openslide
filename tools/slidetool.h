@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_SLIDETOOL_H_
-#define OPENSLIDE_SLIDETOOL_H_
+#pragma once
 
 #include <stdio.h>
 #include <glib.h>
@@ -64,5 +63,3 @@ typedef struct output output;
 struct output open_output(const char *filename);
 void _close_output(struct output *out);
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(output, _close_output);
-
-#endif

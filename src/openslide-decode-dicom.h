@@ -21,8 +21,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_DICOM_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_DICOM_H_
+#pragma once
 
 #include <glib.h>
 #include <dicom/dicom.h>
@@ -40,5 +39,3 @@ DcmFilehandle *_openslide_dicom_open(const char *filename,
 void _openslide_dicom_io_suspend(struct _openslide_dicom_io *dio);
 
 void _openslide_dicom_propagate_error(GError **err, DcmError *dcm_error);
-
-#endif

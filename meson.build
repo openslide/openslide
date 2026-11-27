@@ -1,18 +1,18 @@
 project(
   'openslide',
   'c',
-  version : '4.0.0',
+  version : '4.0.1',
   license : 'LGPL-2.1-only',
   default_options : [
     'buildtype=debugoptimized',
     'c_std=gnu99',
     'warning_level=2',
   ],
-  # limited by Ubuntu 20.04
-  meson_version : '>=0.53',
+  # limited by EL 8 at 0.58
+  meson_version : '>=0.56',
 )
 # Shared library version.  Follow SemVer rules.
-soversion = '1.0.0'
+soversion = '1.0.1'
 
 if not meson.is_subproject()
   meson.add_dist_script('scripts/dist.py')
@@ -75,10 +75,28 @@ add_project_arguments(
   '-DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_MIN_REQUIRED',
   language : 'c',
 )
+if host_machine.system() == 'windows'
+  # Windows likes to warn about C and POSIX functions
+  foreach native : [false, true]
+    add_project_arguments(
+      '-D_CRT_NONSTDC_NO_DEPRECATE',
+      '-D_CRT_SECURE_NO_WARNINGS',
+      language : 'c',
+      native : native,
+    )
+  endforeach
+endif
 add_project_link_arguments(
   cc.get_supported_link_arguments('-Wl,--no-undefined'),
   language : 'c',
 )
+
+# Functions
+foreach f : ['fseeko', 'ftello']
+  if cc.has_function(f)
+    conf.set('HAVE_' + f.to_upper(), 1)
+  endif
+endforeach
 
 # fopen cloexec flag
 if host_machine.system() in [
@@ -96,11 +114,6 @@ elif host_machine.system() == 'windows'
 else
   message('Using no close-on-exec flag (unknown)')
   conf.set_quoted('FOPEN_CLOEXEC_FLAG', '')
-  conf.set('NONATOMIC_CLOEXEC', 1)
-endif
-if get_option('_nonatomic_cloexec')
-  # CI sets this on Linux distros with libraries that don't correctly set
-  # CLOEXEC.  Disable CLOEXEC leak check.
   conf.set('NONATOMIC_CLOEXEC', 1)
 endif
 
@@ -140,31 +153,36 @@ cairo_dep = dependency(
   'cairo',
   version : '>=1.2',
 )
-gdk_pixbuf_dep = dependency(
-  'gdk-pixbuf-2.0',
-  version : '>=2.14',
-)
 xml_dep = dependency('libxml-2.0')
 sqlite_dep = dependency(
   'sqlite3',
   version : '>=3.14',
+  required : host_machine.system() != 'windows',
 )
+if not sqlite_dep.found()
+  # SQLite's Makefile.msc (for Windows) doesn't install the pkg-config file
+  sqlite_dep = declare_dependency(
+    dependencies : cc.find_library('sqlite3'),
+    compile_args : '-DSQLITE_API=__declspec(dllimport)',
+  )
+endif
 dicom_dep = dependency(
   'libdicom',
   # avoid 'check' dependency
   default_options : ['tests=false'],
-  fallback : ['libdicom', 'libdicom_dep'],
-  version : '>=1.0.0',
-)
-valgrind_dep = dependency(
-  'valgrind',
-  required : false,
+  version : '>=1.3.0',
 )
 
-jxr_dep        = dependency('libjxr', required: false)
+jxr_dep = dependency(
+  'libjxr',
+  required : false,
+)
 if not jxr_dep.found()
   # called jxrlib on macOS
-  jxr_dep      = dependency('jxrlib', required: false)
+  jxr_dep = dependency(
+    'jxrlib',
+    required : false,
+  )
 endif
 
 # Workaround for Debian < Bookworm, Ubuntu < 22.04LTS, and Fedora. They miss
@@ -173,30 +191,38 @@ if not jxr_dep.found()
   fs = import('fs')
   jxr_includedirs = ['/usr/include/jxrlib/']  # Linux
   has_jxr_includedir = false
-  foreach d: jxr_includedirs
+  foreach d : jxr_includedirs
     if not fs.is_dir(d)
       continue
     endif
 
-    if cc.has_header('JXRGlue.h', include_directories: include_directories(d))
+    if cc.has_header(
+      'JXRGlue.h',
+      include_directories : include_directories(d),
+    )
       jxr_includedir = d
       has_jxr_includedir = true
       break
     endif
   endforeach
 
-  jxr_libdirs = ['/usr/lib/i386-linux-gnu/',
-                 '/usr/lib/x86_64-linux-gnu/',
-                 '/usr/lib/lib64/',
-                 '/usr/lib64/'
-                ]
-  jxr_lib_dep = cc.find_library('jxrglue', dirs: jxr_libdirs, required: false)
+  jxr_libdirs = [
+    '/usr/lib/i386-linux-gnu/',
+    '/usr/lib/x86_64-linux-gnu/',
+    '/usr/lib/lib64/',
+    '/usr/lib64/',
+  ]
+  jxr_lib_dep = cc.find_library(
+    'jxrglue',
+    dirs : jxr_libdirs,
+    required : false,
+  )
   if has_jxr_includedir and jxr_lib_dep.found()
     jxr_dep = declare_dependency(
-      compile_args: ['-D__ANSI__', '-DDISABLE_PERF_MEASUREMENT'],
-      include_directories: [jxr_includedir],
-      dependencies: jxr_lib_dep,
-      link_args : ['-ljpegxr', '-ljxrglue']
+      compile_args : ['-D__ANSI__', '-DDISABLE_PERF_MEASUREMENT'],
+      include_directories : [jxr_includedir],
+      dependencies : jxr_lib_dep,
+      link_args : ['-ljpegxr', '-ljxrglue'],
     )
   endif
 endif
@@ -205,13 +231,14 @@ if jxr_dep.found()
   conf.set('HAVE_LIBJXR', 1)
 endif
 
-doxygen = find_program(
-  'doxygen',
-  required : get_option('doc'),
-  disabler : true,
-)
-
 # Dependency checks
+if jpeg_dep.type_name() != 'internal' and not cc.has_function(
+  'jpeg_mem_src',
+  dependencies : jpeg_dep,
+)
+  error('libjpeg-turbo >= 1.3 or libjpeg >= 9c is required')
+endif
+
 if tiff_dep.type_name() == 'internal' or cc.has_function(
   'TIFFOpenOptionsSetErrorHandlerExtR',
   dependencies : tiff_dep,
@@ -220,9 +247,6 @@ if tiff_dep.type_name() == 'internal' or cc.has_function(
   # libtiff
   conf.set('HAVE_TIFF_LOG_CALLBACKS', 1)
   feature_flags += 'tiff-log-callbacks'
-endif
-if valgrind_dep.found()
-  conf.set('HAVE_VALGRIND', 1)
 endif
 
 # SIMD checks
@@ -238,7 +262,7 @@ endif
 # At runtime, OpenSlide can select avx2, ssse3, or non-SIMD based on detected
 # CPU features. Pixman also uses this trick.
 c_args_ssse3 = ['-g', '-O2']
-c_args_avx2  = ['-g', '-O2']
+c_args_avx2 = ['-g', '-O2']
 if host_machine.cpu_family() == 'x86_64'
   conf.set('CONFIG_OSR_ARCH_X86_64', 1)
   if get_option('ssse3')
@@ -328,20 +352,21 @@ if get_option('_sanitize')
   )
 endif
 
+# Subdirs
+config_h_include = include_directories('.')
+subdir('src')
+subdir('common')
+subdir('tools')
+# .allowed() in Meson >= 0.59
+if not get_option('test').disabled()
+  subdir('test')
+endif
+if not get_option('doc').disabled()
+  subdir('doc')
+endif
+
 # config.h
 configure_file(
   output : 'config.h',
   configuration : conf,
 )
-config_h_include = include_directories('.')
-
-# Subdirs
-subdir('src')
-subdir('common')
-subdir('tools')
-if not get_option('test').disabled()
-  subdir('test')
-endif
-if doxygen.found()
-  subdir('doc')
-endif

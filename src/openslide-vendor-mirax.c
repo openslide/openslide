@@ -29,7 +29,7 @@
  */
 
 #include "openslide-private.h"
-#include "openslide-decode-gdkpixbuf.h"
+#include "openslide-decode-bmp.h"
 #include "openslide-decode-jpeg.h"
 #include "openslide-decode-png.h"
 
@@ -38,8 +38,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
-#include "openslide-hash.h"
 
 static const char MRXS_EXT[] = ".mrxs";
 static const char SLIDEDAT_INI[] = "Slidedat.ini";
@@ -171,7 +169,6 @@ struct slide_zoom_level_params {
 struct image {
   int32_t fileno;
   int32_t start_in_file;
-  int32_t length;
   int32_t imageno;   // used only for cache lookup
   int refcount;
 };
@@ -209,11 +206,11 @@ static void image_unref(struct image *image) {
 typedef struct image image;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(image, image_unref)
 
-static void tile_free(gpointer data) {
-  struct tile *tile = data;
+static void tile_free(struct tile *tile) {
   image_unref(tile->image);
   g_free(tile);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(tile_free)
 
 static uint32_t *read_image(openslide_t *osr,
                             struct image *image,
@@ -223,27 +220,32 @@ static uint32_t *read_image(openslide_t *osr,
   struct mirax_ops_data *data = osr->data;
   bool result = false;
 
-  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  g_autofree uint32_t *dest = g_new(uint32_t, w * h);
+
+  g_autoptr(_openslide_file) f =
+    _openslide_fopen(data->datafile_paths[image->fileno], err);
+  if (!f) {
+    return NULL;
+  }
 
   switch (format) {
   case FORMAT_JPEG:
-    result = _openslide_jpeg_read(data->datafile_paths[image->fileno],
-                                  image->start_in_file,
-                                  dest, w, h,
-                                  err);
-    break;
-  case FORMAT_PNG:
-    result = _openslide_png_read(data->datafile_paths[image->fileno],
-                                 image->start_in_file,
-                                 dest, w, h,
-                                 err);
-    break;
-  case FORMAT_BMP:
-    result = _openslide_gdkpixbuf_read("bmp",
-                                       data->datafile_paths[image->fileno],
-                                       image->start_in_file, image->length,
+    result = _openslide_jpeg_read_file(f,
+                                       image->start_in_file,
                                        dest, w, h,
                                        err);
+    break;
+  case FORMAT_PNG:
+    result = _openslide_png_read_file(f,
+                                      image->start_in_file,
+                                      dest, w, h,
+                                      err);
+    break;
+  case FORMAT_BMP:
+    result = _openslide_bmp_read_file(f,
+                                      image->start_in_file,
+                                      dest, w, h,
+                                      err);
     break;
   default:
     g_assert_not_reached();
@@ -344,6 +346,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct mirax_ops_data *data = osr->data;
@@ -829,7 +832,6 @@ static bool process_hier_data_pages_from_indexfile(struct _openslide_file *f,
 	g_autoptr(image) image = g_new0(struct image, 1);
 	image->fileno = fileno;
 	image->start_in_file = offset;
-	image->length = length;
 	image->imageno = image_number++;
 	image->refcount = 1;
 
@@ -1384,7 +1386,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   g_autoptr(GKeyFile) slidedat =
     _openslide_read_key_file(slidedat_path, SLIDEDAT_MAX_SIZE,
-                             G_KEY_FILE_NONE, err);
+                             OPENSLIDE_KEY_FILE_MIRAX, err);
   if (!slidedat) {
     g_prefix_error(err, "Can't load Slidedat.ini file: ");
     return false;
@@ -1405,9 +1407,21 @@ static bool mirax_open(openslide_t *osr, const char *filename,
   int images_y = 0;
   READ_KEY_OR_FAIL(images_y, slidedat, GROUP_GENERAL,
                    KEY_IMAGENUMBER_Y, integer);
-  int objective_magnification = 0;
-  READ_KEY_OR_FAIL(objective_magnification, slidedat, GROUP_GENERAL,
-                   KEY_OBJECTIVE_MAGNIFICATION, integer);
+
+  g_autofree char *objective_magnification_str =
+    g_key_file_get_value(slidedat, GROUP_GENERAL, KEY_OBJECTIVE_MAGNIFICATION,
+                         NULL);
+  int64_t objective_magnification = 0;
+  if (objective_magnification_str) {
+    size_t len = strlen(objective_magnification_str);
+    if (len && objective_magnification_str[len - 1] == 'x') {
+      // reportedly some old files have this
+      objective_magnification_str[len - 1] = 0;
+    }
+    // sets value to 0 on error
+    _openslide_parse_int64(objective_magnification_str,
+                           &objective_magnification);
+  }
 
   GError *tmp_err = NULL;
   int image_divisions =
@@ -1676,7 +1690,7 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set up level dimensions and such
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   g_autofree struct slide_zoom_level_params *slide_zoom_level_params =
     g_new(struct slide_zoom_level_params, zoom_levels);
   int total_concat_exponent = 0;
@@ -1775,7 +1789,8 @@ static bool mirax_open(openslide_t *osr, const char *filename,
     l->grid = _openslide_grid_create_tilemap(osr,
                                              lp->tile_advance_x,
                                              lp->tile_advance_y,
-                                             read_tile, tile_free);
+                                             read_tile,
+                                             OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(tile_free));
 
     //g_debug("level %d tile advance %.10g %.10g, dim %"PRId64" %"PRId64", image size %d %d, tile %g %g, image_concat %d, tile_count_divisor %d, positions_per_tile %d", i, lp->tile_advance_x, lp->tile_advance_y, l->base.w, l->base.h, l->image_width, l->image_height, l->tile_w, l->tile_h, lp->image_concat, lp->tile_count_divisor, lp->positions_per_tile);
   }
@@ -1804,15 +1819,17 @@ static bool mirax_open(openslide_t *osr, const char *filename,
 
   // set properties
   struct level *l0 = level_array->pdata[0];
-  _openslide_set_bounds_props_from_grid(osr, l0->grid);
+  _openslide_set_bounds_props_from_grid(osr, &l0->base, l0->grid);
   uint32_t fill = slide_zoom_level_sections[0].fill_rgb;
   _openslide_set_background_color_prop(osr,
                                        (fill >> 16) & 0xFF,
                                        (fill >> 8) & 0xFF,
                                        fill & 0xFF);
-  g_hash_table_insert(osr->properties,
-                      g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
-                      g_strdup_printf("%d", objective_magnification));
+  if (objective_magnification > 0) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER),
+                        g_strdup_printf("%"PRId64, objective_magnification));
+  }
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
                       _openslide_format_double(slide_zoom_level_sections[0].mpp_x));

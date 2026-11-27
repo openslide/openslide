@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-2.zip
+error: "^Reading .*/4_[12]: Concatenation UID (<none>|2.25.186936537980103457039587390032156603358) must match UID (<none>|2.25.186936537980103457039587390032156603358) in existing level file .*/4_[12]$"
+slide: '5_0'
+success: false
+vendor: dicom

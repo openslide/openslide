@@ -1,0 +1,5 @@
+base: Ventana/OS-2.bif
+error: ^Area has invalid tile count 11x-17$
+slide: OS-2.bif
+success: false
+vendor: ventana

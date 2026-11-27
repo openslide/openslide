@@ -4,4 +4,4 @@ slide: CMU-1.svs
 success: true
 vendor: aperio
 properties:
-  openslide.associated.thumbnail.icc-size: ""
+  openslide.associated.thumbnail.icc-size: ~

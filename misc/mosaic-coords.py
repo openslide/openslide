@@ -14,8 +14,7 @@
 # License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this library; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+# along with this library.  If not, see <http://www.gnu.org/licenses/>.
 #
 
 from flask import Flask, abort, make_response, render_template_string

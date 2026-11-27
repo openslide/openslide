@@ -4,5 +4,7 @@ success: true
 vendor: ventana
 primary: true
 properties:
+  openslide.associated.macro.width: '1008'
+  openslide.associated.thumbnail.width: '1024'
   openslide.vendor: ventana
   openslide.quickhash-1: 18d3b9956a54fe8e1f25de083a0c43fcec93220d014ea3d54f11a3265e0ddc32

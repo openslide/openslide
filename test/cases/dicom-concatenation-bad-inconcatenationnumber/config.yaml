@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-2.zip
+error: "^Reading .*/4_1: In-concatenation number out of range: 0$"
+slide: '5_0'
+success: false
+vendor: dicom

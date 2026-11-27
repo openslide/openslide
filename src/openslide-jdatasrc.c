@@ -13,9 +13,8 @@
 /*
  * On Windows, we cannot fopen a file and pass it to another DLL that does fread.
  * So we need to compile all our freading into the OpenSlide DLL directly.
- * We also need jpeg_mem_src for libjpegs that are too old to ship it themselves.
  *
- * This file is basically copied from libjpeg-turbo-1.3.0.
+ * This file is originally from libjpeg-turbo-1.3.0.
  */
 
 #include "openslide-private.h"
@@ -56,11 +55,6 @@ static void init_source (j_decompress_ptr cinfo)
    * This is correct behavior for reading a series of images from one source.
    */
   src->start_of_file = true;
-}
-
-static void init_mem_source (j_decompress_ptr cinfo G_GNUC_UNUSED)
-{
-  /* no work necessary here */
 }
 
 
@@ -121,26 +115,6 @@ static boolean fill_input_buffer (j_decompress_ptr cinfo)
   src->pub.next_input_byte = src->buffer;
   src->pub.bytes_in_buffer = nbytes;
   src->start_of_file = false;
-
-  return true;
-}
-
-static boolean fill_mem_input_buffer (j_decompress_ptr cinfo)
-{
-  static const JOCTET mybuffer[4] = {
-    (JOCTET) 0xFF, (JOCTET) JPEG_EOI, 0, 0
-  };
-
-  /* The whole JPEG data is expected to reside in the supplied memory
-   * buffer, so any request for more data beyond the given buffer size
-   * is treated as an error.
-   */
-  WARNMS(cinfo, JWRN_JPEG_EOF);
-
-  /* Insert a fake EOI marker */
-
-  cinfo->src->next_input_byte = mybuffer;
-  cinfo->src->bytes_in_buffer = 2;
 
   return true;
 }
@@ -241,38 +215,4 @@ void _openslide_jpeg_stdio_src (j_decompress_ptr cinfo,
   src->infile = infile;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
   src->pub.next_input_byte = NULL; /* until buffer loaded */
-}
-
-
-/*
- * Prepare for input from a supplied memory buffer.
- * The buffer must contain the whole JPEG data.
- */
-
-void _openslide_jpeg_mem_src (j_decompress_ptr cinfo,
-                              const void * inbuffer, size_t insize)
-{
-  struct jpeg_source_mgr * src;
-
-  if (inbuffer == NULL || insize == 0)	/* Treat empty input as fatal error */
-    ERREXIT(cinfo, JERR_INPUT_EMPTY);
-
-  /* The source object is made permanent so that a series of JPEG images
-   * can be read from the same buffer by calling jpeg_mem_src only before
-   * the first one.
-   */
-  if (cinfo->src == NULL) {	/* first time for this JPEG object? */
-    cinfo->src = (struct jpeg_source_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(struct jpeg_source_mgr));
-  }
-
-  src = cinfo->src;
-  src->init_source = init_mem_source;
-  src->fill_input_buffer = fill_mem_input_buffer;
-  src->skip_input_data = skip_input_data;
-  src->resync_to_restart = jpeg_resync_to_restart; /* use default method */
-  src->term_source = term_source;
-  src->bytes_in_buffer = insize;
-  src->next_input_byte = inbuffer;
 }

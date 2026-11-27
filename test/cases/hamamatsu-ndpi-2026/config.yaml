@@ -1,0 +1,17 @@
+base: Hamamatsu/Hamamatsu-2.ndpi
+slide: Hamamatsu-2.ndpi
+success: true
+vendor: hamamatsu
+primary: true
+# The JPEG marker scan touches the whole file and bloats the freeze file.
+# Just fetch the original testdata file instead.
+freezable: false
+debug:
+  - jpeg-markers
+  - performance
+properties:
+  # out-of-line ASCII value shorter than the TIFF inlining threshold
+  hamamatsu.Reference: A1
+  openslide.associated.macro.width: '1890'
+  openslide.quickhash-1: f09856c916c742fc143f33c26f688e627a7b9d3ca49776f035ac87a4b858b243
+  openslide.vendor: hamamatsu

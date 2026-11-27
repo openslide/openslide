@@ -4,5 +4,6 @@ success: true
 vendor: leica
 primary: true
 properties:
+  openslide.associated.macro.width: '1616'
   openslide.quickhash-1: 1e3eb6b5ca64afd4c76f2de3f80053f3092611d4732753cd58e03031c7d0dc33
   openslide.vendor: leica

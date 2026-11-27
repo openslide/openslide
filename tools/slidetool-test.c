@@ -23,16 +23,9 @@
 #include "openslide-common.h"
 #include "slidetool.h"
 
-// for putenv
-#define _XOPEN_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <glib.h>
-
-static void set_synthetic_debug_flag(void *arg G_GNUC_UNUSED) {
-  putenv("OPENSLIDE_DEBUG=synthetic");
-}
 
 static int do_test_deps(int narg, char **args) {
   if (narg < 1) {
@@ -40,11 +33,17 @@ static int do_test_deps(int narg, char **args) {
     // ourselves.  Do it in a cross-platform way.  args[-1] is the program's
     // argv[0].
     char *child_argv[] = {args[-1], "test", "deps", "child", NULL};
+    g_auto(GStrv) child_env = g_get_environ();
+    child_env =
+      g_environ_setenv(child_env, "OPENSLIDE_DEBUG", "synthetic", true);
     GError *tmp_err = NULL;
     int status;
-    if (!g_spawn_sync(NULL, child_argv, NULL, G_SPAWN_SEARCH_PATH,
-                      set_synthetic_debug_flag, NULL, NULL, NULL, &status,
-                      &tmp_err)) {
+    if (!g_spawn_sync(NULL, child_argv, child_env,
+                      G_SPAWN_SEARCH_PATH |
+                      // avoid requiring gspawn-win64-helper.exe on Windows
+                      G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+                      G_SPAWN_CHILD_INHERITS_STDIN,
+                      NULL, NULL, NULL, NULL, &status, &tmp_err)) {
       common_fail("Spawning child failed: %s", tmp_err->message);
     }
     if (!g_spawn_check_exit_status(status, NULL)) {
@@ -61,7 +60,7 @@ static int do_test_deps(int narg, char **args) {
   common_fail_on_error(osr, "Opening synthetic slide");
 
   // read region
-  g_autofree void *buf = g_malloc(4 * 1000 * 100);
+  g_autofree uint32_t *buf = g_new(uint32_t, 1000 * 100);
   openslide_read_region(osr, buf, 0, 0, 0, 1000, 100);
   common_fail_on_error(osr, "Reading region");
 

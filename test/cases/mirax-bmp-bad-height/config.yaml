@@ -1,5 +1,5 @@
 base: Mirax/Mirax2.2-4-BMP.zip
-error: "^Dimensional mismatch reading pixbuf: expected 338x254, found 338x240$"
+error: "^BMP at offset 258414: Unexpected BMP size 338x240, expected 338x254$"
 slide: Mirax2.2-4-BMP.mrxs
 success: false
 vendor: mirax

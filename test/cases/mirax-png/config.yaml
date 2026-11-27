@@ -4,5 +4,8 @@ success: true
 vendor: mirax
 primary: true
 properties:
+  openslide.associated.label.width: '585'
+  openslide.associated.macro.width: '517'
+  openslide.associated.thumbnail.width: '786'
   openslide.quickhash-1: d1fd8c6ddd67f0a9ab3721796421809ccc529821facd3303f77346d702004eb9
   openslide.vendor: mirax

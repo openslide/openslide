@@ -1,0 +1,7 @@
+# JP2K lossless-only transfer syntax with YBR_ICT photometric interpretation
+# We could choose to allow this, but Postel was wrong
+base: DICOM/CMU-1-JP2K-ICT.zip
+error: "^Reading .*/img_3.dcm: Unsupported photometric interpretation YBR_ICT for 1.2.840.10008.1.2.4.90$"
+slide: img_3.dcm
+success: false
+vendor: dicom

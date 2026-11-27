@@ -2,3 +2,5 @@ base: Trestle/CMU-1.zip
 slide: CMU-1.tif
 success: true
 vendor: trestle
+properties:
+  openslide.associated.macro.width: ~

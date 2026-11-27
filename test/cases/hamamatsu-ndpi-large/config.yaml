@@ -1,0 +1,12 @@
+base: Hamamatsu/Hamamatsu-1.ndpi
+slide: Hamamatsu-1.ndpi
+success: true
+vendor: hamamatsu
+primary: true
+debug:
+  # omit jpeg-markers, since that would read the entire file (6+ GiB)
+  - performance
+properties:
+  openslide.associated.macro.width: '2137'
+  # no openslide.quickhash-1 due to #79
+  openslide.vendor: hamamatsu

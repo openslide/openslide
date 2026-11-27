@@ -19,11 +19,9 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_PRIVATE_H_
-#define OPENSLIDE_OPENSLIDE_PRIVATE_H_
+#pragma once
 
 #include "openslide.h"
-#include "openslide-hash.h"
 
 #include <glib.h>
 #include <stdio.h>
@@ -35,6 +33,8 @@
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_t, cairo_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(cairo_surface_t, cairo_surface_destroy)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(openslide_t, openslide_close)
+
+struct _openslide_hash;
 
 /* the associated image structure */
 struct _openslide_associated_image {
@@ -146,10 +146,12 @@ struct _openslide_format {
 };
 
 extern const struct _openslide_format _openslide_format_aperio;
+extern const struct _openslide_format _openslide_format_argos;
 extern const struct _openslide_format _openslide_format_dicom;
 extern const struct _openslide_format _openslide_format_generic_tiff;
 extern const struct _openslide_format _openslide_format_hamamatsu_ndpi;
 extern const struct _openslide_format _openslide_format_hamamatsu_vms_vmu;
+extern const struct _openslide_format _openslide_format_huron;
 extern const struct _openslide_format _openslide_format_leica;
 extern const struct _openslide_format _openslide_format_mirax;
 extern const struct _openslide_format _openslide_format_philips_tiff;
@@ -160,8 +162,13 @@ extern const struct _openslide_format _openslide_format_ventana;
 extern const struct _openslide_format _openslide_format_zeiss;
 
 /* g_key_file_new() + g_key_file_load_from_file() wrapper */
+enum _openslide_key_file_flavor {
+  OPENSLIDE_KEY_FILE_GENERIC,
+  OPENSLIDE_KEY_FILE_MIRAX,
+};
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
-                                   GKeyFileFlags flags, GError **err);
+                                   enum _openslide_key_file_flavor flavor,
+                                   GError **err);
 
 void *_openslide_inflate_buffer(const void *src, int64_t src_len,
                                 int64_t dst_len,
@@ -189,11 +196,19 @@ double _openslide_parse_double(const char *value);
 /* Serialize double to string */
 char *_openslide_format_double(double d);
 
+/* Decode Base64 to string */
+char *_openslide_decode_base64_str(const char *base64);
+
 /* Duplicate OpenSlide properties */
+void _openslide_duplicate_str_prop(openslide_t *osr, const char *src,
+                                   const char *dest);
 void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest);
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest);
+void _openslide_duplicate_double_prop_scaled(openslide_t *osr,
+                                             const char *src, double scale,
+                                             const char *dest);
 
 // background color helper
 void _openslide_set_background_color_prop(openslide_t *osr,
@@ -205,6 +220,10 @@ bool _openslide_clip_tile(uint32_t *tiledata,
                           int64_t clip_w, int64_t clip_h,
                           GError **err);
 
+#define OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(f) _openslide_notify_ ## f
+#define OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(f) \
+  static void OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(f)(void *p) {f(p);}
+
 
 // File handling
 struct _openslide_file;
@@ -214,10 +233,10 @@ size_t _openslide_fread(struct _openslide_file *file, void *buf, size_t size,
                         GError **err);
 bool _openslide_fread_exact(struct _openslide_file *file,
                             void *buf, size_t size, GError **err);
-bool _openslide_fseek(struct _openslide_file *file, off_t offset, int whence,
+bool _openslide_fseek(struct _openslide_file *file, int64_t offset, int whence,
                       GError **err);
-off_t _openslide_ftell(struct _openslide_file *file, GError **err);
-off_t _openslide_fsize(struct _openslide_file *file, GError **err);
+int64_t _openslide_ftell(struct _openslide_file *file, GError **err);
+int64_t _openslide_fsize(struct _openslide_file *file, GError **err);
 void _openslide_fclose(struct _openslide_file *file);
 bool _openslide_fexists(const char *path, GError **err);
 
@@ -266,6 +285,9 @@ struct _openslide_grid *_openslide_grid_create_simple(openslide_t *osr,
                                                       int32_t tile_h,
                                                       _openslide_grid_simple_read_fn read_tile);
 
+void _openslide_grid_simple_set_missing(struct _openslide_grid *grid,
+                                        int64_t tile_col, int64_t tile_row);
+
 struct _openslide_grid *_openslide_grid_create_tilemap(openslide_t *osr,
                                                        double tile_advance_x,
                                                        double tile_advance_y,
@@ -310,6 +332,7 @@ void _openslide_grid_destroy(struct _openslide_grid *grid);
 
 /* Bounds properties helper */
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid);
 
 
@@ -354,6 +377,34 @@ typedef struct _openslide_cache_entry _openslide_cache_entry;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_cache_entry,
                               _openslide_cache_entry_unref)
 
+
+/* hashing */
+
+// constructor
+struct _openslide_hash *_openslide_hash_quickhash1_create(void);
+
+// hashers
+void _openslide_hash_data(struct _openslide_hash *hash, const void *data,
+                          int32_t datalen);
+void _openslide_hash_string(struct _openslide_hash *hash, const char *str);
+bool _openslide_hash_file(struct _openslide_hash *hash, const char *filename,
+                          GError **err);
+bool _openslide_hash_file_part(struct _openslide_hash *hash,
+			       const char *filename,
+			       int64_t offset, int64_t size,
+			       GError **err);
+
+// lockout
+void _openslide_hash_disable(struct _openslide_hash *hash);
+
+// accessor
+const char *_openslide_hash_get_string(struct _openslide_hash *hash);
+
+// destructor
+void _openslide_hash_destroy(struct _openslide_hash *hash);
+
+typedef struct _openslide_hash _openslide_hash;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_hash, _openslide_hash_destroy)
 
 /* Internal error propagation */
 enum OpenSlideError {
@@ -422,5 +473,3 @@ extern const int16_t _openslide_B_Cb[256];
 // Only the pointer address of cairo_user_data_key_t is used as key for storing
 // data in cairo surface
 extern const cairo_user_data_key_t _openslide_cairo_key;
-
-#endif

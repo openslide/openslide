@@ -16,20 +16,26 @@ env:
 jobs:
   pre-commit:
     name: Rerun pre-commit checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: 3.15
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get -y install libfuse3-dev
+          python -m pip install prek uv
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          key: prek|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.1
+        run: prek run -a --show-diff-on-failure --color=always
 
   primary:
     name: Primary tests (Fedora)
@@ -42,28 +48,26 @@ jobs:
       run: |
         dnf install -y \
             gcc git-core meson pkg-config \
-            python3-requests python3-pyyaml \
-            diffutils \
-            zlib-devel \
-            libzstd-devel \
-            libpng-devel \
-            libjpeg-turbo-devel \
-            libtiff-devel \
-            openjpeg2-devel \
-            gdk-pixbuf2-modules-extra gdk-pixbuf2-devel \
-            libdicom-devel \
-            libxml2-devel \
-            sqlite-devel \
             cairo-devel \
             glib2-devel \
+            libdicom-devel \
+            libjpeg-turbo-devel \
+            libpng-devel \
+            libtiff-devel \
+            libxml2-devel \
+            libzstd-devel \
+            openjpeg2-devel \
+            sqlite-devel \
+            zlib-devel \
             xdelta libjpeg-turbo-utils \
             clang doxygen llvm dnf-plugins-core
         dnf debuginfo-install -y cairo fontconfig glib2
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Build
       run: |
-        if ! meson setup builddir --werror; then
+        if ! meson setup builddir --fatal-meson-warnings --werror \
+                -Dtest=enabled; then
             cat builddir/meson-logs/meson-log.txt
             exit 1
         fi
@@ -71,7 +75,7 @@ jobs:
     - name: Check
       run: |
         trap "cat builddir/meson-logs/testlog.txt" EXIT
-        meson test -C builddir
+        meson test -C builddir openslide:
     - name: Docs
       id: docs
       run: |
@@ -82,7 +86,7 @@ jobs:
         mv doc/html ../artifacts/docs/${docroot}
         echo "doc-base=${docroot}" >> $GITHUB_OUTPUT
     - name: Archive docs
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ steps.docs.outputs.doc-base }}
         path: artifacts/docs
@@ -96,13 +100,13 @@ jobs:
         mv builddir/meson-dist/*.tar.xz "artifacts/dist/$dist"
         echo "dist-base=$dist" >> $GITHUB_OUTPUT
     - name: Archive dist
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ steps.dist.outputs.dist-base }}
         path: artifacts/dist
         compression-level: 0
     - name: Cache pristine slides
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
@@ -120,7 +124,7 @@ jobs:
       run: cd builddir/test && ./driver exports
 
   build:
-    name: Build
+    name: Build (${{ matrix.name }})
     # wait for test data to be cached
     needs: primary
     runs-on: ${{ matrix.os }}
@@ -128,28 +132,40 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - name: AlmaLinux 8
+            os: ubuntu-latest
             container: quay.io/almalinuxorg/almalinux:8
-          - os: ubuntu-latest
+          - name: CentOS Stream 9
+            os: ubuntu-latest
             container: quay.io/centos/centos:stream9
-          - os: ubuntu-latest
-            container: debian:11
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
-          - os: ubuntu-latest
+          - name: CentOS Stream 10
+            os: ubuntu-latest
+            container: quay.io/centos/centos:stream10
+          - name: Debian 12
+            os: ubuntu-latest
             container: debian:12
-          - os: ubuntu-latest
-            container: debian:12
+          - name: Debian 13
+            os: ubuntu-latest
+            container: debian:13
+          - name: Debian 13, i386
+            os: ubuntu-latest
+            container: debian:13
             arch: i386
-          - os: ubuntu-24.04-aarch64
-            container: debian:12
-          - os: ubuntu-20.04
-            ignore-cloexec-leaks: ignore CLOEXEC leaks
-          - os: ubuntu-22.04
-          - os: ubuntu-24.04
-          - os: macos-latest
-            sanitize: sanitize
+          - name: Debian 13, aarch64
+            os: ubuntu-24.04-arm
+            container: debian:13
+          - name: Ubuntu 22.04
+            os: ubuntu-22.04
+          - name: Ubuntu 24.04
+            os: ubuntu-24.04
+          - name: Ubuntu 26.04
+            os: ubuntu-26.04
+          - name: macOS
+            os: macos-latest
+            sanitize: true
     steps:
     - name: Install dependencies
+      shell: bash
       run: |
         case "${{ matrix.os }}" in
         macos-*)
@@ -160,47 +176,42 @@ jobs:
                 brew link --overwrite $formula
             done
             brew update
-            brew install \
+            brew install --quiet \
                 meson pkg-config \
-                zlib \
-                zstd \
-                jxrlib \
-                libpng \
-                jpeg-turbo \
-                libtiff \
-                openjpeg \
-                gdk-pixbuf \
-                libdicom \
-                libxml2 \
-                sqlite \
                 cairo \
                 glib \
+                jxrlib \
+                jpeg-turbo \
+                libdicom \
+                libpng \
+                libtiff \
+                libxml2 \
+                openjpeg \
+                sqlite \
+                zlib \
+                zstd \
                 xdelta
-            # Install Python packages that Homebrew does not wish to maintain.
-            # Use --break-system-packages so pip doesn't refuse to install
-            # outside a virtualenv.
-            python3 -m pip install --break-system-packages \
-                PyYAML \
-                requests
             ;;
         ubuntu-*)
             case "${{ matrix.container }}" in
             *centos*|*almalinux*)
-                pyver=3
                 . /etc/os-release
                 case "$VERSION_ID" in
                 8.*)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled powertools
                     dnf install -y epel-release
-                    pyver=38
-                    pydotver=3.8
-                    python=python38
+                    python=python3.11
                     ;;
                 9)
                     dnf install -y 'dnf-command(config-manager)'
                     dnf config-manager --set-enabled crb
                     dnf install -y epel-release epel-next-release
+                    python=python3.11
+                    ;;
+                10)
+                    dnf config-manager --set-enabled crb
+                    dnf install -y epel-release
                     ;;
                 esac
 
@@ -208,36 +219,33 @@ jobs:
                 # https://github.com/actions/cache/issues/1169
                 dnf install -y \
                     gcc git-core meson pkg-config \
-                    $python python${pyver}-requests python${pyver}-pyyaml \
-                    diffutils \
-                    zlib-devel \
-                    libzstd-devel \
-                    jxrlib-devel \
-                    libpng-devel \
-                    libjpeg-turbo-devel \
-                    libtiff-devel \
-                    openjpeg2-devel \
-                    gdk-pixbuf2-modules gdk-pixbuf2-devel \
-                    libdicom-devel \
-                    libxml2-devel \
-                    sqlite-devel \
+                    $python \
                     cairo-devel \
                     glib2-devel \
+                    libdicom-devel \
+                    jxrlib-devel \
+                    libjpeg-turbo-devel \
+                    libpng-devel \
+                    libtiff-devel \
+                    libxml2-devel \
+                    libzstd-devel \
+                    openjpeg2-devel \
+                    sqlite-devel \
+                    zlib-devel \
                     xdelta libjpeg-turbo-utils \
                     zstd
-
-                if [ -n "$pydotver" ]; then
-                    alternatives --set python3 "/usr/bin/python${pydotver}"
-                fi
                 ;;
-            *debian*|"")
-                if [ -n "${{ matrix.container }}" ]; then
+            *debian*|*ubuntu*|"")
+                if [[ "${{ matrix.container }}" =~ debian ]]; then
                     # Debian container
                     jpeg=libjpeg-dev
                 else
-                    # Ubuntu, on host
+                    # Ubuntu container or host
                     jpeg=libjpeg-turbo8-dev
-                    sudo=sudo
+                    if [ -z "${{ matrix.container }}" ]; then
+                        # Host
+                        sudo=sudo
+                    fi
                 fi
                 if [ -n "${{ matrix.arch }}" ]; then
                     $sudo dpkg --add-architecture "${{ matrix.arch }}"
@@ -247,36 +255,29 @@ jobs:
                 $sudo apt-get update
                 # zstd command-line program needed to restore cache
                 # https://github.com/actions/cache/issues/1169
-                $sudo apt-get -y install \
+                DEBIAN_FRONTEND=noninteractive $sudo apt-get -y install \
                     gcc git meson pkg-config \
-                    python3-requests python3-yaml \
-                    zlib1g-dev$arch \
-                    libzstd-dev$arch \
-                    libjxr-dev$arch \
-                    libpng-dev$arch \
-                    $jpeg$arch \
-                    libtiff-dev$arch \
-                    libopenjp2-7-dev$arch \
-                    libgdk-pixbuf2.0-dev$arch \
-                    libxml2-dev$arch \
-                    libsqlite3-dev$arch \
                     libcairo2-dev$arch \
                     libglib2.0-dev$arch \
-                    xdelta3 libjpeg-turbo-progs $extra \
+                    libjxr-dev$arch \
+                    $jpeg$arch \
+                    libopenjp2-7-dev$arch \
+                    libpng-dev$arch \
+                    libsqlite3-dev$arch \
+                    libtiff-dev$arch \
+                    libxml2-dev$arch \
+                    libzstd-dev$arch \
+                    zlib1g-dev$arch \
+                    python3-venv xdelta3 libjpeg-turbo-progs $extra \
                     zstd
                 ;;
             esac
         esac
     - name: Check out repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Build
       run: |
-        args=
-        if [ -n "${{ matrix.ignore-cloexec-leaks }}" ]; then
-            # Some distro versions have leaky libraries
-            echo "Disabling CLOEXEC leak check"
-            args="-D_nonatomic_cloexec=true"
-        fi
+        args="-Dtest=enabled"
         if [ -n "${{ matrix.arch }}" ]; then
             cat > cross.ini << EOF
         [built-in options]
@@ -309,9 +310,9 @@ jobs:
     - name: Check
       run: |
         trap "cat builddir/meson-logs/testlog.txt" EXIT
-        meson test -C builddir
+        meson test -C builddir openslide:
     - name: Cache pristine slides
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         key: pristine
         path: builddir/test/_slidedata/pristine
@@ -328,8 +329,78 @@ jobs:
       if: matrix.sanitize
       run: cd builddir/test && ./driver sanitize
 
-  windows_setup:
-    name: Set up Windows build
+  vcpkg-wait:
+    name: Wait for vcpkg cache
+    # ideally ubuntu-slim, but that has a hard timeout of 15 minutes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for cache
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${{ github.repository }}"
+          # always use upstream repo
+          repo_arg="-R openslide/${repo##*/}"
+          # Give the run some time to populate, less than the job ever takes
+          # to complete.  If we lose the race, we may redundantly build
+          # vcpkg packages.
+          sleep 30
+          info=$(gh run list $repo_arg -w vcpkg-cache.yml -L 1 \
+              --json databaseId,url)
+          echo "Waiting for $(echo $info | jq -r .[].url)"
+          gh run watch $repo_arg \
+              "$(echo $info | jq -r .[].databaseId)" >/dev/null
+
+  windows-build:
+    name: Build (Windows, ${{ matrix.toolchain }})
+    needs: [primary, vcpkg-wait]
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - toolchain: clang-cl
+            cc: clang-cl
+          - toolchain: MinGW
+            cc: gcc
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+      # for vcpkg caching
+      packages: read
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: 3.15
+      - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          scripts/vcpkg-install.sh
+          pip install meson
+      - name: Build
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          if ! meson setup builddir --fatal-meson-warnings --werror \
+                  -Dxdelta3:warning_level=0 \
+                  -Dxdelta3:werror=false \
+                  -Dtest=enabled; then
+              cat builddir/meson-logs/meson-log.txt
+              exit 1
+          fi
+          ninja -C builddir
+      - name: Check
+        run: |
+          trap "cat builddir/meson-logs/testlog.txt" EXIT
+          meson test -C builddir openslide:
+
+  bin-setup:
+    name: Set up openslide-bin build
     runs-on: ubuntu-latest
     outputs:
       suffix: ${{ steps.params.outputs.suffix }}
@@ -357,28 +428,28 @@ jobs:
               exit 1
           esac
 
-  windows_build:
-    name: Windows build
-    needs: windows_setup
+  bin-build:
+    name: Build (openslide-bin)
+    needs: bin-setup
     uses: openslide/openslide-bin/.github/workflows/build.yml@main
     with:
       openslide_repo: ${{ github.repository }}
       openslide_ref: ${{ github.ref }}
-      suffix: ${{ needs.windows_setup.outputs.suffix }}
+      suffix: ${{ needs.bin-setup.outputs.suffix }}
       werror: true
-      windows_builder_repo_and_digest: ${{ needs.windows_setup.outputs.windows_builder_repo_and_digest }}
+      windows_builder_repo_and_digest: ${{ needs.bin-setup.outputs.windows_builder_repo_and_digest }}
 
   release:
     name: Release
     if: github.ref_type == 'tag'
-    needs: [primary, build, windows_build]
+    needs: [primary, build, windows-build, bin-build]
     runs-on: ubuntu-latest
     concurrency: release-${{ github.ref }}
     permissions:
       contents: write
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: ${{ needs.primary.outputs.dist-base }}
         merge-multiple: true

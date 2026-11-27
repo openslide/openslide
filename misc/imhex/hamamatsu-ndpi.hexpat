@@ -61,11 +61,13 @@ enum TIFFTag : u16 {
     DateTime = 0x0132,
     YCbCrSubSampling = 0x0212,
     ReferenceBlackWhite = 0x0214,
+    NDPIFormat = 0xff8c,
     SourceLens = 0xff8d,
     XOffsetFromSlideCentre = 0xff8e,
     YOffsetFromSlideCentre = 0xff8f,
     ZOffsetFromSlideCentre = 0xff90,
     OptimisationLow = 0xff92,
+    Reference = 0xff93,
     OptimisationHigh = 0xff98,
     SerialNumber = 0xffa2,
     NDPIMetadata = 0xffa9,
@@ -84,7 +86,7 @@ struct ValueOffset<T, auto Count> {
     u32 ValueOffsetHigh @ addressof(parent.parent) + 12 * parent.parent.NumberDirectoryEntries + 4 * std::core::array_index() + 10;
     u64 Size = sizeof(T) * Count;
     // 0xffb3 (ASCII) is an offset even when the value fits in 4 bytes
-    if (Size <= 4 && parent.Tag != 0xffb3) {
+    if (Size <= 4 && parent.Type != TIFFFieldType::ASCII) {
         // no simple way to append two separate byte arrays into a
         // ValueArray, so support the case we care about (StripOffsets and
         // StripByteCounts) and don't support value extensions on inline

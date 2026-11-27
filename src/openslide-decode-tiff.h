@@ -19,11 +19,9 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_TIFF_H_
+#pragma once
 
 #include "openslide-private.h"
-#include "openslide-hash.h"
 
 #include <stdint.h>
 #include <glib.h>
@@ -57,11 +55,10 @@ bool _openslide_tiff_level_init(TIFF *tiff,
                                 struct _openslide_tiff_level *tiffl,
                                 GError **err);
 
-bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
-                                        TIFF *tiff,
-                                        int64_t tile_col, int64_t tile_row,
-                                        bool *is_missing,
-                                        GError **err);
+bool _openslide_tiff_missing_tiles_to_simple_grid(struct _openslide_tiff_level *tiffl,
+                                                  TIFF *tiff,
+                                                  struct _openslide_grid *grid,
+                                                  GError **err);
 
 bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
                                TIFF *tiff,
@@ -126,5 +123,3 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(_openslide_tiffcache,
 typedef struct _openslide_cached_tiff _openslide_cached_tiff;
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(_openslide_cached_tiff,
                                  _openslide_cached_tiff_put)
-
-#endif

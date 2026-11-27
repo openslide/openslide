@@ -1,0 +1,6 @@
+base: Argos/Argos-1.avs
+error: ^No pyramid levels found$
+slide: Argos-1.avs
+success: false
+vendor: argos
+requires: [tiff-log-callbacks]

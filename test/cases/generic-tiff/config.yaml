@@ -4,5 +4,9 @@ success: true
 vendor: generic-tiff
 primary: true
 properties:
+  openslide.bounds-height: ~
+  openslide.bounds-width: ~
+  openslide.bounds-x: ~
+  openslide.bounds-y: ~
   openslide.quickhash-1: 428aa6abf42c774234a463cb90e2cbf88423afc0217e46ec2e308f31e29f1a9f
   openslide.vendor: generic-tiff

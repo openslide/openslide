@@ -102,7 +102,7 @@ static void write_lines_png(png_structp png_ptr, uint32_t *buf,
       uint8_t r = (((p >> 16) & 0xff) * 255 + a / 2) / a;
       uint8_t g = (((p >> 8) & 0xff) * 255 + a / 2) / a;
       uint8_t b = ((p & 0xff) * 255 + a / 2) / a;
-      buf[i] = GUINT32_TO_BE(r << 24 | g << 16 | b << 8 | a);
+      buf[i] = GUINT32_TO_BE((uint32_t) r << 24 | g << 16 | b << 8 | a);
     }
   }
 
@@ -155,7 +155,7 @@ static void write_png(openslide_t *osr, FILE *f,
   png_write_info(png_ptr, info_ptr);
 
   const int32_t lines_at_a_time = MAX(BUFSIZE / (w * 4), 1);
-  g_autofree uint32_t *dest = g_malloc(lines_at_a_time * w * 4);
+  g_autofree uint32_t *dest = g_new(uint32_t, lines_at_a_time * w);
   int32_t lines_to_draw = h;
   double ds = openslide_get_level_downsample(osr, level);
   int32_t yy = y / ds;
@@ -301,7 +301,7 @@ static void assoc_read(openslide_t *osr, const char *image, FILE *f,
   // start writing
   png_write_info(png_ptr, info_ptr);
 
-  g_autofree uint32_t *dest = g_malloc(w * h * 4);
+  g_autofree uint32_t *dest = g_new(uint32_t, w * h);
   openslide_read_associated_image(osr, image, dest);
   common_fail_on_error(osr, "Reading associated image");
 

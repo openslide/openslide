@@ -2,6 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2014 Carnegie Mellon University
+ *  Copyright (c) 2026 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -22,17 +23,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <unistd.h>
 #include <inttypes.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
 #include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #include <glib.h>
 #include <openslide.h>
 #include "openslide-common.h"
+#include "libtest.h"
 #include "config.h"
 
 // SHA-256 of no bytes
@@ -48,6 +50,86 @@ static void test_image_fetch(openslide_t *osr,
   common_fail_on_error(osr,
                        "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
                        x, y, w, h);
+}
+
+static void assert_region_opacity(openslide_t *osr,
+                                  int64_t x, int64_t y, int64_t w, int64_t h,
+                                  int64_t tw, int64_t th,
+                                  const char *desc, const char *region,
+                                  bool want_opaque) {
+  // check in chunks so we don't load all four complete slide edges into the
+  // frozen archive.  we don't need to exactly align with tile boundaries,
+  // just try to work with about a tile at a time
+  for (int64_t cur_y = y; cur_y < y + h; cur_y += th) {
+    for (int64_t cur_x = x; cur_x < x + w; cur_x += tw) {
+      int64_t cur_w = MIN(w - (cur_x - x), tw);
+      int64_t cur_h = MIN(h - (cur_y - y), th);
+      g_autofree uint32_t *buf = g_new(uint32_t, cur_w * cur_h);
+      openslide_read_region(osr, buf, cur_x, cur_y, 0, cur_w, cur_h);
+      common_fail_on_error(osr,
+                           "Read failed: %"PRId64" %"PRId64" %"PRId64" %"PRId64,
+                           cur_x, cur_y, cur_w, cur_h);
+      for (int64_t i = 0; i < cur_w * cur_h; i++) {
+        if (buf[i] >> 24) {
+          if (want_opaque) {
+            return;
+          } else {
+            common_fail("%s of %s has an opaque pixel", region, desc);
+          }
+        }
+      }
+    }
+  }
+  if (want_opaque) {
+    common_fail("%s of %s has no opaque pixels", region, desc);
+  }
+}
+
+static void assert_border_opacity(openslide_t *osr,
+                                  int64_t x, int64_t y, int64_t w, int64_t h,
+                                  int64_t tw, int64_t th,
+                                  const char *desc, bool want_opaque) {
+  assert_region_opacity(osr, x, y, 1, h, tw, th,
+                        desc, "left edge", want_opaque);
+  assert_region_opacity(osr, x + w - 1, y, 1, h, tw, th,
+                        desc, "right edge", want_opaque);
+  assert_region_opacity(osr, x, y, w, 1, tw, th,
+                        desc, "top edge", want_opaque);
+  assert_region_opacity(osr, x, y + h - 1, w, 1, tw, th,
+                        desc, "bottom edge", want_opaque);
+}
+
+static void test_read_associated_images(openslide_t *osr) {
+  const char * const *associated_image_names =
+    openslide_get_associated_image_names(osr);
+  common_fail_on_error(osr, "Listing associated images failed");
+  while (*associated_image_names) {
+    int64_t w, h;
+    const char *name = *associated_image_names;
+    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+
+    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
+    openslide_read_associated_image(osr, name, buf);
+
+    int64_t icc_len =
+      openslide_get_associated_image_icc_profile_size(osr, name);
+    if (icc_len >= 0) {
+      g_autofree void *buf = g_malloc(icc_len);
+      openslide_read_associated_image_icc_profile(osr, name, buf);
+    }
+
+    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
+    associated_image_names++;
+  }
+}
+
+static void test_read_icc_profile(openslide_t *osr) {
+  int64_t icc_len = openslide_get_icc_profile_size(osr);
+  if (icc_len >= 0) {
+    g_autofree void *buf = g_malloc(icc_len);
+    openslide_read_icc_profile(osr, buf);
+  }
+  common_fail_on_error(osr, "Reading ICC profile failed");
 }
 
 #if !defined(NONATOMIC_CLOEXEC) && !defined(_WIN32)
@@ -84,7 +166,7 @@ static gpointer cloexec_thread(const gpointer prog) {
 static void check_cloexec_leaks(const char *slide, void *prog,
                                 int64_t x, int64_t y) {
   // ensure any inherited FDs are not leaked to the child
-  for (int i = 3; i < COMMON_MAX_FD; i++) {
+  for (int i = 3; i < LIBTEST_MAX_FD; i++) {
     int flags = fcntl(i, F_GETFD);
     if (flags != -1) {
       fcntl(i, F_SETFD, flags | FD_CLOEXEC);
@@ -122,7 +204,7 @@ struct cache_thread_params {
 
 static void *cache_thread(void *data) {
   struct cache_thread_params *params = data;
-  g_autofree uint32_t *buf = g_malloc(4 * params->w * params->h);
+  g_autofree uint32_t *buf = g_new(uint32_t, params->w * params->h);
   while (!g_atomic_int_get(params->stop)) {
     // read some tiles
     openslide_read_region(params->osr[0], buf, 0, 0, 0, params->w, params->h);
@@ -174,7 +256,7 @@ static void check_shared_cache(const char *slide) {
   cache_thread_start(params, osrs, 4,  100,  100,       0, &stop);
 
   // let them run
-  sleep(1);
+  g_usleep(G_USEC_PER_SEC);
 
   g_atomic_int_set(&stop, 1);
   for (int i = 0; i < CACHE_THREADS; i++) {
@@ -193,11 +275,11 @@ int main(int argc, char **argv) {
   const char *path = argv[1];
 
   if (g_str_equal(path, "--leak-check--")) {
-    common_check_open_fds(NULL, "Leaked file descriptor to exec child");
+    libtest_check_open_fds(NULL, "Leaked file descriptor to exec child");
     return 0;
   }
 
-  g_autoptr(GHashTable) fds = common_get_open_fds();
+  g_autoptr(GHashTable) fds = libtest_get_open_fds();
 
   openslide_get_version();
 
@@ -207,7 +289,7 @@ int main(int argc, char **argv) {
 
   openslide_t *osr = openslide_open(path);
   common_fail_on_error(osr, "Couldn't open %s", path);
-  common_check_open_fds(fds, "Open file descriptor after openslide_open()");
+  libtest_check_open_fds(fds, "Open file descriptor after openslide_open()");
   openslide_close(osr);
 
   osr = openslide_open(path);
@@ -263,36 +345,9 @@ int main(int argc, char **argv) {
     common_fail("quickhash-1 exists but no data was hashed");
   }
 
-  // read associated images
-  const char * const *associated_image_names =
-    openslide_get_associated_image_names(osr);
-  common_fail_on_error(osr, "Listing associated images failed");
-  while (*associated_image_names) {
-    int64_t w, h;
-    const char *name = *associated_image_names;
-    openslide_get_associated_image_dimensions(osr, name, &w, &h);
+  test_read_associated_images(osr);
 
-    g_autofree uint32_t *buf = g_new(uint32_t, w * h);
-    openslide_read_associated_image(osr, name, buf);
-
-    int64_t icc_len =
-      openslide_get_associated_image_icc_profile_size(osr, name);
-    if (icc_len >= 0) {
-      g_autofree void *buf = g_malloc(icc_len);
-      openslide_read_associated_image_icc_profile(osr, name, buf);
-    }
-
-    common_fail_on_error(osr, "Reading associated image \"%s\" failed", name);
-    associated_image_names++;
-  }
-
-  // read ICC profile
-  int64_t icc_len = openslide_get_icc_profile_size(osr);
-  if (icc_len >= 0) {
-    g_autofree void *buf = g_malloc(icc_len);
-    openslide_read_icc_profile(osr, buf);
-  }
-  common_fail_on_error(osr, "Reading ICC profile failed");
+  test_read_icc_profile(osr);
 
   test_image_fetch(osr, -10, -10, 200, 200);
   test_image_fetch(osr, w/2, h/2, 500, 500);
@@ -301,18 +356,46 @@ int main(int argc, char **argv) {
   test_image_fetch(osr, w - 20, 0, 40, 100);
   test_image_fetch(osr, 0, h - 20, 100, 40);
 
+  const char *tw = openslide_get_property_value(osr, "openslide.level[0].tile-width");
+  const char *th = openslide_get_property_value(osr, "openslide.level[0].tile-height");
+  if (!tw ^ !th) {
+    common_fail("Expected both level 0 tile-size properties or neither");
+  }
+  // tile size for opacity checks
+  int64_t otw = tw ? g_ascii_strtoll(tw, NULL, 10) : 256;
+  int64_t oth = th ? g_ascii_strtoll(th, NULL, 10) : 256;
+  assert_border_opacity(osr, -1, -1, w + 2, h + 2, otw, oth,
+                        "just outside level dimensions", false);
+
   // active region
   const char *bounds_x = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_X);
   const char *bounds_y = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y);
+  const char *bounds_w = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH);
+  const char *bounds_h = openslide_get_property_value(osr, OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT);
+  int bounds_prop_count = !!bounds_x + !!bounds_y + !!bounds_w + !!bounds_h;
+  if (bounds_prop_count != 0 && bounds_prop_count != 4) {
+    common_fail("Found %d bounds properties, expected 0 or 4", bounds_prop_count);
+  }
   int64_t bounds_xx = 0;
   int64_t bounds_yy = 0;
-  if (bounds_x && bounds_y) {
+  if (bounds_x) {
     bounds_xx = g_ascii_strtoll(bounds_x, NULL, 10);
     bounds_yy = g_ascii_strtoll(bounds_y, NULL, 10);
+    int64_t bounds_ww = g_ascii_strtoll(bounds_w, NULL, 10);
+    int64_t bounds_hh = g_ascii_strtoll(bounds_h, NULL, 10);
     test_image_fetch(osr, bounds_xx, bounds_yy, 200, 200);
+    assert_border_opacity(osr, bounds_xx, bounds_yy, bounds_ww, bounds_hh,
+                          otw, oth, "tile bounds", true);
+    assert_border_opacity(osr,
+                          bounds_xx - 1, bounds_yy - 1,
+                          bounds_ww + 2, bounds_hh + 2,
+                          otw, oth,
+                          "just outside tile bounds", false);
+  } else {
+    assert_border_opacity(osr, 0, 0, w, h, otw, oth, "level dimensions", true);
   }
 
-  common_check_open_fds(fds, "Open file descriptor after reading pixel data");
+  libtest_check_open_fds(fds, "Open file descriptor after reading pixel data");
 
   openslide_close(osr);
 

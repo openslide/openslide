@@ -1,0 +1,5 @@
+base: Argos/Argos-1.avs
+error: "^Parsing metadata XML: Couldn't parse focal plane indices: q, 0$"
+slide: Argos-1.avs
+success: false
+vendor: argos

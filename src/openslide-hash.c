@@ -21,8 +21,6 @@
 
 #include "openslide-private.h"
 
-#include "openslide-hash.h"
-
 #include <stdio.h>
 #include <string.h>
 #include <glib.h>

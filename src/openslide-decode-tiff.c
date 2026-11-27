@@ -36,8 +36,6 @@
 #include <math.h>
 #include <cairo.h>
 
-#include "openslide-hash.h"
-
 #define HANDLE_CACHE_MAX 32
 
 struct _openslide_tiffcache {
@@ -171,7 +169,7 @@ bool _openslide_tiff_clip_tile(struct _openslide_tiff_level *tiffl,
 static bool tiff_read_region(TIFF *tiff,
                              uint32_t *dest,
                              int64_t x, int64_t y,
-                             int32_t w, int32_t h,
+                             uint32_t w, uint32_t h,
                              GError **err) {
   TIFFRGBAImage img;
   char emsg[1024] = "unknown error";
@@ -202,7 +200,6 @@ static bool tiff_read_region(TIFF *tiff,
     success = true;
   } else {
     _openslide_tiff_error(err, tiff, "TIFFRGBAImageGet failed");
-    memset(dest, 0, w * h * 4);
   }
 
   // done
@@ -227,7 +224,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
 
     // load JPEG tables
     if (tables) {
-      _openslide_jpeg_mem_src(cinfo, tables, tables_len);
+      jpeg_mem_src(cinfo, tables, tables_len);
       if (jpeg_read_header(cinfo, false) != JPEG_HEADER_TABLES_ONLY) {
         g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
                     "Couldn't load JPEG tables");
@@ -236,7 +233,7 @@ static bool decode_jpeg(const void *buf, uint32_t buflen,
     }
 
     // set up I/O
-    _openslide_jpeg_mem_src(cinfo, buf, buflen);
+    jpeg_mem_src(cinfo, buf, buflen);
 
     // read header
     if (jpeg_read_header(cinfo, true) != JPEG_HEADER_OK) {
@@ -306,9 +303,14 @@ bool _openslide_tiff_read_tile(struct _openslide_tiff_level *tiffl,
     _openslide_performance_warn_once(&tiffl->warned_read_indirect,
                                      "Using slow libtiff read path for "
                                      "directory %d", tiffl->dir);
+    // artificially limit dest height so libtiff 4.7.1 won't unpad the
+    // bottom row of tiles into the bottom pixels of dest
+    // https://gitlab.com/libtiff/libtiff/-/issues/791
+    uint32_t clipped_h =
+      MIN(tiffl->tile_h, MAX(tiffl->image_h - tile_row * tiffl->tile_h, 0));
     return tiff_read_region(tiff, dest,
                             tile_col * tiffl->tile_w, tile_row * tiffl->tile_h,
-                            tiffl->tile_w, tiffl->tile_h, err);
+                            tiffl->tile_w, clipped_h, err);
   }
 }
 
@@ -350,36 +352,34 @@ bool _openslide_tiff_read_tile_data(struct _openslide_tiff_level *tiffl,
   return true;
 }
 
-// sets out-argument to indicate whether the tile data is zero bytes long
-// returns false on error
-bool _openslide_tiff_check_missing_tile(struct _openslide_tiff_level *tiffl,
-                                        TIFF *tiff,
-                                        int64_t tile_col, int64_t tile_row,
-                                        bool *is_missing,
-                                        GError **err) {
+bool _openslide_tiff_missing_tiles_to_simple_grid(struct _openslide_tiff_level *tiffl,
+                                                  TIFF *tiff,
+                                                  struct _openslide_grid *grid,
+                                                  GError **err) {
   // set directory
   if (!_openslide_tiff_set_dir(tiff, tiffl->dir, err)) {
     return false;
   }
 
-  // get tile number
-  ttile_t tile_no = TIFFComputeTile(tiff,
-                                    tile_col * tiffl->tile_w,
-                                    tile_row * tiffl->tile_h,
-                                    0, 0);
-
-  //g_debug("_openslide_tiff_check_missing_tile: tile %d", tile_no);
-
-  // get tile size
+  // get tile sizes
   toff_t *sizes;
   if (!TIFFGetField(tiff, TIFFTAG_TILEBYTECOUNTS, &sizes)) {
-    _openslide_tiff_error(err, tiff, "Cannot get tile size");
+    _openslide_tiff_error(err, tiff, "Cannot get tile sizes");
     return false;
   }
-  tsize_t tile_size = sizes[tile_no];
 
-  // return result
-  *is_missing = tile_size == 0;
+  // walk
+  for (int64_t tile_row = 0; tile_row < tiffl->tiles_down; tile_row++) {
+    for (int64_t tile_col = 0; tile_col < tiffl->tiles_across; tile_col++) {
+      ttile_t tile_no = TIFFComputeTile(tiff,
+                                        tile_col * tiffl->tile_w,
+                                        tile_row * tiffl->tile_h,
+                                        0, 0);
+      if (sizes[tile_no] == 0) {
+        _openslide_grid_simple_set_missing(grid, tile_col, tile_row);
+      }
+    }
+  }
   return true;
 }
 

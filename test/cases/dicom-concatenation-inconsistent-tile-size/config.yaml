@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-2.zip
+error: "^Reading .*/4_[12]: Tile size (256|512)x512 doesn't match level tile size (256|512)x512$"
+slide: '5_0'
+success: false
+vendor: dicom

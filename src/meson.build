@@ -25,10 +25,12 @@ openslide_dll_rc = configure_file(
 if host_machine.system() == 'windows'
   openslide_dll_o = import('windows').compile_resources(
     openslide_dll_rc,
+    # https://github.com/llvm/llvm-project/issues/63426
+    args : [cc.get_argument_syntax() == 'msvc' ? '/c' : '-c', '65001'],
     depend_files : [openslide_dll_manifest],
   )
 else
-  openslide_dll_o = files()
+  openslide_dll_o = []
 endif
 
 # Public headers
@@ -43,9 +45,10 @@ install_headers(
 openslide_image_avx2_sources = [
   'openslide-image-avx2.c',
 ]
-libopenslide_image_avx2 = static_library('libopenslide_image_avx2',
+libopenslide_image_avx2 = static_library(
+  'libopenslide_image_avx2',
   openslide_image_avx2_sources,
-  c_args: c_args_avx2,
+  c_args : c_args_avx2,
   gnu_symbol_visibility : visibility,
   include_directories : config_h_include,
 )
@@ -53,19 +56,18 @@ libopenslide_image_avx2 = static_library('libopenslide_image_avx2',
 openslide_image_ssse3_sources = [
   'openslide-image-ssse3.c',
 ]
-libopenslide_image_ssse3 = static_library('libopenslide_image_ssse3',
+libopenslide_image_ssse3 = static_library(
+  'libopenslide_image_ssse3',
   openslide_image_ssse3_sources,
-  c_args: c_args_ssse3,
+  c_args : c_args_ssse3,
   gnu_symbol_visibility : visibility,
   include_directories : config_h_include,
 )
 
-openslide_sources = [
-  'openslide.c',
+openslide_sources = files(
   'openslide-cache.c',
-  openslide_dll_o,
+  'openslide-decode-bmp.c',
   'openslide-decode-dicom.c',
-  'openslide-decode-gdkpixbuf.c',
   'openslide-decode-jp2k.c',
   'openslide-decode-jpeg.c',
   'openslide-decode-jxr.c',
@@ -80,12 +82,13 @@ openslide_sources = [
   'openslide-hash.c',
   'openslide-image.c',
   'openslide-jdatasrc.c',
-  openslide_tables_c,
   'openslide-util.c',
   'openslide-vendor-aperio.c',
+  'openslide-vendor-argos.c',
   'openslide-vendor-dicom.c',
   'openslide-vendor-generic-tiff.c',
   'openslide-vendor-hamamatsu.c',
+  'openslide-vendor-huron.c',
   'openslide-vendor-leica.c',
   'openslide-vendor-mirax.c',
   'openslide-vendor-philips-tiff.c',
@@ -94,19 +97,25 @@ openslide_sources = [
   'openslide-vendor-trestle.c',
   'openslide-vendor-ventana.c',
   'openslide-vendor-zeiss.c',
+  'openslide.c',
+) + [
+  openslide_dll_o,
+  openslide_tables_c,
 ]
 libopenslide = library(
   'openslide',
   openslide_sources,
   version : soversion,
   c_args : ['-D_OPENSLIDE_BUILDING_DLL', '-DG_LOG_DOMAIN="OpenSlide"'],
+  # Meson omits 'lib' by default on Windows except on MinGW.  Maintain
+  # compatibility with the MinGW build, since it was here first.
+  name_prefix : host_machine.system() == 'windows' ? 'lib' : [],
   gnu_symbol_visibility : visibility,
   include_directories : config_h_include,
   dependencies : [
     glib_dep,
     gio_dep,
     gobject_dep,
-    gdk_pixbuf_dep,
     cairo_dep,
     dicom_dep,
     sqlite_dep,
@@ -120,16 +129,16 @@ libopenslide = library(
     zstd_dep,
     libm_dep,
   ],
-  link_with: [libopenslide_image_ssse3, libopenslide_image_avx2],
+  link_with : [libopenslide_image_ssse3, libopenslide_image_avx2],
   install : true,
 )
 openslide_dep = declare_dependency(
-  include_directories : include_directories('.'),
+  include_directories : '.',
   link_with : [
     libopenslide,
     libopenslide_image_ssse3,
     libopenslide_image_avx2,
-  ]
+  ],
 )
 import('pkgconfig').generate(
   libopenslide,
@@ -137,6 +146,4 @@ import('pkgconfig').generate(
   subdirs : include_subdir,
   url : 'https://openslide.org',
 )
-if meson.version().version_compare('>=0.54')
-  meson.override_dependency('openslide', openslide_dep)
-endif
+meson.override_dependency('openslide', openslide_dep)

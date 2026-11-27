@@ -81,6 +81,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy(openslide_t *osr) {
   struct philips_tiff_ops_data *data = osr->data;
@@ -113,19 +114,7 @@ static bool read_tile(openslide_t *osr,
                                             level, tile_col, tile_row,
                                             &cache_entry);
   if (!tiledata) {
-    // slides with multiple ROIs are sparse
-    bool is_missing;
-    if (!_openslide_tiff_check_missing_tile(tiffl, tiff,
-                                            tile_col, tile_row,
-                                            &is_missing, err)) {
-      return false;
-    }
-    if (is_missing) {
-      // nothing to draw
-      return true;
-    }
-
-    g_autofree uint32_t *buf = g_malloc(tw * th * 4);
+    g_autofree uint32_t *buf = g_new(uint32_t, tw * th);
     if (!_openslide_tiff_read_tile(tiffl, tiff,
                                    buf, tile_col, tile_row,
                                    err)) {
@@ -472,6 +461,14 @@ static void add_openslide_properties(openslide_t *osr) {
                           g_strdup_printf("%u", objective_power));
     }
   }
+
+  const char *barcode = g_hash_table_lookup(osr->properties,
+                                            "philips.PIM_DP_UFS_BARCODE");
+  if (barcode) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BARCODE),
+                        _openslide_decode_base64_str(barcode));
+  }
 }
 
 static bool fix_level_dimensions(struct level **levels,
@@ -566,7 +563,7 @@ static bool philips_tiff_open(openslide_t *osr,
 
   // create levels
   g_autoptr(GPtrArray) level_array =
-    g_ptr_array_new_with_free_func((GDestroyNotify) destroy_level);
+    g_ptr_array_new_with_free_func(OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
   struct level *prev_l = NULL;
   do {
     // get directory
@@ -620,6 +617,11 @@ static bool philips_tiff_open(openslide_t *osr,
                                               tiffl->tile_w,
                                               tiffl->tile_h,
                                               read_tile);
+      // slides with multiple ROIs are sparse
+      if (!_openslide_tiff_missing_tiles_to_simple_grid(tiffl, ct.tiff, l->grid,
+                                                        err)) {
+        return false;
+      }
 
       // verify that levels are sorted by size
       if (prev_l &&

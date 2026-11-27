@@ -1,0 +1,9 @@
+# modify PatientID in 4_2, then verify we ignore the modification even when
+# 4_2 is opened directly (because we get properties from the first SOP
+# instance in level 0)
+base: DICOM/3DHISTECH-2.zip
+slide: '4_2'
+success: true
+vendor: dicom
+properties:
+  dicom.PatientID: ID_20240917094737

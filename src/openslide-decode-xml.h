@@ -19,8 +19,7 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_XML_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_XML_H_
+#pragma once
 
 #include "openslide-private.h"
 
@@ -64,5 +63,3 @@ void _openslide_xml_set_prop_from_xpath(openslide_t *osr,
 void _openslide_xml_char_free(xmlChar *p);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(xmlChar, _openslide_xml_char_free)
-
-#endif

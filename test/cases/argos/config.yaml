@@ -1,0 +1,21 @@
+base: Argos/Argos-1.avs
+slide: Argos-1.avs
+success: true
+vendor: argos
+primary: true
+requires: [tiff-log-callbacks]
+properties:
+  argos.FocusPoints: ~
+  argos.FocusPoints.Position: ~
+  argos.ScanArea: ~
+  argos.ScanArea.X1: '0.15'
+  openslide.barcode: '$63844615'
+  openslide.bounds-height: '41472'
+  openslide.bounds-width: '98816'
+  openslide.bounds-x: '25600'
+  openslide.bounds-y: '5632'
+  openslide.associated.macro.width: '1489'
+  openslide.associated.thumbnail.width: '3180'
+  openslide.objective-power: '20'
+  openslide.quickhash-1: 3f20ce64780d5aae7eeca05cfb29c6415f2a238950f7b981d982bcbb6f2d95d7
+  openslide.vendor: argos

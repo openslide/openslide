@@ -7,7 +7,9 @@ primary: true
 # Just fetch the original testdata file instead.
 freezable: false
 debug:
-- jpeg-markers
+  - jpeg-markers
+  - performance
 properties:
+  openslide.associated.macro.width: '1191'
   openslide.quickhash-1: 6f461a1e85ca672477b791e1ce5155bfbeec83c28c91263cf596db82f80ec7a5
   openslide.vendor: hamamatsu

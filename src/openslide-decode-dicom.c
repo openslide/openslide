@@ -24,13 +24,30 @@
 #include "openslide-private.h"
 #include "openslide-decode-dicom.h"
 
+#define CACHE_BLOCKS 2
+#define CACHE_BLOCK_SIZE 8192
+#define CACHE_BLOCK_MIN_RELOAD 1024
+//#define CACHE_DEBUG
+
+#ifdef CACHE_DEBUG
+#define cache_debug(args...) g_debug(args)
+#else
+#define cache_debug(args...) do {} while (0)
+#endif
+
 // implements DcmIO
 struct _openslide_dicom_io {
   DcmIOMethods *methods;
   char *filename;
   struct _openslide_file *file;  // may not be present without ensure_file()
-  int64_t offset;
+  int64_t virt_offset;
+  int64_t phys_offset;
   int64_t size;
+
+  uint8_t cache[CACHE_BLOCKS][CACHE_BLOCK_SIZE];
+  int64_t cache_offset[CACHE_BLOCKS];
+  int32_t cache_len[CACHE_BLOCKS];
+  int cache_mru_block;
 };
 
 void _openslide_dicom_propagate_error(GError **err, DcmError *dcm_error) {
@@ -64,15 +81,9 @@ static bool ensure_file(struct _openslide_dicom_io *dio, GError **err) {
   if (dio->file) {
     return true;
   }
-  g_autoptr(_openslide_file) f = _openslide_fopen(dio->filename, err);
-  if (!f) {
-    return false;
-  }
-  if (dio->offset && !_openslide_fseek(f, dio->offset, SEEK_SET, err)) {
-    return false;
-  }
-  dio->file = g_steal_pointer(&f);
-  return true;
+  g_assert(dio->phys_offset == 0);
+  dio->file = _openslide_fopen(dio->filename, err);
+  return dio->file != NULL;
 }
 
 static DcmIO *vfs_open(DcmError **dcm_error, void *client) {
@@ -97,37 +108,101 @@ static void vfs_close(DcmIO *io) {
   dicom_io_free((struct _openslide_dicom_io *) io);
 }
 
+// try to fill from cache, at least partially
+// the cache exists to reduce seeks, which incur syscall overhead and flush
+// libc's I/O buffer
+static int64_t cache_read(struct _openslide_dicom_io *dio,
+                          char *buffer, int64_t length) {
+  for (int block = 0; block < CACHE_BLOCKS; block++) {
+    if (dio->virt_offset >= dio->cache_offset[block] &&
+        dio->virt_offset < dio->cache_offset[block] + dio->cache_len[block]) {
+      int64_t count =
+        MIN(length,
+            dio->cache_offset[block] + dio->cache_len[block] - dio->virt_offset);
+      cache_debug("cache read [%d] %"PRId64" %"PRId64,
+                  block, dio->virt_offset, count);
+      memcpy(buffer,
+             &dio->cache[block][dio->virt_offset - dio->cache_offset[block]],
+             count);
+      dio->virt_offset += count;
+      dio->cache_mru_block = block;
+      return count;
+    }
+  }
+  return 0;
+}
+
 static int64_t vfs_read(DcmError **dcm_error, DcmIO *io,
                         char *buffer, int64_t length) {
   struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
   GError *tmp_err = NULL;
+  if (!length) {
+    return 0;
+  }
+  // fill from cache if possible
+  int64_t count = cache_read(dio, buffer, length);
+  if (count) {
+    return count;
+  }
+  // nope, need a file handle
   if (!ensure_file(dio, &tmp_err)) {
     propagate_gerror(dcm_error, tmp_err);
     return -1;
   }
-  int64_t count = _openslide_fread(dio->file, buffer, length, &tmp_err);
+  // seek if needed
+  // if we're going to fill from cache, allow loading part of the cache block
+  // with data before the virt_offset rather than emitting a seek
+  G_STATIC_ASSERT(CACHE_BLOCK_MIN_RELOAD > 0 &&
+                  CACHE_BLOCK_MIN_RELOAD <= CACHE_BLOCK_SIZE);
+  if (dio->virt_offset != dio->phys_offset &&
+      (length >= CACHE_BLOCK_SIZE ||
+       dio->virt_offset < dio->phys_offset ||
+       dio->virt_offset - dio->phys_offset > CACHE_BLOCK_SIZE - CACHE_BLOCK_MIN_RELOAD)) {
+    cache_debug("seek %s%"PRId64,
+                dio->virt_offset > dio->phys_offset ? "+" : "",
+                dio->virt_offset - dio->phys_offset);
+    if (!_openslide_fseek(dio->file, dio->virt_offset, SEEK_SET, &tmp_err)) {
+      propagate_gerror(dcm_error, tmp_err);
+      return -1;
+    }
+    dio->phys_offset = dio->virt_offset;
+  }
+  // for short reads, load cache and fill from there
+  if (length < CACHE_BLOCK_SIZE) {
+    G_STATIC_ASSERT(CACHE_BLOCKS == 2);
+    int block = !dio->cache_mru_block;
+    dio->cache_mru_block = block;
+    dio->cache_offset[block] = dio->phys_offset;
+    dio->cache_len[block] =
+      _openslide_fread(dio->file, dio->cache[block], CACHE_BLOCK_SIZE,
+                       &tmp_err);
+    if (tmp_err) {
+      propagate_gerror(dcm_error, tmp_err);
+      return -1;
+    }
+    cache_debug("cache fill [%d] %"PRId64" %u",
+                block, dio->cache_offset[block], dio->cache_len[block]);
+    dio->phys_offset += dio->cache_len[block];
+    return cache_read(dio, buffer, length);
+  }
+  // long read; fill directly
+  count = _openslide_fread(dio->file, buffer, length, &tmp_err);
   if (tmp_err) {
     propagate_gerror(dcm_error, tmp_err);
     return -1;
   }
-  dio->offset += count;
+  cache_debug("direct read %"PRId64" %"PRId64, dio->virt_offset, count);
+  dio->virt_offset += count;
+  dio->phys_offset = dio->virt_offset;
   return count;
 }
 
-static int64_t vfs_seek(DcmError **dcm_error, DcmIO *io,
+static int64_t vfs_seek(DcmError **dcm_error G_GNUC_UNUSED, DcmIO *io,
                         int64_t offset, int whence) {
   struct _openslide_dicom_io *dio = (struct _openslide_dicom_io *) io;
-  int64_t new_offset =
-    _openslide_compute_seek(dio->offset, dio->size, offset, whence);
-  if (dio->file) {
-    GError *tmp_err = NULL;
-    if (!_openslide_fseek(dio->file, new_offset, SEEK_SET, &tmp_err)) {
-      propagate_gerror(dcm_error, tmp_err);
-      return -1;
-    }
-  }
-  dio->offset = new_offset;
-  return new_offset;
+  dio->virt_offset =
+    _openslide_compute_seek(dio->virt_offset, dio->size, offset, whence);
+  return dio->virt_offset;
 }
 
 static const DcmIOMethods dicom_open_methods = {
@@ -162,5 +237,6 @@ DcmFilehandle *_openslide_dicom_open(const char *filename,
 void _openslide_dicom_io_suspend(struct _openslide_dicom_io *dio) {
   if (dio->file) {
     _openslide_fclose(g_steal_pointer(&dio->file));
+    dio->phys_offset = 0;
   }
 }

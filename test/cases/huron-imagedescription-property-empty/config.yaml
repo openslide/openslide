@@ -1,0 +1,5 @@
+base: Huron/Huron-1.tif
+slide: Huron-1.tif
+success: true
+vendor: huron
+requires: [tiff-log-callbacks]

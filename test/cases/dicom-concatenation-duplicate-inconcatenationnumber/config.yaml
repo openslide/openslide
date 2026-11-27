@@ -1,0 +1,5 @@
+base: DICOM/3DHISTECH-2.zip
+error: "^Reading .*/4_[12]: Found multiple SOP instances in concatenation with index 1$"
+slide: '5_0'
+success: false
+vendor: dicom

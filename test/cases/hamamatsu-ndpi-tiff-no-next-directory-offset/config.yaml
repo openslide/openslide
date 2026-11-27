@@ -1,7 +1,7 @@
 base: Hamamatsu/CMU-1.ndpi
-error: "tifflike: Cannot read next directory offset"
+error: "tifflike: Cannot read value/offset extensions"
 slide: CMU-1.ndpi
 success: false
-vendor: null
+vendor: ~
 debug:
   - detection

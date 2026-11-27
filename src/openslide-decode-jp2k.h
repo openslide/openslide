@@ -19,15 +19,16 @@
  *
  */
 
-#ifndef OPENSLIDE_OPENSLIDE_DECODE_JP2K_H_
-#define OPENSLIDE_OPENSLIDE_DECODE_JP2K_H_
+#pragma once
 
 #include <stdint.h>
 #include <glib.h>
 
 /* JPEG 2000 support */
 
+// the colorspace that comes out of OpenJPEG
 enum _openslide_jp2k_colorspace {
+  // includes MCT
   OPENSLIDE_JP2K_RGB,
   OPENSLIDE_JP2K_YCBCR,
 };
@@ -37,5 +38,3 @@ bool _openslide_jp2k_decode_buffer(uint32_t *dest,
                                    const void *data, int32_t datalen,
                                    enum _openslide_jp2k_colorspace space,
                                    GError **err);
-
-#endif

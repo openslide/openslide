@@ -2,7 +2,7 @@
  *  OpenSlide, a library for reading whole slide image files
  *
  *  Copyright (c) 2007-2015 Carnegie Mellon University
- *  Copyright (c) 2015-2022 Benjamin Gilbert
+ *  Copyright (c) 2015-2026 Benjamin Gilbert
  *  All rights reserved.
  *
  *  OpenSlide is free software: you can redistribute it and/or modify
@@ -61,15 +61,12 @@ static const struct debug_option {
 static uint32_t debug_flags;
 
 GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
-                                   GKeyFileFlags flags, GError **err) {
+                                   enum _openslide_key_file_flavor flavor,
+                                   GError **err) {
   /* We load the whole key file into memory and parse it with
    * g_key_file_load_from_data instead of using g_key_file_load_from_file
-   * because the load_from_file function incorrectly parses a value when
-   * the terminating '\r\n' falls across a 4KB boundary.
-   * https://bugzilla.redhat.com/show_bug.cgi?id=649936 */
-
-  /* this also allows us to skip a UTF-8 BOM which the g_key_file parser
-   * does not expect to find. */
+   * because that allows us to skip a UTF-8 BOM which the g_key_file parser
+   * does not expect to find, and to do some extra preprocessing. */
 
   /* Hamamatsu attempts to load the slide file as a key file.  We impose
      a maximum file size to avoid loading an entire slide into RAM. */
@@ -109,11 +106,35 @@ GKeyFile *_openslide_read_key_file(const char *filename, int32_t max_size,
     offset = 3;
   }
 
+  // remove empty keys reported to occur in MIRAX Slidedat.ini
+  if (flavor == OPENSLIDE_KEY_FILE_MIRAX) {
+    char *end = buf + size;
+    char *cur = buf + offset;
+    while (cur < end) {
+      // end of previous line
+      while (cur < end && g_ascii_isspace(*cur)) {
+        cur++;
+      }
+      // first non-whitespace
+      if (cur < end && *cur == '=') {
+        // value but no key; replace rest of line with spaces
+        while (cur < end && *cur != '\r' && *cur != '\n') {
+          *cur++ = ' ';
+        }
+      } else {
+        // walk to end of line
+        while (cur < end && *cur != '\r' && *cur != '\n') {
+          cur++;
+        }
+      }
+    }
+  }
+
   // parse
   g_autoptr(GKeyFile) key_file = g_key_file_new();
   if (!g_key_file_load_from_data(key_file,
                                  buf + offset, size - offset,
-                                 flags, err)) {
+                                 G_KEY_FILE_NONE, err)) {
     return NULL;
   }
   return g_steal_pointer(&key_file);
@@ -257,6 +278,27 @@ char *_openslide_format_double(double d) {
   return g_strdup(buf);
 }
 
+char *_openslide_decode_base64_str(const char *base64) {
+  gsize len;
+  char *decoded = (char *) g_base64_decode(base64, &len);
+  decoded = g_realloc(decoded, len + 1);
+  decoded[len] = 0;
+  return decoded;
+}
+
+// copy the src prop to dest if it exists
+void _openslide_duplicate_str_prop(openslide_t *osr, const char *src,
+                                   const char *dest) {
+  g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
+
+  char *value = g_hash_table_lookup(osr->properties, src);
+  if (value) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(dest),
+                        g_strdup(value));
+  }
+}
+
 // if the src prop is an int, canonicalize it and copy it to dest
 void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
                                    const char *dest) {
@@ -274,6 +316,14 @@ void _openslide_duplicate_int_prop(openslide_t *osr, const char *src,
 // if the src prop is a double, canonicalize it and copy it to dest
 void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
                                       const char *dest) {
+  _openslide_duplicate_double_prop_scaled(osr, src, 1, dest);
+}
+
+// if the src prop is a double, canonicalize it, multiply it by scale,
+// and copy it to dest
+void _openslide_duplicate_double_prop_scaled(openslide_t *osr,
+                                             const char *src, double scale,
+                                             const char *dest) {
   g_return_if_fail(g_hash_table_lookup(osr->properties, dest) == NULL);
 
   char *value = g_hash_table_lookup(osr->properties, src);
@@ -281,7 +331,7 @@ void _openslide_duplicate_double_prop(openslide_t *osr, const char *src,
     double result = _openslide_parse_double(value);
     if (!isnan(result)) {
       g_hash_table_insert(osr->properties, g_strdup(dest),
-                          _openslide_format_double(result));
+                          _openslide_format_double(scale * result));
     }
   }
 }
@@ -297,12 +347,20 @@ void _openslide_set_background_color_prop(openslide_t *osr,
 }
 
 void _openslide_set_bounds_props_from_grid(openslide_t *osr,
+                                           struct _openslide_level *level,
                                            struct _openslide_grid *grid) {
   g_return_if_fail(g_hash_table_lookup(osr->properties,
                                        OPENSLIDE_PROPERTY_NAME_BOUNDS_X) == NULL);
 
   double x, y, w, h;
   _openslide_grid_get_bounds(grid, &x, &y, &w, &h);
+  // simple grid doesn't know about padding in bottom/right tiles
+  w = MIN(w, level->w - x);
+  h = MIN(h, level->h - y);
+
+  if (x == 0 && y == 0 && w == level->w && h == level->h) {
+    return;
+  }
 
   g_hash_table_insert(osr->properties,
                       g_strdup(OPENSLIDE_PROPERTY_NAME_BOUNDS_X),

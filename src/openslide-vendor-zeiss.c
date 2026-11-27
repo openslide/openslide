@@ -310,6 +310,7 @@ static void destroy_level(struct level *l) {
   _openslide_grid_destroy(l->grid);
   g_free(l);
 }
+OPENSLIDE_DEFINE_G_DESTROY_NOTIFY_WRAPPER(destroy_level)
 
 static void destroy_czi(struct czi *czi) {
   g_free(czi->subblks);
@@ -332,7 +333,7 @@ static void destroy(openslide_t *osr) {
   }
 }
 
-static bool freadn_to_buf(struct _openslide_file *f, off_t offset,
+static bool freadn_to_buf(struct _openslide_file *f, int64_t offset,
                           void *buf, size_t len, GError **err) {
   if (!_openslide_fseek(f, offset, SEEK_SET, err)) {
     g_prefix_error(err, "Couldn't seek to offset %"PRId64": ", offset);
@@ -1287,28 +1288,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
   czi->nchannel = nchannel;
   czi->pixel_real_bits = pixel_real_bits;
 
-  // in meter/pixel
-  const char *meters =
-    g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.X.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      // in um/pixel
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_X),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
-
-  meters = g_hash_table_lookup(osr->properties, "zeiss.Scaling.Items.Y.Value");
-  if (meters) {
-    double d = _openslide_parse_double(meters);
-    if (!isnan(d)) {
-      g_hash_table_insert(osr->properties,
-                          g_strdup(OPENSLIDE_PROPERTY_NAME_MPP_Y),
-                          _openslide_format_double(d * 1000000.0));
-    }
-  }
+  // meter/pixel -> um/pixel
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.X.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_X);
+  _openslide_duplicate_double_prop_scaled(osr,
+                                          "zeiss.Scaling.Items.Y.Value",
+                                          1000000.0,
+                                          OPENSLIDE_PROPERTY_NAME_MPP_Y);
 
   char *objective_id = g_hash_table_lookup(osr->properties,
                                            "zeiss.Information.Image.ObjectiveSettings.ObjectiveRef.Id");
@@ -1318,6 +1306,15 @@ static bool parse_xml_set_prop(openslide_t *osr, struct czi *czi,
                       objective_id);
     _openslide_duplicate_double_prop(osr, objective_key,
                                      OPENSLIDE_PROPERTY_NAME_OBJECTIVE_POWER);
+  }
+
+  // schema allows for more than one barcode; just take the first one
+  char *barcode =
+    _openslide_xml_xpath_get_string(ctx, "(/ImageDocument/Metadata/AttachmentInfos/AttachmentInfo/Label/Barcodes/Barcode/Content)[1]/text()");
+  if (barcode) {
+    g_hash_table_insert(osr->properties,
+                        g_strdup(OPENSLIDE_PROPERTY_NAME_BARCODE),
+                        barcode);
   }
 
   return true;
@@ -1540,7 +1537,8 @@ static GPtrArray *create_levels(openslide_t *osr, struct czi *czi,
                                 GError **err) {
   // walk subblocks, create a level struct for each valid downsample
   g_autoptr(GPtrArray) levels =
-    g_ptr_array_new_full(10, (GDestroyNotify) destroy_level);
+    g_ptr_array_new_full(10,
+                         OPENSLIDE_G_DESTROY_NOTIFY_WRAPPER(destroy_level));
 
   // lookup level hash table by channel and downsample
   g_autoptr(GHashTable) level_hash =

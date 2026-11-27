@@ -1,0 +1,16 @@
+base: DICOM/3DHISTECH-2.zip
+slide: '4_1'
+success: true
+primary: true
+vendor: dicom
+properties:
+  openslide.associated.label.icc-size: '63928'
+  openslide.associated.label.width: '2621'
+  openslide.associated.macro.icc-size: '63928'
+  openslide.associated.macro.width: '2641'
+  openslide.icc-size: '63928'
+  openslide.quickhash-1: 7e6b30ea3a9fecc07ccead55aeeb0ceb940f92fbda8d72bd156384ee65cfc55c
+  openslide.vendor: dicom
+regions:
+  # span multiple files
+  - [180200, 227800, 0, 200, 700]

@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
   }
 
   /*
-  // simulate horizonal scrolling?
+  // simulate horizontal scrolling?
   gettimeofday(&start_tv, NULL);
   printf("test_horizontal_walk start\n");
   test_horizontal_walk(osr, 0, 0, 0, 10, 400, 10);
