@@ -107,7 +107,7 @@ void _openslide_gray16_to_gray8_avx2(uint8_t *src, size_t src_len,
      */
     tmp1 = _mm256_shuffle_epi8(tmp2, hi8);           // bits 8-15 of gray16
     /* 0xFF if high 8 bits is non-zero, 0 otherwise. The sign bit of high 8
-     * bits is always zero since it has been shift right, therefor it is safe to
+     * bits is always zero since it has been shift right, therefore it is safe to
      * compare signed with 0.
      */
     tmp2 = _mm256_cmpgt_epi8(tmp1, allzero);

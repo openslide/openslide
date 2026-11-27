@@ -644,7 +644,7 @@ static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
   cairo_set_user_data(cr, &_openslide_cairo_key, dst_fmt, g_free);
 
   // let cairo use default OVER operator. cairo treats CAIRO_FORMAT_RGB16_565
-  // as opaque, therefor has alpha 1. With SATURATE operator, it essentially
+  // as opaque, therefore has alpha 1. With SATURATE operator, it essentially
   // only show the all zeros destination.
   //cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
 

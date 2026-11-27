@@ -656,7 +656,7 @@ static bool read_tile(openslide_t *osr, cairo_t *cr,
                                  pixel_bytes_out, sb->w, sb->h);
     }
     else {
-      // argb32 is aleady aligned to 4 byte
+      // argb32 is already aligned to 4 byte
       tiledata = g_steal_pointer(&buf);
       tiledata_len = img_len;
       // Scenes pad their rectangles with pure white, and scene rectangles
