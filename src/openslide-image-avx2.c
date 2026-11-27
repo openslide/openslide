@@ -121,7 +121,7 @@ void _openslide_gray16_to_gray8_avx2(uint8_t *src, size_t src_len,
 
   size_t i = mm_len * mm_step;
   while (i < src_len) {
-    *dst++ = gray16togray8(src, nshift);
+    *dst++ = _openslide_gray16togray8(src, nshift);
     i += 2;
     src += 2;
   }

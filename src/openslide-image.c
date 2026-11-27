@@ -125,7 +125,7 @@ static void restore_czi_zstd1_dispatch(uint8_t *src, size_t src_len,
   return restore_czi_zstd1_generic(src, src_len, dst);
 }
 
-uint8_t gray16togray8(uint8_t *p, int ns) {
+uint8_t _openslide_gray16togray8(uint8_t *p, int ns) {
   uint16_t v = *((uint16_t *)p) >> ns;
 
   /* 14 bits gray image in zeiss Axioscan7 sometimes uses more than 14 bits,
@@ -139,7 +139,7 @@ static void gray16_to_gray8_generic(uint8_t *src, size_t src_len,
   int nshift = pixel_real_bits - 8;
   size_t i = 0;
   while (i < src_len) {
-    *dst++ = gray16togray8(src, nshift);
+    *dst++ = _openslide_gray16togray8(src, nshift);
     i += 2;
     src += 2;
   }

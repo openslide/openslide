@@ -32,7 +32,7 @@ void _openslide_restore_czi_zstd1_sse3(uint8_t *src, size_t src_len,
 void _openslide_restore_czi_zstd1_avx2(uint8_t *src, size_t src_len,
                                        uint8_t *dst);
 
-uint8_t gray16togray8(uint8_t *p, int ns);
+uint8_t _openslide_gray16togray8(uint8_t *p, int ns);
 typedef void (*_openslide_gray16_to_gray8_t)(uint8_t *src, size_t src_len,
                                              int pixel_real_bits, uint8_t *dst);
 extern _openslide_gray16_to_gray8_t _openslide_gray16_to_gray8;
