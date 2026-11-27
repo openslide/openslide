@@ -194,7 +194,7 @@ static void gray16_to_gray8_dispatch(uint8_t *src, size_t src_len,
   }
 #endif
 #ifdef USE_SSSE3
-  if (__builtin_cpu_supports("sse3")) {
+  if (__builtin_cpu_supports("ssse3")) {
     _openslide_gray16_to_gray8 = &_openslide_gray16_to_gray8_sse2;
     _openslide_gray16_to_gray8(src, src_len, pixel_real_bits, dst);
     return;
