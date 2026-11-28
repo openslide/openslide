@@ -50,6 +50,7 @@ jobs:
             gcc git-core meson pkg-config \
             cairo-devel \
             glib2-devel \
+            jxrlib-devel \
             libdicom-devel \
             libjpeg-turbo-devel \
             libpng-devel \
@@ -180,6 +181,7 @@ jobs:
                 meson pkg-config \
                 cairo \
                 glib \
+                jxrlib \
                 jpeg-turbo \
                 libdicom \
                 libpng \
@@ -222,6 +224,7 @@ jobs:
                     cairo-devel \
                     glib2-devel \
                     libdicom-devel \
+                    jxrlib-devel \
                     libjpeg-turbo-devel \
                     libpng-devel \
                     libtiff-devel \
@@ -257,6 +260,7 @@ jobs:
                     gcc git meson pkg-config \
                     libcairo2-dev$arch \
                     libglib2.0-dev$arch \
+                    libjxr-dev$arch \
                     $jpeg$arch \
                     libopenjp2-7-dev$arch \
                     libpng-dev$arch \

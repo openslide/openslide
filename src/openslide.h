@@ -114,6 +114,14 @@ openslide_t *openslide_open(const char *filename);
 OPENSLIDE_PUBLIC()
 int32_t openslide_get_level_count(openslide_t *osr);
 
+OPENSLIDE_PUBLIC()
+int32_t openslide_get_channel_count(openslide_t *osr);
+
+OPENSLIDE_PUBLIC()
+int32_t openslide_get_timepoint_count(openslide_t *osr);
+
+OPENSLIDE_PUBLIC()
+int32_t openslide_get_zstack_count(openslide_t *osr);
 
 /**
  * Get the dimensions of level 0 (the largest level). Exactly
@@ -200,6 +208,14 @@ void openslide_read_region(openslide_t *osr,
 			   int32_t level,
 			   int64_t w, int64_t h);
 
+OPENSLIDE_PUBLIC()
+void openslide_read_region_gray8(openslide_t *osr, uint8_t *dest, int64_t x,
+                                 int64_t y, int32_t level, int64_t w,
+                                 int64_t h);
+OPENSLIDE_PUBLIC()
+void openslide_read_region_gray16(openslide_t *osr, uint8_t *dest, int64_t x,
+                                  int64_t y, int32_t level, int64_t w,
+                                  int64_t h);
 
 /**
  * Get the size in bytes of the ICC color profile for the whole slide image.

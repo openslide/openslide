@@ -34,6 +34,7 @@
 #include <libxml/parser.h>
 
 #include "openslide-error.h"
+#include "openslide-image.h"
 
 const char _openslide_release_info[] = "OpenSlide " SUFFIXED_VERSION ", copyright (C) 2007-2026 Carnegie Mellon University and others.\nLicensed under the GNU Lesser General Public License, version 2.1.";
 
@@ -57,6 +58,10 @@ static const struct _openslide_format *formats[] = {
   &_openslide_format_generic_tiff,
   NULL,
 };
+
+static const uint8_t PIXEL_BYTES_GRAY8 = 1;
+static const uint8_t PIXEL_BYTES_GRAY16 = 2;
+const cairo_user_data_key_t _openslide_cairo_key;
 
 static bool openslide_was_dynamically_loaded;
 
@@ -417,6 +422,33 @@ int32_t openslide_get_level_count(openslide_t *osr) {
 }
 
 
+int32_t openslide_get_channel_count(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
+  return osr->channel_count;
+}
+
+
+int32_t openslide_get_timepoint_count(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
+  return osr->timepoint_count;
+}
+
+
+int32_t openslide_get_zstack_count(openslide_t *osr) {
+  if (openslide_get_error(osr)) {
+    return -1;
+  }
+
+  return osr->zstack_count;
+}
+
+
 int32_t openslide_get_best_level_for_downsample(openslide_t *osr,
 						double downsample) {
   if (openslide_get_error(osr)) {
@@ -522,6 +554,15 @@ void openslide_read_region(openslide_t *osr,
     return;
   }
 
+  // Only read single channel slide. Multi-channel slides are likely gray
+  if (osr->channel_count > 1) {
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                  "openslide_read_region() can only read "
+                                  "single channel slide");
+    _openslide_propagate_error(osr, tmp_err);
+    return;
+  }
+
   // clear the dest
   if (dest) {
     memset(dest, 0, w * h * 4);
@@ -562,6 +603,204 @@ void openslide_read_region(openslide_t *osr,
       }
     }
   }
+}
+
+static bool read_region_area_gray(openslide_t *osr, uint8_t *dest,
+                                  int64_t stride, uint8_t pixel_bytes,
+                                  int64_t x, int64_t y, int32_t level,
+                                  int64_t w, int64_t h, GError **err) {
+  cairo_format_t cr_fmt;
+  if (pixel_bytes == 1) {
+    cr_fmt = CAIRO_FORMAT_A8;
+  } else if (pixel_bytes == 2) {
+    cr_fmt = CAIRO_FORMAT_RGB16_565;
+  } else {
+    return false;
+  }
+
+  g_autoptr(cairo_surface_t) surface = NULL;
+  if (dest) {
+    surface = cairo_image_surface_create_for_data((unsigned char *) dest,
+                                                  cr_fmt, w, h, stride);
+  } else {
+    // nil surface
+    surface = cairo_image_surface_create(cr_fmt, 0, 0);
+  }
+
+  cairo_status_t rc = cairo_surface_status(surface);
+  if (rc != CAIRO_STATUS_SUCCESS) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "read_region_area_gray() error when creating cairo surface: %s",
+                cairo_status_to_string(rc));
+    return false;
+  }
+
+  g_autoptr(cairo_t) cr = cairo_create(surface);
+
+  // attach the cairo destination type to cairo context, so that read_tile()
+  // can set the output format. User may request gray8 for gray16 image.
+  int64_t *dst_fmt = g_new(int64_t, 1);
+  *dst_fmt = (int64_t) cr_fmt;
+  cairo_set_user_data(cr, &_openslide_cairo_key, dst_fmt, g_free);
+
+  // let cairo use default OVER operator. cairo treats CAIRO_FORMAT_RGB16_565
+  // as opaque, therefore has alpha 1. With SATURATE operator, it essentially
+  // only show the all zeros destination.
+  //cairo_set_operator(cr, CAIRO_OPERATOR_SATURATE);
+
+  if (level < 0 || level > osr->level_count_all - 1) {
+    g_set_error(err, OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                "invalid level %d", level);
+    return false;
+  }
+
+  struct _openslide_level *l = osr->levels[level];
+
+  // offset if given negative coordinates
+  double ds = l->downsample;
+  int64_t tx = 0;
+  int64_t ty = 0;
+  if (x < 0) {
+    tx = (-x) / ds;
+    x = 0;
+    w -= tx;
+  }
+  if (y < 0) {
+    ty = (-y) / ds;
+    y = 0;
+    h -= ty;
+  }
+  cairo_translate(cr, tx, ty);
+
+  if (w > 0 && h > 0) {
+    if (!osr->ops->paint_region(osr, cr, x, y, l, w, h, err)) {
+      return false;
+    }
+  }
+
+  if (!_openslide_check_cairo_status(cr, err)) {
+    return false;
+  }
+  return true;
+}
+
+static double openslide_get_level_downsample_gray(openslide_t *osr,
+                                                  int32_t level) {
+  if (openslide_get_error(osr)) {
+    return -1.0;
+  }
+
+  if (level < 0 || level > osr->level_count_all - 1) {
+    return -1.0;
+  }
+
+  return osr->levels[level]->downsample;
+}
+
+/* openslide_read_region() modified to read gray8 and gray16 */
+static void openslide_read_region_gray(openslide_t *osr, uint8_t *dest,
+                                       uint8_t pixel_bytes, int64_t x,
+                                       int64_t y, int32_t level, int64_t w,
+                                       int64_t h) {
+  if (w < 0 || h < 0) {
+    GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                  "negative width (%" PRId64 ") "
+                                  "or negative height (%" PRId64 ") "
+                                  "not allowed",
+                                  w, h);
+    _openslide_propagate_error(osr, tmp_err);
+    return;
+  }
+
+  cairo_format_t cr_fmt;
+  if (pixel_bytes == 1) {
+    cr_fmt = CAIRO_FORMAT_A8;
+  } else if (pixel_bytes == 2) {
+    cr_fmt = CAIRO_FORMAT_RGB16_565;
+  } else {
+    GError *tmp_err =
+        g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                    "pixel_bytes must either 1 or 2, not %d", pixel_bytes);
+    _openslide_propagate_error(osr, tmp_err);
+    return;
+  }
+
+  uint8_t *buf;
+  g_autofree uint8_t *buf_cr = NULL;
+  // stride is padded to 4-byte boundary
+  int64_t stride = cairo_format_stride_for_width(cr_fmt, w);
+  size_t len = h * stride;
+  if (stride == w * pixel_bytes) {
+    // do not need additional padding for image row
+    buf = dest;
+  } else {
+    buf_cr = g_try_malloc(len);
+    if (!buf_cr) {
+      GError *tmp_err = g_error_new(OPENSLIDE_ERROR, OPENSLIDE_ERROR_FAILED,
+                                    "Couldn't allocate %zu"
+                                    " bytes for openslide_read_region_gray()",
+                                    len);
+      _openslide_propagate_error(osr, tmp_err);
+      return;
+    }
+
+    buf = buf_cr;
+  }
+
+  if (buf) {
+    memset(buf, 0, len);
+  }
+
+  // now that it's cleared, return if an error occurred
+  if (openslide_get_error(osr)) {
+    return;
+  }
+
+  const int64_t d = 4096;
+  double ds = openslide_get_level_downsample_gray(osr, level);
+  for (int64_t row = 0; row < (h + d - 1) / d; row++) {
+    // only read the requested width; row padding up to stride is left as
+    // zeros and removed afterwards
+    for (int64_t col = 0; col < (w + d - 1) / d; col++) {
+      // calculate surface coordinates and size
+      int64_t sx = x + col * d * ds;    // level 0 plane
+      int64_t sy = y + row * d * ds;    // level 0 plane
+      int64_t sw = MIN(w - col * d, d); // level plane
+      int64_t sh = MIN(h - row * d, d); // level plane
+
+      GError *tmp_err = NULL;
+      if (!read_region_area_gray(
+              osr, buf ? buf + stride * row * d + col * d * pixel_bytes : NULL,
+              stride, pixel_bytes, sx, sy, level, sw, sh, &tmp_err)) {
+        _openslide_propagate_error(osr, tmp_err);
+        if (buf) {
+          // ensure we don't return a partial result
+          memset(buf, 0, len);
+        }
+        return;
+      }
+    }
+  }
+
+  // remove stride padding
+  if (buf_cr) {
+    _openslide_del_row_padding(buf_cr, len, dest, w * h * pixel_bytes,
+                               pixel_bytes, w, h);
+  }
+}
+
+void openslide_read_region_gray8(openslide_t *osr, uint8_t *dest, int64_t x,
+                                 int64_t y, int32_t level, int64_t w,
+                                 int64_t h) {
+  return openslide_read_region_gray(osr, dest, PIXEL_BYTES_GRAY8, x, y, level,
+                                    w, h);
+}
+
+void openslide_read_region_gray16(openslide_t *osr, uint8_t *dest, int64_t x,
+                                  int64_t y, int32_t level, int64_t w,
+                                  int64_t h) {
+  return openslide_read_region_gray(osr, dest, PIXEL_BYTES_GRAY16, x, y, level,
+                                    w, h);
 }
 
 const char * const *openslide_get_property_names(openslide_t *osr) {
