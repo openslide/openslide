@@ -265,12 +265,19 @@ c_args_ssse3 = ['-g', '-O2']
 c_args_avx2 = ['-g', '-O2']
 if host_machine.cpu_family() == 'x86_64'
   conf.set('CONFIG_OSR_ARCH_X86_64', 1)
-  if get_option('ssse3')
+  # Runtime dispatch uses __builtin_cpu_supports().  clang-cl accepts it but
+  # doesn't link the runtime support (__cpu_model), so check that it links.
+  have_cpu_supports = cc.links(
+    'int main(void) { return __builtin_cpu_supports("avx2"); }',
+    name : '__builtin_cpu_supports',
+  )
+
+  if get_option('ssse3') and have_cpu_supports
     conf.set('USE_SSSE3', cc.has_argument('-mssse3'))
     c_args_ssse3 += cc.get_supported_arguments('-mssse3')
   endif
 
-  if get_option('avx2')
+  if get_option('avx2') and have_cpu_supports
     conf.set('USE_AVX2', cc.has_argument('-mavx2'))
     c_args_avx2 += cc.get_supported_arguments('-mavx', '-mavx2')
   endif
